@@ -255,7 +255,7 @@ public static class ShopSalesLogParser
                 || total < 0)
                 continue;
 
-            var buyer = match.Groups["buyer"].Value.Trim();
+            var buyer = WebUtility.HtmlDecode(match.Groups["buyer"].Value).Trim();
             var item = WebUtility.HtmlDecode(match.Groups["item"].Value).Trim();
             if (buyer.Length == 0 || item.Length == 0) continue;
             var soldAt = ParseTimestamp(match.Groups["date"].Value, match.Groups["time"].Value);
