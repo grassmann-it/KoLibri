@@ -1,0 +1,173 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KoLibri.Desktop.MainWindow"
+        Title="KoLibri"
+        Width="1200"
+        Height="760"
+        MinWidth="900"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+  <Grid ColumnDefinitions="240,*" Background="#0d1117">
+    <Border Grid.Column="0" Background="#010409" BorderBrush="#21262d" BorderThickness="0,0,1,0" Padding="18,24">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="2">
+          <TextBlock Text="KoLibri" FontSize="22" FontWeight="Bold" Foreground="#f0f6fc" />
+          <TextBlock Text="Shop-Arbitrage Console" Classes="muted" FontSize="12" Margin="0,0,0,24" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,20,0,0">
+          <Border Background="#161b22" CornerRadius="8" Padding="10">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Konten" FontSize="11" Classes="muted" />
+              <TextBlock Text="2 Rollen vorbereitet" Foreground="#d29922" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <TextBlock Text="v0.1 · lokale Vorschau" FontSize="11" Classes="muted" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <Button Classes="nav-item" Content="⌂   Übersicht" Click="OverviewClick" />
+          <Button Classes="nav-item" Content="◎   Pricing Engine" Click="PricingClick" />
+          <Button Classes="nav-item" Content="▦   Mall &amp; Shop" Click="MallClick" />
+          <Button Classes="nav-item" Content="♙   Konten &amp; Transfer" Click="AccountsClick" />
+          <Button Classes="nav-item" Content="⚔   Adventure" Click="AdventureClick" />
+          <Button Classes="nav-item" Content="⚙   Einstellungen" Click="SettingsClick" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel x:Name="ContentRoot" Margin="34,30" Spacing="24">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel>
+            <TextBlock Text="Guten Morgen" Classes="h1" />
+            <TextBlock Text="Dein Arbitrage-Überblick für heute." Classes="muted" FontSize="14" Margin="0,6,0,0" />
+          </StackPanel>
+          <Button Grid.Column="1" Classes="primary" Content="⟳  Daten aktualisieren" Click="RefreshClick" />
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
+          <Border Classes="card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Knucklebones heute" Classes="muted" />
+              <TextBlock Text="42 / 100" FontSize="27" FontWeight="SemiBold" Foreground="#f0f6fc" />
+              <ProgressBar Value="42" Maximum="100" Height="7" />
+              <TextBlock Text="Nächster Lauf: in 18 Min." Classes="muted" FontSize="12" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Preisquellen-Cache" Classes="muted" />
+              <TextBlock Text="96 % frisch" FontSize="27" FontWeight="SemiBold" Foreground="#3fb950" />
+              <TextBlock Text="Letzter Abgleich vor 4 Min." Classes="muted" FontSize="12" />
+              <TextBlock Text="Pricegun · Mall · Shop" Classes="muted" FontSize="12" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Kaufkandidaten" Classes="muted" />
+              <TextBlock Text="7" FontSize="27" FontWeight="SemiBold" Foreground="#d29922" />
+              <TextBlock Text="über 20 % erwartete Marge" Classes="muted" FontSize="12" />
+              <TextBlock Text="3 benötigen Detailpreis" Classes="muted" FontSize="12" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="14">
+          <Border Classes="card">
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Arbitrage-Pipeline" FontSize="18" FontWeight="SemiBold" Foreground="#f0f6fc" />
+                  <TextBlock Text="Priorisierte Aktionen aus dem letzten Scan" Classes="muted" FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Alle anzeigen →" Background="Transparent" Foreground="#58a6ff" Click="PricingClick" />
+              </Grid>
+              <Grid ColumnDefinitions="2*,*,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+                <TextBlock Text="Artikel" Classes="muted" FontSize="12" />
+                <TextBlock Grid.Column="1" Text="Einkauf" Classes="muted" FontSize="12" />
+                <TextBlock Grid.Column="2" Text="Zielpreis" Classes="muted" FontSize="12" />
+                <TextBlock Grid.Column="3" Text="Score" Classes="muted" FontSize="12" />
+                <TextBlock Grid.Row="1" Text="Tiny Plastic Figure · Set A" Foreground="#c9d1d9" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="12 000 meat" Foreground="#c9d1d9" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="18 500 meat" Foreground="#3fb950" />
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="92" Foreground="#d29922" />
+                <TextBlock Grid.Row="2" Text="Pirate Encryption Key" Foreground="#c9d1d9" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="8 400 meat" Foreground="#c9d1d9" />
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="11 200 meat" Foreground="#3fb950" />
+                <TextBlock Grid.Row="2" Grid.Column="3" Text="81" Foreground="#d29922" />
+              </Grid>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="card">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Systemstatus" FontSize="18" FontWeight="SemiBold" Foreground="#f0f6fc" />
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                <TextBlock Text="Main-Account" Foreground="#c9d1d9" />
+                <TextBlock Grid.Column="1" Text="Simulation" Foreground="#d29922" />
+                <TextBlock Grid.Row="1" Text="Mallbot" Foreground="#c9d1d9" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="Simulation" Foreground="#d29922" />
+                <TextBlock Grid.Row="2" Text="Letzte Aktion" Classes="muted" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="vor 4 Min." Classes="muted" />
+              </Grid>
+              <Border Background="#1c2128" CornerRadius="6" Padding="10" Margin="0,5,0,0">
+                <TextBlock Text="Automatisches Kaufen bleibt bis zur Freigabe im Simulationsmodus." TextWrapping="Wrap" Classes="muted" FontSize="12" />
+              </Border>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Border x:Name="AccountsPanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="3">
+              <TextBlock Text="Konten verbinden" FontSize="18" FontWeight="SemiBold" Foreground="#f0f6fc" />
+              <TextBlock Text="KoLibri meldet beide Rollen direkt bei KoL an. Benutzername und Session-Cookies werden verschlüsselt gespeichert; das Passwort ist optional verschlüsselt speicherbar." Classes="muted" TextWrapping="Wrap" FontSize="12" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+              <Border Background="#0d1117" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Main" FontSize="16" FontWeight="SemiBold" Foreground="#f0f6fc" />
+                  <TextBox x:Name="MainUsername" Watermark="Benutzername" />
+                  <TextBox x:Name="MainPassword" Watermark="Passwort" PasswordChar="●" />
+                  <CheckBox x:Name="MainRememberPassword" Content="Passwort verschlüsselt speichern" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock x:Name="MainAccountStatus" Text="Noch nicht gespeichert" Classes="muted" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="Login &amp; speichern" Tag="Main" Click="SaveAccountClick" Classes="primary" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="1" Background="#0d1117" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="Mallbot" FontSize="16" FontWeight="SemiBold" Foreground="#f0f6fc" />
+                  <TextBox x:Name="MallbotUsername" Watermark="Benutzername" />
+                  <TextBox x:Name="MallbotPassword" Watermark="Passwort" PasswordChar="●" />
+                  <CheckBox x:Name="MallbotRememberPassword" Content="Passwort verschlüsselt speichern" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBlock x:Name="MallbotAccountStatus" Text="Noch nicht gespeichert" Classes="muted" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Content="Login &amp; speichern" Tag="Mallbot" Click="SaveAccountClick" Classes="primary" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="MallPanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="3">
+                <TextBlock Text="Mall &amp; eigener Shop" FontSize="18" FontWeight="SemiBold" Foreground="#f0f6fc" />
+                <TextBlock Text="Read-only-Übersicht mit Cache; es werden keine Listings verändert." Classes="muted" TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="⟳  Mall aktualisieren" Click="RefreshMallClick" Classes="primary" />
+            </Grid>
+            <TextBlock x:Name="MallSummary" Text="Noch keine Mall-Daten geladen." Classes="muted" />
+            <TextBlock x:Name="MallRows" TextWrapping="Wrap" Foreground="#c9d1d9" />
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="StatusBar" Background="#161b22" CornerRadius="7" Padding="12" IsVisible="False">
+          <TextBlock x:Name="StatusText" Foreground="#c9d1d9" />
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</Window>

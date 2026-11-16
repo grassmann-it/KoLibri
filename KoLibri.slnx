@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
+    <Project Path="src/LibKolibri/LibKolibri.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/KolLibri.Cli/KolLibri.Cli.csproj" />
+  </Folder>
+  <Project Path="KoLibri.Desktop/KoLibri.Desktop.csproj" />
+  <Project Path="tools/KolLibri.OfflineDemo/KolLibri.OfflineDemo.csproj" />
+</Solution>

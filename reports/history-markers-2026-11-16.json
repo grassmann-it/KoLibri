@@ -1,0 +1,292 @@
+{
+  "role": "Mallbot",
+  "count": 13,
+  "results": [
+    {
+      "itemId": "2880",
+      "displayName": "tiny plastic Bonerdagon",
+      "currentPrice": 1199,
+      "mallLowest": 700,
+      "pricegunMin": 100,
+      "pricegunMedian": 8650,
+      "pricegunWeightedAverage": 8076.15,
+      "pricegunMax": 37000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:15:49.0210659+00:00",
+        "unitPrice": 750,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": true,
+      "historicalPremiumPercent": 11.357142857142857142857142857,
+      "currentVsHistoryPercent": 6.2143452877397831526271893244,
+      "buyCandidate": true,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11442",
+      "displayName": "Crimbuccaneer runebone",
+      "currentPrice": 77996,
+      "mallLowest": 77996,
+      "pricegunMin": 78000,
+      "pricegunMedian": 91998.5,
+      "pricegunWeightedAverage": 204999.1,
+      "pricegunMax": 500000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:15:51.1934757+00:00",
+        "unitPrice": 78000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": true,
+      "historicalPremiumPercent": 0.1795284373557618339402020616,
+      "currentVsHistoryPercent": 0.1795284373557618339402020616,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11415",
+      "displayName": "Elf Guard insignia (general)",
+      "currentPrice": 798999,
+      "mallLowest": 798999,
+      "pricegunMin": 800000,
+      "pricegunMedian": 900000,
+      "pricegunWeightedAverage": 912791.625,
+      "pricegunMax": 980000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:15:52.7980874+00:00",
+        "unitPrice": 850000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": true,
+      "historicalPremiumPercent": 0.1264094197865078679697972088,
+      "currentVsHistoryPercent": 0.1264094197865078679697972088,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11429",
+      "displayName": "Elf Guard Field Manual: Culinary Arts",
+      "currentPrice": 824999,
+      "mallLowest": 824999,
+      "pricegunMin": 900000,
+      "pricegunMedian": 1045000,
+      "pricegunWeightedAverage": 1098043.434782608695652173913,
+      "pricegunMax": 1425000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:15:54.9830389+00:00",
+        "unitPrice": 920000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": true,
+      "historicalPremiumPercent": 0.2666682020220630570461297529,
+      "currentVsHistoryPercent": 0.2666682020220630570461297529,
+      "buyCandidate": true,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11449",
+      "displayName": "Elf Guard Field Manual: Extortion",
+      "currentPrice": 874999,
+      "mallLowest": 874999,
+      "pricegunMin": 789000,
+      "pricegunMedian": 940000,
+      "pricegunWeightedAverage": 949909.0909090909090909090909,
+      "pricegunMax": 1180000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:15:57.5349527+00:00",
+        "unitPrice": 940000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": 0.0742869420422194768222592254,
+      "currentVsHistoryPercent": 0.0742869420422194768222592254,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11446",
+      "displayName": "Elf Guard fuel tank",
+      "currentPrice": 899999,
+      "mallLowest": 899999,
+      "pricegunMin": 895000,
+      "pricegunMedian": 965000,
+      "pricegunWeightedAverage": 946500,
+      "pricegunMax": 1080000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:00.4667597+00:00",
+        "unitPrice": 920000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": 0.0722234135815706461896068773,
+      "currentVsHistoryPercent": 0.0722234135815706461896068773,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "11458",
+      "displayName": "Crimbuccaneer bombjacket",
+      "currentPrice": 945249,
+      "mallLowest": 945249,
+      "pricegunMin": 830000,
+      "pricegunMedian": 935000,
+      "pricegunWeightedAverage": 919767.0909090909090909090909,
+      "pricegunMax": 969969,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:04.2557155+00:00",
+        "unitPrice": 949969,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.0108426456944149107801224862,
+      "currentVsHistoryPercent": -0.0108426456944149107801224862,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "3613",
+      "displayName": "battered Crimbo Crate",
+      "currentPrice": 24875,
+      "mallLowest": 24875,
+      "pricegunMin": 100,
+      "pricegunMedian": 100,
+      "pricegunWeightedAverage": 13810.740740740740740740740741,
+      "pricegunMax": 31490,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:06.3267788+00:00",
+        "unitPrice": 25000,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.9959798994974874371859296482,
+      "currentVsHistoryPercent": -0.9959798994974874371859296482,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "4822",
+      "displayName": "tiny plastic CRIMBCO HQ",
+      "currentPrice": 678874,
+      "mallLowest": 678874,
+      "pricegunMin": 645000,
+      "pricegunMedian": 669000,
+      "pricegunWeightedAverage": 667428.15384615384615384615385,
+      "pricegunMax": 700000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:08.6800156+00:00",
+        "unitPrice": 675000,
+        "quantity": 1
+      },
+      "saleCount": 13,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.0145446725018191888332739212,
+      "currentVsHistoryPercent": -0.0145446725018191888332739212,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "1377",
+      "displayName": "tiny plastic Crimbo elf",
+      "currentPrice": 1999,
+      "mallLowest": 1999,
+      "pricegunMin": 2000,
+      "pricegunMedian": 2440,
+      "pricegunWeightedAverage": 2463.0774647887323943661971831,
+      "pricegunMax": 7498,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:10.8279891+00:00",
+        "unitPrice": 2440,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": true,
+      "historicalPremiumPercent": 0.220610305152576288144072036,
+      "currentVsHistoryPercent": 0.220610305152576288144072036,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "965",
+      "displayName": "tiny plastic pastamancer",
+      "currentPrice": 83999,
+      "mallLowest": 83999,
+      "pricegunMin": 35000,
+      "pricegunMedian": 76733.5,
+      "pricegunWeightedAverage": 78239.77192982456140350877193,
+      "pricegunMax": 110000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:12.3416035+00:00",
+        "unitPrice": 35000,
+        "quantity": 2
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.0864950773223490755842331456,
+      "currentVsHistoryPercent": -0.0864950773223490755842331456,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "975",
+      "displayName": "tiny plastic spooky pirate skeleton",
+      "currentPrice": 489,
+      "mallLowest": 489,
+      "pricegunMin": 400,
+      "pricegunMedian": 460,
+      "pricegunWeightedAverage": 461.08181818181818181818181818,
+      "pricegunMax": 500,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:13.8622635+00:00",
+        "unitPrice": 460,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.0593047034764826175869120654,
+      "currentVsHistoryPercent": -0.0593047034764826175869120654,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    },
+    {
+      "itemId": "2906",
+      "displayName": "tiny plastic lobsterfrogman",
+      "currentPrice": 4999,
+      "mallLowest": 4999,
+      "pricegunMin": 100,
+      "pricegunMedian": 100,
+      "pricegunWeightedAverage": 2115.2558139534883720930232558,
+      "pricegunMax": 5000,
+      "pricegunLatest": {
+        "soldAt": "2026-11-16T14:16:15.5956166+00:00",
+        "unitPrice": 100,
+        "quantity": 1
+      },
+      "saleCount": 20,
+      "historicalHigher": false,
+      "historicalPremiumPercent": -0.9799959991998399679935987197,
+      "currentVsHistoryPercent": -0.9799959991998399679935987197,
+      "buyCandidate": false,
+      "mallIsStale": false,
+      "pricegunIsStale": false
+    }
+  ]
+}

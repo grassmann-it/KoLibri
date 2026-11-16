@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-11-16T15:15:48.346104+00:00",
+  "bagItemId": "8691",
+  "bagName": "bag of foreign bribes",
+  "role": "Mallbot",
+  "observedMallFloor": 27000,
+  "observedFloorQuantity": 463,
+  "mallbotMeat": 2409081,
+  "mainStatus": "expired; re-login required",
+  "pilotQuantity": 40,
+  "pilotUnitPrice": 27000,
+  "pilotSpend": 1080000,
+  "meatAfterPilot": 1329081,
+  "reserveTarget": 1000000,
+  "openOn": "Main",
+  "openNow": false,
+  "purchaseExecuted": false,
+  "steps": [
+    "Main neu einloggen und Session verifizieren.",
+    "Pilotcharge von 40 Bags beim Mallbot gegen frischen Preis-/Mengencheck kaufen.",
+    "Ungeöffnete Bags zum Main transferieren; Transfer bleibt Approval-Schritt.",
+    "Bags einzeln/batchweise öffnen und Währungsausbeute protokollieren.",
+    "Pro Währung Mall+Pricegun-Ranking mit gemessener Opportunity Cost rechnen.",
+    "Nur handelbare Ausgaben kaufen; Tickets nur bei positiver Nettoerwartung."
+  ],
+  "abortIf": [
+    "Mallboden steigt deutlich über 27000.",
+    "Mallbot-Meat fällt unter 1000000.",
+    "Main-Transfer oder Bag-Ausgabe weicht vom erwarteten Format ab."
+  ]
+}

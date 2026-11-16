@@ -1,0 +1,1682 @@
+[
+  {
+    "itemId": "8790",
+    "displayName": "elven tambourine",
+    "currentPrice": 9690690,
+    "median": 5000000,
+    "weightedAvg": 7004704,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "8790",
+        "storeId": "568688",
+        "storeName": "The Fatass Locker.",
+        "price": 2299999,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:44.5165632+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8790",
+        "storeId": "1336376",
+        "storeName": "Fortune's Formula",
+        "price": 2300000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:44.5169076+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8790",
+        "storeId": "3669786",
+        "storeName": "Sand Dollar",
+        "price": 2400000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:44.5169393+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8790",
+        "storeId": "725488",
+        "storeName": "An old man by the store",
+        "price": 2500000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:44.5169675+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8790",
+        "storeId": "2264074",
+        "storeName": "The name is 37 symbols long, trust me",
+        "price": 2600000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:44.5169949+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "8781",
+    "displayName": "pine cone necklace",
+    "currentPrice": 6379999,
+    "median": 19000000,
+    "weightedAvg": 19857136,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "8781",
+        "storeId": "2132241",
+        "storeName": "Lolly's & Pop's Candy Carnival",
+        "price": 4599000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:46.7990778+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8781",
+        "storeId": "1336376",
+        "storeName": "Fortune's Formula",
+        "price": 4600000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:46.799245+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8781",
+        "storeId": "510747",
+        "storeName": "Sadistic Industries",
+        "price": 4600000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:46.7992618+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8781",
+        "storeId": "864710",
+        "storeName": "Shop Of Seluj Rangers",
+        "price": 4640000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:46.7992767+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8781",
+        "storeId": "354011",
+        "storeName": "Silent Ninja Bargain Shack",
+        "price": 4700000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:46.7992944+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11448",
+    "displayName": "brown pirate pants",
+    "currentPrice": 669669,
+    "median": 160000,
+    "weightedAvg": 152249.85,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11448",
+        "storeId": "3278902",
+        "storeName": "Tourmie's Shack of Occasional Emptiness",
+        "price": 100000,
+        "quantity": 6,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:52.6501695+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11448",
+        "storeId": "3483633",
+        "storeName": "Hoop Dreams",
+        "price": 139997,
+        "quantity": 10,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:52.6505252+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11448",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 140000,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:52.6505495+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11448",
+        "storeId": "113089",
+        "storeName": "Gold's vault & Co.",
+        "price": 140000,
+        "quantity": 13,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:52.6508855+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11448",
+        "storeId": "3287857",
+        "storeName": "SCS Eureka",
+        "price": 149500,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:52.6509084+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11431",
+    "displayName": "whalegun",
+    "currentPrice": 999998,
+    "median": 970000,
+    "weightedAvg": 950648,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11431",
+        "storeId": "3284138",
+        "storeName": "Hugin's FBM (definitely not fraudulent business market)",
+        "price": 750000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:59.3269223+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11431",
+        "storeId": "1937905",
+        "storeName": "(Lord) Wall-De-Mart",
+        "price": 880000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:59.3270923+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11431",
+        "storeId": "3019702",
+        "storeName": "Check out the store above",
+        "price": 890000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:59.3271168+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11431",
+        "storeId": "1965312",
+        "storeName": "A SQileTon Invasion!",
+        "price": 990000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:59.3271318+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11431",
+        "storeId": "3693111",
+        "storeName": "expensive stuff here",
+        "price": 999000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:54:59.3271484+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "6531",
+    "displayName": "muddy skirt",
+    "currentPrice": 420690,
+    "median": 333000,
+    "weightedAvg": 332453.3333333333,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "6531",
+        "storeId": "3484902",
+        "storeName": "Store of Storing Stuff and DooDads",
+        "price": 250000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:01.3253196+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6531",
+        "storeId": "3675283",
+        "storeName": "Seaside Salvage Surplus",
+        "price": 289000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:01.3255839+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6531",
+        "storeId": "864710",
+        "storeName": "Shop Of Seluj Rangers",
+        "price": 290000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:01.3256136+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6531",
+        "storeId": "1641473",
+        "storeName": "Wee Turpentine Store",
+        "price": 400000,
+        "quantity": 10,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:01.3256406+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6531",
+        "storeId": "1546607",
+        "storeName": "The Store of Universal Gravitation",
+        "price": 406969,
+        "quantity": 20,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:01.3256783+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "1396",
+    "displayName": "duck-on-a-string",
+    "currentPrice": 169069,
+    "median": 26123.5,
+    "weightedAvg": 29518.85,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "2136",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 3100,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:03.0329088+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2136",
+        "storeId": "424156",
+        "storeName": "Red Dwarf Tavern N Shop",
+        "price": 3100,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:03.0329202+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2136",
+        "storeId": "1677460",
+        "storeName": "DrPoJo's Operation Tent",
+        "price": 3100,
+        "quantity": 87,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:03.0329343+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2136",
+        "storeId": "395262",
+        "storeName": "Blurg's Home for the Restless",
+        "price": 3100,
+        "quantity": 5,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:03.0329509+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2136",
+        "storeId": "1777182",
+        "storeName": "thestoreownedbytheboywhowasthe manonthemoon",
+        "price": 3100,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:03.0329662+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11828",
+    "displayName": "geofencing shield",
+    "currentPrice": 168069,
+    "median": 167987,
+    "weightedAvg": 139382.15789473685,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11819",
+        "storeId": "177122",
+        "storeName": "Lot 49",
+        "price": 2949,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:04.6597684+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11819",
+        "storeId": "84675",
+        "storeName": "Colossal Savings of Chronic!",
+        "price": 3900,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:04.6599501+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11819",
+        "storeId": "62192",
+        "storeName": "Asidonhopo's General Store",
+        "price": 4300,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:04.6599783+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11819",
+        "storeId": "3390861",
+        "storeName": "Super Ultra Store Turbo 9000 and a half!",
+        "price": 4350,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:04.6599947+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11819",
+        "storeId": "2423748",
+        "storeName": "The Cheasure Trest",
+        "price": 4350,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:04.6600159+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11455",
+    "displayName": "free boots",
+    "currentPrice": 399999,
+    "median": 410000,
+    "weightedAvg": 401225.05,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11455",
+        "storeId": "3483633",
+        "storeName": "Hoop Dreams",
+        "price": 294997,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:06.2973323+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11455",
+        "storeId": "2813285",
+        "storeName": "ConsumablesRUs",
+        "price": 294997,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:06.2975043+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11455",
+        "storeId": "1566032",
+        "storeName": "Goods & Bads",
+        "price": 295000,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:06.297816+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11455",
+        "storeId": "3621971",
+        "storeName": "Just a regular shop",
+        "price": 300999,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:06.2978382+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11455",
+        "storeId": "3856805",
+        "storeName": "Evergreen Arbitrage & Market Optimization",
+        "price": 399999,
+        "quantity": 20,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:06.2978597+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "6523",
+    "displayName": "vengeful spirit",
+    "currentPrice": 169069,
+    "median": 108499,
+    "weightedAvg": 119173.67647058824,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "6523",
+        "storeId": "1786690",
+        "storeName": "Awesomesauce",
+        "price": 80000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:07.8938086+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6523",
+        "storeId": "1477672",
+        "storeName": "Minimaliste",
+        "price": 80000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:07.89397+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6523",
+        "storeId": "1435436",
+        "storeName": "Avenue Q Convenience Store",
+        "price": 89000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:07.8939949+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6523",
+        "storeId": "889940",
+        "storeName": "Crazy Eddie's",
+        "price": 89000,
+        "quantity": 91,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:07.8940165+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6523",
+        "storeId": "2341947",
+        "storeName": "Dr. G's Fantastical Curiosities",
+        "price": 89000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:07.8940372+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "3068",
+    "displayName": "toy deathbot",
+    "currentPrice": 224969,
+    "median": 235000,
+    "weightedAvg": 251666.5,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "3068",
+        "storeId": "907318",
+        "storeName": "ZARUYACHE",
+        "price": 140000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:09.5538428+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "3068",
+        "storeId": "22185",
+        "storeName": "eav;s spicy garden",
+        "price": 145745,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:09.5540301+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "3068",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 150000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:09.55405+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "3068",
+        "storeId": "37195",
+        "storeName": "Worthless Garbage",
+        "price": 160000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:09.5540685+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "3068",
+        "storeId": "3048148",
+        "storeName": "Aincrad",
+        "price": 160000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:09.5540815+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11827",
+    "displayName": "geofencing rapier",
+    "currentPrice": 69969,
+    "median": 58000,
+    "weightedAvg": 54564.2,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11818",
+        "storeId": "2432137",
+        "storeName": "Shop! Colaborate and Listen",
+        "price": 2879,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:11.1717511+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11818",
+        "storeId": "3390861",
+        "storeName": "Super Ultra Store Turbo 9000 and a half!",
+        "price": 2978,
+        "quantity": 22,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:11.1719355+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11818",
+        "storeId": "2286041",
+        "storeName": "Hey Look! It's a Store!",
+        "price": 2978,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:11.1719528+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11818",
+        "storeId": "2346171",
+        "storeName": "Shop, shop and away!",
+        "price": 2978,
+        "quantity": 9,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:11.1719721+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11818",
+        "storeId": "2813285",
+        "storeName": "ConsumablesRUs",
+        "price": 2978,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:11.1719897+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "10897",
+    "displayName": "trojan horseshoe",
+    "currentPrice": 44669,
+    "median": 31999.5,
+    "weightedAvg": 42369.51851851852,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11801",
+        "storeId": "3628672",
+        "storeName": "karkkikauppa",
+        "price": 5000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:12.7533952+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11801",
+        "storeId": "2374040",
+        "storeName": "That Place You Don't Talk About in Public",
+        "price": 5000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:12.7535557+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11801",
+        "storeId": "102069",
+        "storeName": "Toy Tzar Rus",
+        "price": 5621,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:12.7535726+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11801",
+        "storeId": "3390861",
+        "storeName": "Super Ultra Store Turbo 9000 and a half!",
+        "price": 5644,
+        "quantity": 18,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:12.7535969+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11801",
+        "storeId": "1079721",
+        "storeName": "Big Don's Creamery",
+        "price": 5644,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:12.7536102+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11826",
+    "displayName": "hashing vise",
+    "currentPrice": 39064,
+    "median": 149628,
+    "weightedAvg": 99305.125,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11817",
+        "storeId": "1878613",
+        "storeName": "Completely inconspicuous Cabin in the Woods",
+        "price": 2900,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:14.3731125+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11817",
+        "storeId": "177122",
+        "storeName": "Lot 49",
+        "price": 2949,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:14.3732916+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11817",
+        "storeId": "3650805",
+        "storeName": "BustaMcJohnston's Jubilee",
+        "price": 3690,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:14.3733268+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11817",
+        "storeId": "62192",
+        "storeName": "Asidonhopo's General Store",
+        "price": 3900,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:14.3733417+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11817",
+        "storeId": "1807485",
+        "storeName": "Ascmii",
+        "price": 3990,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:14.3733622+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "1395",
+    "displayName": "teddy bear",
+    "currentPrice": 31969,
+    "median": 27999,
+    "weightedAvg": 25661.85,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "2147",
+        "storeId": "3555966",
+        "storeName": "Frame Shop",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:16.0214332+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "37195",
+        "storeName": "Worthless Garbage",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:16.0214445+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "909819",
+        "storeName": "NatNit's Minimart of Mack",
+        "price": 150,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:16.021459+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "1197090",
+        "storeName": "ð­",
+        "price": 150,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:16.0214716+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "1382534",
+        "storeName": "Blood, Bath Etc.",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:16.0214845+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "2146",
+    "displayName": "evil teddy bear",
+    "currentPrice": 30690,
+    "median": 15000,
+    "weightedAvg": 13713.190476190477,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "2147",
+        "storeId": "3555966",
+        "storeName": "Frame Shop",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:17.5487166+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "909819",
+        "storeName": "NatNit's Minimart of Mack",
+        "price": 150,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:17.5487283+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "37195",
+        "storeName": "Worthless Garbage",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:17.5487425+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "3811320",
+        "storeName": "Joke's Humor Hut",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:17.548754+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2147",
+        "storeId": "3403404",
+        "storeName": "That shack down the street where you buy those things no one has heard of.",
+        "price": 150,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:17.5487697+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "7276",
+    "displayName": "tiny plastic Captain Kerkard",
+    "currentPrice": 64999,
+    "median": 64939,
+    "weightedAvg": 56185.09523809524,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "7276",
+        "storeId": "3096759",
+        "storeName": "Wakwak's Waka Waka",
+        "price": 44999,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:19.1478291+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "7276",
+        "storeId": "580773",
+        "storeName": "The Store Company",
+        "price": 45000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:19.1479929+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "7276",
+        "storeId": "3586971",
+        "storeName": "Ketamine's Shop",
+        "price": 45000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:19.1480095+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "7276",
+        "storeId": "2359293",
+        "storeName": "Yang's Pub",
+        "price": 50000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:19.1480242+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "7276",
+        "storeId": "3138482",
+        "storeName": "Lliks Gindaer Sselesu Ruoy No Stargnoc",
+        "price": 59998,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:19.1480451+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "12189",
+    "displayName": "intact dinosaur egg",
+    "currentPrice": 20690,
+    "median": 900,
+    "weightedAvg": 1165.3809523809523,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "12189",
+        "storeId": "3822354",
+        "storeName": "Battle Mart",
+        "price": 700,
+        "quantity": 6,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:20.6458864+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "12189",
+        "storeId": "580773",
+        "storeName": "The Store Company",
+        "price": 700,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:20.646056+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "12189",
+        "storeId": "414688",
+        "storeName": "Chelonian Temple",
+        "price": 700,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:20.646072+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "12189",
+        "storeId": "360318",
+        "storeName": "The KoL-Bo",
+        "price": 700,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:20.6460904+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "12189",
+        "storeId": "187675",
+        "storeName": "Flange of Obtainignment",
+        "price": 700,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:20.6461074+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "6486",
+    "displayName": "dreadful roast",
+    "currentPrice": 29699,
+    "median": 27499.5,
+    "weightedAvg": 25671.391304347828,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "6486",
+        "storeId": "789720",
+        "storeName": "Sands Of Time",
+        "price": 11996,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:22.2737371+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6486",
+        "storeId": "2432137",
+        "storeName": "Shop! Colaborate and Listen",
+        "price": 11997,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:22.2739184+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6486",
+        "storeId": "568688",
+        "storeName": "The Fatass Locker.",
+        "price": 11998,
+        "quantity": 6,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:22.2739453+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6486",
+        "storeId": "876061",
+        "storeName": "Best 50,000 Meat I\\'ve Ever Spent on a Store",
+        "price": 11999,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:22.2739615+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "6486",
+        "storeId": "3675283",
+        "storeName": "Seaside Salvage Surplus",
+        "price": 12000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:22.2739781+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "2894",
+    "displayName": "tiny plastic briefcase bat",
+    "currentPrice": 19999,
+    "median": 7997,
+    "weightedAvg": 7397.8,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "2894",
+        "storeId": "2582699",
+        "storeName": "Wibbly Wobbly, Timey Wimey...Stuff.",
+        "price": 2999,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:23.8238681+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2894",
+        "storeId": "3882909",
+        "storeName": "Tiny Plastics \"R\" Us",
+        "price": 3000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:23.8243939+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2894",
+        "storeId": "1817203",
+        "storeName": "Zippies fablous goods and greats",
+        "price": 7999,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:23.8244165+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2894",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 8000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:23.8244363+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2894",
+        "storeId": "102069",
+        "storeName": "Toy Tzar Rus",
+        "price": 8000,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:23.8244539+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "987",
+    "displayName": "tiny plastic Cheshire bat",
+    "currentPrice": 16969,
+    "median": 910,
+    "weightedAvg": 912.25,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "987",
+        "storeId": "1784777",
+        "storeName": "The Pinched Loaf",
+        "price": 500,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:25.2648846+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "987",
+        "storeId": "3644830",
+        "storeName": "*Marks & Sparks*",
+        "price": 900,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:25.2653673+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "987",
+        "storeId": "1057104",
+        "storeName": "Chez Brian",
+        "price": 940,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:25.265392+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "987",
+        "storeId": "2158386",
+        "storeName": "Arbitraria",
+        "price": 940,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:25.2654035+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "987",
+        "storeId": "2602681",
+        "storeName": "Moxxi's Red Light",
+        "price": 940,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:25.2654205+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "2805",
+    "displayName": "vial of baconstone juice",
+    "currentPrice": 14499,
+    "median": 2000,
+    "weightedAvg": 1233.9449541284403,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "2805",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 1000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:26.8210317+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2805",
+        "storeId": "3822354",
+        "storeName": "Battle Mart",
+        "price": 1000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:26.8211921+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2805",
+        "storeId": "1057104",
+        "storeName": "Chez Brian",
+        "price": 1000,
+        "quantity": 11,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:26.8212157+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2805",
+        "storeId": "163410",
+        "storeName": "*The Magic Box*",
+        "price": 1000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:26.8212308+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "2805",
+        "storeId": "1266296",
+        "storeName": "Ben's Used Memorabilia",
+        "price": 1000,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:26.8212473+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "8440",
+    "displayName": "empty lava bottle",
+    "currentPrice": 14999,
+    "median": 11992,
+    "weightedAvg": 13523.488888888889,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "8440",
+        "storeId": "2949208",
+        "storeName": "The Store of Sheber",
+        "price": 5555,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:28.5583939+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8440",
+        "storeId": "2080800",
+        "storeName": "omgwtf my store",
+        "price": 7499,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:28.5585724+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8440",
+        "storeId": "348201",
+        "storeName": "Booze, Buds, & Beyond",
+        "price": 7500,
+        "quantity": 25,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:28.5585959+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8440",
+        "storeId": "2463557",
+        "storeName": "Store Awarded the Prestigious \"Is A Store\" Award",
+        "price": 7500,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:28.5589049+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "8440",
+        "storeId": "2813285",
+        "storeName": "ConsumablesRUs",
+        "price": 7500,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:28.5589303+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "990",
+    "displayName": "tiny plastic hermit",
+    "currentPrice": 16969,
+    "median": 13949.5,
+    "weightedAvg": 9676.2,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "990",
+        "storeId": "3580817",
+        "storeName": "The Bard's Yard Sale",
+        "price": 9999,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:30.3703185+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "990",
+        "storeId": "3675283",
+        "storeName": "Seaside Salvage Surplus",
+        "price": 10000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:30.3704768+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "990",
+        "storeId": "3287857",
+        "storeName": "SCS Eureka",
+        "price": 12900,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:30.3705014+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "990",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 13000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:30.3705163+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "990",
+        "storeId": "1893431",
+        "storeName": "GBC Frat House",
+        "price": 13899,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:30.370536+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11447",
+    "displayName": "massive wrench",
+    "currentPrice": 16069,
+    "median": 16000,
+    "weightedAvg": 18894.75,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11447",
+        "storeId": "3287857",
+        "storeName": "SCS Eureka",
+        "price": 9999,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:31.9865444+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11447",
+        "storeId": "2109704",
+        "storeName": "Infopowerbroker's Pub",
+        "price": 10000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:31.9867316+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11447",
+        "storeId": "290632",
+        "storeName": "El Ponando's Defrosted Tuna Store.",
+        "price": 10000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:31.9867589+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11447",
+        "storeId": "2813285",
+        "storeName": "ConsumablesRUs",
+        "price": 10000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:31.986775+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11447",
+        "storeId": "2015024",
+        "storeName": "Asbel's Moving Bakery",
+        "price": 10000,
+        "quantity": 196,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:31.9867967+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11419",
+    "displayName": "Elf Guard broom",
+    "currentPrice": 444443,
+    "median": 1000000,
+    "weightedAvg": 940333.5862068966,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11419",
+        "storeId": "3856805",
+        "storeName": "Evergreen Arbitrage & Market Optimization",
+        "price": 444443,
+        "quantity": 65,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:33.3681885+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11419",
+        "storeId": "627533",
+        "storeName": "The Commerce of Babylon",
+        "price": 444444,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:33.3683598+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11419",
+        "storeId": "2432137",
+        "storeName": "Shop! Colaborate and Listen",
+        "price": 495000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:33.3683774+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11419",
+        "storeId": "1782087",
+        "storeName": "gold shop",
+        "price": 500000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:33.3683962+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11419",
+        "storeId": "62373",
+        "storeName": "StuffMart",
+        "price": 500000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:33.3684095+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "11429",
+    "displayName": "Elf Guard Field Manual: Culinary Arts",
+    "currentPrice": 824999,
+    "median": 1045000,
+    "weightedAvg": 1098043.4347826086,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "11429",
+        "storeId": "3856805",
+        "storeName": "Evergreen Arbitrage & Market Optimization",
+        "price": 824999,
+        "quantity": 50,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:34.9855434+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11429",
+        "storeId": "498001",
+        "storeName": "I don't have much but it's very cheap!",
+        "price": 825000,
+        "quantity": 3,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:34.9856979+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11429",
+        "storeId": "1336376",
+        "storeName": "Fortune's Formula",
+        "price": 900000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:34.9857158+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11429",
+        "storeId": "1937905",
+        "storeName": "(Lord) Wall-De-Mart",
+        "price": 910000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:34.9857347+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "11429",
+        "storeId": "3676901",
+        "storeName": "Knickknacks at a premium",
+        "price": 1000000,
+        "quantity": 5,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:34.985752+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "1375",
+    "displayName": "tiny plastic Crimbo wreath",
+    "currentPrice": 21999,
+    "median": 38750,
+    "weightedAvg": 38444.70469798658,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "1375",
+        "storeId": "3856805",
+        "storeName": "Evergreen Arbitrage & Market Optimization",
+        "price": 21999,
+        "quantity": 171,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:36.6760435+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1375",
+        "storeId": "424156",
+        "storeName": "Red Dwarf Tavern N Shop",
+        "price": 22000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:36.6762474+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1375",
+        "storeId": "3287857",
+        "storeName": "SCS Eureka",
+        "price": 24500,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:36.6762761+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1375",
+        "storeId": "1053259",
+        "storeName": "Clerk's",
+        "price": 25000,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:36.6763025+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1375",
+        "storeId": "3770826",
+        "storeName": "The Meat Vineyard",
+        "price": 25000,
+        "quantity": 2,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:36.676327+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  },
+  {
+    "itemId": "1376",
+    "displayName": "tiny plastic Uncle Crimbo",
+    "currentPrice": 19799,
+    "median": 28000,
+    "weightedAvg": 25711.64,
+    "buyCandidate": true,
+    "listings": [
+      {
+        "itemId": "1376",
+        "storeId": "3856805",
+        "storeName": "Evergreen Arbitrage & Market Optimization",
+        "price": 19799,
+        "quantity": 71,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:38.252193+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1376",
+        "storeId": "3287857",
+        "storeName": "SCS Eureka",
+        "price": 19800,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:38.2524053+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1376",
+        "storeId": "3770826",
+        "storeName": "The Meat Vineyard",
+        "price": 19800,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:38.2524235+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1376",
+        "storeId": "3725521",
+        "storeName": "Jack's II",
+        "price": 20000,
+        "quantity": 4,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:38.2524431+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      },
+      {
+        "itemId": "1376",
+        "storeId": "3414657",
+        "storeName": "Falconwood",
+        "price": 24500,
+        "quantity": 1,
+        "purchaseLimit": null,
+        "observedAt": "2026-11-16T14:55:38.2524577+00:00",
+        "sourceUri": "https://www.kingdomofloathing.com/mall.php"
+      }
+    ]
+  }
+]

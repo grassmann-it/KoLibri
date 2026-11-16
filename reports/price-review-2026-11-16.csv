@@ -1,0 +1,233 @@
+itemId,displayName,currentPrice,marketLowest,suggestedPrice,delta,quantity,status,categories,suggestedAction,rationale,isStale
+8254,"Trash, a Memoir",999999999999,133337,132670,-999999867329,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 999999999999 Meat. 749,979,276 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+2873,tiny plastic Ed the Undying,169690690,12000000,11940000,-157750690,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 169690690 Meat. 1,314 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+993,tiny plastic Sneaky Pete,169690690,72000000,71640000,-98050690,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169690690 Meat. 136 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+994,tiny plastic Susie,169069069,90000000,89550000,-79519069,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069069 Meat. 88 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+991,tiny plastic Boris,169069069,99000000,98505000,-70564069,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069069 Meat. 71 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8790,elven tambourine,9690690,2299999,2288499,-7402191,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 9690690 Meat. 321 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5931,tiny plastic four-shadowed mime,9690690,6100000,6069500,-3621190,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 9690690 Meat. 59 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11779,nylon Christmas stockings,3969969,1270000,1263650,-2706319,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 3969969 Meat. 213 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8781,pine cone necklace,6379999,4599000,4576005,-1803994,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 6379999 Meat. 39 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11080,deactivated mini-Trainbot,3069069,1350000,1343250,-1725819,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 3069069 Meat. 127 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11415,Elf Guard insignia (general),1989999,850000,845750,-1144249,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1989999 Meat. 134 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+4860,CRIMBCO Employee Handbook (chapter 2),4999069,3950000,3930250,-1068819,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 4999069 Meat. 27 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11429,Elf Guard Field Manual: Culinary Arts,1699999,900000,895500,-804499,50,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1699999 Meat. 89 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11446,Elf Guard fuel tank,1669999,900000,895500,-774499,15,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1669999 Meat. 86 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11449,Elf Guard Field Manual: Extortion,1699999,940000,935300,-764699,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1699999 Meat. 81 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11448,brown pirate pants,669669,100000,99500,-570169,11,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 669669 Meat. 570 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11419,Elf Guard broom,959999,444444,442221,-517778,65,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 959999 Meat. 116 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11453,Elf Guard SCUBA tank,1949999,1440000,1432800,-517199,23,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1949999 Meat. 35 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11421,Elf Guard hangover cure,1359999,860000,855700,-504299,99,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1359999 Meat. 58 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11451,punching mirror,1449998,999997,994997,-455001,11,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1449998 Meat. 45 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+7458,"History's Most Offensive Jokes, Vol. IX",1449999,1000000,995000,-454999,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1449999 Meat. 45 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11454,Elf Guard Field Manual: Wilderness Sleeping,1699999,1280000,1273600,-426399,18,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1699999 Meat. 33 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6485,bone flour,969069,599969,596969,-372100,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 969069 Meat. 62 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11439,gunwale,1499999,1200000,1194000,-305999,31,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1499999 Meat. 25 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11442,Crimbuccaneer runebone,349969,77997,77607,-272362,17,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 349969 Meat. 349 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11431,whalegun,999998,750000,746250,-253748,33,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 999998 Meat. 33 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+965,tiny plastic pastamancer,335774,84000,83580,-252194,62,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 335774 Meat. 300 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11457,Elvish underarmor,1409998,1200000,1194000,-215998,34,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1409998 Meat. 17 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11456,baby rigging snake,1169999,980000,975100,-194899,9,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1169999 Meat. 19 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6531,muddy skirt,420690,250000,248750,-171940,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 420690 Meat. 68 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+9022,print screen button,185999,15000,14925,-171074,13,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 185999 Meat. 1,140 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+1396,duck-on-a-string,169069,3100,3084,-165985,8,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 169069 Meat. 5,354 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+11828,geofencing shield,168069,2949,2934,-165135,4,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 168069 Meat. 5,599 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+11432,Cocktails of the Age of Sail,1219999,1080000,1074600,-145399,12,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 1219999 Meat. 13 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5933,tiny plastic Rene C. Corman,298999,160000,159200,-139799,202,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 298999 Meat. 87 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11386,pirate encryption key alpha,320690,199000,198005,-122685,785,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 320690 Meat. 61 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11388,pirate encryption key charlie,320690,204000,202980,-117710,700,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 320690 Meat. 57 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+1397,toy soldier,169069,54945,54670,-114399,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 208 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6520,wolfskull mask,196969,87000,86565,-110404,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 196969 Meat. 126 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11455,free boots,399999,294997,293522,-106477,20,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 399999 Meat. 36 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11445,Crimbuccaneer fledges (disintegrating),926966,825000,820875,-106091,25,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 926966 Meat. 12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11387,pirate encryption key bravo,320690,220000,218900,-101790,719,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 320690 Meat. 46 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2880,tiny plastic Bonerdagon,96969,700,696,-96273,55,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 96969 Meat. 13,753 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+8439,insulated gold wire,189969,94999,94524,-95445,4,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 189969 Meat. 100 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11389,pirate encryption key delta,320690,228000,226860,-93830,680,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 320690 Meat. 41 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6523,vengeful spirit,169069,80000,79600,-89469,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 111 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+3068,toy deathbot,224969,140000,139300,-85669,6,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 224969 Meat. 61 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6535,intimidating coiffure,169069,84000,83580,-85489,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 101 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6526,bag of unfinished business,169069,99997,99497,-69572,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 69 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6554,stench cluster,169069,100000,99500,-69569,36,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 69 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6553,spooky cluster,169069,101000,100495,-68574,7,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 169069 Meat. 67 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11827,geofencing rapier,69969,2879,2864,-67105,5,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 69969 Meat. 2,330 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+6525,ghost thread,269069,206000,204970,-64099,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 269069 Meat. 31 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8441,full lava bottle,100690,39100,38904,-61786,5,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 100690 Meat. 158 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11806,malware injector,73542,15000,14925,-58617,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 73542 Meat. 390 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+7802,mercenary rifle,497324,449894,447644,-49680,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 497324 Meat. 11 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+12122,extra-thick Crimbo sweater,96969,48000,47760,-49209,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 96969 Meat. 102 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8444,blue lava globs,77969,29495,29347,-48622,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 77969 Meat. 164 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8682,To Build an Igloo,589499,545500,542772,-46727,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 589499 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8484,The Firegate Tapes,440999,397076,395090,-45909,7,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 440999 Meat. 11 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6540,old dry bone,322969,280000,278600,-44369,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 322969 Meat. 15 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5905,jar of psychoses (Jick),69069,25000,24875,-44194,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 69069 Meat. 176 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10897,trojan horseshoe,44669,5000,4975,-39694,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 44669 Meat. 793 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2906,tiny plastic lobsterfrogman,44443,5000,4975,-39468,114,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 44443 Meat. 789 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11826,hashing vise,39064,2900,2885,-36179,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 39064 Meat. 1,247 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+11039,tiny plastic caboose,69069,36000,35820,-33249,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 69069 Meat. 92 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+1395,teddy bear,31969,150,149,-31820,35,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 31969 Meat. 21,213 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+2146,evil teddy bear,30690,150,149,-30541,40,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 30690 Meat. 20,360 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+8454,LavaCo™ Lamp housing,269069,240000,238800,-30269,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 269069 Meat. 12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8445,green lava globs,78969,49000,48755,-30214,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 78969 Meat. 61 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11458,Crimbuccaneer bombjacket,974969,950000,945250,-29719,16,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 974969 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8443,red lava globs,79069,50000,49750,-29319,3,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 79069 Meat. 58 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6552,cold cluster,196969,172690,171826,-25143,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 196969 Meat. 14 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11404,Crimbuccaneer lantern,442690,420000,417900,-24790,55,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 442690 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+4822,tiny plastic CRIMBCO HQ,699699,678875,675480,-24219,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 699699 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+1375,tiny plastic Crimbo wreath,44442,22000,21890,-22552,171,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 44442 Meat. 102 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6542,tonguebone,106969,85000,84575,-22394,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 106969 Meat. 26 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8483,Psycho From The Heat,349999,330000,328350,-21649,10,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 349999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8683,The Chill of the Wild,605799,588500,585557,-20242,4,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 605799 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+7276,tiny plastic Captain Kerkard,64999,44999,44774,-20225,21,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 64999 Meat. 44 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+12189,intact dinosaur egg,20690,700,696,-19994,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 20690 Meat. 2,856 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+973,tiny plastic sabre-toothed lime,19190,560,557,-18633,221,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 19190 Meat. 3,327 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+1378,tiny plastic sweet nutcracker,27969,9998,9948,-18021,756,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 27969 Meat. 180 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6486,dreadful roast,29699,11998,11938,-17761,2,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 29699 Meat. 148 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2894,tiny plastic briefcase bat,19999,2999,2984,-17015,118,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 19999 Meat. 567 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2924,tiny plastic Spunky Princess,17876,1100,1094,-16782,181,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 17876 Meat. 1,525 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+987,tiny plastic Cheshire bat,16969,500,497,-16472,332,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 16969 Meat. 3,294 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+6522,groping claw,96069,80000,79600,-16469,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 96069 Meat. 20 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+12232,hot honey ant,26969,11440,11382,-15587,4,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 26969 Meat. 136 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11420,Crimbuccaneer tavern swab,356969,344968,343243,-13726,28,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 356969 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2805,vial of baconstone juice,14499,1000,995,-13504,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,"Preisniveau ab 14499 Meat. 1,350 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",False
+8482,Lava Miner's Daughter,424999,414000,411930,-13069,9,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 424999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+12052,Smoking Pope,16969,4400,4378,-12591,24,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16969 Meat. 286 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+7787,cuddly teddy bear,24899,12899,12834,-12065,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 24899 Meat. 93 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+1376,tiny plastic Uncle Crimbo,30846,19800,19701,-11145,71,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 30846 Meat. 56 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+3630,dusty Crimbo crate,109999,100000,99500,-10499,177,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 109999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8684,Cold Fang,592299,585000,582075,-10224,2,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 592299 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8440,empty lava bottle,14999,5555,5527,-9472,4,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 14999 Meat. 170 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2893,tiny plastic brainsweeper,9969,1250,1243,-8726,215,senken,"Overpriced,Illiquid",RepriceDown,698 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+972,tiny plastic angry goat,9699,1234,1227,-8472,286,senken,"Overpriced,Illiquid",RepriceDown,686 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+6517,dubious loincloth,99969,92000,91540,-8429,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 99969 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8476,liquid rhinestones,40069,32095,31934,-8135,11,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 40069 Meat. 25 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+3613,battered Crimbo Crate,32699,25000,24875,-7824,729,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 32699 Meat. 31 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+990,tiny plastic hermit,16969,9999,9949,-7020,122,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16969 Meat. 70 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2139,toy mercenary,16969,10500,10447,-6522,10,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16969 Meat. 62 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+963,tiny plastic seal clubber,7768,1515,1507,-6261,173,senken,"Overpriced,Illiquid",RepriceDown,413 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11447,massive wrench,16069,9999,9949,-6120,37,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16069 Meat. 61 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+966,tiny plastic sauceror,7499,1599,1591,-5908,147,senken,"Overpriced,Illiquid",RepriceDown,369 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+1377,tiny plastic Crimbo elf,7498,2000,1990,-5508,667,senken,"Overpriced,Illiquid",RepriceDown,275 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+967,tiny plastic disco bandit,6969,1800,1791,-5178,128,senken,"Overpriced,Illiquid",RepriceDown,287 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+968,tiny plastic accordion thief,7499,2499,2486,-5013,83,senken,"Overpriced,Illiquid",RepriceDown,200 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8456,crystalline light bulb,44343,39600,39402,-4941,4,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 44343 Meat. 12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2892,tiny plastic blooper,4949,696,692,-4257,100,senken,"Overpriced,Illiquid",RepriceDown,611 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2881,tiny plastic The Man,4899,700,696,-4203,79,senken,"Overpriced,Illiquid",RepriceDown,600 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11437,Elf Guard red and white beret,819969,819960,815860,-4109,66,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 819969 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+10619,uncanny desk bell,19069,15044,14968,-4101,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 19069 Meat. 27 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11809,3d printed server room key,139998,136628,135944,-4054,42,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 139998 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+11810,dedigitizer schematic: 3d printed server room key,139968,136628,135944,-4024,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 139968 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+5958,tiny plastic angry space marine,4499,600,597,-3902,242,senken,"Overpriced,Illiquid",RepriceDown,650 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2913,tiny plastic smarmy pirate,4399,646,642,-3757,110,senken,"Overpriced,Illiquid",RepriceDown,581 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+981,tiny plastic ghuol whelp,3999,484,481,-3518,301,senken,"Overpriced,Illiquid",RepriceDown,726 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2886,tiny plastic 7-foot dwarf,5554,2100,2089,-3465,173,senken,"Overpriced,Illiquid",RepriceDown,164 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+983,tiny plastic cocoabo,3999,790,786,-3213,125,senken,"Overpriced,Illiquid",RepriceDown,406 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2882,tiny plastic The Big Wisniewski,3948,749,745,-3203,101,senken,"Overpriced,Illiquid",RepriceDown,427 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5954,tiny plastic hypodermic bugbear,4799,1700,1691,-3108,185,senken,"Overpriced,Illiquid",RepriceDown,182 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2883,tiny plastic Felonia,3999,949,944,-3055,60,senken,"Overpriced,Illiquid",RepriceDown,321 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2904,tiny plastic Knott Yeti,3002,600,597,-2405,80,senken,"Overpriced,Illiquid",RepriceDown,400 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10621,greasy desk bell,16969,14741,14667,-2302,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16969 Meat. 15 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+8477,disco biscuit,10969,8801,8756,-2213,13,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 10969 Meat. 25 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+3066,toy maglev monorail,19969,17871,17781,-2188,7,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 19969 Meat. 12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2897,tiny plastic drunk goat,2726,700,696,-2030,113,senken,"Overpriced,Illiquid",RepriceDown,289 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10618,frost-rimed desk bell,16969,15044,14968,-2001,1,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 16969 Meat. 13 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5941,tiny plastic peacannon,2999,1089,1083,-1916,120,senken,"Overpriced,Illiquid",RepriceDown,175 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+978,tiny plastic stab bat,2449,575,572,-1877,261,senken,"Overpriced,Illiquid",RepriceDown,326 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2887,tiny plastic angry bugbear,2844,999,994,-1850,149,senken,"Overpriced,Illiquid",RepriceDown,185 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2921,tiny plastic XXX pr0n,2498,700,696,-1802,132,senken,"Overpriced,Illiquid",RepriceDown,257 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+974,tiny plastic fuzzy dice,2237,578,575,-1662,342,senken,"Overpriced,Illiquid",RepriceDown,287 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2905,tiny plastic lemon-in-the-box,2330,699,695,-1635,107,senken,"Overpriced,Illiquid",RepriceDown,233 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5960,tiny plastic Father McGruber,13998,12499,12436,-1562,394,senken,"HighPrice,Overpriced,Illiquid",RepriceDown,Preisniveau ab 13998 Meat. 12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2927,tiny plastic Iiti Kitty,2199,700,696,-1503,93,senken,"Overpriced,Illiquid",RepriceDown,214 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2909,tiny plastic G Imp,1947,450,447,-1500,100,senken,"Overpriced,Illiquid",RepriceDown,333 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+969,tiny plastic mosquito,1969,510,507,-1462,355,senken,"Overpriced,Illiquid",RepriceDown,286 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2932,tiny plastic Black Knight,2199,749,745,-1454,149,senken,"Overpriced,Illiquid",RepriceDown,194 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2918,tiny plastic undead elbow macaroni,1969,550,547,-1422,154,senken,"Overpriced,Illiquid",RepriceDown,258 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10620,nasty desk bell,16069,14741,14667,-1402,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 16069 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2911,tiny plastic cubist bull,1999,689,685,-1314,123,senken,"Overpriced,Illiquid",RepriceDown,190 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2902,tiny plastic Knob Goblin harem girl,1949,700,696,-1253,82,senken,"Overpriced,Illiquid",RepriceDown,178 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+985,tiny plastic ghost pickle on a stick,1898,660,656,-1242,319,senken,"Overpriced,Illiquid",RepriceDown,188 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2899,tiny plastic Gnollish crossdresser,1779,550,547,-1232,373,senken,"Overpriced,Illiquid",RepriceDown,223 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2878,tiny plastic Boss Bat,1969,750,746,-1223,71,senken,"Overpriced,Illiquid",RepriceDown,163 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2908,tiny plastic Orcish Frat Boy,1799,600,597,-1202,109,senken,"Overpriced,Illiquid",RepriceDown,200 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2877,tiny plastic Baron von Ratsworth,1969,800,796,-1173,129,senken,"Overpriced,Illiquid",RepriceDown,146 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2898,tiny plastic fiendish can of asparagus,1969,800,796,-1173,418,senken,"Overpriced,Illiquid",RepriceDown,146 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2885,tiny plastic conservationist hippy,1999,900,895,-1104,153,senken,"Overpriced,Illiquid",RepriceDown,122 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2912,tiny plastic scary clown,2198,1100,1094,-1104,111,senken,"Overpriced,Illiquid",RepriceDown,100 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5934,tiny plastic Lord Flameface,28887,28000,27860,-1027,116,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 28887 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+5943,tiny plastic fire servant,6969,5994,5964,-1005,140,senken,"Overpriced,Illiquid",RepriceDown,16 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2928,tiny plastic Gnomester Blomester,1665,678,674,-991,101,senken,"Overpriced,Illiquid",RepriceDown,146 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2903,tiny plastic Knob Goblin mad scientist,1639,747,743,-896,120,senken,"Overpriced,Illiquid",RepriceDown,119 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2923,tiny plastic Protagonist,1598,749,745,-853,104,senken,"Overpriced,Illiquid",RepriceDown,113 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5919,tiny plastic ChibiBuddy™,169069,169068,168222,-847,3,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 169069 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+7274,tiny plastic Duke Starkiller,1394,550,547,-847,63,senken,"Overpriced,Illiquid",RepriceDown,153 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2879,tiny plastic Knob Goblin King,1598,777,773,-825,77,senken,"Overpriced,Illiquid",RepriceDown,106 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2907,tiny plastic ninja snowman,1498,678,674,-824,113,senken,"Overpriced,Illiquid",RepriceDown,121 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+979,tiny plastic grue,1398,580,577,-821,322,senken,"Overpriced,Illiquid",RepriceDown,141 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+977,tiny plastic howling balloon monkey,1280,469,466,-814,328,senken,"Overpriced,Illiquid",RepriceDown,173 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2895,tiny plastic demoninja,1472,700,696,-776,114,senken,"Overpriced,Illiquid",RepriceDown,110 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2915,tiny plastic Spam Witch,1498,754,750,-748,128,senken,"Overpriced,Illiquid",RepriceDown,99 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2901,tiny plastic Knob Goblin bean counter,1189,450,447,-742,98,senken,"Overpriced,Illiquid",RepriceDown,164 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+988,tiny plastic coffee pixie,1238,500,497,-741,244,senken,"Overpriced,Illiquid",RepriceDown,148 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11815,dedigitizer schematic: STATS+++ rom chip,89969,89698,89249,-720,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 89969 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+10607,Yeg's Motel hand soap,15690,15050,14974,-716,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 15690 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2888,tiny plastic anime smiley,1279,600,597,-682,121,senken,"Overpriced,Illiquid",RepriceDown,113 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+986,tiny plastic killer bee,1099,420,417,-682,322,senken,"Overpriced,Illiquid",RepriceDown,162 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11816,dedigitizer schematic: insignificant bit,11499,10878,10823,-676,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 11499 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2910,tiny plastic goth giant,1331,665,661,-670,100,senken,"Overpriced,Illiquid",RepriceDown,100 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10625,onyx rook,11111,10498,10445,-666,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 11111 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2933,tiny plastic giant pair of tweezers,1187,540,537,-650,131,senken,"Overpriced,Illiquid",RepriceDown,120 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5945,tiny plastic moneybee,1998,1384,1377,-621,102,senken,"Overpriced,Illiquid",RepriceDown,44 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2922,tiny plastic zmobie,1499,898,893,-606,96,senken,"Overpriced,Illiquid",RepriceDown,67 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2929,tiny plastic Trouser Snake,1197,598,595,-602,94,senken,"Overpriced,Illiquid",RepriceDown,100 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2889,tiny plastic apathetic lizardman,1096,500,497,-599,243,senken,"Overpriced,Illiquid",RepriceDown,119 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2896,tiny plastic filthy hippy jewelry maker,969,450,447,-522,158,senken,"Overpriced,Illiquid",RepriceDown,115 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+976,tiny plastic barrrnacle,969,490,487,-482,308,senken,"Overpriced,Illiquid",RepriceDown,98 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+975,tiny plastic spooky pirate skeleton,969,490,487,-482,318,senken,"Overpriced,Illiquid",RepriceDown,98 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2890,tiny plastic astronomer,1175,700,696,-479,98,senken,"Overpriced,Illiquid",RepriceDown,68 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+984,tiny plastic star starfish,969,510,507,-462,341,senken,"Overpriced,Illiquid",RepriceDown,90 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2925,tiny plastic topiary golem,1131,699,695,-436,118,senken,"Overpriced,Illiquid",RepriceDown,62 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5936,tiny plastic Queen Bee,1417,995,990,-427,299,senken,"Overpriced,Illiquid",RepriceDown,42 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+982,tiny plastic baby gravy fairy,969,550,547,-422,184,senken,"Overpriced,Illiquid",RepriceDown,76 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2935,tiny plastic fluffy bunny,969,555,552,-417,128,senken,"Overpriced,Illiquid",RepriceDown,75 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+10027,tiny plastic Café Elf,69069,69000,68655,-414,2,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 69069 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+5947,tiny plastic beebee queue,1399,998,993,-406,438,senken,"Overpriced,Illiquid",RepriceDown,40 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5953,tiny plastic black ops bugbear,3849,3484,3466,-383,229,senken,"Overpriced,Illiquid",RepriceDown,10 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2891,tiny plastic beanbat,1669,1300,1293,-376,88,senken,"Overpriced,Illiquid",RepriceDown,28 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2920,tiny plastic whitesnake,969,600,597,-372,125,senken,"Overpriced,Illiquid",RepriceDown,62 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2934,tiny plastic fruit golem,969,677,673,-296,158,senken,"Overpriced,Illiquid",RepriceDown,43 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+980,tiny plastic blood-faced volleyball,969,705,701,-268,333,senken,"Overpriced,Illiquid",RepriceDown,37 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+11417,Elf Guard strategic map,32999,32900,32735,-264,18,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 32999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2884,tiny plastic Beelzebozo,1249,998,993,-256,78,senken,"Overpriced,Illiquid",RepriceDown,25 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2914,tiny plastic spiny skelelton,1131,908,903,-228,156,senken,"Overpriced,Illiquid",RepriceDown,25 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5937,tiny plastic Wu Tang the Betrayer,9969,9800,9751,-218,193,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5948,tiny plastic buzzerker,3797,3599,3581,-216,223,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5950,tiny plastic batbugbear,21793,21700,21591,-202,331,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 21793 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+2930,tiny plastic Axe Wound,1699,1514,1506,-193,125,senken,"Overpriced,Illiquid",RepriceDown,12 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2919,tiny plastic warwelf,969,800,796,-173,86,senken,"Overpriced,Illiquid",RepriceDown,21 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5957,tiny plastic Scott the Miner,1356,1205,1198,-158,185,senken,"Overpriced,Illiquid",RepriceDown,13 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+2926,tiny plastic senile lihc,969,848,843,-126,118,senken,"Overpriced,Illiquid",RepriceDown,14 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+5935,tiny plastic Beebee King,1110,1001,995,-115,155,senken,"Overpriced,Illiquid",RepriceDown,11 % über dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.,False
+964,tiny plastic turtle tamer,1899,1799,1790,-109,72,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5956,tiny plastic Norville Rogers,1399,1299,1292,-107,245,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+8980,patent avarice tonic,15393,15379,15302,-91,1,senken,"HighPrice,Illiquid",Investigate,Preisniveau ab 15393 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+5944,tiny plastic mumblebee,969,899,894,-75,149,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+2916,tiny plastic spooky vampire,969,899,894,-75,126,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+2900,tiny plastic handsome mariachi,969,900,895,-74,139,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+2917,tiny plastic taco cat,969,908,903,-66,94,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5961,"tiny plastic Hank North, Photojournalist",1288,1249,1242,-46,323,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5959,tiny plastic Charity the Zombie Hunter,5998,5995,5965,-33,172,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+1379,tiny plastic Crimbo reindeer,3999,3990,3970,-29,700,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5955,tiny plastic cavebugbear,1489,1469,1461,-28,149,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5949,tiny plastic bee swarm,3999,3995,3975,-24,195,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5946,tiny plastic beebee gunners,1487,1479,1471,-16,127,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5938,tiny plastic Clancy the Minstrel,1399,1390,1383,-16,75,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5939,tiny plastic Battlesuit Bugbear Type,1005,999,994,-11,257,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5951,tiny plastic bugaboo,969,968,963,-6,112,senken,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+11434,Elf Guard clipboard,669994,669994,669994,0,65,halten,"HighPrice,Illiquid",Investigate,Preisniveau ab 669994 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+11452,ancient Elf dessert spoon,659999,659999,659999,0,26,halten,"HighPrice,Illiquid",Investigate,Preisniveau ab 659999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+8424,"1,970 carat gold",39400,39400,39400,0,14,halten,"HighPrice,Illiquid",Investigate,Preisniveau ab 39400 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+989,tiny plastic bitchin' meatcar,17999,17999,17999,0,81,halten,"HighPrice,Illiquid",Investigate,Preisniveau ab 17999 Meat. Nur 0 % Sell-through in 7 Tagen.,False
+5962,tiny plastic blazing bat,9999,9999,9999,0,444,halten,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5932,tiny plastic Bugbear Captain,6969,6969,6969,0,39,halten,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False
+5940,tiny plastic spiderbugbear,969,969,969,0,226,halten,Illiquid,Investigate,Nur 0 % Sell-through in 7 Tagen.,False

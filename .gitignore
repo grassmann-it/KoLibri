@@ -1,0 +1,11 @@
+/planning/
+**/bin/
+**/obj/
+.idea/
+.vscode/
+*.user
+*.suo
+/.kolarbitrage/
+/.kolibri/
+**/.secret-key
+/reports/live-*.json

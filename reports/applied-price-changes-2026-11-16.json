@@ -1,0 +1,296 @@
+{
+  "appliedAt": "2026-11-16T14:20:56.607545+00:00",
+  "role": "Mallbot",
+  "readBackVerified": true,
+  "count": 41,
+  "changes": [
+    {
+      "itemId": "2880",
+      "displayName": "tiny plastic Bonerdagon",
+      "oldPrice": 96969,
+      "newPrice": 1199,
+      "delta": -95770
+    },
+    {
+      "itemId": "965",
+      "displayName": "tiny plastic pastamancer",
+      "oldPrice": 335774,
+      "newPrice": 83999,
+      "delta": -251775
+    },
+    {
+      "itemId": "2906",
+      "displayName": "tiny plastic lobsterfrogman",
+      "oldPrice": 44443,
+      "newPrice": 4999,
+      "delta": -39444
+    },
+    {
+      "itemId": "975",
+      "displayName": "tiny plastic spooky pirate skeleton",
+      "oldPrice": 969,
+      "newPrice": 489,
+      "delta": -480
+    },
+    {
+      "itemId": "3613",
+      "displayName": "battered Crimbo Crate",
+      "oldPrice": 32699,
+      "newPrice": 24875,
+      "delta": -7824
+    },
+    {
+      "itemId": "4860",
+      "displayName": "CRIMBCO Employee Handbook (chapter 2)",
+      "oldPrice": 4999069,
+      "newPrice": 3930249,
+      "delta": -1068820
+    },
+    {
+      "itemId": "11458",
+      "displayName": "Crimbuccaneer bombjacket",
+      "oldPrice": 974969,
+      "newPrice": 945249,
+      "delta": -29720
+    },
+    {
+      "itemId": "11445",
+      "displayName": "Crimbuccaneer fledges (disintegrating)",
+      "oldPrice": 926966,
+      "newPrice": 820874,
+      "delta": -106092
+    },
+    {
+      "itemId": "11404",
+      "displayName": "Crimbuccaneer lantern",
+      "oldPrice": 442690,
+      "newPrice": 417899,
+      "delta": -24791
+    },
+    {
+      "itemId": "11442",
+      "displayName": "Crimbuccaneer runebone",
+      "oldPrice": 349969,
+      "newPrice": 77996,
+      "delta": -271973
+    },
+    {
+      "itemId": "11420",
+      "displayName": "Crimbuccaneer tavern swab",
+      "oldPrice": 356969,
+      "newPrice": 344967,
+      "delta": -12002
+    },
+    {
+      "itemId": "3630",
+      "displayName": "dusty Crimbo crate",
+      "oldPrice": 109999,
+      "newPrice": 99999,
+      "delta": -10000
+    },
+    {
+      "itemId": "12122",
+      "displayName": "extra-thick Crimbo sweater",
+      "oldPrice": 96969,
+      "newPrice": 47999,
+      "delta": -48970
+    },
+    {
+      "itemId": "4822",
+      "displayName": "tiny plastic CRIMBCO HQ",
+      "oldPrice": 699699,
+      "newPrice": 678874,
+      "delta": -20825
+    },
+    {
+      "itemId": "1377",
+      "displayName": "tiny plastic Crimbo elf",
+      "oldPrice": 7498,
+      "newPrice": 1999,
+      "delta": -5499
+    },
+    {
+      "itemId": "1379",
+      "displayName": "tiny plastic Crimbo reindeer",
+      "oldPrice": 3999,
+      "newPrice": 3998,
+      "delta": -1
+    },
+    {
+      "itemId": "1375",
+      "displayName": "tiny plastic Crimbo wreath",
+      "oldPrice": 44442,
+      "newPrice": 21999,
+      "delta": -22443
+    },
+    {
+      "itemId": "1376",
+      "displayName": "tiny plastic Uncle Crimbo",
+      "oldPrice": 30846,
+      "newPrice": 19799,
+      "delta": -11047
+    },
+    {
+      "itemId": "11419",
+      "displayName": "Elf Guard broom",
+      "oldPrice": 959999,
+      "newPrice": 444443,
+      "delta": -515556
+    },
+    {
+      "itemId": "11429",
+      "displayName": "Elf Guard Field Manual: Culinary Arts",
+      "oldPrice": 1699999,
+      "newPrice": 824999,
+      "delta": -875000
+    },
+    {
+      "itemId": "11449",
+      "displayName": "Elf Guard Field Manual: Extortion",
+      "oldPrice": 1699999,
+      "newPrice": 874999,
+      "delta": -825000
+    },
+    {
+      "itemId": "11454",
+      "displayName": "Elf Guard Field Manual: Wilderness Sleeping",
+      "oldPrice": 1699999,
+      "newPrice": 1124999,
+      "delta": -575000
+    },
+    {
+      "itemId": "11446",
+      "displayName": "Elf Guard fuel tank",
+      "oldPrice": 1669999,
+      "newPrice": 899999,
+      "delta": -770000
+    },
+    {
+      "itemId": "11421",
+      "displayName": "Elf Guard hangover cure",
+      "oldPrice": 1359999,
+      "newPrice": 859999,
+      "delta": -500000
+    },
+    {
+      "itemId": "11415",
+      "displayName": "Elf Guard insignia (general)",
+      "oldPrice": 1989999,
+      "newPrice": 798999,
+      "delta": -1191000
+    },
+    {
+      "itemId": "11453",
+      "displayName": "Elf Guard SCUBA tank",
+      "oldPrice": 1949999,
+      "newPrice": 1439999,
+      "delta": -510000
+    },
+    {
+      "itemId": "11417",
+      "displayName": "Elf Guard strategic map",
+      "oldPrice": 32999,
+      "newPrice": 32899,
+      "delta": -100
+    },
+    {
+      "itemId": "11421",
+      "displayName": "Elf Guard hangover cure",
+      "oldPrice": 859999,
+      "newPrice": 849999,
+      "delta": -10000
+    },
+    {
+      "itemId": "11419",
+      "displayName": "Elf Guard broom",
+      "oldPrice": 444443,
+      "newPrice": 494999,
+      "delta": 50556
+    },
+    {
+      "itemId": "11429",
+      "displayName": "Elf Guard Field Manual: Culinary Arts",
+      "oldPrice": 824999,
+      "newPrice": 899999,
+      "delta": 75000
+    },
+    {
+      "itemId": "11458",
+      "displayName": "Crimbuccaneer bombjacket",
+      "oldPrice": 945249,
+      "newPrice": 949999,
+      "delta": 4750
+    },
+    {
+      "itemId": "11445",
+      "displayName": "Crimbuccaneer fledges (disintegrating)",
+      "oldPrice": 820874,
+      "newPrice": 824999,
+      "delta": 4125
+    },
+    {
+      "itemId": "11404",
+      "displayName": "Crimbuccaneer lantern",
+      "oldPrice": 417899,
+      "newPrice": 419999,
+      "delta": 2100
+    },
+    {
+      "itemId": "3613",
+      "displayName": "battered Crimbo Crate",
+      "oldPrice": 24875,
+      "newPrice": 24999,
+      "delta": 124
+    },
+    {
+      "itemId": "4860",
+      "displayName": "CRIMBCO Employee Handbook (chapter 2)",
+      "oldPrice": 3930249,
+      "newPrice": 3949999,
+      "delta": 19750
+    },
+    {
+      "itemId": "11437",
+      "displayName": "Elf Guard red and white beret",
+      "oldPrice": 819969,
+      "newPrice": 819959,
+      "delta": -10
+    },
+    {
+      "itemId": "11448",
+      "displayName": "brown pirate pants",
+      "oldPrice": 669669,
+      "newPrice": 139996,
+      "delta": -529673
+    },
+    {
+      "itemId": "8790",
+      "displayName": "elven tambourine",
+      "oldPrice": 9690690,
+      "newPrice": 2299998,
+      "delta": -7390692
+    },
+    {
+      "itemId": "11431",
+      "displayName": "whalegun",
+      "oldPrice": 999998,
+      "newPrice": 879999,
+      "delta": -119999
+    },
+    {
+      "itemId": "6531",
+      "displayName": "muddy skirt",
+      "oldPrice": 420690,
+      "newPrice": 288999,
+      "delta": -131691
+    },
+    {
+      "itemId": "3068",
+      "displayName": "toy deathbot",
+      "oldPrice": 224969,
+      "newPrice": 145744,
+      "delta": -79225
+    }
+  ],
+  "note": "Initial 27 plus follow-up Elf/Crimbo second-price adjustments and additional external-floor corrections."
+}

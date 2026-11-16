@@ -1,0 +1,2121 @@
+{
+  "role": "Mallbot",
+  "filter": "high",
+  "candidateCount": 127,
+  "results": [
+    {
+      "itemId": "8254",
+      "displayName": "Trash, a Memoir",
+      "price": 999999999999,
+      "quantity": 1,
+      "marketLowest": 133337,
+      "suggestedPrice": 132670,
+      "delta": -999999867329,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 999999999999 Meat. 749,979,276 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2873",
+      "displayName": "tiny plastic Ed the Undying",
+      "price": 169690690,
+      "quantity": 2,
+      "marketLowest": 12000000,
+      "suggestedPrice": 11940000,
+      "delta": -157750690,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169690690 Meat. 1,314 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "993",
+      "displayName": "tiny plastic Sneaky Pete",
+      "price": 169690690,
+      "quantity": 1,
+      "marketLowest": 72000000,
+      "suggestedPrice": 71640000,
+      "delta": -98050690,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169690690 Meat. 136 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "994",
+      "displayName": "tiny plastic Susie",
+      "price": 169069069,
+      "quantity": 1,
+      "marketLowest": 90000000,
+      "suggestedPrice": 89550000,
+      "delta": -79519069,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069069 Meat. 88 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "991",
+      "displayName": "tiny plastic Boris",
+      "price": 169069069,
+      "quantity": 1,
+      "marketLowest": 99000000,
+      "suggestedPrice": 98505000,
+      "delta": -70564069,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069069 Meat. 71 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8790",
+      "displayName": "elven tambourine",
+      "price": 9690690,
+      "quantity": 1,
+      "marketLowest": 2299999,
+      "suggestedPrice": 2288499,
+      "delta": -7402191,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 9690690 Meat. 321 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5931",
+      "displayName": "tiny plastic four-shadowed mime",
+      "price": 9690690,
+      "quantity": 2,
+      "marketLowest": 6100000,
+      "suggestedPrice": 6069500,
+      "delta": -3621190,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 9690690 Meat. 59 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11779",
+      "displayName": "nylon Christmas stockings",
+      "price": 3969969,
+      "quantity": 2,
+      "marketLowest": 1270000,
+      "suggestedPrice": 1263650,
+      "delta": -2706319,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 3969969 Meat. 213 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8781",
+      "displayName": "pine cone necklace",
+      "price": 6379999,
+      "quantity": 2,
+      "marketLowest": 4599000,
+      "suggestedPrice": 4576005,
+      "delta": -1803994,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 6379999 Meat. 39 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11080",
+      "displayName": "deactivated mini-Trainbot",
+      "price": 3069069,
+      "quantity": 1,
+      "marketLowest": 1350000,
+      "suggestedPrice": 1343250,
+      "delta": -1725819,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 3069069 Meat. 127 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11448",
+      "displayName": "brown pirate pants",
+      "price": 669669,
+      "quantity": 11,
+      "marketLowest": 100000,
+      "suggestedPrice": 99500,
+      "delta": -570169,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 669669 Meat. 570 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11451",
+      "displayName": "punching mirror",
+      "price": 1449998,
+      "quantity": 11,
+      "marketLowest": 999997,
+      "suggestedPrice": 994997,
+      "delta": -455001,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1449998 Meat. 45 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "7458",
+      "displayName": "History\u0027s Most Offensive Jokes, Vol. IX",
+      "price": 1449999,
+      "quantity": 3,
+      "marketLowest": 1000000,
+      "suggestedPrice": 995000,
+      "delta": -454999,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1449999 Meat. 45 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6485",
+      "displayName": "bone flour",
+      "price": 969069,
+      "quantity": 3,
+      "marketLowest": 599969,
+      "suggestedPrice": 596969,
+      "delta": -372100,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 969069 Meat. 62 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11439",
+      "displayName": "gunwale",
+      "price": 1499999,
+      "quantity": 31,
+      "marketLowest": 1200000,
+      "suggestedPrice": 1194000,
+      "delta": -305999,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1499999 Meat. 25 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11431",
+      "displayName": "whalegun",
+      "price": 999998,
+      "quantity": 33,
+      "marketLowest": 750000,
+      "suggestedPrice": 746250,
+      "delta": -253748,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 999998 Meat. 33 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11457",
+      "displayName": "Elvish underarmor",
+      "price": 1409998,
+      "quantity": 34,
+      "marketLowest": 1200000,
+      "suggestedPrice": 1194000,
+      "delta": -215998,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1409998 Meat. 17 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11456",
+      "displayName": "baby rigging snake",
+      "price": 1169999,
+      "quantity": 9,
+      "marketLowest": 980000,
+      "suggestedPrice": 975100,
+      "delta": -194899,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1169999 Meat. 19 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6531",
+      "displayName": "muddy skirt",
+      "price": 420690,
+      "quantity": 1,
+      "marketLowest": 250000,
+      "suggestedPrice": 248750,
+      "delta": -171940,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 420690 Meat. 68 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "9022",
+      "displayName": "print screen button",
+      "price": 185999,
+      "quantity": 13,
+      "marketLowest": 15000,
+      "suggestedPrice": 14925,
+      "delta": -171074,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 185999 Meat. 1,140 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1396",
+      "displayName": "duck-on-a-string",
+      "price": 169069,
+      "quantity": 8,
+      "marketLowest": 3100,
+      "suggestedPrice": 3084,
+      "delta": -165985,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 5,354 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11828",
+      "displayName": "geofencing shield",
+      "price": 168069,
+      "quantity": 4,
+      "marketLowest": 2949,
+      "suggestedPrice": 2934,
+      "delta": -165135,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 168069 Meat. 5,599 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11432",
+      "displayName": "Cocktails of the Age of Sail",
+      "price": 1219999,
+      "quantity": 12,
+      "marketLowest": 1080000,
+      "suggestedPrice": 1074600,
+      "delta": -145399,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 1219999 Meat. 13 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5933",
+      "displayName": "tiny plastic Rene C. Corman",
+      "price": 298999,
+      "quantity": 202,
+      "marketLowest": 155000,
+      "suggestedPrice": 154225,
+      "delta": -144774,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 298999 Meat. 93 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11386",
+      "displayName": "pirate encryption key alpha",
+      "price": 320690,
+      "quantity": 785,
+      "marketLowest": 199000,
+      "suggestedPrice": 198005,
+      "delta": -122685,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 320690 Meat. 61 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11388",
+      "displayName": "pirate encryption key charlie",
+      "price": 320690,
+      "quantity": 700,
+      "marketLowest": 204000,
+      "suggestedPrice": 202980,
+      "delta": -117710,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 320690 Meat. 57 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1397",
+      "displayName": "toy soldier",
+      "price": 169069,
+      "quantity": 10,
+      "marketLowest": 54945,
+      "suggestedPrice": 54670,
+      "delta": -114399,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 208 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6520",
+      "displayName": "wolfskull mask",
+      "price": 196969,
+      "quantity": 1,
+      "marketLowest": 87000,
+      "suggestedPrice": 86565,
+      "delta": -110404,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 196969 Meat. 126 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11455",
+      "displayName": "free boots",
+      "price": 399999,
+      "quantity": 20,
+      "marketLowest": 294997,
+      "suggestedPrice": 293522,
+      "delta": -106477,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 399999 Meat. 36 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11387",
+      "displayName": "pirate encryption key bravo",
+      "price": 320690,
+      "quantity": 719,
+      "marketLowest": 220000,
+      "suggestedPrice": 218900,
+      "delta": -101790,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 320690 Meat. 46 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8439",
+      "displayName": "insulated gold wire",
+      "price": 189969,
+      "quantity": 4,
+      "marketLowest": 94999,
+      "suggestedPrice": 94524,
+      "delta": -95445,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 189969 Meat. 100 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11389",
+      "displayName": "pirate encryption key delta",
+      "price": 320690,
+      "quantity": 680,
+      "marketLowest": 228000,
+      "suggestedPrice": 226860,
+      "delta": -93830,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 320690 Meat. 41 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6523",
+      "displayName": "vengeful spirit",
+      "price": 169069,
+      "quantity": 3,
+      "marketLowest": 80000,
+      "suggestedPrice": 79600,
+      "delta": -89469,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 111 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "3068",
+      "displayName": "toy deathbot",
+      "price": 224969,
+      "quantity": 6,
+      "marketLowest": 140000,
+      "suggestedPrice": 139300,
+      "delta": -85669,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 224969 Meat. 61 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6535",
+      "displayName": "intimidating coiffure",
+      "price": 169069,
+      "quantity": 1,
+      "marketLowest": 83999,
+      "suggestedPrice": 83579,
+      "delta": -85490,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 101 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6526",
+      "displayName": "bag of unfinished business",
+      "price": 169069,
+      "quantity": 1,
+      "marketLowest": 99997,
+      "suggestedPrice": 99497,
+      "delta": -69572,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 69 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6554",
+      "displayName": "stench cluster",
+      "price": 169069,
+      "quantity": 36,
+      "marketLowest": 100000,
+      "suggestedPrice": 99500,
+      "delta": -69569,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 69 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6553",
+      "displayName": "spooky cluster",
+      "price": 169069,
+      "quantity": 7,
+      "marketLowest": 101000,
+      "suggestedPrice": 100495,
+      "delta": -68574,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 169069 Meat. 67 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11827",
+      "displayName": "geofencing rapier",
+      "price": 69969,
+      "quantity": 5,
+      "marketLowest": 2879,
+      "suggestedPrice": 2864,
+      "delta": -67105,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 69969 Meat. 2,330 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6525",
+      "displayName": "ghost thread",
+      "price": 269069,
+      "quantity": 3,
+      "marketLowest": 206000,
+      "suggestedPrice": 204970,
+      "delta": -64099,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 269069 Meat. 31 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8441",
+      "displayName": "full lava bottle",
+      "price": 100690,
+      "quantity": 5,
+      "marketLowest": 39100,
+      "suggestedPrice": 38904,
+      "delta": -61786,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 100690 Meat. 158 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11806",
+      "displayName": "malware injector",
+      "price": 73542,
+      "quantity": 3,
+      "marketLowest": 15000,
+      "suggestedPrice": 14925,
+      "delta": -58617,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 73542 Meat. 390 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "7802",
+      "displayName": "mercenary rifle",
+      "price": 497324,
+      "quantity": 3,
+      "marketLowest": 449894,
+      "suggestedPrice": 447644,
+      "delta": -49680,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 497324 Meat. 11 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8444",
+      "displayName": "blue lava globs",
+      "price": 77969,
+      "quantity": 1,
+      "marketLowest": 29495,
+      "suggestedPrice": 29347,
+      "delta": -48622,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 77969 Meat. 164 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8682",
+      "displayName": "To Build an Igloo",
+      "price": 589499,
+      "quantity": 1,
+      "marketLowest": 545500,
+      "suggestedPrice": 542772,
+      "delta": -46727,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 589499 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8484",
+      "displayName": "The Firegate Tapes",
+      "price": 440999,
+      "quantity": 7,
+      "marketLowest": 397076,
+      "suggestedPrice": 395090,
+      "delta": -45909,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 440999 Meat. 11 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6540",
+      "displayName": "old dry bone",
+      "price": 322969,
+      "quantity": 2,
+      "marketLowest": 280000,
+      "suggestedPrice": 278600,
+      "delta": -44369,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 322969 Meat. 15 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5905",
+      "displayName": "jar of psychoses (Jick)",
+      "price": 69069,
+      "quantity": 2,
+      "marketLowest": 25000,
+      "suggestedPrice": 24875,
+      "delta": -44194,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 69069 Meat. 176 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10897",
+      "displayName": "trojan horseshoe",
+      "price": 44669,
+      "quantity": 1,
+      "marketLowest": 5000,
+      "suggestedPrice": 4975,
+      "delta": -39694,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 44669 Meat. 793 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11826",
+      "displayName": "hashing vise",
+      "price": 39064,
+      "quantity": 2,
+      "marketLowest": 2900,
+      "suggestedPrice": 2885,
+      "delta": -36179,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 39064 Meat. 1,247 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11039",
+      "displayName": "tiny plastic caboose",
+      "price": 69069,
+      "quantity": 10,
+      "marketLowest": 36000,
+      "suggestedPrice": 35820,
+      "delta": -33249,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 69069 Meat. 92 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1395",
+      "displayName": "teddy bear",
+      "price": 31969,
+      "quantity": 35,
+      "marketLowest": 150,
+      "suggestedPrice": 149,
+      "delta": -31820,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 31969 Meat. 21,213 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2146",
+      "displayName": "evil teddy bear",
+      "price": 30690,
+      "quantity": 40,
+      "marketLowest": 150,
+      "suggestedPrice": 149,
+      "delta": -30541,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 30690 Meat. 20,360 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8454",
+      "displayName": "LavaCo\u2122 Lamp housing",
+      "price": 269069,
+      "quantity": 1,
+      "marketLowest": 240000,
+      "suggestedPrice": 238800,
+      "delta": -30269,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 269069 Meat. 12 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8445",
+      "displayName": "green lava globs",
+      "price": 78969,
+      "quantity": 1,
+      "marketLowest": 49000,
+      "suggestedPrice": 48755,
+      "delta": -30214,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 78969 Meat. 61 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8443",
+      "displayName": "red lava globs",
+      "price": 79069,
+      "quantity": 3,
+      "marketLowest": 50000,
+      "suggestedPrice": 49750,
+      "delta": -29319,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 79069 Meat. 58 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6552",
+      "displayName": "cold cluster",
+      "price": 196969,
+      "quantity": 10,
+      "marketLowest": 172690,
+      "suggestedPrice": 171826,
+      "delta": -25143,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 196969 Meat. 14 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6542",
+      "displayName": "tonguebone",
+      "price": 106969,
+      "quantity": 1,
+      "marketLowest": 85000,
+      "suggestedPrice": 84575,
+      "delta": -22394,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 106969 Meat. 26 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8483",
+      "displayName": "Psycho From The Heat",
+      "price": 349999,
+      "quantity": 10,
+      "marketLowest": 330000,
+      "suggestedPrice": 328350,
+      "delta": -21649,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 349999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8683",
+      "displayName": "The Chill of the Wild",
+      "price": 605799,
+      "quantity": 4,
+      "marketLowest": 588500,
+      "suggestedPrice": 585557,
+      "delta": -20242,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 605799 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "7276",
+      "displayName": "tiny plastic Captain Kerkard",
+      "price": 64999,
+      "quantity": 21,
+      "marketLowest": 44999,
+      "suggestedPrice": 44774,
+      "delta": -20225,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 64999 Meat. 44 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "12189",
+      "displayName": "intact dinosaur egg",
+      "price": 20690,
+      "quantity": 1,
+      "marketLowest": 700,
+      "suggestedPrice": 696,
+      "delta": -19994,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 20690 Meat. 2,856 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "973",
+      "displayName": "tiny plastic sabre-toothed lime",
+      "price": 19190,
+      "quantity": 221,
+      "marketLowest": 560,
+      "suggestedPrice": 557,
+      "delta": -18633,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 19190 Meat. 3,327 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1378",
+      "displayName": "tiny plastic sweet nutcracker",
+      "price": 27969,
+      "quantity": 756,
+      "marketLowest": 9998,
+      "suggestedPrice": 9948,
+      "delta": -18021,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 27969 Meat. 180 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6486",
+      "displayName": "dreadful roast",
+      "price": 29699,
+      "quantity": 2,
+      "marketLowest": 11996,
+      "suggestedPrice": 11936,
+      "delta": -17763,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 29699 Meat. 148 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2894",
+      "displayName": "tiny plastic briefcase bat",
+      "price": 19999,
+      "quantity": 118,
+      "marketLowest": 2999,
+      "suggestedPrice": 2984,
+      "delta": -17015,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 19999 Meat. 567 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2924",
+      "displayName": "tiny plastic Spunky Princess",
+      "price": 17876,
+      "quantity": 181,
+      "marketLowest": 1100,
+      "suggestedPrice": 1094,
+      "delta": -16782,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 17876 Meat. 1,525 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "987",
+      "displayName": "tiny plastic Cheshire bat",
+      "price": 16969,
+      "quantity": 332,
+      "marketLowest": 500,
+      "suggestedPrice": 497,
+      "delta": -16472,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 3,294 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6522",
+      "displayName": "groping claw",
+      "price": 96069,
+      "quantity": 1,
+      "marketLowest": 80000,
+      "suggestedPrice": 79600,
+      "delta": -16469,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 96069 Meat. 20 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "12232",
+      "displayName": "hot honey ant",
+      "price": 26969,
+      "quantity": 4,
+      "marketLowest": 11000,
+      "suggestedPrice": 10945,
+      "delta": -16024,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 26969 Meat. 145 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11421",
+      "displayName": "Elf Guard hangover cure",
+      "price": 859999,
+      "quantity": 99,
+      "marketLowest": 850000,
+      "suggestedPrice": 845750,
+      "delta": -14249,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 859999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2805",
+      "displayName": "vial of baconstone juice",
+      "price": 14499,
+      "quantity": 1,
+      "marketLowest": 1000,
+      "suggestedPrice": 995,
+      "delta": -13504,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 14499 Meat. 1,350 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8482",
+      "displayName": "Lava Miner\u0027s Daughter",
+      "price": 424999,
+      "quantity": 9,
+      "marketLowest": 414000,
+      "suggestedPrice": 411930,
+      "delta": -13069,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 424999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "12052",
+      "displayName": "Smoking Pope",
+      "price": 16969,
+      "quantity": 24,
+      "marketLowest": 4495,
+      "suggestedPrice": 4472,
+      "delta": -12497,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 278 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "7787",
+      "displayName": "cuddly teddy bear",
+      "price": 24899,
+      "quantity": 1,
+      "marketLowest": 12899,
+      "suggestedPrice": 12834,
+      "delta": -12065,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 24899 Meat. 93 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8684",
+      "displayName": "Cold Fang",
+      "price": 592299,
+      "quantity": 2,
+      "marketLowest": 585000,
+      "suggestedPrice": 582075,
+      "delta": -10224,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 592299 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8440",
+      "displayName": "empty lava bottle",
+      "price": 14999,
+      "quantity": 4,
+      "marketLowest": 5555,
+      "suggestedPrice": 5527,
+      "delta": -9472,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 14999 Meat. 170 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "6517",
+      "displayName": "dubious loincloth",
+      "price": 99969,
+      "quantity": 1,
+      "marketLowest": 92000,
+      "suggestedPrice": 91540,
+      "delta": -8429,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 99969 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8476",
+      "displayName": "liquid rhinestones",
+      "price": 40069,
+      "quantity": 11,
+      "marketLowest": 32095,
+      "suggestedPrice": 31934,
+      "delta": -8135,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 40069 Meat. 25 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "990",
+      "displayName": "tiny plastic hermit",
+      "price": 16969,
+      "quantity": 122,
+      "marketLowest": 9999,
+      "suggestedPrice": 9949,
+      "delta": -7020,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 70 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "2139",
+      "displayName": "toy mercenary",
+      "price": 16969,
+      "quantity": 10,
+      "marketLowest": 10500,
+      "suggestedPrice": 10447,
+      "delta": -6522,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 62 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11447",
+      "displayName": "massive wrench",
+      "price": 16069,
+      "quantity": 37,
+      "marketLowest": 9999,
+      "suggestedPrice": 9949,
+      "delta": -6120,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16069 Meat. 61 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8456",
+      "displayName": "crystalline light bulb",
+      "price": 44343,
+      "quantity": 4,
+      "marketLowest": 39600,
+      "suggestedPrice": 39402,
+      "delta": -4941,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 44343 Meat. 12 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11437",
+      "displayName": "Elf Guard red and white beret",
+      "price": 819969,
+      "quantity": 66,
+      "marketLowest": 819960,
+      "suggestedPrice": 815860,
+      "delta": -4109,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 819969 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10619",
+      "displayName": "uncanny desk bell",
+      "price": 19069,
+      "quantity": 1,
+      "marketLowest": 15044,
+      "suggestedPrice": 14968,
+      "delta": -4101,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 19069 Meat. 27 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11809",
+      "displayName": "3d printed server room key",
+      "price": 139998,
+      "quantity": 42,
+      "marketLowest": 136628,
+      "suggestedPrice": 135944,
+      "delta": -4054,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 139998 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11810",
+      "displayName": "dedigitizer schematic: 3d printed server room key",
+      "price": 139968,
+      "quantity": 1,
+      "marketLowest": 136628,
+      "suggestedPrice": 135944,
+      "delta": -4024,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 139968 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10621",
+      "displayName": "greasy desk bell",
+      "price": 16969,
+      "quantity": 1,
+      "marketLowest": 14741,
+      "suggestedPrice": 14667,
+      "delta": -2302,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 15 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8477",
+      "displayName": "disco biscuit",
+      "price": 10969,
+      "quantity": 13,
+      "marketLowest": 8801,
+      "suggestedPrice": 8756,
+      "delta": -2213,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 10969 Meat. 25 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "3066",
+      "displayName": "toy maglev monorail",
+      "price": 19969,
+      "quantity": 7,
+      "marketLowest": 17871,
+      "suggestedPrice": 17781,
+      "delta": -2188,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 19969 Meat. 12 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10618",
+      "displayName": "frost-rimed desk bell",
+      "price": 16969,
+      "quantity": 1,
+      "marketLowest": 15044,
+      "suggestedPrice": 14968,
+      "delta": -2001,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 16969 Meat. 13 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5960",
+      "displayName": "tiny plastic Father McGruber",
+      "price": 13998,
+      "quantity": 394,
+      "marketLowest": 12499,
+      "suggestedPrice": 12436,
+      "delta": -1562,
+      "categories": [
+        "HighPrice",
+        "Overpriced",
+        "Illiquid"
+      ],
+      "suggestedAction": "RepriceDown",
+      "rationale": "Preisniveau ab 13998 Meat. 12 % \u00FCber dem Referenzpreis. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10620",
+      "displayName": "nasty desk bell",
+      "price": 16069,
+      "quantity": 1,
+      "marketLowest": 14741,
+      "suggestedPrice": 14667,
+      "delta": -1402,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 16069 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5934",
+      "displayName": "tiny plastic Lord Flameface",
+      "price": 28887,
+      "quantity": 116,
+      "marketLowest": 28000,
+      "suggestedPrice": 27860,
+      "delta": -1027,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 28887 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5919",
+      "displayName": "tiny plastic ChibiBuddy\u2122",
+      "price": 169069,
+      "quantity": 3,
+      "marketLowest": 169068,
+      "suggestedPrice": 168222,
+      "delta": -847,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 169069 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11815",
+      "displayName": "dedigitizer schematic: STATS\u002B\u002B\u002B rom chip",
+      "price": 89969,
+      "quantity": 1,
+      "marketLowest": 89698,
+      "suggestedPrice": 89249,
+      "delta": -720,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 89969 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10607",
+      "displayName": "Yeg\u0027s Motel hand soap",
+      "price": 15690,
+      "quantity": 1,
+      "marketLowest": 15050,
+      "suggestedPrice": 14974,
+      "delta": -716,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 15690 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11816",
+      "displayName": "dedigitizer schematic: insignificant bit",
+      "price": 11499,
+      "quantity": 1,
+      "marketLowest": 10878,
+      "suggestedPrice": 10823,
+      "delta": -676,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 11499 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10625",
+      "displayName": "onyx rook",
+      "price": 11111,
+      "quantity": 1,
+      "marketLowest": 10498,
+      "suggestedPrice": 10445,
+      "delta": -666,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 11111 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "10027",
+      "displayName": "tiny plastic Caf\u00E9 Elf",
+      "price": 69069,
+      "quantity": 2,
+      "marketLowest": 69000,
+      "suggestedPrice": 68655,
+      "delta": -414,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 69069 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "5950",
+      "displayName": "tiny plastic batbugbear",
+      "price": 21793,
+      "quantity": 331,
+      "marketLowest": 21700,
+      "suggestedPrice": 21591,
+      "delta": -202,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 21793 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8980",
+      "displayName": "patent avarice tonic",
+      "price": 15393,
+      "quantity": 1,
+      "marketLowest": 15379,
+      "suggestedPrice": 15302,
+      "delta": -91,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 15393 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "8424",
+      "displayName": "1,970 carat gold",
+      "price": 39400,
+      "quantity": 14,
+      "marketLowest": 39400,
+      "suggestedPrice": 39400,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 39400 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11452",
+      "displayName": "ancient Elf dessert spoon",
+      "price": 659999,
+      "quantity": 26,
+      "marketLowest": 659999,
+      "suggestedPrice": 659999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 659999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "3613",
+      "displayName": "battered Crimbo Crate",
+      "price": 24875,
+      "quantity": 729,
+      "marketLowest": 24875,
+      "suggestedPrice": 24875,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 24875 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "4860",
+      "displayName": "CRIMBCO Employee Handbook (chapter 2)",
+      "price": 3930249,
+      "quantity": 1,
+      "marketLowest": 3930249,
+      "suggestedPrice": 3930249,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 3930249 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11458",
+      "displayName": "Crimbuccaneer bombjacket",
+      "price": 945249,
+      "quantity": 16,
+      "marketLowest": 945249,
+      "suggestedPrice": 945249,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 945249 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11445",
+      "displayName": "Crimbuccaneer fledges (disintegrating)",
+      "price": 820874,
+      "quantity": 25,
+      "marketLowest": 820874,
+      "suggestedPrice": 820874,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 820874 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11404",
+      "displayName": "Crimbuccaneer lantern",
+      "price": 417899,
+      "quantity": 55,
+      "marketLowest": 417899,
+      "suggestedPrice": 417899,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 417899 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11442",
+      "displayName": "Crimbuccaneer runebone",
+      "price": 77996,
+      "quantity": 17,
+      "marketLowest": 77996,
+      "suggestedPrice": 77996,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 77996 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11420",
+      "displayName": "Crimbuccaneer tavern swab",
+      "price": 344967,
+      "quantity": 28,
+      "marketLowest": 344967,
+      "suggestedPrice": 344967,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 344967 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "3630",
+      "displayName": "dusty Crimbo crate",
+      "price": 99999,
+      "quantity": 177,
+      "marketLowest": 99999,
+      "suggestedPrice": 99999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 99999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11419",
+      "displayName": "Elf Guard broom",
+      "price": 444443,
+      "quantity": 65,
+      "marketLowest": 444443,
+      "suggestedPrice": 444443,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 444443 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11434",
+      "displayName": "Elf Guard clipboard",
+      "price": 669994,
+      "quantity": 65,
+      "marketLowest": 669994,
+      "suggestedPrice": 669994,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 669994 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11429",
+      "displayName": "Elf Guard Field Manual: Culinary Arts",
+      "price": 824999,
+      "quantity": 50,
+      "marketLowest": 824999,
+      "suggestedPrice": 824999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 824999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11449",
+      "displayName": "Elf Guard Field Manual: Extortion",
+      "price": 874999,
+      "quantity": 10,
+      "marketLowest": 874999,
+      "suggestedPrice": 874999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 874999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11454",
+      "displayName": "Elf Guard Field Manual: Wilderness Sleeping",
+      "price": 1124999,
+      "quantity": 18,
+      "marketLowest": 1124999,
+      "suggestedPrice": 1124999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 1124999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11446",
+      "displayName": "Elf Guard fuel tank",
+      "price": 899999,
+      "quantity": 15,
+      "marketLowest": 899999,
+      "suggestedPrice": 899999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 899999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11415",
+      "displayName": "Elf Guard insignia (general)",
+      "price": 798999,
+      "quantity": 10,
+      "marketLowest": 798999,
+      "suggestedPrice": 798999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 798999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11453",
+      "displayName": "Elf Guard SCUBA tank",
+      "price": 1439999,
+      "quantity": 23,
+      "marketLowest": 1439999,
+      "suggestedPrice": 1439999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 1439999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "11417",
+      "displayName": "Elf Guard strategic map",
+      "price": 32899,
+      "quantity": 18,
+      "marketLowest": 32899,
+      "suggestedPrice": 32899,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 32899 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "12122",
+      "displayName": "extra-thick Crimbo sweater",
+      "price": 47999,
+      "quantity": 1,
+      "marketLowest": 47999,
+      "suggestedPrice": 47999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 47999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "989",
+      "displayName": "tiny plastic bitchin\u0027 meatcar",
+      "price": 17999,
+      "quantity": 81,
+      "marketLowest": 17999,
+      "suggestedPrice": 17999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 17999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "4822",
+      "displayName": "tiny plastic CRIMBCO HQ",
+      "price": 678874,
+      "quantity": 1,
+      "marketLowest": 678874,
+      "suggestedPrice": 678874,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 678874 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1375",
+      "displayName": "tiny plastic Crimbo wreath",
+      "price": 21999,
+      "quantity": 171,
+      "marketLowest": 21999,
+      "suggestedPrice": 21999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 21999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "965",
+      "displayName": "tiny plastic pastamancer",
+      "price": 83999,
+      "quantity": 62,
+      "marketLowest": 83999,
+      "suggestedPrice": 83999,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 83999 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    },
+    {
+      "itemId": "1376",
+      "displayName": "tiny plastic Uncle Crimbo",
+      "price": 19799,
+      "quantity": 71,
+      "marketLowest": 19799,
+      "suggestedPrice": 19799,
+      "delta": 0,
+      "categories": [
+        "HighPrice",
+        "Illiquid"
+      ],
+      "suggestedAction": "Investigate",
+      "rationale": "Preisniveau ab 19799 Meat. Nur 0 % Sell-through in 7 Tagen.",
+      "isStale": false
+    }
+  ]
+}

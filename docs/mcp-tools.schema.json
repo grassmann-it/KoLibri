@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KoLibri MCP tool contracts",
+  "type": "object",
+  "properties": {
+    "kol_status": {"$ref": "#/$defs/refresh"},
+    "kol_inventory": {"$ref": "#/$defs/refresh"},
+    "kol_price_summary": {"$ref": "#/$defs/itemQuery"},
+    "kol_price_recommendation": {"$ref": "#/$defs/recommendationQuery"},
+    "kol_preview_purchase": {"$ref": "#/$defs/purchasePreview"},
+    "kol_preview_transfer": {"$ref": "#/$defs/transferPreview"}
+  },
+  "$defs": {
+    "refresh": {
+      "type": "object",
+      "properties": {"forceRefresh": {"type": "boolean", "default": false}},
+      "additionalProperties": false
+    },
+    "itemQuery": {
+      "type": "object",
+      "required": ["itemId"],
+      "properties": {
+        "itemId": {"type": "string", "minLength": 1},
+        "forceRefresh": {"type": "boolean", "default": false}
+      },
+      "additionalProperties": false
+    },
+    "recommendationQuery": {
+      "allOf": [
+        {"$ref": "#/$defs/itemQuery"},
+        {"type": "object", "properties": {"acquisitionCost": {"type": ["number", "null"], "minimum": 0}}}
+      ]
+    },
+    "purchasePreview": {
+      "type": "object",
+      "required": ["itemId", "quantity", "unitPrice"],
+      "properties": {
+        "itemId": {"type": "string", "minLength": 1},
+        "quantity": {"type": "integer", "minimum": 1},
+        "unitPrice": {"type": "number", "minimum": 0},
+        "approvalToken": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "transferPreview": {
+      "type": "object",
+      "required": ["itemId", "quantity", "from", "to"],
+      "properties": {
+        "itemId": {"type": "string", "minLength": 1},
+        "quantity": {"type": "integer", "minimum": 1},
+        "from": {"enum": ["Main", "Mallbot"]},
+        "to": {"enum": ["Main", "Mallbot"]},
+        "approvalToken": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,3 @@
+[submodule "src/LibKolibri"]
+	path = src/LibKolibri
+	url = ../LibKolibri
