@@ -16,9 +16,10 @@ public enum KoLWorkflowAction
     BuyBestCoinmasterOutputs,
     TransferSellablesToMallbot,
     RepriceAndRelist,
+    RotateExcessOneUnitSale,
+    BuyHermitElevenLeafClover,
     PlanDailyAdventure,
     FarmOneDayTicket,
-    BuyHermitElevenLeafClover,
     AuditAndPersist
 }
 
@@ -125,15 +126,18 @@ public sealed class KoLWorkflowPlanner
         Add(steps, "shop", KoLWorkflowAction.RepriceAndRelist, AccountRole.Mallbot,
             s.MallbotSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Preisleiter, historische Preise und eigenen Shop-Floor berücksichtigen; Relisting bleibt Commit-Schritt.");
+        Add(steps, "shop", KoLWorkflowAction.RotateExcessOneUnitSale, AccountRole.Mallbot,
+            s.MallbotSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            "Ein einzelnes Stück echter Überbestände als kurze Promo prüfen; unabhängige Mall-/Pricegun-Referenz, Cooldown und Mindestmarge erzwingen.");
+        Add(steps, "hermit", KoLWorkflowAction.BuyHermitElevenLeafClover, AccountRole.Main,
+            s.MainSessionValid && s.MainCanUseHermit ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
+            "Hermit-Bestand vor dem Adventure-Run prüfen, Utility-Reserve abziehen und nur den sicheren Überschuss für Mallbot/Verkauf freigeben.");
         Add(steps, "adventure", KoLWorkflowAction.PlanDailyAdventure, AccountRole.Main,
             s.MainSessionValid && s.AdventurePlanReady ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Deferred,
             "Tägliches Skeleton-/Knucklebones-Ziel planen und Ressourcen vor Kämpfen prüfen.");
         Add(steps, "adventure", KoLWorkflowAction.FarmOneDayTicket, AccountRole.Main,
             s.MainSessionValid && s.MainCanAdventure ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
             "One-Day-Ticket nur in eine Zone investieren, deren erwartete Resale-Marge die Ticket-/Adventurekosten übersteigt.");
-        Add(steps, "hermit", KoLWorkflowAction.BuyHermitElevenLeafClover, AccountRole.Main,
-            s.MainSessionValid && s.MainCanUseHermit ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
-            "11-leaf clover täglich beim Hermit prüfen und nur bei ausreichendem Arbitrage-Spread kaufen.");
         Add(steps, "audit", KoLWorkflowAction.AuditAndPersist, null, KoLWorkflowStepStatus.ReadOnly,
             "Snapshot, Entscheidungen, Transfers und Verkäufe mit Plan-ID protokollieren.");
 

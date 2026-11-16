@@ -11,10 +11,13 @@ Der Ablauf ist absichtlich in Phasen getrennt:
 3. Foreign-Bribe-Pilotcharge auf dem Mallbot planen; Bags ungeöffnet halten.
 4. Ungeöffnete Bags zum Main verschieben und dort die Currency-Ausbeute messen.
 5. Handelbare Coinmaster-Ausgaben sowie One-Day-Tickets nach Netto-Marge ranken.
-6. Gekaufte Ware zum Mallbot verschieben und mit Preisleiter/History relisten.
-7. Tägliches Skeleton-/Knucklebones-Ziel ausführen, danach Hermit- und
-   One-Day-Ticket-Chancen prüfen.
-8. Snapshots, Transfers, Käufe, Verkäufe und Entscheidungen auditierbar speichern.
+6. Gekaufte Ware zum Mallbot verschieben und mit Preisleiter/History relisten;
+   Überbestände zusätzlich als einzelne, rotierende Promo prüfen.
+7. Hermit-Bestand zuerst prüfen, Utility-Reserve abziehen und nur den sicheren
+   Clover-Überschuss für Mallbot/Verkauf freigeben.
+8. Tägliches Skeleton-/Knucklebones-Ziel ausführen und One-Day-Ticket-Chancen
+   nur nach Netto-Margencheck nutzen.
+9. Snapshots, Transfers, Käufe, Verkäufe und Entscheidungen auditierbar speichern.
 
 Die ersten mutierenden Schritte bleiben getrennt: `apply-prices` kann bereits
 explizit bestätigte Shoppreise setzen; Bag-Käufe, Transfers, Bag-Öffnungen,

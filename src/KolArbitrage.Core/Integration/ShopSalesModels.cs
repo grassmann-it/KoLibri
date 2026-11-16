@@ -159,7 +159,6 @@ public sealed class KoLShopSalesReadClient : IShopSalesReadClient
 
     private async Task<ShopSalesSnapshot> FetchCoreAsync()
     {
-        var now = _clock.GetUtcNow();
         var uri = new Uri(_baseUri, KoLRoutes.StoreSalesLog);
         try
         {
@@ -174,7 +173,7 @@ public sealed class KoLShopSalesReadClient : IShopSalesReadClient
         {
             lock (_cacheGate)
             {
-                if (_cache is { } stale && now - stale.FetchedAt <= _policy.MaxStale)
+                if (_cache is { } stale && _clock.GetUtcNow() - stale.FetchedAt <= _policy.MaxStale)
                     return stale with { IsStale = true };
             }
             throw;

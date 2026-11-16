@@ -120,9 +120,17 @@ internal static class KolibriCli
     {
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
         using var http = await ReadAuthenticatedHttpAsync(role);
-        var salesClient = new KoLShopSalesReadClient(http);
+        var buyerHasher = new BuyerIdentityHasher();
+        var accounts = AccountSessionManager.CreateDefault();
+        var knownAccountKeys = (await accounts.GetAccountsAsync())
+            .Select(profile => buyerHasher.Hash(profile.DisplayName))
+            .ToHashSet(StringComparer.Ordinal);
+        var salesClient = new KoLShopSalesReadClient(http, buyerHasher: buyerHasher);
         var snapshot = await salesClient.FetchSalesAsync(forceRefresh: HasFlag(args, "--refresh"));
-        var report = ShopBuyerAnalytics.Analyze(snapshot.Sales);
+        var report = ShopBuyerAnalytics.Analyze(snapshot.Sales, new ShopBuyerAnalyticsOptions
+        {
+            KnownAccountBuyerKeys = knownAccountKeys
+        });
         WriteJson(new
         {
             role = role.ToString(),
