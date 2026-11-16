@@ -20,6 +20,7 @@ static class OfflineChecks
             ("shop price mutation preview and verification", ShopMutationAsync),
             ("Pricegun history parsing and cache", PricegunParsingAsync),
             ("foreign bribe catalog", ForeignBribeCatalogAsync),
+            ("buyer CRM ledger and contact intent", BuyerCrmAsync),
             ("workflow plan dry run", WorkflowPlanAsync),
             ("adventure plan preview", AdventurePlannerAsync),
             ("pricing recommendation", PricingAsync),
@@ -231,6 +232,43 @@ static class OfflineChecks
         Assert(ForeignBribeCatalog.OneDayTicketCosts["FunFunds"] == 20,
             "Dinsey ticket cost missing");
         return Task.CompletedTask;
+    }
+
+    private static async Task BuyerCrmAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"kolibri-crm-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var store = new BuyerCrmStore(root);
+            var hasher = store.CreateHasher();
+            var sale = new ShopSale(
+                hasher.Hash("Loyal Buyer"),
+                "fixture item",
+                2,
+                12_500,
+                6_250,
+                new DateTimeOffset(2026, 11, 16, 12, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 11, 16, 12, 1, 0, TimeSpan.Zero),
+                "Loyal Buyer");
+            var first = BuyerCrmService.ApplySales(new BuyerCrmDatabase(), [sale]);
+            Assert(first.NewSales == 1 && first.PointsGranted == 13, "CRM points were not calculated");
+            await store.SaveAsync(first.Database);
+            var loaded = await store.LoadAsync();
+            Assert(loaded.Buyers.Count == 1 && loaded.Buyers[0].CharacterName == "Loyal Buyer",
+                "CRM vault did not preserve the local buyer profile");
+            var duplicate = BuyerCrmService.ApplySales(loaded, [sale]);
+            Assert(duplicate.NewSales == 0 && duplicate.DuplicateSales == 1,
+                "CRM sale fingerprint was not idempotent");
+            var intent = BuyerCrmService.BuildRewardIntent(
+                loaded.Buyers[0], 10, BuyerContactAction.Gift, "loyalty reward", itemId: "123", quantity: 1);
+            Assert(intent is { RequiresApproval: true, CharacterName: "Loyal Buyer" },
+                "CRM reward intent was not approval-gated");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     private static Task WorkflowPlanAsync()

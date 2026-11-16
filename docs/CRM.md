@@ -15,11 +15,12 @@ sends a form or performs a purchase, transfer or shop mutation.
 
 ## Privacy defaults
 
-Raw buyer names are not returned in `ShopSale`. The name is normalised in
-memory and converted to an HMAC-SHA256 key such as `buyer_5f...`. A random
-process key is used by default, so identifiers cannot be correlated across
-separate runs. A caller can provide a locally stored secret to keep identifiers
-stable between runs; that secret must remain local and must not be committed.
+Raw buyer names are not serialized in `ShopSale` or normal reports. The name is
+normalised in memory and converted to an HMAC-SHA256 key such as
+`buyer_5f...`. Direct parser use defaults to a random process key. The CLI uses
+`BuyerCrmStore`, which persists the HMAC key in the encrypted local CRM vault,
+so blocklists and points remain attached to the same buyer across runs. That
+key and the resolved character names stay local and must not be committed.
 
 The sales page does not provide an item id, so reports use the item display
 name. A future item-catalog lookup can add ids without changing the privacy
@@ -44,4 +45,21 @@ buyer keys. They are not account-identity claims, are not sent to KoL, and do
 not trigger contact, blocking, repricing or purchases. Treat them as a prompt
 for manual review of one's own records, never as evidence about another
 player.
+
+## Stable profiles, points and future contact
+
+The process-local HMAC key is no longer the only identity state. The CLI CRM
+command now uses `BuyerCrmStore`, which keeps a stable key and the buyer's raw
+character name in an owner-only encrypted local vault under the OS application
+data directory. Normal JSON reports still expose only the stable key. The
+ledger stores total Meat, quantity, sale count, first/last purchase, block flag
+and loyalty points. Sale fingerprints make repeated 15-minute log snapshots
+idempotent.
+
+The default points policy grants one point per 1,000 Meat plus one point per
+sale; this is a policy value and can be changed later. `BuyerCrmService` also
+creates `BuyerContactIntent` previews for a message or gift after a points
+threshold. Intents contain the resolved character name for the eventual
+adapter, but always carry `RequiresApproval`; no message or gift is sent by
+the current CLI.
 

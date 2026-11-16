@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Text.Json.Serialization;
 
 namespace KolArbitrage.Core.Integration;
 
@@ -19,7 +20,10 @@ public sealed record ShopSale(
     long TotalPrice,
     long UnitPrice,
     DateTimeOffset? SoldAt,
-    DateTimeOffset ObservedAt);
+    DateTimeOffset ObservedAt,
+    // Kept only in memory for the local CRM sync. JSON reports deliberately
+    // omit it so a normal analytics export still contains no raw buyer name.
+    [property: JsonIgnore] string? RawBuyerName = null);
 
 public sealed record ShopSalesSnapshot(
     IReadOnlyList<ShopSale> Sales,
@@ -266,7 +270,8 @@ public static class ShopSalesLogParser
                 total,
                 total / quantity,
                 soldAt,
-                observedAt));
+                observedAt,
+                buyer));
         }
         return result;
     }

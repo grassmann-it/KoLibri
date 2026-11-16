@@ -120,13 +120,18 @@ internal static class KolibriCli
     {
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
         using var http = await ReadAuthenticatedHttpAsync(role);
-        var buyerHasher = new BuyerIdentityHasher();
+        var crmStore = new BuyerCrmStore();
+        var buyerHasher = crmStore.CreateHasher();
         var accounts = AccountSessionManager.CreateDefault();
         var knownAccountKeys = (await accounts.GetAccountsAsync())
             .Select(profile => buyerHasher.Hash(profile.DisplayName))
             .ToHashSet(StringComparer.Ordinal);
         var salesClient = new KoLShopSalesReadClient(http, buyerHasher: buyerHasher);
         var snapshot = await salesClient.FetchSalesAsync(forceRefresh: HasFlag(args, "--refresh"));
+        var database = await crmStore.LoadAsync();
+        var sync = BuyerCrmService.ApplySales(database, snapshot.Sales);
+        if (sync.NewSales > 0)
+            await crmStore.SaveAsync(sync.Database);
         var report = ShopBuyerAnalytics.Analyze(snapshot.Sales, new ShopBuyerAnalyticsOptions
         {
             KnownAccountBuyerKeys = knownAccountKeys
@@ -136,6 +141,13 @@ internal static class KolibriCli
             role = role.ToString(),
             snapshot.FetchedAt,
             snapshot.IsStale,
+            crmSync = new
+            {
+                sync.NewSales,
+                sync.DuplicateSales,
+                sync.PointsGranted,
+                profileCount = sync.Database.Buyers.Count
+            },
             report
         });
         return 0;
