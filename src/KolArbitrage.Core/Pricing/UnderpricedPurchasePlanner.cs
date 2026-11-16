@@ -50,7 +50,7 @@ public sealed class UnderpricedPurchasePlanner
         var acceptedCount = 0;
         foreach (var draft in ordered)
         {
-            var itemId = draft.Listing.ItemId.Trim();
+            var itemId = (draft.Listing.ItemId ?? string.Empty).Trim();
             var reasons = new List<(UnderpricedPurchaseRejectionReason Reason, string Text)>();
             var quantity = draft.ProposedQuantity;
 
@@ -81,6 +81,18 @@ public sealed class UnderpricedPurchasePlanner
             if (quantity > 0)
             {
                 quantity = Math.Min(quantity, (int)Math.Min(quantity, decimal.Floor(remaining / draft.Listing.UnitPrice)));
+                // Transfer/packaging costs can make a chunk exceed the
+                // budget even when its purchase price fits. Bound the chunk
+                // against the complete capital requirement as well.
+                var low = 0;
+                var high = quantity;
+                while (low < high)
+                {
+                    var middle = low + (high - low + 1) / 2;
+                    if (draft.CostFor(middle, policy) <= remaining) low = middle;
+                    else high = middle - 1;
+                }
+                quantity = low;
                 if (quantity == 0)
                     reasons.Add((UnderpricedPurchaseRejectionReason.BudgetExceeded, "Available budget after reserve is insufficient."));
             }
@@ -171,7 +183,9 @@ public sealed class UnderpricedPurchasePlanner
         budget.Validate();
         var mapped = limits ?? new UnderpricedPurchaseLimits
         {
-            Budget = Math.Min(budget.AvailableMeat, budget.RemainingDaily),
+            // Encode the daily cap as a smaller effective budget while still
+            // keeping the reserve inside that budget's valid range.
+            Budget = Math.Min(budget.AvailableMeat, budget.RemainingDaily + budget.MeatReserve),
             Reserve = budget.MeatReserve,
             PerItemBudget = budget.MaxMeatPerPurchase ?? decimal.MaxValue,
             MaxQuantityPerListing = budget.MaxQuantityPerPurchase ?? int.MaxValue
@@ -193,7 +207,7 @@ public sealed class UnderpricedPurchasePlanner
         budget.Validate();
         var mapped = limits ?? new UnderpricedPurchaseLimits
         {
-            Budget = Math.Min(budget.AvailableMeat, budget.RemainingDaily),
+            Budget = Math.Min(budget.AvailableMeat, budget.RemainingDaily + budget.MeatReserve),
             Reserve = budget.MeatReserve,
             PerItemBudget = budget.MaxMeatPerPurchase ?? decimal.MaxValue,
             MaxQuantityPerListing = budget.MaxQuantityPerPurchase ?? int.MaxValue
@@ -346,6 +360,9 @@ public sealed class UnderpricedPurchasePlanner
             ProposedQuantity = quantity;
             Calculate(policy);
         }
+
+        public decimal CostFor(int quantity, UnderpricedPurchaseLimits policy) =>
+            Listing.UnitPrice * quantity + policy.OtherCost + policy.OtherCostPerUnit * quantity;
 
         private void Calculate(UnderpricedPurchaseLimits policy)
         {
