@@ -279,7 +279,7 @@ public class CoinmasterRoiPlanner
                 if (ticketUnits is null && catalogUnits > 0) ticketUnits = catalogUnits;
                 var ticketCurrency = string.IsNullOrWhiteSpace(edge.TicketCurrency)
                     ? edge.Currency : edge.TicketCurrency!;
-                if (ticketUnits > 0 && values.TryGetValue(ticketCurrency, out var ticketValue))
+                if (ticketUnits is not null && values.TryGetValue(ticketCurrency, out var ticketValue))
                     ticketCost = ticketUnits.Value * ticketValue;
             }
 

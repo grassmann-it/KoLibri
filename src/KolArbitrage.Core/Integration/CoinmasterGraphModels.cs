@@ -36,7 +36,7 @@ public record CoinmasterCatalogEntry(
         if (string.IsNullOrWhiteSpace(ItemId)) throw new ArgumentException("Item id is required.", nameof(ItemId));
         if (string.IsNullOrWhiteSpace(ItemName)) throw new ArgumentException("Item name is required.", nameof(ItemName));
         if (CurrencyCost < 0) throw new ArgumentOutOfRangeException(nameof(CurrencyCost));
-        if (TicketCost is <= 0) throw new ArgumentOutOfRangeException(nameof(TicketCost));
+        if (TicketCost is < 0) throw new ArgumentOutOfRangeException(nameof(TicketCost));
         if (RequiresTicket && TicketCost is null && string.IsNullOrWhiteSpace(TicketCurrency))
         {
             // A catalog-level ticket map can fill this in later.  Requiring a
