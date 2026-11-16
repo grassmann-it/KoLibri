@@ -15,6 +15,10 @@ public record CoinmasterCatalogEntry(
     string? TicketCurrency = null,
     int? TicketCost = null)
 {
+    public static implicit operator CoinmasterCatalogEntry(ForeignBribeCatalogEntry entry) =>
+        new(entry.Currency, entry.ItemId, entry.ItemName, entry.CurrencyCost,
+            entry.IsTradeable, entry.IsOneDayTicket);
+
     public string NormalizedCurrency => Currency.Trim();
     public string NormalizedItemId => ItemId.Trim();
     public string OutputItemId => ItemId;
@@ -31,7 +35,7 @@ public record CoinmasterCatalogEntry(
         if (string.IsNullOrWhiteSpace(Currency)) throw new ArgumentException("Currency is required.", nameof(Currency));
         if (string.IsNullOrWhiteSpace(ItemId)) throw new ArgumentException("Item id is required.", nameof(ItemId));
         if (string.IsNullOrWhiteSpace(ItemName)) throw new ArgumentException("Item name is required.", nameof(ItemName));
-        if (CurrencyCost <= 0) throw new ArgumentOutOfRangeException(nameof(CurrencyCost));
+        if (CurrencyCost < 0) throw new ArgumentOutOfRangeException(nameof(CurrencyCost));
         if (TicketCost is <= 0) throw new ArgumentOutOfRangeException(nameof(TicketCost));
         if (RequiresTicket && TicketCost is null && string.IsNullOrWhiteSpace(TicketCurrency))
         {
@@ -235,6 +239,7 @@ public class CoinmasterConversionGraph
                      .GroupBy(x => x.Currency, StringComparer.OrdinalIgnoreCase))
         {
             var alternatives = group
+                .Where(x => x.CurrencyCost > 0)
                 .Select(x => resaleByItemId.TryGetValue(x.ItemId, out var value) && value >= 0m
                     ? (decimal?)(value / x.CurrencyCost)
                     : null)
