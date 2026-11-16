@@ -280,4 +280,7 @@ public sealed class CoinmasterGraph : CoinmasterConversionGraph
     public CoinmasterGraph(IEnumerable<CoinmasterCatalogEntry> entries,
         IReadOnlyDictionary<string, int>? ticketCosts = null)
         : base(entries, ticketCosts) { }
+
+    public static CoinmasterGraph FromForeignBribes() =>
+        new(CoinmasterCatalog.FromForeignBribes());
 }
