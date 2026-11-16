@@ -3,7 +3,7 @@ using KolArbitrage.Core.Integration;
 namespace KolArbitrage.Core.Pricing;
 
 /// <summary>Options for <see cref="MarketPriceEstimator"/>.</summary>
-public sealed record MarketPriceEstimatorOptions
+public record MarketPriceEstimatorOptions
 {
     /// <summary>Number of cheapest independent Mall listings considered.</summary>
     public int TopN { get; init; } = 10;
@@ -44,6 +44,9 @@ public sealed record MarketPriceEstimatorOptions
         if (PackagingCost < 0) throw new ArgumentOutOfRangeException(nameof(PackagingCost));
     }
 }
+
+/// <summary>Compatibility name for callers that omit the "Price" qualifier.</summary>
+public sealed record MarketEstimatorOptions : MarketPriceEstimatorOptions;
 
 /// <summary>
 /// A robust, read-only market estimate. Mall values are calculated only from

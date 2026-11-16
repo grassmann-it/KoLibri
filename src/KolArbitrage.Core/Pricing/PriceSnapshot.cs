@@ -121,4 +121,7 @@ public sealed class PriceSnapshot
     public bool IsStale { get; }
     public Uri? MallSourceUri { get; }
     public Uri? PricegunSourceUri { get; }
+
+    public MarketEstimate Estimate(MarketPriceEstimatorOptions? options = null, DateTimeOffset? now = null)
+        => new MarketPriceEstimator(options).Estimate(this, now);
 }
