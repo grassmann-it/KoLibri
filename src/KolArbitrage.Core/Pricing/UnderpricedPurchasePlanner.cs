@@ -280,7 +280,14 @@ public sealed class UnderpricedPurchasePlanner
                 reasons.Add((UnderpricedPurchaseRejectionReason.LowConfidenceReference, "Resale reference has no confidence."));
         }
 
-        if (tradeability?.TryGetValue(itemId, out var itemFacts) == true && itemFacts is not null)
+        UnderpricedItemTradeability? itemFacts = null;
+        if (tradeability is not null)
+        {
+            tradeability.TryGetValue(itemId, out itemFacts);
+            if (itemFacts is null)
+                itemFacts = tradeability.FirstOrDefault(x => string.Equals(x.Key.Trim(), itemId, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+        if (itemFacts is not null)
         {
             if (!itemFacts.IsTradeable) reasons.Add((UnderpricedPurchaseRejectionReason.NonTradeable, itemFacts.Reason ?? "Item is not tradeable."));
             if (itemFacts.IsAccountBound) reasons.Add((UnderpricedPurchaseRejectionReason.AccountBound, "Item is account-bound."));
