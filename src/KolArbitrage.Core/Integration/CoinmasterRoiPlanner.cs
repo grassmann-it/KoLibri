@@ -259,8 +259,10 @@ public class CoinmasterRoiPlanner
             // A zero-valued currency is a known (free) input, whereas a
             // missing dictionary entry is represented by null.  Keep the
             // distinction so free event currencies still produce a route.
-            var currencyCost = currencyValue >= 0m && values.ContainsKey(edge.Currency)
-                ? edge.CurrencyCost * currencyValue
+            var currencyCost = edge.CurrencyCost == 0
+                ? 0m
+                : currencyValue >= 0m && values.ContainsKey(edge.Currency)
+                    ? edge.CurrencyCost * currencyValue
                 : (decimal?)null;
 
             decimal? ticketCost = null;
