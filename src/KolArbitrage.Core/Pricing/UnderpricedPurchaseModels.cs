@@ -280,6 +280,9 @@ public sealed record UnderpricedPurchaseProposal
 
     public bool Accepted => IsAccepted;
     public bool Rejected => !IsAccepted;
+    public string Reason => string.Join(" ", Reasons);
+    public UnderpricedPurchaseRejectionReason PrimaryRejectionReason =>
+        RejectionReasons.Count == 0 ? UnderpricedPurchaseRejectionReason.None : RejectionReasons[0];
     public decimal CapitalRequired => TotalCost;
     public decimal ExpectedNetProfit => NetProfit;
     public decimal ReferenceSellPrice => ReferencePrice;
