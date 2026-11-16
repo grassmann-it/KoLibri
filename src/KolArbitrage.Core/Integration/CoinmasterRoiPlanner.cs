@@ -74,6 +74,7 @@ public record CoinmasterRoiPlan(
     public decimal? NetMeat => NetResale;
     public decimal? NetProfit => NetResale;
     public decimal? ExpectedNetResale => NetResale;
+    public decimal? NetResaleAfterTicket => NetResale;
     public decimal? OpportunityCost => CurrencyCostInMeat;
     public decimal? TotalCurrencyOpportunityCost => CurrencyCostInMeat;
     public decimal? CurrencyOpportunityCostPerUnit => CurrencyOpportunityCost;
