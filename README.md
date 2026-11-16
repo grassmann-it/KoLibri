@@ -52,6 +52,7 @@ Für einen automatisierten Aufruf kann das Passwort über stdin kommen:
 ```bash
 printf '%s' "$KOL_PASSWORD" | dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- login --role mallbot --username DEIN_NAME
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- shop --role mallbot
+dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- crm --role mallbot --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- categorize --role mallbot --limit 20
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- reprice --role mallbot --filter tiny-and-high --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- compare --role mallbot --item 2880 --refresh
