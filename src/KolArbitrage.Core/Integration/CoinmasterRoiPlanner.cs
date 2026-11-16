@@ -149,6 +149,28 @@ public class CoinmasterRoiPlanner
         CoinmasterRoiOptions? options = null) =>
         Plan(catalog, resaleByItemId, currencyOpportunityCosts, options);
 
+    public static IReadOnlyList<CoinmasterRoiPlan> Plan(
+        IEnumerable<CoinmasterCatalogEntry> entries,
+        IReadOnlyDictionary<string, decimal> resaleByItemId,
+        IReadOnlyDictionary<string, decimal>? currencyOpportunityCosts = null,
+        CoinmasterRoiOptions? options = null) =>
+        Plan(new CoinmasterCatalog(entries), resaleByItemId, currencyOpportunityCosts, options);
+
+    public static decimal? CalculateNetResale(
+        decimal? expectedResale,
+        int currencyCost,
+        decimal? currencyOpportunityCost,
+        decimal? ticketCostInMeat = null,
+        CoinmasterRoiOptions? options = null)
+    {
+        if (expectedResale is null || currencyOpportunityCost is null) return null;
+        var settings = options ?? new CoinmasterRoiOptions();
+        settings.Validate();
+        var sale = expectedResale.Value * (1m - settings.SaleFeeRate)
+            - settings.ListingFee - settings.SafetyBuffer;
+        return sale - currencyCost * currencyOpportunityCost.Value - (ticketCostInMeat ?? 0m);
+    }
+
     /// <summary>Derives per-unit currency values from the supplied alternative outputs.</summary>
     public IReadOnlyDictionary<string, decimal> ComputeCurrencyOpportunityCosts(
         IReadOnlyDictionary<string, decimal> resaleByItemId) =>
