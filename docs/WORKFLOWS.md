@@ -38,6 +38,6 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- \
 ```
 
 Ohne `--main-ready`/`--mallbot-ready` bleiben die kontobezogenen Schritte
-bewusst `Blocked`. Im normalen Modus liest `workflow-plan` den aktuellen
-Mallbot-Status und den Bag-Mallboden read-only; schlägt dieser Snapshot wegen
+bewusst `Blocked`. Im normalen Modus liest `workflow-plan` Main- und
+Mallbot-Status sowie den Bag-Mallboden read-only; schlägt dieser Snapshot wegen
 einer abgelaufenen Session fehl, wird trotzdem ein blockierter Plan ausgegeben.

@@ -33,6 +33,7 @@ internal static class KolibriCli
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
+                "crm" => await CrmAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
                 "compare" or "history" => await CompareAsync(args[1..]),
@@ -112,6 +113,23 @@ internal static class KolibriCli
         var client = await ReadClientAsync(ParseRole(GetOption(args, "--role") ?? "mallbot"));
         var shop = await client.Mall.FetchOwnShopAsync(forceRefresh: HasFlag(args, "--refresh"));
         WriteJson(new { fetchedAt = DateTimeOffset.UtcNow, count = shop.Count, listings = shop });
+        return 0;
+    }
+
+    private static async Task<int> CrmAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
+        using var http = await ReadAuthenticatedHttpAsync(role);
+        var salesClient = new KoLShopSalesReadClient(http);
+        var snapshot = await salesClient.FetchSalesAsync(forceRefresh: HasFlag(args, "--refresh"));
+        var report = ShopBuyerAnalytics.Analyze(snapshot.Sales);
+        WriteJson(new
+        {
+            role = role.ToString(),
+            snapshot.FetchedAt,
+            snapshot.IsStale,
+            report
+        });
         return 0;
     }
 
@@ -287,6 +305,19 @@ internal static class KolibriCli
         long? bagPrice = null;
         var bagStock = 0;
         string? snapshotWarning = null;
+        if (mainValid && !offline)
+        {
+            try
+            {
+                using var http = await ReadAuthenticatedHttpAsync(AccountRole.Main);
+                _ = await new KoLAccountReadClient(http).FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"));
+            }
+            catch (Exception exception)
+            {
+                mainValid = false;
+                snapshotWarning = $"Main: {exception.Message}";
+            }
+        }
         if (mallbotValid && !offline)
         {
             try
@@ -307,7 +338,9 @@ internal static class KolibriCli
                 // Keep the command read-only and emit a blocked plan instead
                 // of failing before a user can inspect the checklist.
                 mallbotValid = false;
-                snapshotWarning = exception.Message;
+                snapshotWarning = snapshotWarning is null
+                    ? $"Mallbot: {exception.Message}"
+                    : $"{snapshotWarning}; Mallbot: {exception.Message}";
             }
         }
         if (long.TryParse(GetOption(args, "--meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var meatOverride))
@@ -360,7 +393,7 @@ internal static class KolibriCli
             ForeignBribeBags = FindQuantity(inventory, "foreign bribe"),
             PirateEncryptionKeys = FindQuantity(inventory, "pirate encryption key"),
             ElfGuardPresents = FindQuantity(inventory, "elf guard present"),
-            CrimbucaneerBooty = FindQuantity(inventory, "crimbuccaneer booty"),
+            CrimbucaneerBooty = FindQuantity(inventory, "crimbucaneer booty", "crimbuccaneer booty"),
             SkeletonOfCrimbosPastAvailable = HasFlag(args, "--skeleton-available")
         };
         var options = new AdventurePlannerOptions
@@ -593,6 +626,7 @@ internal static class KolibriCli
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  shop --role mallbot [--refresh]");
+        Console.WriteLine("  crm --role mallbot [--refresh]    eigener Shop: Käufer-/Sales-Analyse");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
         Console.WriteLine("  compare --role mallbot --item ITEM_ID [--item ITEM_ID] [--refresh]");

@@ -36,7 +36,7 @@ Keep planning separate from execution. The planner can produce a daily target
 such as 100 Knucklebones, a turn budget, and permitted actions. The execution
 adapter should expose the following internal phases:
 
-`Adventure -> Combat -> Choice -> Complete`, with `Blocked` and `Unknown`
+`Adventure -> Fight -> Choice -> Complete`, with `Blocked` and `Unknown`
 terminal states for anything the policy does not understand.
 
 An execution checkpoint should include the account role, location id, current

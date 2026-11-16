@@ -57,6 +57,10 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- reprice --role ma
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- compare --role mallbot --item 2880 --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- bribe-rank --role mallbot --item 8691 --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- bribe-plan --role mallbot --quantity 40 --reserve 1000000 --refresh
+dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- workflow-plan --refresh
+# deterministische Checkliste ohne Netzwerk (z. B. bei abgelaufener Session)
+dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- workflow-plan --offline \
+  --main-ready --mallbot-ready --meat 2409081 --bag-price 27000 --bag-stock 463
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- adventure-plan --role main --target 100 --yield 0.5 --skeleton-available --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- apply-prices \
   --role mallbot --set 2880:96969:1199
