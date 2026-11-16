@@ -61,5 +61,6 @@ sale; this is a policy value and can be changed later. `BuyerCrmService` also
 creates `BuyerContactIntent` previews for a message or gift after a points
 threshold. Intents contain the resolved character name for the eventual
 adapter, but always carry `RequiresApproval`; no message or gift is sent by
-the current CLI.
+the current CLI. `BuyerCrmService.SetBlocked` changes the local block flag and
+optional note; blocked profiles cannot receive reward intents.
 

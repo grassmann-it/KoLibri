@@ -68,6 +68,33 @@ public sealed record BuyerContactIntent(
 
 public static class BuyerCrmService
 {
+    public static BuyerCrmDatabase SetBlocked(
+        BuyerCrmDatabase database,
+        string buyerKey,
+        bool blocked,
+        string? note = null)
+    {
+        ArgumentNullException.ThrowIfNull(database);
+        if (string.IsNullOrWhiteSpace(buyerKey))
+            throw new ArgumentException("A buyer key is required.", nameof(buyerKey));
+
+        var found = false;
+        var buyers = database.Buyers.Select(profile =>
+        {
+            if (!string.Equals(profile.BuyerKey, buyerKey, StringComparison.Ordinal))
+                return profile;
+            found = true;
+            return profile with
+            {
+                IsBlocked = blocked,
+                Notes = note ?? profile.Notes
+            };
+        }).ToArray();
+        if (!found)
+            throw new KeyNotFoundException($"Buyer key '{buyerKey}' is not in the CRM ledger.");
+        return database with { Buyers = buyers };
+    }
+
     public static BuyerCrmSyncResult ApplySales(
         BuyerCrmDatabase database,
         IEnumerable<ShopSale> sales,
