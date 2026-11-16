@@ -57,7 +57,7 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             if (choices.Count == 0)
                 advisories.Add("Choice page has no recognised options; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Choice, path, choiceId, choices,
-                choices.Count > 0, advisories, null, responseHash, retryCount);
+                choiceId is not null && choices.Count > 0, advisories, null, responseHash, retryCount);
         }
 
         var round = ExtractFightRound(html);
@@ -65,7 +65,9 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             || round is not null
             || Regex.IsMatch(html, @"\b(?:whichskill|fight\.php)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
-            return Build(adventureId, AdventureEncounterKind.Fight, path, null, [], true,
+            if (round is null)
+                advisories.Add("Combat response has no round marker; manual review required.");
+            return Build(adventureId, AdventureEncounterKind.Fight, path, null, [], round is not null,
                 advisories, round, responseHash, retryCount);
         }
 
@@ -112,8 +114,12 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
     private static int? ExtractFightRound(string html)
     {
         var match = RoundPattern.Match(html);
-        return match.Success && int.TryParse(match.Groups[1].Value, out var round)
-            ? Math.Max(0, round)
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var round))
+            return Math.Max(0, round);
+
+        var inputValue = ExtractInputValue(html, "onturn");
+        return int.TryParse(inputValue, out var inputRound)
+            ? Math.Max(0, inputRound)
             : null;
     }
 

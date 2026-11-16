@@ -389,8 +389,8 @@ public static class ShopBuyerAnalytics
             sales.Select(x => x.ItemName).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
             totalQuantity,
             totalMeat,
-            timestamps.FirstOrDefault(),
-            timestamps.LastOrDefault(),
+            timestamps.Length == 0 ? null : timestamps[0],
+            timestamps.Length == 0 ? null : timestamps[^1],
             totalQuantity == 0 ? 0m : (decimal)totalMeat / totalQuantity,
             sales.Select(x => x.ItemName).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Take(30).ToArray(),
             flags);
