@@ -311,10 +311,32 @@ public sealed record UnderpricedPurchasePlanRequest
 
 // Names used by some adapters and by older prototypes. They retain one source
 // of behaviour while making the public API straightforward to discover.
-public sealed record UnderpricedReference : RobustPriceReference { }
-public sealed record ItemTradeability : UnderpricedItemTradeability { }
+public sealed record UnderpricedReference : RobustPriceReference
+{
+    public UnderpricedReference() { }
+    public UnderpricedReference(decimal price, DateTimeOffset? asOf = null) : base(price, asOf) { }
+}
+public sealed record ItemTradeability : UnderpricedItemTradeability
+{
+    public ItemTradeability() { }
+    public ItemTradeability(bool tradeable, bool accountBound = false) : base(tradeable, accountBound) { }
+}
 public sealed record UnderpricedPurchasePolicy : UnderpricedPurchaseLimits { }
 public sealed record UnderpricedPurchasePlannerOptions : UnderpricedPurchaseLimits { }
-public sealed record RobustMarketReference : RobustPriceReference { }
-public sealed record PurchaseListing : UnderpricedPurchaseListing { }
-public sealed record PurchaseCandidate : UnderpricedPurchaseListing { }
+public sealed record RobustMarketReference : RobustPriceReference
+{
+    public RobustMarketReference() { }
+    public RobustMarketReference(decimal price, DateTimeOffset? asOf = null) : base(price, asOf) { }
+}
+public record PurchaseListing : UnderpricedPurchaseListing
+{
+    public PurchaseListing() { }
+    public PurchaseListing(string itemId, string sellerId, decimal price, int quantity,
+        DateTimeOffset? observedAt = null) : base(itemId, sellerId, price, quantity, observedAt) { }
+}
+public record PurchaseCandidate : UnderpricedPurchaseListing
+{
+    public PurchaseCandidate() { }
+    public PurchaseCandidate(string itemId, string sellerId, decimal price, int quantity,
+        DateTimeOffset? observedAt = null) : base(itemId, sellerId, price, quantity, observedAt) { }
+}
