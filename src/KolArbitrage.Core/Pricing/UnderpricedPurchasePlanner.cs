@@ -280,6 +280,8 @@ public sealed class UnderpricedPurchasePlanner
             reasons.Add((UnderpricedPurchaseRejectionReason.InvalidPrice, "Unit price must be greater than zero."));
         if (listing.Quantity <= 0)
             reasons.Add((UnderpricedPurchaseRejectionReason.InvalidQuantity, "Listing quantity must be greater than zero."));
+        if (listing.SellerPurchaseLimit is <= 0)
+            reasons.Add((UnderpricedPurchaseRejectionReason.QuantityLimitExceeded, "Seller purchase limit does not allow a unit."));
 
         var referencePrice = reference?.GetConservativePrice() ?? 0m;
         if (reference is null || referencePrice <= 0)
