@@ -247,6 +247,12 @@ public class CoinmasterConversionGraph
     public IEnumerable<CoinmasterConversionEdge> FromCurrency(string currency) =>
         _edges.Where(x => string.Equals(x.Currency, currency?.Trim(), StringComparison.OrdinalIgnoreCase));
 
+    public IReadOnlyList<CoinmasterConversionEdge> GetEdges(string currency) =>
+        FromCurrency(currency).ToArray();
+
+    public IReadOnlyList<CoinmasterConversionEdge> OutputsFor(string currency) =>
+        GetEdges(currency);
+
     public bool TryGetEdge(string itemId, out CoinmasterConversionEdge edge)
     {
         edge = _edges.FirstOrDefault(x => string.Equals(x.ItemId, itemId?.Trim(), StringComparison.OrdinalIgnoreCase))!;
