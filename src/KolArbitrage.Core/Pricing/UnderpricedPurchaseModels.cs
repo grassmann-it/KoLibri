@@ -279,6 +279,11 @@ public sealed record UnderpricedPurchaseProposal
     public IReadOnlyList<string> Reasons { get; init; } = [];
 
     public bool Accepted => IsAccepted;
+    public bool Rejected => !IsAccepted;
+    public decimal CapitalRequired => TotalCost;
+    public decimal ExpectedNetProfit => NetProfit;
+    public decimal ReferenceSellPrice => ReferencePrice;
+    public int Quantity => ProposedQuantity;
 }
 
 public sealed record UnderpricedPurchasePlan

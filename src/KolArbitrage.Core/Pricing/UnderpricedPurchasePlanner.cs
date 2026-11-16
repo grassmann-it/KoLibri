@@ -238,6 +238,13 @@ public sealed class UnderpricedPurchasePlanner
         UnderpricedPurchaseLimits? limits = null) =>
         Plan(listings, references, tradeability, limits).Proposals;
 
+    public IReadOnlyList<UnderpricedPurchaseProposal> Propose(
+        IEnumerable<UnderpricedPurchaseListing> listings,
+        IReadOnlyDictionary<string, RobustPriceReference> references,
+        IReadOnlyDictionary<string, UnderpricedItemTradeability>? tradeability = null,
+        UnderpricedPurchaseLimits? limits = null) =>
+        Evaluate(listings, references, tradeability, limits);
+
     private Draft EvaluateListing(
         UnderpricedPurchaseListing? listing,
         IReadOnlyDictionary<string, RobustPriceReference> references,
