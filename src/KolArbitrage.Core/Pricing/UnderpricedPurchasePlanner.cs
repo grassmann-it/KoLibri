@@ -171,6 +171,18 @@ public sealed class UnderpricedPurchasePlanner
         return Plan(converted, reference, limits, tradeability);
     }
 
+    public UnderpricedPurchasePlan Plan(
+        IEnumerable<MallListing> listings,
+        IReadOnlyDictionary<string, RobustPriceReference> references,
+        IReadOnlyDictionary<string, UnderpricedItemTradeability>? tradeability = null,
+        UnderpricedPurchaseLimits? limits = null)
+    {
+        ArgumentNullException.ThrowIfNull(listings);
+        var converted = listings.Select(x => new UnderpricedPurchaseListing(
+            x.ItemId, x.StoreId, x.Price, x.Quantity, x.ObservedAt, x.PurchaseLimit, x.StoreName));
+        return Plan(converted, references, tradeability, limits);
+    }
+
     /// <summary>Bridges the guarded purchase budget used by approval adapters.</summary>
     public UnderpricedPurchasePlan Plan(
         IEnumerable<MallListing> listings,
