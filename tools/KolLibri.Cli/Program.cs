@@ -34,6 +34,7 @@ internal static class KolibriCli
                 "inventory" => await InventoryAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
+                "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
                 "compare" or "history" => await CompareAsync(args[1..]),
@@ -150,6 +151,20 @@ internal static class KolibriCli
             },
             report
         });
+        return 0;
+    }
+
+    private static async Task<int> CrmBlockAsync(string[] args)
+    {
+        var buyerKey = GetOption(args, "--key")
+            ?? (args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null)
+            ?? throw new ArgumentException("--key BUYER_KEY fehlt.");
+        var blocked = !bool.TryParse(GetOption(args, "--blocked"), out var parsed) || parsed;
+        var store = new BuyerCrmStore();
+        var database = await store.LoadAsync();
+        var updated = BuyerCrmService.SetBlocked(database, buyerKey, blocked, GetOption(args, "--note"));
+        await store.SaveAsync(updated);
+        WriteJson(new { buyerKey, blocked, saved = true });
         return 0;
     }
 
@@ -647,6 +662,7 @@ internal static class KolibriCli
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  shop --role mallbot [--refresh]");
         Console.WriteLine("  crm --role mallbot [--refresh]    eigener Shop: Käufer-/Sales-Analyse");
+        Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
         Console.WriteLine("  compare --role mallbot --item ITEM_ID [--item ITEM_ID] [--refresh]");
