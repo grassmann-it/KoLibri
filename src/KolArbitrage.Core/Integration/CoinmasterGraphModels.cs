@@ -19,6 +19,20 @@ public record CoinmasterCatalogEntry(
         new(entry.Currency, entry.ItemId, entry.ItemName, entry.CurrencyCost,
             entry.IsTradeable, entry.IsOneDayTicket);
 
+    /// <summary>Compatibility overload for catalogs that put ticket units in the seventh column.</summary>
+    public CoinmasterCatalogEntry(
+        string currency,
+        string itemId,
+        string itemName,
+        int currencyCost,
+        bool isTradeable,
+        bool isOneDayTicket,
+        int? ticketCost)
+        : this(currency, itemId, itemName, currencyCost, isTradeable,
+            isOneDayTicket, true, null, ticketCost)
+    {
+    }
+
     public string NormalizedCurrency => Currency.Trim();
     public string NormalizedItemId => ItemId.Trim();
     public string OutputItemId => ItemId;
@@ -60,7 +74,21 @@ public sealed record CoinmasterCatalogRecord(
     string? TicketCurrency = null,
     int? TicketCost = null)
     : CoinmasterCatalogEntry(Currency, ItemId, ItemName, CurrencyCost, IsTradeable,
-        IsOneDayTicket, RequiresTicket, TicketCurrency, TicketCost);
+        IsOneDayTicket, RequiresTicket, TicketCurrency, TicketCost)
+{
+    public CoinmasterCatalogRecord(
+        string currency,
+        string itemId,
+        string itemName,
+        int currencyCost,
+        bool isTradeable,
+        bool isOneDayTicket,
+        int? ticketCost)
+        : this(currency, itemId, itemName, currencyCost, isTradeable,
+            isOneDayTicket, true, null, ticketCost)
+    {
+    }
+}
 
 /// <summary>One-day ticket price in a currency.</summary>
 public sealed record CoinmasterTicketCost(

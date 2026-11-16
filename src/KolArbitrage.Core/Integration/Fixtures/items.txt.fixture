@@ -1,0 +1,8 @@
+# item number name descid image use access autosell plural
+1	seal tooth	617818041	tooth.gif	message, combat reusable, smith	t,d	1	seal teeth
+2	plain brown wrapper	617818042	wrapper.gif	usable, package	g	0	plain brown wrappers
+10323	packaged Pocket Professor	617818043	professor.gif	usable, package	t,g	1000	packaged Pocket Professors
+10324	Pocket Professor memory chip	617818044	chip.gif	usable		0	Pocket Professor memory chips
+9689	(unopened) January's Garbage Tote	617818045	garbage.gif	usable, package	t,g	100	(unopened) January's Garbage Totes
+9690	January's Garbage Tote	617818046	garbage.gif	usable	t,g	100	January's Garbage Totes
+13

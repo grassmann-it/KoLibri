@@ -55,6 +55,9 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- shop --role mallb
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- crm --role mallbot --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- categorize --role mallbot --limit 20
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- reprice --role mallbot --filter tiny-and-high --refresh
+dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- snatch-plan \
+  --role mallbot --item 2880 --item 8691 --workers 8 --limit 20 \
+  --budget 2400000 --reserve 1000000 --min-margin 0.10 --min-profit 1000
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- compare --role mallbot --item 2880 --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- bribe-rank --role mallbot --item 8691 --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- bribe-plan --role mallbot --quantity 40 --reserve 1000000 --refresh
@@ -74,6 +77,10 @@ Die CLI hat bewusst keine Kauf-, Verkaufs- oder Transferbefehle.
 Mallpreis und einem leichten Unterbietungspreis; es ändert keine Listings.
 `compare` ergänzt die Mall-Referenz um Pricegun-Minimum, Median, gewichteten
 Durchschnitt, letzten Verkauf sowie `historicalHigher` und `buyCandidate`.
+`snatch-plan` prüft eine begrenzte Watchlist (ohne Watchlist die eigenen
+Shop-Items) gegen gecachte Mall- und Pricegun-Daten. Es berücksichtigt Reserve,
+Budget, Mindestmarge, Mindestgewinn, Blacklist und bis zu 20 Worker und gibt nur
+konkrete Underprice-Vorschläge aus. Der Befehl kauft nichts.
 `apply-prices` ist standardmäßig eine Vorschau. Erst mit dem zusätzlichen
 Flag `--commit` wird ein explizit mit dem erwarteten aktuellen Preis gebundener
 Preis-POST gesendet; danach liest KoLibri den Shop erneut und verifiziert jeden

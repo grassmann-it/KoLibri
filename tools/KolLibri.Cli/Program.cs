@@ -5,6 +5,8 @@ using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Analytics;
 using KolArbitrage.Core.Integration;
+using KolArbitrage.Core.Pricing;
+using KolArbitrage.Core.Safety;
 
 return await KolibriCli.RunAsync(args);
 
@@ -45,6 +47,7 @@ internal static class KolibriCli
                 "categorize" => await CategorizeAsync(args[1..]),
                 "reprice" => await RepriceAsync(args[1..]),
                 "batch" => await RepriceAsync(args[1..]),
+                "snatch-plan" => await SnatchPlanAsync(args[1..]),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
                 _ => Fail($"Unbekannter Befehl: {args[0]}")
             };
@@ -538,6 +541,129 @@ internal static class KolibriCli
         return 0;
     }
 
+    private static async Task<int> SnatchPlanAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
+        var requestedItems = GetOptions(args, "--item");
+        var limit = int.TryParse(GetOption(args, "--limit"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLimit)
+            ? Math.Clamp(parsedLimit, 1, 500) : 20;
+        var workers = int.TryParse(GetOption(args, "--workers"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedWorkers)
+            ? Math.Clamp(parsedWorkers, 1, 20) : 8;
+        var refresh = HasFlag(args, "--refresh");
+        var accounts = await ReadClientAsync(role);
+        var status = await accounts.Api.FetchStatusAsync(forceRefresh: refresh);
+        var ownShop = await accounts.Mall.FetchOwnShopAsync(forceRefresh: refresh);
+
+        var budget = decimal.TryParse(GetOption(args, "--budget"), NumberStyles.Number, CultureInfo.InvariantCulture, out var budgetOverride)
+            ? Math.Max(0m, budgetOverride) : Math.Max(0m, status.Meat);
+        var reserve = decimal.TryParse(GetOption(args, "--reserve"), NumberStyles.Number, CultureInfo.InvariantCulture, out var reserveOverride)
+            ? Math.Max(0m, reserveOverride) : 1_000_000m;
+        reserve = Math.Min(reserve, budget);
+        var minimumMargin = decimal.TryParse(GetOption(args, "--min-margin"), NumberStyles.Number, CultureInfo.InvariantCulture, out var marginOverride)
+            ? Math.Max(0m, marginOverride) : 0.10m;
+        var minimumProfit = decimal.TryParse(GetOption(args, "--min-profit"), NumberStyles.Number, CultureInfo.InvariantCulture, out var profitOverride)
+            ? Math.Max(0m, profitOverride) : 1_000m;
+        var minimumSpread = decimal.TryParse(GetOption(args, "--min-spread"), NumberStyles.Number, CultureInfo.InvariantCulture, out var spreadOverride)
+            ? Math.Max(0m, spreadOverride) : 100m;
+        var maxPerItem = int.TryParse(GetOption(args, "--max-item"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxItemOverride)
+            ? Math.Clamp(maxItemOverride, 1, 1_000_000) : 100;
+        var maxProposals = int.TryParse(GetOption(args, "--max-proposals"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxProposalOverride)
+            ? Math.Clamp(maxProposalOverride, 1, 1_000) : 50;
+
+        var items = requestedItems.Count > 0
+            ? requestedItems.Select(x => x.Trim()).Where(x => x.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(limit).ToArray()
+            : ownShop.Select(x => x.ItemId).Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(limit).ToArray();
+
+        using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var pricegun = new PricegunReadClient(pricegunHttp);
+        var blacklist = await new JsonFileSellerBlacklistStore().LoadAsync();
+        var ownPriceByItem = ownShop.GroupBy(x => x.ItemId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Select(y => y.Price).ToHashSet(), StringComparer.OrdinalIgnoreCase);
+        using var gate = new SemaphoreSlim(workers, workers);
+        var tasks = items.Select(async itemId =>
+        {
+            await gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                try
+                {
+                    var own = ownShop.FirstOrDefault(x => string.Equals(x.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
+                    var mall = await accounts.Mall.SearchAsync(own?.DisplayName ?? itemId, forceRefresh: refresh).ConfigureAwait(false);
+                    var history = await pricegun.FetchAsync(itemId, forceRefresh: refresh).ConfigureAwait(false);
+                    var independent = mall.Listings
+                        // Own-shop parsing has no store id; matching our exact ask
+                        // prices prevents the snatcher buying our own listing.
+                        .Where(x => !ownPriceByItem.TryGetValue(itemId, out var ownPrices) || !ownPrices.Contains(x.Price))
+                        .Where(x => !SellerBlacklistMatcher.IsBlocked(blacklist, x)).ToArray();
+                    var snapshot = new PriceSnapshot(
+                        itemId,
+                        independent,
+                        history.Sales,
+                        ownShop.Where(x => string.Equals(x.ItemId, itemId, StringComparison.OrdinalIgnoreCase)),
+                        mall.FetchedAt,
+                        history.FetchedAt,
+                        mall.IsStale,
+                        history.IsStale,
+                        mall.IsStale || history.IsStale,
+                        mall.SourceUri,
+                        history.SourceUri);
+                    var estimate = new MarketPriceEstimator(new MarketPriceEstimatorOptions { TopN = 10 }).Estimate(snapshot);
+                    var listings = independent.Select(x => new UnderpricedPurchaseListing(
+                        x.ItemId, x.StoreId, x.Price, x.Quantity, x.ObservedAt, x.PurchaseLimit, x.StoreName)).ToArray();
+                    var policy = new UnderpricedPurchaseLimits
+                    {
+                        Budget = budget,
+                        Reserve = reserve,
+                        MaxQuantityPerItem = maxPerItem,
+                        MaxProposals = maxProposals,
+                        MinimumMarginPercent = minimumMargin,
+                        MinimumAbsoluteProfit = minimumProfit,
+                        MinimumAbsoluteSpreadPerUnit = minimumSpread,
+                        MaximumReferenceAge = TimeSpan.FromHours(6)
+                    };
+                    var plan = new UnderpricedPurchasePlanner(policy).Plan(listings, estimate);
+                    return (object)new
+                    {
+                        itemId,
+                        displayName = own?.DisplayName ?? history.DisplayName,
+                        mallFetchedAt = mall.FetchedAt,
+                        pricegunFetchedAt = history.FetchedAt,
+                        mallIsStale = mall.IsStale,
+                        pricegunIsStale = history.IsStale,
+                        estimate,
+                        plan
+                    };
+                }
+                catch (Exception exception)
+                {
+                    return (object)new { itemId, error = exception.Message };
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+        var results = await Task.WhenAll(tasks);
+        WriteJson(new
+        {
+            role = role.ToString(),
+            fetchedAt = DateTimeOffset.UtcNow,
+            readOnly = true,
+            purchaseExecuted = false,
+            workerLimit = workers,
+            itemCount = items.Length,
+            budget,
+            reserve,
+            policy = new { minimumMargin, minimumProfit, minimumSpread, maxPerItem, maxProposals },
+            results,
+            accepted = "Nur Vorschläge. Vor einem Kauf müssen Angebot, Preis und Seller erneut geprüft und explizit freigegeben werden."
+        });
+        return 0;
+    }
+
     private static async Task<int> ApplyPricesAsync(string[] args)
     {
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
@@ -673,6 +799,8 @@ internal static class KolibriCli
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");
         Console.WriteLine("  reprice --role mallbot [--filter tiny|high|tiny-and-high|all] [--refresh]");
+        Console.WriteLine("  snatch-plan --role mallbot [--item ITEM_ID ...] [--limit 20] [--workers 8]");
+        Console.WriteLine("              [--budget N --reserve N --min-margin 0.10 --min-profit N --min-spread N]");
         Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:ERWARTET:NEU [--set ...] [--commit]");
         Console.WriteLine();
         Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");
