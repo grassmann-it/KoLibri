@@ -426,28 +426,71 @@ internal static partial class KolibriCli
             GetOption(args, "--yield"), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedYield)
             ? Math.Max(0m, parsedYield) : 0.5m;
         var client = await ReadClientAsync(role);
-        var status = await client.Api.FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"));
-        var inventory = await client.Api.FetchInventoryAsync(forceRefresh: HasFlag(args, "--refresh"));
-        var state = new AdventureState
+        var forceRefresh = HasFlag(args, "--refresh");
+        async Task<AdventureState> ReadStateAsync(CancellationToken cancellationToken)
         {
-            Knucklebones = FindQuantity(inventory, "knucklebone"),
-            AdventureTurnsRemaining = status.Adventures,
-            LuckySurpriseEggs = FindQuantity(inventory, "lucky surprise egg"),
-            ForeignBribeBags = FindQuantity(inventory, "foreign bribe"),
-            PirateEncryptionKeys = FindQuantity(inventory, "pirate encryption key"),
-            ElfGuardPresents = FindQuantity(inventory, "elf guard present"),
-            CrimbucaneerBooty = FindQuantity(inventory, "crimbucaneer booty", "crimbuccaneer booty"),
-            SkeletonOfCrimbosPastAvailable = HasFlag(args, "--skeleton-available")
-        };
+            cancellationToken.ThrowIfCancellationRequested();
+            var status = await client.Api.FetchStatusAsync(
+                forceRefresh: forceRefresh || HasFlag(args, "--periodic"),
+                cancellationToken: cancellationToken);
+            var inventory = await client.Api.FetchInventoryAsync(
+                forceRefresh: forceRefresh || HasFlag(args, "--periodic"),
+                cancellationToken: cancellationToken);
+            return new AdventureState
+            {
+                Knucklebones = FindQuantity(inventory, "knucklebone"),
+                AdventureTurnsRemaining = status.Adventures,
+                LuckySurpriseEggs = FindQuantity(inventory, "lucky surprise egg"),
+                ForeignBribeBags = FindQuantity(inventory, "foreign bribe"),
+                PirateEncryptionKeys = FindQuantity(inventory, "pirate encryption key"),
+                ElfGuardPresents = FindQuantity(inventory, "elf guard present"),
+                CrimbucaneerBooty = FindQuantity(inventory, "crimbuccaneer booty", "crimbuccaneer booty"),
+                SkeletonOfCrimbosPastAvailable = HasFlag(args, "--skeleton-available")
+            };
+        }
         var options = new AdventurePlannerOptions
         {
             DailyKnucklebonesTarget = target,
             ExpectedKnucklebonesPerAdventure = expectedYield,
             ConsumeLuckySurpriseEggs = !HasFlag(args, "--no-eggs")
         };
+        var iterations = Math.Clamp(ReadInt(args, "--iterations", HasFlag(args, "--periodic") ? 1 : 1), 1, 1_000);
+        var periodic = HasFlag(args, "--periodic") || iterations > 1;
+        if (periodic)
+        {
+            var scheduler = new DailyAdventurePlanScheduler(
+                new DailyAdventurePlanner(options));
+            var ticks = new List<DailyAdventureScheduleTick>();
+            await foreach (var tick in scheduler.RunAsync(
+                ReadStateAsync,
+                options,
+                new DailyAdventureSchedulerOptions
+                {
+                    MaxIterations = iterations,
+                    Interval = TimeSpan.FromSeconds(Math.Max(0, ReadInt(args, "--interval", 0))),
+                    WorkerLimit = Math.Clamp(ReadInt(args, "--workers", 1), 1, 20)
+                }))
+            {
+                ticks.Add(tick);
+            }
+            WriteJson(new
+            {
+                command = "adventure-plan",
+                role = role.ToString(),
+                readOnly = true,
+                periodic = true,
+                iterations = ticks.Count,
+                ticks,
+                execution = "preview-only; no adventure, fight, choice or item request was sent"
+            });
+            return 0;
+        }
+
+        var state = await ReadStateAsync(CancellationToken.None);
         var plan = new DailyAdventurePlanner(options).Plan(state, DateOnly.FromDateTime(DateTime.UtcNow));
         WriteJson(new
         {
+            command = "adventure-plan",
             role = role.ToString(),
             readOnly = true,
             state,
@@ -802,6 +845,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  workflow-plan [--refresh] [--offline --main-ready --mallbot-ready]");
         Console.WriteLine("                [--meat N --bag-price N --bag-stock N --quantity N --reserve N]");
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
+        Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
         Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
         Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
