@@ -56,18 +56,6 @@ public record ChoiceHiddenField
         Required = required;
     }
 
-    public ChoiceHiddenField(
-        string name,
-        string? allowedValue,
-        bool required = false)
-        : this(name,
-            string.IsNullOrWhiteSpace(allowedValue)
-                ? Array.Empty<string>()
-                : new[] { allowedValue },
-            required)
-    {
-    }
-
     /// <summary>The exact form field name, for example <c>pwd</c>.</summary>
     public string Name { get; init; } = string.Empty;
 
@@ -689,6 +677,22 @@ public sealed record ChoicePolicy
         IEnumerable<ChoiceHiddenField>? hiddenFields = null,
         string? encounterId = null)
         => AddChoice(choiceId, options, hiddenFields, encounterId);
+
+    public ChoicePolicy AddChoiceOption(
+        string choiceId,
+        string optionId,
+        int priority = 0,
+        bool isDefault = false,
+        string? encounterId = null)
+        => AddOption(choiceId, optionId, priority, isDefault, encounterId);
+
+    public ChoicePolicy AllowChoiceOption(
+        string choiceId,
+        string optionId,
+        int priority = 0,
+        bool isDefault = false,
+        string? encounterId = null)
+        => AddOption(choiceId, optionId, priority, isDefault, encounterId);
 
     public ChoicePolicy AddOption(
         string choiceId,
