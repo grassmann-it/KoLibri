@@ -16,6 +16,12 @@ public static class KoLAdventureSessionFactory
             "KoLibri",
             "adventure-checkpoints");
 
+    public static string DefaultAuditPath
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "KoLibri",
+            "adventure-audit.jsonl");
+
     public static async Task<KoLAdventureSession> CreateAsync(
         AccountRole role,
         IAdventureApprovalHook approval,
@@ -40,15 +46,14 @@ public static class KoLAdventureSessionFactory
         try
         {
             var transport = new HttpAdventureExecutionTransport(http, binding, options);
-            var hooks = auditJournal is null
-                ? null
-                : new AuditedAdventureHooks(approval, verification, auditJournal);
+            var journal = auditJournal ?? new AuditEventJournal(DefaultAuditPath);
+            var hooks = new AuditedAdventureHooks(approval, verification, journal);
             var gateway = new AdventureExecutionGateway(
                 transport,
                 checkpoints ?? new JsonFileAdventureRunCheckpointStore(DefaultCheckpointDirectory),
-                approval: hooks ?? approval,
-                verification: hooks ?? verification);
-            return new KoLAdventureSession(session, http, transport, gateway);
+                approval: hooks,
+                verification: hooks);
+            return new KoLAdventureSession(session, http, transport, gateway, journal, auditJournal is null);
         }
         catch
         {
@@ -64,17 +69,22 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
     private readonly HttpClient _http;
     private readonly HttpAdventureExecutionTransport _transport;
     private bool _disposed;
+    private readonly IAuditEventJournal? _ownedAuditJournal;
 
     internal KoLAdventureSession(
         AccountSession account,
         HttpClient http,
         HttpAdventureExecutionTransport transport,
-        AdventureExecutionGateway gateway)
+        AdventureExecutionGateway gateway,
+        IAuditEventJournal auditJournal,
+        bool ownsAuditJournal)
     {
         Account = account ?? throw new ArgumentNullException(nameof(account));
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         Gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
+        AuditJournal = auditJournal ?? throw new ArgumentNullException(nameof(auditJournal));
+        if (ownsAuditJournal) _ownedAuditJournal = auditJournal;
     }
 
     public AccountSession Account { get; }
@@ -82,6 +92,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
     public string AccountId => Account.Profile.Id;
     public AdventureExecutionGateway Gateway { get; }
     public HttpAdventureExecutionTransport Transport => _transport;
+    public IAuditEventJournal AuditJournal { get; }
 
     public void Dispose()
     {
@@ -90,6 +101,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
         Gateway.Dispose();
         _transport.Dispose();
         _http.Dispose();
+        _ownedAuditJournal?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
@@ -99,5 +111,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
         await Gateway.DisposeAsync().ConfigureAwait(false);
         _transport.Dispose();
         _http.Dispose();
+        if (_ownedAuditJournal is not null)
+            await _ownedAuditJournal.DisposeAsync().ConfigureAwait(false);
     }
 }
