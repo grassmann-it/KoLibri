@@ -152,6 +152,18 @@ public sealed record ItemMasterRecord
     public bool IsGiftable => AccessFlags.HasFlag(ItemAccessFlags.Giftable);
     public bool CanTrade => IsTradeable;
     public bool CanGift => IsGiftable;
+    /// <summary>
+    /// Whether the item can be acquired through a Mall listing.  Mall trade
+    /// and gift transfer are independent capabilities in KoL; a trade-only
+    /// row (the <c>t</c> access marker) is still a valid Mall item.
+    /// </summary>
+    public bool IsMallTradeable => IsTradeable && !IsAccountBound;
+    public bool MallTradeable => IsMallTradeable;
+    public bool CanBuyFromMall => IsMallTradeable;
+    /// <summary>Whether the item can be transferred using KoL's gift flow.</summary>
+    public bool IsGiftTransferable => IsGiftable && !IsAccountBound;
+    public bool GiftTransferable => IsGiftTransferable;
+    public bool CanTransferByGift => IsGiftTransferable;
     public bool IsQuestItem => AccessFlags.HasFlag(ItemAccessFlags.Quest);
     public bool IsDiscardable => AccessFlags.HasFlag(ItemAccessFlags.Discardable);
     public bool IsAccountBound
@@ -299,12 +311,36 @@ public sealed record ItemMasterRecord
     private static ItemVariantKind InferVariantKind(string name, IReadOnlySet<string> useTags)
     {
         var value = name.Trim().ToLowerInvariant();
+        // KoLmafia's use column is not consistent across item generations;
+        // some packaged IotM forms are identified only by their display name.
+        // Keep the name markers deliberately data-driven and independent of a
+        // list of current IotMs so future monthly items are covered too.
         if (useTags.Contains("package") || useTags.Contains("packaged") ||
+            useTags.Contains("box") || useTags.Contains("boxed") ||
+            useTags.Contains("loot box") || useTags.Contains("loot-box") ||
+            useTags.Contains("lootbox") || useTags.Contains("scabbarded") ||
+            useTags.Contains("shrink-wrapped") || useTags.Contains("shrink wrapped") ||
+            useTags.Contains("shrinkwrapped") || useTags.Contains("wrapped") ||
+            useTags.Contains("discreetly-wrapped") || useTags.Contains("discreetly wrapped") ||
+            useTags.Contains("discreetlywrapped") ||
+            useTags.Contains("unopened") ||
             value.StartsWith("packaged ", StringComparison.Ordinal) ||
             value.StartsWith("unopened ", StringComparison.Ordinal) ||
+            value.Contains("unopened", StringComparison.Ordinal) ||
             value.Contains("(unopened)", StringComparison.Ordinal) ||
             value.StartsWith("wrapped ", StringComparison.Ordinal) ||
-            value.Contains("(wrapped)", StringComparison.Ordinal))
+            value.Contains("(wrapped)", StringComparison.Ordinal) ||
+            value.Contains("boxed", StringComparison.Ordinal) ||
+            value.Contains("scabbarded", StringComparison.Ordinal) ||
+            value.Contains("shrink-wrapped", StringComparison.Ordinal) ||
+            value.Contains("shrink wrapped", StringComparison.Ordinal) ||
+            value.Contains("shrinkwrapped", StringComparison.Ordinal) ||
+            value.Contains("loot box", StringComparison.Ordinal) ||
+            value.Contains("loot-box", StringComparison.Ordinal) ||
+            value.Contains("lootbox", StringComparison.Ordinal) ||
+            value.Contains("discreetly-wrapped", StringComparison.Ordinal) ||
+            value.Contains("discreetly wrapped", StringComparison.Ordinal) ||
+            value.Contains("discreetlywrapped", StringComparison.Ordinal))
             return ItemVariantKind.Packaged;
         if (useTags.Contains("open") || useTags.Contains("opened") ||
             value.StartsWith("opened ", StringComparison.Ordinal) ||

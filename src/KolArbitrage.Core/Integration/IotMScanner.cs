@@ -331,6 +331,22 @@ public sealed class IotMScanner
         return Scan(catalog, benchmark, markets);
     }
 
+    /// <summary>
+    /// Reads an explicitly manifested Mr. Store catalog.  The source remains
+    /// dynamic; this overload only adapts its payload to the scanner and does
+    /// not embed a list of current IotMs.
+    /// </summary>
+    public async Task<IReadOnlyList<IotMScanResult>> ScanAsync(
+        IMrStoreCatalogSource catalogSource,
+        MrAccessoryBenchmark benchmark,
+        IReadOnlyDictionary<string, IotMMarketSnapshot> markets,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(catalogSource);
+        var catalog = await catalogSource.ReadIotMCatalogAsync(cancellationToken).ConfigureAwait(false);
+        return Scan(catalog, benchmark, markets);
+    }
+
     private IotMRecommendation ChooseRecommendation(
         IotMCatalogEntry entry,
         IotMMarketSnapshot? market,
@@ -351,12 +367,14 @@ public sealed class IotMScanner
             return IotMRecommendation.Skip;
         }
 
-        // Account-bound or non-tradeable rows may still be useful to an owner,
-        // but they can never become a buy candidate from the Mall.
-        if (!entry.IsTradeable || entry.IsAccountBound || !entry.IsGiftable)
+        // Account-bound or non-Mall-tradeable rows may still be useful to an
+        // owner, but they can never become a buy candidate from the Mall.
+        // Gift transfer is a separate capability: trade-only `t` rows remain
+        // valid Mall candidates even when IsGiftable is false.
+        if (!entry.IsMallTradeable)
         {
             reasons.Add(entry.IsAccountBound ? "Account-bound item cannot be acquired for resale."
-                : "Item is not tradeable/giftable.");
+                : "Item is not tradeable through the Mall.");
             return utility.NetUtilityNpv > 0m ? IotMRecommendation.Hold : IotMRecommendation.Skip;
         }
 

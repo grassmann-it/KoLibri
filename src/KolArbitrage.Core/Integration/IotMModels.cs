@@ -97,6 +97,18 @@ public sealed record IotMCatalogEntry(string ItemId, string ItemName)
     public bool Tradeable => IsTradeable;
     public bool AccountBound => IsAccountBound;
 
+    /// <summary>
+    /// Mall acquisition and gift transfer are separate KoL capabilities.  A
+    /// trade-only (<c>t</c>) item is therefore Mall-tradeable even when it is
+    /// not giftable.
+    /// </summary>
+    public bool IsMallTradeable => IsTradeable && !IsAccountBound;
+    public bool MallTradeable => IsMallTradeable;
+    public bool CanBuyFromMall => IsMallTradeable;
+    public bool IsGiftTransferable => IsGiftable && !IsAccountBound;
+    public bool GiftTransferable => IsGiftTransferable;
+    public bool CanTransferByGift => IsGiftTransferable;
+
     public bool IsValid(out string error)
     {
         if (string.IsNullOrWhiteSpace(ItemId))
