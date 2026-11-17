@@ -29,8 +29,8 @@ public static class KoLHostAllowlist
 /// <summary>
 /// HTTP boundary policy for KoL clients.  It validates the endpoint before a
 /// request and validates the final response URI after a request.  The latter
-/// check is required even when a host application has configured an
-/// HttpClient that follows redirects automatically.
+    /// check is required even when a host application has configured an
+    /// HttpClient that follows redirects automatically.
 /// </summary>
 public sealed record KoLSecurityPolicy
 {
@@ -76,7 +76,7 @@ public sealed record KoLSecurityPolicy
 
     /// <summary>
     /// Ensures an automatic redirect did not leave the exact request host.
-    /// Same-host and same-scheme redirects are allowed; changing from
+    /// Same-host, same-port and same-scheme redirects are allowed; changing from
     /// kingdomofloathing.com to www.kingdomofloathing.com is deliberately
     /// rejected so that cookies are never forwarded across hosts.
     /// </summary>
@@ -87,7 +87,8 @@ public sealed record KoLSecurityPolicy
             return;
         EnsureAllowed(responseUri, "KoL response");
         if (!string.Equals(requestUri.Host, responseUri.Host, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(requestUri.Scheme, responseUri.Scheme, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(requestUri.Scheme, responseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+            || requestUri.Port != responseUri.Port)
         {
             throw new KoLSecurityException(
                 $"KoL request was redirected to a different host or scheme ({Redact(requestUri)} -> {Redact(responseUri)}).");
