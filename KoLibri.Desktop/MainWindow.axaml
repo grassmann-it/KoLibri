@@ -406,6 +406,12 @@
         </Border>
 
         <Border x:Name="MallPanel" Classes="card" IsVisible="False">
+          <Border.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Preisvergleich vorschauen" Click="ContextPreviewClick" />
+              <MenuItem Header="Mall aktualisieren" Click="RefreshMallClick" />
+            </ContextMenu>
+          </Border.ContextMenu>
           <StackPanel Spacing="14">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
               <StackPanel Spacing="3">
@@ -431,6 +437,14 @@
         </Border>
 
         <Border x:Name="AdventurePanel" Classes="card" IsVisible="False">
+          <Border.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Encounter-/Planvorschau" Click="ContextPreviewClick" />
+              <MenuItem Header="Adventure-Plan aktualisieren" Click="RefreshAdventureClick" />
+              <Separator />
+              <MenuItem Header="Lokalen Lauf stoppen" Click="CancelRefreshClick" />
+            </ContextMenu>
+          </Border.ContextMenu>
           <StackPanel Spacing="14">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
               <StackPanel Spacing="3">
@@ -480,6 +494,14 @@
         </Border>
 
         <Border x:Name="CombatPanel" Classes="card" IsVisible="False">
+          <Border.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Kampfaktion vorschauen" Click="ContextPreviewClick" />
+              <MenuItem Header="Observation aktualisieren" Click="ContextRefreshClick" />
+              <Separator />
+              <MenuItem Header="Kampf stoppen" Click="CancelRefreshClick" />
+            </ContextMenu>
+          </Border.ContextMenu>
           <StackPanel Spacing="14">
             <StackPanel Spacing="3">
               <TextBlock Text="Combat" Classes="h2" />

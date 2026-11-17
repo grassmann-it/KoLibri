@@ -44,8 +44,9 @@ definierten Kombinationen konsumiert.
 1. Einen zentralen Shortcut-Router mit konfigurierbaren Profilen und
    Konfliktprüfung anbinden.
 2. F1 als Tastaturhilfe-Fenster mit Suche und Bereichsfilter ausgeben.
-3. Avalonia-Kontextmenüs für Shopzeilen, Adventure-Encounter und Combat-Actions
-   an die Shell-Verträge binden.
+3. Avalonia-Kontextmenüs für Mall-, Adventure- und Combat-Panels sind an die
+   Shell-Verträge gebunden; die nächste Ausbaustufe kann einzelne Tabellenzeilen
+   und konkrete Encounter-Actions als Auswahl einhängen.
 4. Globales Stoppen an den gemeinsamen Cancellation-/Checkpoint-Store hängen;
    ein Stop darf keinen neuen KoL-POST auslösen.
 
