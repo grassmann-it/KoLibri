@@ -376,6 +376,7 @@ internal static partial class KolibriCli
         var location = ReadAdventureId(args);
         var runId = GetOption(args, "--run-id") ?? $"cli-{Guid.NewGuid():N}";
         var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var snarfblat = ReadNullableInt(args, "--snarfblat");
         var conditionsPath = GetOption(args, "--conditions-file");
         var conditions = conditionsPath is null
             ? Array.Empty<AdventureCondition>()
@@ -391,6 +392,7 @@ internal static partial class KolibriCli
                 approvalRequired = true,
                 runId,
                 location,
+                snarfblat,
                 role = role.ToString(),
                 conditions,
                 note = "Preview only. Add --execute and --approval-token to submit allowlisted requests."
@@ -431,6 +433,7 @@ internal static partial class KolibriCli
         {
             RunId = runId,
             AdventureId = location,
+            Snarfblat = snarfblat,
             Role = role,
             DailyLimit = new AdventureDailyLimitContract
             {
@@ -890,6 +893,11 @@ internal static partial class KolibriCli
             ? value
             : fallback;
 
+    private static int? ReadNullableInt(string[] args, string name)
+        => int.TryParse(GetOption(args, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
+
     private static IReadOnlyList<string> ParseCsv(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? Array.Empty<string>()
@@ -1036,7 +1044,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure inspect [--checkpoint PATH] [--location ID] [--fixture HTML]");
         Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
         Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
-        Console.WriteLine("  adventure run --location ID [--execute --approval-token TOKEN] [--fight-action attack]");
+        Console.WriteLine("  adventure run --location ID [--snarfblat N] [--execute --approval-token TOKEN] [--fight-action attack]");
         Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
         Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
     }
