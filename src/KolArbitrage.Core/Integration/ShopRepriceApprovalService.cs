@@ -622,17 +622,7 @@ public class ShopRepriceApprovalService : IDisposable
     private void RegisterPreview(ShopRepricePreview preview)
     {
         lock (_registrationGate)
-        {
-            if (!string.IsNullOrWhiteSpace(preview.Request.IdempotencyKey)
-                && _previews.Any(x => string.Equals(x.Value.Request.IdempotencyKey,
-                    preview.Request.IdempotencyKey, StringComparison.Ordinal)
-                    && x.Value.Request.Fingerprint() != preview.Request.Fingerprint()))
-            {
-                // The conflict is represented by the preview itself.  It is
-                // still registered so the caller can inspect the refusal.
-            }
             _previews[preview.ActionId] = preview;
-        }
     }
 
     private ShopRepricePreview? FindPreviewByIdempotency(string idempotencyKey)
