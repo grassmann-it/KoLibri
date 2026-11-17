@@ -21,6 +21,7 @@ public interface IAdventureConditionSnapshotProvider
 
 public enum BoundedAdventureRunStopReason
 {
+    ReadyToRun,
     Complete,
     ConditionsSatisfied,
     ConditionsBlocked,

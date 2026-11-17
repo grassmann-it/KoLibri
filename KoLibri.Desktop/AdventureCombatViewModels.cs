@@ -186,6 +186,19 @@ public sealed record AdventureManualActionState
         => new() { IsStale = stale, IsUnknown = unknown, BlockReason = reason };
 }
 
+/// <summary>Desktop projection of the same bounded, read-only runner contract exposed by CLI/MCP.</summary>
+public sealed record BoundedAdventurePreviewState
+{
+    public BoundedAdventureRunStopReason StopReason { get; init; }
+    public IReadOnlyList<AdventureConditionResult> Conditions { get; init; }
+        = Array.Empty<AdventureConditionResult>();
+    public int MaxGatewaySteps { get; init; }
+    public TimeSpan MaxDuration { get; init; }
+    public bool IsBlocked => StopReason == BoundedAdventureRunStopReason.ConditionsBlocked;
+    public bool IsReady => StopReason == BoundedAdventureRunStopReason.ReadyToRun;
+    public string StatusText => StopReason.ToString();
+}
+
 /// <summary>
 /// Adventure plan/execution projection used by the Avalonia page.  Loading
 /// and execution have independent cancellation generations in the base class.
@@ -213,6 +226,7 @@ public class AdventureViewModel : DesktopViewModel
     private bool _hasUnknownState;
     private string? _unknownReason;
     private string? _runMessage;
+    private BoundedAdventurePreviewState? _boundedPreview;
 
     public AdventureViewModel(
         IAdventureGateway? planner = null,
@@ -356,6 +370,59 @@ public class AdventureViewModel : DesktopViewModel
     {
         get => _runMessage;
         private set => SetProperty(ref _runMessage, value);
+    }
+
+    public BoundedAdventurePreviewState? BoundedPreview
+    {
+        get => _boundedPreview;
+        private set => SetProperty(ref _boundedPreview, value);
+    }
+
+    /// <summary>
+    /// Evaluates a bounded run against a caller-supplied fresh snapshot. This
+    /// is presentation-only and never invokes the execution client.
+    /// </summary>
+    public BoundedAdventurePreviewState PreviewBoundedRun(
+        IEnumerable<AdventureCondition>? conditions,
+        AdventureConditionSnapshot? snapshot,
+        BoundedAdventureRunnerOptions? options = null)
+    {
+        var normalized = (conditions ?? Array.Empty<AdventureCondition>()).Select(x => x.Normalize()).ToArray();
+        var settings = (options ?? new BoundedAdventureRunnerOptions()).Normalize();
+        IReadOnlyList<AdventureConditionResult> results;
+        BoundedAdventureRunStopReason reason;
+        if (normalized.Length == 0)
+        {
+            results = Array.Empty<AdventureConditionResult>();
+            reason = BoundedAdventureRunStopReason.ReadyToRun;
+        }
+        else if (snapshot is null)
+        {
+            results = normalized.Select(condition => new AdventureConditionResult
+            {
+                Condition = condition,
+                IsSatisfied = false,
+                Reason = "A fresh condition snapshot is required before an adventure run can start."
+            }).ToArray();
+            reason = BoundedAdventureRunStopReason.ConditionsBlocked;
+        }
+        else
+        {
+            results = AdventureConditionEvaluator.EvaluateAll(normalized, snapshot);
+            reason = results.All(x => x.IsSatisfied)
+                ? BoundedAdventureRunStopReason.ConditionsSatisfied
+                : BoundedAdventureRunStopReason.ReadyToRun;
+        }
+
+        BoundedPreview = new BoundedAdventurePreviewState
+        {
+            StopReason = reason,
+            Conditions = results,
+            MaxGatewaySteps = settings.MaxGatewaySteps,
+            MaxDuration = settings.MaxDuration
+        };
+        OnStatusChanged();
+        return BoundedPreview;
     }
 
     public string FreshnessText => IsStaleData ? "stale" : HasUnknownState ? "unknown" : "fresh";
