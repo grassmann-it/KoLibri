@@ -33,7 +33,13 @@ public sealed class AccountAdventureConditionSnapshotProvider : IAdventureCondit
         var status = await statusTask.ConfigureAwait(false);
         var inventory = await inventoryTask.ConfigureAwait(false);
         if (status.IsStale || inventory.IsStale)
-            throw new InvalidOperationException("The account condition snapshot is stale; refresh before running adventure automation.");
+        {
+            return new AdventureConditionSnapshot
+            {
+                IsStale = true,
+                UnavailableReason = "The account condition snapshot is stale; refresh before running adventure automation."
+            };
+        }
 
         var items = inventory.Items
             .GroupBy(item => item.ItemId, StringComparer.OrdinalIgnoreCase)

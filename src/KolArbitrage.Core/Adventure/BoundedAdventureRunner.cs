@@ -73,6 +73,8 @@ public sealed class BoundedAdventureRunner
         var started = _clock.GetUtcNow();
 
         var initial = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
+        if (initial.Any(x => x.IsBlocked))
+            return Result(BoundedAdventureRunStopReason.ConditionsBlocked, steps, initial);
         if (initial.Count > 0 && initial.All(x => x.IsSatisfied))
             return Result(BoundedAdventureRunStopReason.ConditionsSatisfied, steps, initial);
         if (initial.Count > 0 && snapshotProvider is null)
@@ -113,10 +115,21 @@ public sealed class BoundedAdventureRunner
             {
                 Condition = condition,
                 Reason = "A fresh condition snapshot is required before an adventure run can start.",
-                IsSatisfied = false
+                IsSatisfied = false,
+                IsBlocked = true
             }).ToArray();
         }
         var snapshot = await provider.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (snapshot.IsStale || !string.IsNullOrWhiteSpace(snapshot.UnavailableReason))
+        {
+            return new[] { new AdventureConditionResult
+            {
+                Condition = conditions.FirstOrDefault() ?? new AdventureCondition(),
+                IsSatisfied = false,
+                IsBlocked = true,
+                Reason = snapshot.UnavailableReason ?? "The condition snapshot is stale; refresh before starting."
+            } };
+        }
         if (conditions.Count == 0)
             return Array.Empty<AdventureConditionResult>();
         return AdventureConditionEvaluator.EvaluateAll(conditions, snapshot);

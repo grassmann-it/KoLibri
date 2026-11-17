@@ -42,6 +42,8 @@ public sealed record AdventureConditionSnapshot
     public int ChoicesMade { get; init; }
     public int TurnsRemaining { get; init; }
     public int AdventuresRemaining { get; init; }
+    public bool IsStale { get; init; }
+    public string? UnavailableReason { get; init; }
 }
 
 public sealed record AdventureConditionResult
@@ -49,6 +51,7 @@ public sealed record AdventureConditionResult
     public AdventureCondition Condition { get; init; } = new();
     public int Actual { get; init; }
     public bool IsSatisfied { get; init; }
+    public bool IsBlocked { get; init; }
     public string Reason { get; init; } = string.Empty;
 }
 
