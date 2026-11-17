@@ -269,6 +269,10 @@ public interface IReadOnlyCounterStore : ITurnSnapshotReader
 {
 }
 
+public interface IReadOnlyTurnCounterStore : ITurnCounterReader
+{
+}
+
 public interface ITurnCounterReader : ITurnSnapshotReader
 {
     Task<TurnCounter?> ReadCounterAsync(string accountId, string counterId,
@@ -348,7 +352,8 @@ public interface ITurnSnapshotStore : ITurnSnapshotReader
 }
 
 /// <summary>Thread-safe process-local implementation for fixtures and previews.</summary>
-public class CounterStore : ICounterStore, ITurnCounterStore, ITurnSnapshotStore, IReadOnlyCounterStore
+public class CounterStore : ICounterStore, ITurnCounterStore, ITurnSnapshotStore,
+    IReadOnlyCounterStore, IReadOnlyTurnCounterStore
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, TurnSnapshot> _snapshots = new(StringComparer.Ordinal);
