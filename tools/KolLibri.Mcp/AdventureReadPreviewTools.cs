@@ -27,6 +27,7 @@ public partial class KolibriMcpServer
         Register("kol_combat_inspect", "Inspect a redacted combat snapshot and legal actions; never submits a fight action.", CombatInspectSchema(), CombatInspectAsync);
         Register("kol_combat_decision", "Preview one bounded combat action against a snapshot; approval and commit remain separate.", CombatDecisionSchema(), CombatDecisionAsync);
         Register("kol_autocombat_preview", "Evaluate an ordered AutoCombat policy against one snapshot without executing it.", AutoCombatPreviewSchema(), AutoCombatPreviewAsync);
+        Register("kol_autocombat_action_preview", "Bridge AutoCombat to one legal fight action without submitting it.", AutoCombatActionPreviewSchema(), AutoCombatActionPreviewAsync);
         Register("kol_recovery_plan", "Build a bounded HP/MP/effects/familiar/equipment recovery plan from snapshots only.", RecoveryPlanSchema(), RecoveryPlanAsync);
         Register("kol_choice_options", "Inspect choice id/options and preview an allowlisted option without posting it.", ChoiceOptionsSchema(), ChoiceOptionsAsync);
         Register("kol_adventure_bounded_preview", "Evaluate a bounded adventure run and its typed stop conditions without posting.", BoundedAdventurePreviewSchema(), BoundedAdventurePreviewAsync);
@@ -44,6 +45,8 @@ public partial class KolibriMcpServer
         Alias("autocombat-preview", "kol_autocombat_preview");
         Alias("autocombat_policy_preview", "kol_autocombat_preview");
         Alias("auto-combat-preview", "kol_autocombat_preview");
+        Alias("autocombat-action-preview", "kol_autocombat_action_preview");
+        Alias("autocombat_action_preview", "kol_autocombat_action_preview");
         Alias("recovery-plan", "kol_recovery_plan");
         Alias("recovery_plan", "kol_recovery_plan");
         Alias("choice-options", "kol_choice_options");
@@ -265,6 +268,103 @@ public partial class KolibriMcpServer
             decision,
             fallback = decision.IsManual ? "manual-review" : null
         });
+    }
+
+    private Task<object?> AutoCombatActionPreviewAsync(JsonElement arguments, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var policyElement = NestedObject(arguments, "policy")
+            ?? throw new McpInvalidParamsException("policy is required.");
+        var observationElement = NestedObject(arguments, "observation")
+            ?? throw new McpInvalidParamsException("observation is required.");
+        AutoCombatPolicy policy;
+        CombatObservation observation;
+        try
+        {
+            policy = AutoCombatPolicy.FromJson(policyElement.GetRawText());
+            observation = ParseAutoCombatObservation(observationElement);
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException or ArgumentException or InvalidOperationException)
+        {
+            throw new McpInvalidParamsException($"Invalid AutoCombat policy or observation: {exception.Message}");
+        }
+
+        var adventureId = OptionalString(arguments, "adventureId")
+            ?? OptionalString(arguments, "locationId")
+            ?? throw new McpInvalidParamsException("adventureId or locationId is required.");
+        var decision = AutoCombatAdventureAdapter.Evaluate(
+            policy,
+            observation,
+            adventureId,
+            OptionalString(arguments, "encounterId"));
+        return Task.FromResult<object?>(new
+        {
+            readOnly = true,
+            execution = "preview-only",
+            mutation = "disabled",
+            actionSubmitted = false,
+            allowed = decision.Allowed,
+            policyDecision = decision.PolicyDecision,
+            action = decision.Action,
+            blockReason = decision.BlockReason,
+            responseHash = observation.ResponseHash,
+            note = "No fight.php request was sent."
+        });
+    }
+
+    private static CombatObservation ParseAutoCombatObservation(JsonElement source)
+    {
+        var actions = new List<CombatAction>();
+        var actionArray = FindArray(source, "availableActions", "legalActions", "actions");
+        if (actionArray is { } actionValues)
+        {
+            foreach (var value in actionValues.EnumerateArray())
+            {
+                var kindText = OptionalString(value, "kind") ?? OptionalString(value, "type");
+                if (!Enum.TryParse<CombatActionKind>(kindText, true, out var kind)) kind = CombatActionKind.Unknown;
+                actions.Add(new CombatAction(kind,
+                    OptionalString(value, "id") ?? OptionalString(value, "actionId") ?? OptionalString(value, "value"),
+                    OptionalString(value, "name") ?? OptionalString(value, "label"),
+                    NullableIntProperty(value, "mpCost") ?? NullableIntProperty(value, "manaCost"))
+                { IsEnabled = BoolProperty(value, "isEnabled", BoolProperty(value, "enabled", true)) });
+            }
+        }
+        var effects = new List<CombatEffect>();
+        var effectArray = FindArray(source, "effects", "activeEffects");
+        if (effectArray is { } effectValues)
+        {
+            foreach (var value in effectValues.EnumerateArray())
+            {
+                if (value.ValueKind == JsonValueKind.String)
+                    effects.Add(new CombatEffect(value.GetString() ?? string.Empty));
+                else
+                    effects.Add(new CombatEffect(
+                        OptionalString(value, "name") ?? OptionalString(value, "id") ?? string.Empty,
+                        NullableIntProperty(value, "duration") ?? NullableIntProperty(value, "turnsRemaining"),
+                        OptionalString(value, "id"),
+                        OptionalString(value, "description")));
+            }
+        }
+        var outcomeText = OptionalString(source, "outcome");
+        _ = Enum.TryParse<CombatOutcome>(outcomeText, true, out var outcome);
+        return new CombatObservation
+        {
+            Monster = OptionalString(source, "monster") ?? OptionalString(source, "monsterName"),
+            MonsterId = OptionalString(source, "monsterId"),
+            Round = NullableIntProperty(source, "round") ?? 0,
+            PlayerHp = NullableIntProperty(source, "playerHp") ?? NullableIntProperty(source, "hp"),
+            PlayerMaxHp = NullableIntProperty(source, "playerMaxHp") ?? NullableIntProperty(source, "maxHp"),
+            PlayerMp = NullableIntProperty(source, "playerMp") ?? NullableIntProperty(source, "mp"),
+            PlayerMaxMp = NullableIntProperty(source, "playerMaxMp") ?? NullableIntProperty(source, "maxMp"),
+            EnemyHp = NullableIntProperty(source, "enemyHp"),
+            EnemyMaxHp = NullableIntProperty(source, "enemyMaxHp"),
+            EnemyMp = NullableIntProperty(source, "enemyMp"),
+            EnemyMaxMp = NullableIntProperty(source, "enemyMaxMp"),
+            AvailableActions = actions,
+            Effects = effects,
+            Outcome = outcome,
+            ResponseHash = OptionalString(source, "responseHash") ?? string.Empty
+        }.Normalize();
     }
 
     private Task<object?> RecoveryPlanAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -826,6 +926,9 @@ public partial class KolibriMcpServer
 
     private static JsonElement AutoCombatPreviewSchema()
         => Schema("{\"type\":\"object\",\"required\":[\"policy\"],\"properties\":{\"policy\":{},\"context\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"usage\":{\"type\":\"object\"}},\"additionalProperties\":true}");
+
+    private static JsonElement AutoCombatActionPreviewSchema()
+        => Schema("{\"type\":\"object\",\"required\":[\"policy\",\"observation\"],\"properties\":{\"policy\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"adventureId\":{\"type\":\"string\"},\"locationId\":{\"type\":\"string\"},\"encounterId\":{\"type\":\"string\"}},\"additionalProperties\":true}");
 
     private static JsonElement RecoveryPlanSchema()
         => Schema("{\"type\":\"object\",\"required\":[\"snapshot\"],\"properties\":{\"snapshot\":{\"type\":\"object\"},\"policy\":{\"type\":\"object\"},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":true}");
