@@ -239,6 +239,8 @@ public sealed record TurnCounterCasResult
     public static implicit operator bool(TurnCounterCasResult? result) => result?.Succeeded == true;
     public static TurnCounterCasResult SuccessResult(TurnCounter saved, TurnCounter? previous = null)
         => new() { Succeeded = true, Current = saved, Saved = saved, Previous = previous };
+    public static TurnCounterCasResult Ok(TurnCounter saved, TurnCounter? previous = null)
+        => SuccessResult(saved, previous);
     public static TurnCounterCasResult Failed(TurnCounter? current)
         => new() { Succeeded = false, Current = current };
 }
@@ -257,6 +259,8 @@ public sealed record TurnSnapshotCasResult
     public static implicit operator bool(TurnSnapshotCasResult? result) => result?.Succeeded == true;
     public static TurnSnapshotCasResult SuccessResult(TurnSnapshot saved, TurnSnapshot? previous = null)
         => new() { Succeeded = true, Current = saved, Saved = saved, Previous = previous };
+    public static TurnSnapshotCasResult Ok(TurnSnapshot saved, TurnSnapshot? previous = null)
+        => SuccessResult(saved, previous);
     public static TurnSnapshotCasResult Failed(TurnSnapshot? current)
         => new() { Succeeded = false, Current = current };
 }
