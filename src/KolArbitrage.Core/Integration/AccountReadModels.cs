@@ -9,7 +9,20 @@ public sealed record KoLStatusSnapshot(
     long Meat,
     int Level,
     DateTimeOffset FetchedAt,
-    bool IsStale = false);
+    bool IsStale = false)
+{
+    // Optional combat fields keep the original positional contract intact.
+    // Older status endpoints may omit them; callers must then treat recovery
+    // as blocked until a richer snapshot is available.
+    public int CurrentHp { get; init; }
+    public int MaximumHp { get; init; }
+    public int CurrentMp { get; init; }
+    public int MaximumMp { get; init; }
+    public IReadOnlyCollection<string> Effects { get; init; } = Array.Empty<string>();
+    public string? FamiliarId { get; init; }
+    public IReadOnlyDictionary<string, string> Equipment { get; init; }
+        = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
 
 public sealed record KoLInventoryItem(
     string ItemId,
@@ -202,7 +215,16 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             IntValue(root, "adventures", "adventure", "turns"),
             LongValue(root, "meat", "currency"),
             IntValue(root, "level"),
-            fetchedAt);
+            fetchedAt)
+        {
+            CurrentHp = IntValue(root, "currenthp", "current_hp", "hp", "hitpoints", "health"),
+            MaximumHp = IntValue(root, "maximumhp", "maximum_hp", "maxhp", "max_hp", "maxhitpoints", "max_health"),
+            CurrentMp = IntValue(root, "currentmp", "current_mp", "mp", "mana"),
+            MaximumMp = IntValue(root, "maximummp", "maximum_mp", "maxmp", "max_mp", "maxmana"),
+            FamiliarId = StringValue(root, "familiarid", "familiar_id", "familiar"),
+            Effects = StringCollection(root, "effects", "active_effects"),
+            Equipment = StringMap(root, "equipment", "equipped")
+        };
     }
 
     private static KoLInventorySnapshot ParseInventory(JsonDocument document, DateTimeOffset fetchedAt)
@@ -251,6 +273,36 @@ public sealed class KoLAccountReadClient : IAccountReadClient
 
     private static int IntValue(JsonElement element, params string[] names)
         => int.TryParse(StringValue(element, names), out var value) ? value : 0;
+
+    private static IReadOnlyCollection<string> StringCollection(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value)) continue;
+            if (value.ValueKind == JsonValueKind.Array)
+                return value.EnumerateArray()
+                    .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.GetRawText())
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Select(item => item!)
+                    .ToArray();
+        }
+        return Array.Empty<string>();
+    }
+
+    private static IReadOnlyDictionary<string, string> StringMap(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Object) continue;
+            return value.EnumerateObject()
+                .Select(property => (property.Name, Value: property.Value.ValueKind == JsonValueKind.String
+                    ? property.Value.GetString()
+                    : property.Value.GetRawText()))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+                .ToDictionary(item => item.Name, item => item.Value!, StringComparer.OrdinalIgnoreCase);
+        }
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
 
     private static long LongValue(JsonElement element, params string[] names)
         => long.TryParse(StringValue(element, names), out var value) ? value : 0L;
