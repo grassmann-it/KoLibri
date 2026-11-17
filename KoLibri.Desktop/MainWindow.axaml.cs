@@ -492,6 +492,7 @@ public partial class MainWindow : Window
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
         var state = new KolArbitrage.Core.Adventure.AdventureState
         {
+            IsStale = status.IsStale || inventory.IsStale,
             Knucklebones = Math.Max(0, knucklebones),
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
