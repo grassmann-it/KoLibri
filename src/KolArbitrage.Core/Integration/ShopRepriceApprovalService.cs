@@ -266,23 +266,22 @@ public class ShopRepriceApprovalService : IDisposable
         return LaneFor(preview.AccountId).ExecuteAsync(token => VerifyCoreAsync(preview, token), cancellationToken);
     }
 
-    public Task<ShopRepriceCommitResult> VerifyAsync(
+    public async Task<ShopRepriceCommitResult> VerifyAsync(
         string previewId,
         CancellationToken cancellationToken = default)
     {
         if (!TryGetPreview(previewId, out var preview) || preview is null)
-            return Task.FromResult(Abort(
+            return Abort(
                 previewId,
                 null,
                 [ShopRepriceAbortReason.PreviewNotRegistered],
-                "The shop reprice preview is not registered."));
+                "The shop reprice preview is not registered.");
         if (_results.TryGetValue(preview.ActionId, out var existing))
-            return Task.FromResult(existing);
-        return VerifyAsync(preview, cancellationToken).ContinueWith(
-            task => ToCommitVerification(preview, task.GetAwaiter().GetResult()),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+            return existing;
+        var verification = await VerifyAsync(preview, cancellationToken).ConfigureAwait(false);
+        var result = ToCommitVerification(preview, verification);
+        _results[preview.ActionId] = result;
+        return result;
     }
 
     public ShopRepriceVerificationResult Verify(
