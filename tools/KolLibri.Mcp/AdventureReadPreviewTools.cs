@@ -292,11 +292,33 @@ public partial class KolibriMcpServer
         var adventureId = OptionalString(arguments, "adventureId")
             ?? OptionalString(arguments, "locationId")
             ?? throw new McpInvalidParamsException("adventureId or locationId is required.");
+        RecoveryPlan? recoveryPlan = null;
+        var recoverySnapshotElement = NestedObject(arguments, "recoverySnapshot");
+        if (recoverySnapshotElement is { } recoverySnapshotValue)
+        {
+            try
+            {
+                var snapshot = Deserialize<RecoverySnapshot>(recoverySnapshotValue, "recoverySnapshot").Normalize();
+                var recoveryPolicyElement = NestedObject(arguments, "recoveryPolicy");
+                var recoveryPolicy = Deserialize<RecoveryPolicy>(
+                    recoveryPolicyElement ?? McpJson.EmptyObject, "recoveryPolicy").Normalize();
+                recoveryPlan = BuildRecoveryPreview(snapshot, recoveryPolicy, _clock.GetUtcNow());
+            }
+            catch (McpInvalidParamsException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is JsonException or FormatException or ArgumentException or InvalidOperationException)
+            {
+                throw new McpInvalidParamsException($"Invalid recovery snapshot or policy: {exception.Message}");
+            }
+        }
         var decision = AutoCombatAdventureAdapter.Evaluate(
             policy,
             observation,
             adventureId,
-            OptionalString(arguments, "encounterId"));
+            OptionalString(arguments, "encounterId"),
+            recoveryPlan: recoveryPlan);
         return Task.FromResult<object?>(new
         {
             readOnly = true,
@@ -307,6 +329,7 @@ public partial class KolibriMcpServer
             policyDecision = decision.PolicyDecision,
             action = decision.Action,
             blockReason = decision.BlockReason,
+            recoveryPlan,
             responseHash = observation.ResponseHash,
             note = "No fight.php request was sent."
         });
@@ -928,7 +951,7 @@ public partial class KolibriMcpServer
         => Schema("{\"type\":\"object\",\"required\":[\"policy\"],\"properties\":{\"policy\":{},\"context\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"usage\":{\"type\":\"object\"}},\"additionalProperties\":true}");
 
     private static JsonElement AutoCombatActionPreviewSchema()
-        => Schema("{\"type\":\"object\",\"required\":[\"policy\",\"observation\"],\"properties\":{\"policy\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"adventureId\":{\"type\":\"string\"},\"locationId\":{\"type\":\"string\"},\"encounterId\":{\"type\":\"string\"}},\"additionalProperties\":true}");
+        => Schema("{\"type\":\"object\",\"required\":[\"policy\",\"observation\"],\"properties\":{\"policy\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"adventureId\":{\"type\":\"string\"},\"locationId\":{\"type\":\"string\"},\"encounterId\":{\"type\":\"string\"},\"recoverySnapshot\":{\"type\":\"object\"},\"recoveryPolicy\":{\"type\":\"object\"}},\"additionalProperties\":true}");
 
     private static JsonElement RecoveryPlanSchema()
         => Schema("{\"type\":\"object\",\"required\":[\"snapshot\"],\"properties\":{\"snapshot\":{\"type\":\"object\"},\"policy\":{\"type\":\"object\"},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":true}");
