@@ -46,6 +46,7 @@ public static class KoLAdventureSessionFactory
         try
         {
             var transport = new HttpAdventureExecutionTransport(http, binding, options);
+            var accountReader = new KoLAccountReadClient(http);
             var journal = auditJournal ?? new AuditEventJournal(DefaultAuditPath);
             var hooks = new AuditedAdventureHooks(approval, verification, journal);
             var gateway = new AdventureExecutionGateway(
@@ -53,7 +54,7 @@ public static class KoLAdventureSessionFactory
                 checkpoints ?? new JsonFileAdventureRunCheckpointStore(DefaultCheckpointDirectory),
                 approval: hooks,
                 verification: hooks);
-            return new KoLAdventureSession(session, http, transport, gateway, journal, auditJournal is null);
+            return new KoLAdventureSession(session, http, transport, accountReader, gateway, journal, auditJournal is null);
         }
         catch
         {
@@ -75,6 +76,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
         AccountSession account,
         HttpClient http,
         HttpAdventureExecutionTransport transport,
+        IAccountReadClient accountReader,
         AdventureExecutionGateway gateway,
         IAuditEventJournal auditJournal,
         bool ownsAuditJournal)
@@ -82,6 +84,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
         Account = account ?? throw new ArgumentNullException(nameof(account));
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        AccountReader = accountReader ?? throw new ArgumentNullException(nameof(accountReader));
         Gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         AuditJournal = auditJournal ?? throw new ArgumentNullException(nameof(auditJournal));
         if (ownsAuditJournal) _ownedAuditJournal = auditJournal;
@@ -92,6 +95,7 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
     public string AccountId => Account.Profile.Id;
     public AdventureExecutionGateway Gateway { get; }
     public HttpAdventureExecutionTransport Transport => _transport;
+    public IAccountReadClient AccountReader { get; }
     public IAuditEventJournal AuditJournal { get; }
 
     public void Dispose()
