@@ -805,7 +805,8 @@ internal static class KolibriCli
         Console.WriteLine("              [--budget N --reserve N --min-margin 0.10 --min-profit N --min-spread N]");
         Console.WriteLine("  watchlist add|remove|list --store PATH --item ITEM_ID [--tradeable true --can-sell true]");
         Console.WriteLine("  watchlist scan --role mallbot [--once|--periodic --interval SEC --iterations N] [--workers 8]");
-        Console.WriteLine("              [--store PATH --watchlist-id ID --transfer-cost N --min-sales N --min-liquidity 0.05 --max-age-hours 6]");
+        Console.WriteLine("              [--store PATH --watchlist-id ID --budget N --reserve N --transfer-cost N]");
+        Console.WriteLine("              [--min-sales N --min-liquidity 0.05 --max-age-hours 6]");
         Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:ERWARTET:NEU [--set ...] [--commit]");
         Console.WriteLine();
         Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");

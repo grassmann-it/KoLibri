@@ -12,6 +12,7 @@ using KolArbitrage.Core.Pricing;
 /// </summary>
 public sealed record WatchlistEntry
 {
+    public string WatchlistId { get; init; } = "default";
     public string ItemId { get; init; } = string.Empty;
     public string? DisplayName { get; init; }
     public bool IsTradeable { get; init; }
@@ -341,7 +342,7 @@ public sealed class WatchlistScanner
                 {
                     WatchlistId = watchlistId,
                     ItemId = entry.ItemId,
-                    DisplayName = proposal.DisplayName ?? entry.DisplayName ?? history.DisplayName,
+                    DisplayName = entry.DisplayName ?? history.DisplayName,
                     SellerId = proposal.SellerId,
                     SellerName = proposal.DisplayName,
                     UnitPrice = proposal.UnitPrice,
@@ -535,9 +536,11 @@ internal static class WatchlistSchedulerCommand
         var entries = document.Entries.ToList();
         foreach (var item in items.Select(NormalizeItemId).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var existing = entries.FirstOrDefault(x => string.Equals(x.ItemId, item, StringComparison.OrdinalIgnoreCase));
+            var existing = entries.FirstOrDefault(x => IsInWatchlist(x, watchlistId)
+                && string.Equals(x.ItemId, item, StringComparison.OrdinalIgnoreCase));
             var entry = new WatchlistEntry
             {
+                WatchlistId = watchlistId,
                 ItemId = item,
                 DisplayName = displayName ?? existing?.DisplayName,
                 IsTradeable = tradeable ?? existing?.IsTradeable ?? false,
@@ -549,11 +552,13 @@ internal static class WatchlistSchedulerCommand
                 Enabled = existing?.Enabled ?? true,
                 AddedAt = existing?.AddedAt ?? now
             };
-            entries.RemoveAll(x => string.Equals(x.ItemId, item, StringComparison.OrdinalIgnoreCase));
+            entries.RemoveAll(x => IsInWatchlist(x, watchlistId)
+                && string.Equals(x.ItemId, item, StringComparison.OrdinalIgnoreCase));
             entries.Add(entry);
         }
         await store.SaveAsync(document with { WatchlistId = watchlistId, Entries = entries });
-        Write(json, new { watchlistId, path = store.Path, saved = true, count = entries.Count, entries });
+        var selected = entries.Where(x => IsInWatchlist(x, watchlistId)).ToArray();
+        Write(json, new { watchlistId, path = store.Path, saved = true, count = selected.Length, entries = selected });
         return 0;
     }
 
@@ -564,9 +569,11 @@ internal static class WatchlistSchedulerCommand
         if (items.Count == 0) throw new ArgumentException("watchlist remove benötigt mindestens ein --item ITEM_ID.");
         var normalized = items.Select(NormalizeItemId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var document = await store.LoadAsync();
-        var entries = document.Entries.Where(x => !normalized.Contains(x.ItemId)).ToList();
+        var entries = document.Entries.Where(x => !IsInWatchlist(x, watchlistId)
+                || !normalized.Contains(x.ItemId)).ToList();
         await store.SaveAsync(document with { WatchlistId = watchlistId, Entries = entries });
-        Write(json, new { watchlistId, path = store.Path, saved = true, removed = normalized.Count, count = entries.Count, entries });
+        var selected = entries.Where(x => IsInWatchlist(x, watchlistId)).ToArray();
+        Write(json, new { watchlistId, path = store.Path, saved = true, removed = normalized.Count, count = selected.Length, entries = selected });
         return 0;
     }
 
@@ -577,10 +584,10 @@ internal static class WatchlistSchedulerCommand
         {
             watchlistId,
             path = store.Path,
-            count = document.Entries.Count,
-            candidateCount = document.Candidates.Count,
-            entries = document.Entries,
-            candidates = document.Candidates.TakeLast(100)
+            count = document.Entries.Count(x => IsInWatchlist(x, watchlistId)),
+            candidateCount = document.Candidates.Count(x => string.Equals(x.WatchlistId, watchlistId, StringComparison.OrdinalIgnoreCase)),
+            entries = document.Entries.Where(x => IsInWatchlist(x, watchlistId)).ToArray(),
+            candidates = document.Candidates.Where(x => string.Equals(x.WatchlistId, watchlistId, StringComparison.OrdinalIgnoreCase)).TakeLast(100)
         });
         return 0;
     }
@@ -615,7 +622,7 @@ internal static class WatchlistSchedulerCommand
         var iterations = ParseInt(GetOption(args, "--iterations"), once ? 1 : int.MaxValue, 1, 10_000, "--iterations");
         var refresh = HasFlag(args, "--refresh");
         var budget = ParseDecimal(GetOption(args, "--budget"), decimal.MaxValue, "--budget");
-        var reserve = ParseDecimal(GetOption(args, "--reserve"), 0m, "--reserve");
+        var reserve = ParseDecimal(GetOption(args, "--reserve"), 1_000_000m, "--reserve");
         var transferOverrideText = GetOption(args, "--transfer-cost");
         var transferOverride = transferOverrideText is null
             ? (decimal?)null
@@ -649,7 +656,7 @@ internal static class WatchlistSchedulerCommand
         {
             var document = await store.LoadAsync(cancellation.Token);
             var itemOverrides = GetOptions(args, "--item").Select(NormalizeItemId).ToArray();
-            var entries = document.Entries.ToArray();
+            var entries = document.Entries.Where(x => IsInWatchlist(x, watchlistId)).ToArray();
             if (itemOverrides.Length > 0)
             {
                 var byId = entries.ToDictionary(x => x.ItemId, StringComparer.OrdinalIgnoreCase);
@@ -770,4 +777,7 @@ internal static class WatchlistSchedulerCommand
 
     private static void Write<T>(JsonSerializerOptions options, T value)
         => Console.WriteLine(JsonSerializer.Serialize(value, options));
+
+    private static bool IsInWatchlist(WatchlistEntry entry, string watchlistId)
+        => string.Equals(entry.WatchlistId, watchlistId, StringComparison.OrdinalIgnoreCase);
 }
