@@ -29,6 +29,7 @@ public partial class KolibriMcpServer
         Register("kol_autocombat_preview", "Evaluate an ordered AutoCombat policy against one snapshot without executing it.", AutoCombatPreviewSchema(), AutoCombatPreviewAsync);
         Register("kol_recovery_plan", "Build a bounded HP/MP/effects/familiar/equipment recovery plan from snapshots only.", RecoveryPlanSchema(), RecoveryPlanAsync);
         Register("kol_choice_options", "Inspect choice id/options and preview an allowlisted option without posting it.", ChoiceOptionsSchema(), ChoiceOptionsAsync);
+        Register("kol_adventure_bounded_preview", "Evaluate a bounded adventure run and its typed stop conditions without posting.", BoundedAdventurePreviewSchema(), BoundedAdventurePreviewAsync);
 
         // Command-shaped aliases make the additive surface convenient for
         // existing hosts while tools/list keeps the canonical kol_* names.
@@ -48,6 +49,8 @@ public partial class KolibriMcpServer
         Alias("choice-options", "kol_choice_options");
         Alias("choice_options", "kol_choice_options");
         Alias("choice-preview", "kol_choice_options");
+        Alias("adventure-bounded-preview", "kol_adventure_bounded_preview");
+        Alias("adventure_bounded_preview", "kol_adventure_bounded_preview");
     }
 
     private Task<object?> AdventureLocationsAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -81,6 +84,45 @@ public partial class KolibriMcpServer
             count = rows.Count,
             locations = rows,
             selectedLocation = selected
+        });
+    }
+
+    private Task<object?> BoundedAdventurePreviewAsync(JsonElement arguments, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var conditionsElement = FindArray(arguments, "conditions", "stopWhenSatisfied");
+        var conditions = conditionsElement is { } array
+            ? array.Deserialize<AdventureCondition[]>(McpJson.Options) ?? Array.Empty<AdventureCondition>()
+            : Array.Empty<AdventureCondition>();
+        var snapshotElement = NestedObject(arguments, "snapshot");
+        AdventureConditionSnapshot? snapshot = snapshotElement is { } snapshotValue
+            ? Deserialize<AdventureConditionSnapshot>(snapshotValue, "snapshot")
+            : null;
+        var normalized = conditions.Select(condition => condition.Normalize()).ToArray();
+        var results = snapshot is null
+            ? normalized.Select(condition => new AdventureConditionResult
+            {
+                Condition = condition,
+                IsSatisfied = false,
+                Reason = "A fresh condition snapshot is required before an adventure run can start."
+            }).ToArray()
+            : AdventureConditionEvaluator.EvaluateAll(normalized, snapshot);
+        var blocked = normalized.Length > 0 && snapshot is null;
+        var satisfied = normalized.Length > 0 && !blocked && results.All(result => result.IsSatisfied);
+        return Task.FromResult<object?>(new
+        {
+            readOnly = true,
+            execution = "bounded-preview-only",
+            mutation = "disabled",
+            post = false,
+            approvalRequired = true,
+            location = OptionalString(arguments, "locationId") ?? OptionalString(arguments, "adventureId"),
+            runId = OptionalString(arguments, "runId"),
+            maxGatewaySteps = Math.Clamp(NullableIntProperty(arguments, "maxGatewaySteps") ?? 20, 1, 10_000),
+            maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 300),
+            stopReason = blocked ? "ConditionsBlocked" : satisfied ? "ConditionsSatisfied" : "ReadyToRun",
+            conditions = results,
+            note = "Preview only; no adventure.php, fight.php or choice.php request was sent."
         });
     }
 
@@ -790,4 +832,7 @@ public partial class KolibriMcpServer
 
     private static JsonElement ChoiceOptionsSchema()
         => Schema("{\"type\":\"object\",\"properties\":{\"choice\":{\"type\":\"object\"},\"observation\":{\"type\":\"object\"},\"choiceId\":{\"type\":\"string\"},\"optionId\":{\"type\":\"string\"},\"html\":{\"type\":\"string\"},\"allowedOptions\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"additionalProperties\":true}");
+
+    private static JsonElement BoundedAdventurePreviewSchema()
+        => Schema("{\"type\":\"object\",\"properties\":{\"locationId\":{\"type\":\"string\"},\"adventureId\":{\"type\":\"string\"},\"runId\":{\"type\":\"string\"},\"conditions\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"snapshot\":{\"type\":\"object\"},\"maxGatewaySteps\":{\"type\":\"integer\"},\"maxDurationSeconds\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
 }
