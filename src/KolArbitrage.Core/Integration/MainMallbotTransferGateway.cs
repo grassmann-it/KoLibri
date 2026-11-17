@@ -776,6 +776,9 @@ public sealed class FixtureMainMallbotTransferTransport : IMainMallbotTransferTr
             if (expected.SourceQuantity(itemId) != actual.SourceQuantity(itemId)
                 || expected.DestinationQuantity(itemId) != actual.DestinationQuantity(itemId))
                 return false;
+        if (expected.SourceStatus?.Meat != actual.SourceStatus?.Meat
+            || expected.DestinationStatus?.Meat != actual.DestinationStatus?.Meat)
+            return false;
         return true;
     }
 

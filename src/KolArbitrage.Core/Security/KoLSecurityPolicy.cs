@@ -137,7 +137,7 @@ public enum KoLHtmlResponseKind
 public static class KoLHtmlResponseClassifier
 {
     private static readonly System.Text.RegularExpressions.Regex LoginMarker = new(
-        "(?:<input\\b[^>]*\\bname\\s*=\\s*[\\\"']loginname[\\\"']|<form\\b[^>]*\\b(?:action\\s*=\\s*[\\\"'][^\\\"']*login\\.php|id\\s*=\\s*[\\\"'][^\\\"']*login)|(?:please\\s+log\\s+in|session\\s+has\\s+expired|invalid\\s+session))",
+        "(?:<input\\b[^>]*\\bname\\s*=\\s*(?:[\\\"']loginname[\\\"']|loginname(?:\\s|>|/))|<form\\b[^>]*\\b(?:action\\s*=\\s*(?:[\\\"'][^\\\"']*login\\.php|login\\.php(?:\\s|>|/))|id\\s*=\\s*[\\\"'][^\\\"']*login)|(?:please\\s+log\\s+in|session\\s+has\\s+expired|invalid\\s+session))",
         System.Text.RegularExpressions.RegexOptions.Compiled
             | System.Text.RegularExpressions.RegexOptions.IgnoreCase
             | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
