@@ -47,6 +47,17 @@ public sealed record MrStoreCatalogManifest
         IsStale = isStale;
     }
 
+    public MrStoreCatalogManifest(
+        Uri? sourceUri,
+        DateTimeOffset fetchedAt,
+        string? version = null,
+        DateTimeOffset? expiresAt = null,
+        string? sourceName = null,
+        bool isStale = false)
+        : this(sourceUri, version, fetchedAt, expiresAt, sourceName, isStale)
+    {
+    }
+
     public bool IsFresh(DateTimeOffset now, TimeSpan maxAge)
     {
         if (IsStale || maxAge < TimeSpan.Zero || now - FetchedAt > maxAge) return false;
@@ -76,6 +87,13 @@ public sealed record MrStoreCatalogManifest
         error = string.Empty;
         return true;
     }
+
+    public static MrStoreCatalogManifest From(IotMCatalogSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new MrStoreCatalogManifest(snapshot.SourceUri, snapshot.Version,
+            snapshot.FetchedAt, isStale: snapshot.IsStale);
+    }
 }
 
 /// <summary>One dynamic Mr. Store catalog payload and its provenance.</summary>
@@ -104,6 +122,17 @@ public sealed record MrStoreCatalogSnapshot
         Manifest = manifest;
     }
 
+    public MrStoreCatalogSnapshot(
+        IReadOnlyList<IotMCatalogEntry> entries,
+        DateTimeOffset fetchedAt,
+        Uri? sourceUri = null,
+        string? version = null,
+        bool isStale = false)
+        : this(entries, new MrStoreCatalogManifest(sourceUri, version, fetchedAt,
+            isStale: isStale))
+    {
+    }
+
     public bool IsValid(out string error)
     {
         if (!Manifest.IsValid(out error)) return false;
@@ -126,8 +155,7 @@ public sealed record MrStoreCatalogSnapshot
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new MrStoreCatalogSnapshot(snapshot.Entries,
-            manifest ?? new MrStoreCatalogManifest(snapshot.SourceUri, snapshot.Version,
-                snapshot.FetchedAt, isStale: snapshot.IsStale));
+            manifest ?? MrStoreCatalogManifest.From(snapshot));
     }
 }
 

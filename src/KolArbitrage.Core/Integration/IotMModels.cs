@@ -105,8 +105,12 @@ public sealed record IotMCatalogEntry(string ItemId, string ItemName)
     public bool IsMallTradeable => IsTradeable && !IsAccountBound;
     public bool MallTradeable => IsMallTradeable;
     public bool CanBuyFromMall => IsMallTradeable;
+    public bool CanTrade => IsMallTradeable;
     public bool IsGiftTransferable => IsGiftable && !IsAccountBound;
     public bool GiftTransferable => IsGiftTransferable;
+    public bool Giftable => IsGiftable;
+    public bool CanGift => IsGiftTransferable;
+    public bool CanTransferAsGift => IsGiftTransferable;
     public bool CanTransferByGift => IsGiftTransferable;
 
     public bool IsValid(out string error)

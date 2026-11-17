@@ -163,6 +163,7 @@ public sealed record ItemMasterRecord
     /// <summary>Whether the item can be transferred using KoL's gift flow.</summary>
     public bool IsGiftTransferable => IsGiftable && !IsAccountBound;
     public bool GiftTransferable => IsGiftTransferable;
+    public bool CanTransferAsGift => IsGiftTransferable;
     public bool CanTransferByGift => IsGiftTransferable;
     public bool IsQuestItem => AccessFlags.HasFlag(ItemAccessFlags.Quest);
     public bool IsDiscardable => AccessFlags.HasFlag(ItemAccessFlags.Discardable);
