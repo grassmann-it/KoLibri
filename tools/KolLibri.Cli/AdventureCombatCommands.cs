@@ -682,9 +682,22 @@ internal static partial class KolibriCli
             ActionsTaken = 0
         };
         var usage = new AutoCombatUsage();
+        var recoveryPlan = ReadRecoveryPlan(args);
         var decisions = new List<object>();
         for (var round = 1; round <= maxRounds; round++)
         {
+            if (recoveryPlan is not null && !recoveryPlan.CanEnterCombat)
+            {
+                decisions.Add(new
+                {
+                    round,
+                    decision = (object?)null,
+                    wouldPost = false,
+                    stopReason = "RecoveryBlocked",
+                    recovery = recoveryPlan
+                });
+                break;
+            }
             var snapshot = context with
             {
                 Round = round,
@@ -729,12 +742,42 @@ internal static partial class KolibriCli
             maxRounds,
             policy,
             context,
+            recovery = recoveryPlan,
             decisions,
-            stopReason = decisions.Count == 0 ? "No decision was evaluated." : null,
+            stopReason = decisions.Count == 0
+                ? "No decision was evaluated."
+                : recoveryPlan is not null && !recoveryPlan.CanEnterCombat
+                    ? "RecoveryBlocked"
+                    : null,
             safety = "Combat execution is disabled; no fight.php request is sent."
         });
         await Task.CompletedTask;
         return 0;
+    }
+
+    private static RecoveryPlan? ReadRecoveryPlan(string[] args)
+    {
+        var snapshotPath = GetOption(args, "--recovery-snapshot");
+        if (snapshotPath is null)
+            return null;
+        if (!File.Exists(snapshotPath))
+            throw new ArgumentException($"Recovery-Snapshot '{snapshotPath}' wurde nicht gefunden.");
+        try
+        {
+            var snapshot = JsonSerializer.Deserialize<RecoverySnapshot>(
+                File.ReadAllText(snapshotPath), JsonOptions)
+                ?? throw new ArgumentException("Recovery-Snapshot ist leer.");
+            var policyPath = GetOption(args, "--recovery-policy");
+            var policy = policyPath is null
+                ? new RecoveryPolicy()
+                : JsonSerializer.Deserialize<RecoveryPolicy>(File.ReadAllText(policyPath), JsonOptions)
+                    ?? throw new ArgumentException("Recovery-Policy ist leer.");
+            return new RecoveryPlanner(policy).Plan(snapshot);
+        }
+        catch (JsonException exception)
+        {
+            throw new ArgumentException("Recovery-Snapshot oder -Policy ist kein gültiges JSON.", exception);
+        }
     }
 
     private static AutoCombatPolicy BuildAutoCombatPolicy(string[] args)
@@ -1003,7 +1046,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  combat preview [--location ID] [--action attack] [--round N] [--monster NAME]");
         Console.WriteLine("  combat inspect [--location ID] [--round N]                     preview encounter metadata");
         Console.WriteLine("  combat manual [--location ID] --action ACTION [--round N]       one-step dry-run");
-        Console.WriteLine("  autocombat --dry-run [--location ID] [--max-rounds N] [--skill ID] [--item ID]");
+        Console.WriteLine("  autocombat --dry-run [--location ID] [--max-rounds N] [--skill ID] [--item ID] [--recovery-snapshot FILE]");
         Console.WriteLine("  autocombat --policy 'skill(123) -> attack' [--dry-run]");
         Console.WriteLine("  Combat commands are preview-only; no fight.php POST is sent.");
     }
