@@ -114,6 +114,7 @@ public enum DailyAdventurePlanStatus
     TargetReached,
     Ready,
     PartiallyReady,
+    BlockedStaleSnapshot,
     BlockedNoAdventureTurns,
     BlockedNoYield
 }
@@ -124,6 +125,7 @@ public enum DailyAdventurePlanStatus
 /// </summary>
 public sealed record AdventureState
 {
+    public bool IsStale { get; init; }
     public int Knucklebones { get; init; }
     public int AdventureTurnsRemaining { get; init; }
     public int LuckySurpriseEggs { get; init; }

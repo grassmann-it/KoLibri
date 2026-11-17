@@ -438,6 +438,7 @@ internal static partial class KolibriCli
                 cancellationToken: cancellationToken);
             return new AdventureState
             {
+                IsStale = status.IsStale || inventory.IsStale,
                 Knucklebones = FindQuantity(inventory, "knucklebone"),
                 AdventureTurnsRemaining = status.Adventures,
                 LuckySurpriseEggs = FindQuantity(inventory, "lucky surprise egg"),

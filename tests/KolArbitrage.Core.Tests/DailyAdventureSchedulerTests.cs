@@ -6,6 +6,21 @@ namespace KolArbitrage.Core.Tests;
 public sealed class DailyAdventureSchedulerTests
 {
     [Fact]
+    public void StaleAdventureStateBlocksPlannerWithoutSteps()
+    {
+        var plan = new DailyAdventurePlanner().Plan(new AdventureState
+        {
+            IsStale = true,
+            Knucklebones = 20,
+            AdventureTurnsRemaining = 10
+        });
+
+        Assert.Equal(DailyAdventurePlanStatus.BlockedStaleSnapshot, plan.Status);
+        Assert.Empty(plan.Steps);
+        Assert.False(plan.IsActionable);
+    }
+
+    [Fact]
     public async Task RefreshesStateForEachBoundedReadOnlyTick()
     {
         var reads = 0;

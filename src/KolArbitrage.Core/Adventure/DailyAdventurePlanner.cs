@@ -21,6 +21,19 @@ public sealed class DailyAdventurePlanner
         var state = snapshot.Normalize();
         var settings = (options ?? _defaults).Normalize();
         var date = planDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        if (state.IsStale)
+        {
+            return new DailyAdventurePlan
+            {
+                PlanDate = date,
+                Status = DailyAdventurePlanStatus.BlockedStaleSnapshot,
+                TargetKnucklebones = settings.DailyKnucklebonesTarget,
+                StartingKnucklebones = state.Knucklebones,
+                ProjectedKnucklebones = state.Knucklebones,
+                Steps = Array.Empty<AdventureStep>(),
+                Advisories = new[] { "Account status or inventory is stale; refresh before planning or running adventures." }
+            };
+        }
         var target = settings.DailyKnucklebonesTarget;
         var projected = (decimal)state.Knucklebones;
         var availableTurns = state.AdventureTurnsRemaining;
