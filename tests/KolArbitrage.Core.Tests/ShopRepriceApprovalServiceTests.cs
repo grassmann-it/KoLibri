@@ -39,8 +39,8 @@ public sealed class ShopRepriceApprovalServiceTests
             Assert.True(committed.Verified);
             Assert.Equal(1_199, fixture.Price);
             Assert.Equal(1, fixture.PostCount);
-            // Service guard GET, client commit GET + POST + verification GET.
-            Assert.Equal(5, fixture.GetCount);
+            // Preview GET, service guard GET, client commit GET + verification GET.
+            Assert.Equal(4, fixture.GetCount);
 
             var rows = await journal.ReadAsync(new AuditEventQuery { OperationId = preview.ActionId });
             Assert.Equal(3, rows.Count);

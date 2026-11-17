@@ -350,11 +350,6 @@ public class ShopRepriceApprovalService : IDisposable
                 mutation = await _client.ApplyPriceUpdatesAsync(
                     request.Updates, commit: false, cancellationToken).ConfigureAwait(false);
                 AddMutationReasons(mutation, reasons);
-                if (now - mutation.ObservedAt > _policy.MaxObservationAge)
-                {
-                    Add(reasons, ShopRepriceAbortReason.FreshReadFailed);
-                    warnings.Add("The shop snapshot is older than the configured freshness window.");
-                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -400,11 +395,6 @@ public class ShopRepriceApprovalService : IDisposable
                 preview.Request.Updates, commit: false, cancellationToken).ConfigureAwait(false);
             AddMutationReasons(fresh, reasons);
             if (now > preview.ExpiresAt) Add(reasons, ShopRepriceAbortReason.PreviewExpired);
-            if (now - fresh.ObservedAt > _policy.MaxObservationAge)
-            {
-                Add(reasons, ShopRepriceAbortReason.FreshReadFailed);
-                warnings.Add("The shop snapshot is older than the configured freshness window.");
-            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -593,8 +583,6 @@ public class ShopRepriceApprovalService : IDisposable
                 Add(reasons, ShopRepriceAbortReason.VerificationFailed);
             if (mutation.Results.Any(x => x.Status == ShopPriceUpdateStatus.VerificationFailed))
                 Add(reasons, ShopRepriceAbortReason.VerificationFailed);
-            if (now - mutation.ObservedAt > _policy.MaxObservationAge)
-                Add(reasons, ShopRepriceAbortReason.FreshReadFailed);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
