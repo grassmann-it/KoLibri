@@ -388,8 +388,13 @@ public class ShopRepriceApprovalService : IDisposable
         var now = _clock.GetUtcNow();
         var reasons = new List<ShopRepriceAbortReason>();
         var warnings = new List<string>();
+        ValidateLaneAccount(preview.AccountId, reasons);
         ShopMutationResult fresh;
-        try
+        if (reasons.Count > 0)
+        {
+            fresh = EmptyMutation(now, preview.Request.Updates);
+        }
+        else try
         {
             fresh = await _client.ApplyPriceUpdatesAsync(
                 preview.Request.Updates, commit: false, cancellationToken).ConfigureAwait(false);
@@ -423,6 +428,7 @@ public class ShopRepriceApprovalService : IDisposable
         var now = _clock.GetUtcNow();
         var reasons = new List<ShopRepriceAbortReason>();
         var messages = new List<string>();
+        ValidateLaneAccount(preview.AccountId, reasons);
         var key = request.IdempotencyKey ?? preview.Request.IdempotencyKey;
         if (!string.Equals(request.PreviewId, preview.ActionId, StringComparison.Ordinal))
             Add(reasons, ShopRepriceAbortReason.ActionChanged);
@@ -567,8 +573,13 @@ public class ShopRepriceApprovalService : IDisposable
         var now = _clock.GetUtcNow();
         var reasons = new List<ShopRepriceAbortReason>();
         var messages = new List<string>();
+        ValidateLaneAccount(preview.AccountId, reasons);
         ShopMutationResult mutation;
-        try
+        if (reasons.Count > 0)
+        {
+            mutation = EmptyMutation(now, preview.Request.Updates);
+        }
+        else try
         {
             // Asking the existing client to compare NewPrice with NewPrice is
             // a safe read-only way to reuse its parser and fresh-read gate.
