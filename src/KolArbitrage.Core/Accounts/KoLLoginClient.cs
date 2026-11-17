@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using KolArbitrage.Core.Security;
 
 namespace KolArbitrage.Core.Accounts;
 
@@ -14,6 +15,14 @@ public sealed record KoLLoginOptions
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
     /// <summary>Minimum delay between login attempts made by one client.</summary>
     public TimeSpan MinimumRequestInterval { get; init; } = TimeSpan.FromSeconds(1);
+    /// <summary>HTTPS host and redirect boundary for login requests.</summary>
+    public KoLSecurityPolicy Security { get; init; } = new();
+    /// <summary>Compatibility alias for callers using the explicit policy name.</summary>
+    public KoLSecurityPolicy SecurityPolicy
+    {
+        get => Security;
+        init => Security = value;
+    }
 
     public Uri LoginUri => new(BaseUri, "login.php");
 
@@ -24,6 +33,8 @@ public sealed record KoLLoginOptions
         if (Timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(Timeout));
         if (MinimumRequestInterval < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(MinimumRequestInterval));
+        (Security ?? throw new ArgumentException("A KoL login security policy is required.", nameof(Security))).Validate();
+        Security.EnsureAllowed(BaseUri, "KoL login base");
     }
 }
 
@@ -109,7 +120,9 @@ public sealed class KoLLoginClient
         {
             UseCookies = true,
             CookieContainer = new CookieContainer(),
-            AllowAutoRedirect = true,
+            // Redirects are followed explicitly below so a Location header
+            // cannot send login cookies to an untrusted host.
+            AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
         using var client = new HttpClient(handler)
@@ -120,11 +133,14 @@ public sealed class KoLLoginClient
         client.DefaultRequestHeaders.UserAgent.ParseAdd(_options.UserAgent);
 
         string loginPage;
+        var loginUri = _options.LoginUri;
         try
         {
-            using var pageResponse = await client.GetAsync("login.php", cancellationToken).ConfigureAwait(false);
+            using var pageResponse = await GetFollowingRedirectsAsync(client, loginUri, cancellationToken).ConfigureAwait(false);
             loginPage = await pageResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             pageResponse.EnsureSuccessStatusCode();
+            if (KoLHtmlResponseClassifier.Classify(loginPage) == KoLHtmlResponseKind.Empty)
+                throw new KoLLoginException(KoLLoginFailureReason.InvalidResponse, "KoL returned an empty login page.");
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
@@ -163,16 +179,29 @@ public sealed class KoLLoginClient
         try
         {
             using var content = new FormUrlEncodedContent(form);
-            loginResponse = await client.PostAsync("login.php", content, cancellationToken).ConfigureAwait(false);
+            loginResponse = await PostFollowingRedirectsAsync(client, loginUri, content, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
             throw new KoLLoginException(KoLLoginFailureReason.Network, "KoL login request failed.", exception);
         }
 
-        var finalPath = loginResponse.RequestMessage?.RequestUri?.AbsolutePath ?? string.Empty;
+        var finalUri = loginResponse.RequestMessage?.RequestUri ?? loginUri;
+        _options.Security.EnsureResponseUri(loginUri, finalUri);
+        var finalPath = finalUri.AbsolutePath;
         var redirectedIntoGame = finalPath.EndsWith("/game.php", StringComparison.OrdinalIgnoreCase)
             || finalPath.EndsWith("/main.php", StringComparison.OrdinalIgnoreCase);
+
+        string loginBody;
+        try
+        {
+            loginBody = await loginResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            loginResponse.Dispose();
+            throw new KoLLoginException(KoLLoginFailureReason.Network, "KoL login response could not be read.", exception);
+        }
 
         try
         {
@@ -186,6 +215,9 @@ public sealed class KoLLoginClient
         {
             loginResponse.Dispose();
         }
+
+        if (KoLHtmlResponseClassifier.Classify(loginBody) == KoLHtmlResponseKind.Empty)
+            throw new KoLLoginException(KoLLoginFailureReason.InvalidResponse, "KoL returned an empty login response.");
 
         var cookies = handler.CookieContainer.GetCookies(_options.BaseUri)
             .Cast<Cookie>()
@@ -244,16 +276,25 @@ public sealed class KoLLoginClient
         AccountCredentials credentials,
         Uri baseUri,
         TimeSpan? timeout = null,
-        string userAgent = "KoLibri/0.1 (Kingdom of Loathing client)")
+        string userAgent = "KoLibri/0.1 (Kingdom of Loathing client)",
+        KoLSecurityPolicy? securityPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(baseUri);
-        if (!baseUri.IsAbsoluteUri || baseUri.Scheme != Uri.UriSchemeHttps)
-            throw new ArgumentException("Authenticated KoL clients require an HTTPS base URI.", nameof(baseUri));
+        var policy = securityPolicy ?? new KoLSecurityPolicy();
+        policy.Validate();
+        policy.EnsureAllowed(baseUri, "Authenticated KoL base");
         if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
             throw new ArgumentException("Credentials do not contain a KoL cookie header.", nameof(credentials));
 
-        var client = new HttpClient
+        var handler = new HttpClientHandler
+        {
+            // Callers must handle redirects themselves (or use a safe
+            // request wrapper) so cookies cannot be sent cross-host.
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.All
+        };
+        var client = new HttpClient(handler)
         {
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)
@@ -262,4 +303,61 @@ public sealed class KoLLoginClient
         client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", credentials.CookieHeader);
         return client;
     }
+
+    private async Task<HttpResponseMessage> GetFollowingRedirectsAsync(
+        HttpClient client,
+        Uri requestUri,
+        CancellationToken cancellationToken)
+    {
+        _options.Security.EnsureAllowed(requestUri, "KoL login request");
+        var current = requestUri;
+        for (var redirect = 0; ; redirect++)
+        {
+            var response = await client.GetAsync(current, cancellationToken).ConfigureAwait(false);
+            _options.Security.EnsureResponseUri(current, response.RequestMessage?.RequestUri);
+            if (!IsRedirect(response.StatusCode))
+                return response;
+            if (redirect >= _options.Security.MaxRedirects)
+            {
+                response.Dispose();
+                throw new KoLSecurityException("KoL login exceeded the redirect limit.");
+            }
+            var next = _options.Security.ResolveRedirect(current, response.Headers.Location?.ToString());
+            response.Dispose();
+            current = next;
+        }
+    }
+
+    private async Task<HttpResponseMessage> PostFollowingRedirectsAsync(
+        HttpClient client,
+        Uri requestUri,
+        HttpContent content,
+        CancellationToken cancellationToken)
+    {
+        _options.Security.EnsureAllowed(requestUri, "KoL login request");
+        var current = requestUri;
+        var response = await client.PostAsync(current, content, cancellationToken).ConfigureAwait(false);
+        for (var redirect = 0; IsRedirect(response.StatusCode); redirect++)
+        {
+            _options.Security.EnsureResponseUri(current, response.RequestMessage?.RequestUri);
+            if (redirect >= _options.Security.MaxRedirects)
+            {
+                response.Dispose();
+                throw new KoLSecurityException("KoL login exceeded the redirect limit.");
+            }
+            var next = _options.Security.ResolveRedirect(current, response.Headers.Location?.ToString());
+            response.Dispose();
+            // KoL's login endpoint responds to POST with a normal 302/303
+            // browser redirect. Follow it as GET while retaining cookies.
+            current = next;
+            response = await client.GetAsync(current, cancellationToken).ConfigureAwait(false);
+        }
+        _options.Security.EnsureResponseUri(current, response.RequestMessage?.RequestUri);
+        return response;
+    }
+
+    private static bool IsRedirect(HttpStatusCode statusCode) =>
+        statusCode is HttpStatusCode.MovedPermanently or HttpStatusCode.Redirect
+            or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect
+            or HttpStatusCode.PermanentRedirect;
 }

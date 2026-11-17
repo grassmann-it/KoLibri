@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Serialization;
+using KolArbitrage.Core.Security;
 
 namespace KolArbitrage.Core.Accounts;
 
@@ -46,7 +47,9 @@ public enum KoLServerResponseKind
     NetworkFailure = TransientFailure,
     ServerError = TransientFailure,
     Unavailable = TransientFailure,
-    ClientError = 5
+    ClientError = 5,
+    /// <summary>The endpoint returned no usable HTML body.</summary>
+    EmptyResponse = 6
 }
 
 /// <summary>
@@ -121,6 +124,9 @@ public record KoLServerResponse
         if (Kind != KoLServerResponseKind.Unknown)
             return Kind;
 
+        if (string.Equals(Error, "empty-html", StringComparison.Ordinal))
+            return KoLServerResponseKind.EmptyResponse;
+
         var status = EffectiveStatusCode;
         if (status is 401 or 403 || IsLoginPage || IsAuthenticated == false)
             return KoLServerResponseKind.Unauthenticated;
@@ -179,6 +185,14 @@ public record KoLServerResponse
             ObservedAt = observedAt
         };
 
+    public static KoLServerResponse Empty(DateTimeOffset? observedAt = null) => new()
+    {
+        StatusCode = 200,
+        IsAuthenticated = false,
+        Error = "empty-html",
+        ObservedAt = observedAt
+    };
+
     public static KoLServerResponse Failure(
         int? statusCode = null,
         string? error = null,
@@ -188,6 +202,28 @@ public record KoLServerResponse
             Error = error,
             ObservedAt = observedAt
         };
+
+    /// <summary>
+    /// Builds response facts from an HTML endpoint without retaining the
+    /// response body. Login forms are explicit unauthenticated responses;
+    /// empty bodies are treated as invalid responses rather than successful
+    /// zero-content checks.
+    /// </summary>
+    public static KoLServerResponse FromHtml(
+        string? html,
+        int statusCode = 200,
+        DateTimeOffset? observedAt = null)
+    {
+        var kind = KoLHtmlResponseClassifier.Classify(html);
+        return new KoLServerResponse
+        {
+            StatusCode = statusCode,
+            IsLoginPage = kind == KoLHtmlResponseKind.LoginPage,
+            IsAuthenticated = kind == KoLHtmlResponseKind.Content,
+            ObservedAt = observedAt,
+            Error = kind == KoLHtmlResponseKind.Empty ? "empty-html" : null
+        };
+    }
 }
 
 /// <summary>

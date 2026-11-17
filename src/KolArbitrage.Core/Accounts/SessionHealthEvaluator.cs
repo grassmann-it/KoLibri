@@ -43,6 +43,7 @@ public static class KoLSessionHealthEvaluator
                  KoLServerResponseKind.Unauthenticated or
                  KoLServerResponseKind.RateLimited or
                  KoLServerResponseKind.TransientFailure or
+                 KoLServerResponseKind.EmptyResponse or
                  KoLServerResponseKind.ClientError)
             lastFailureAt = responseAt ?? evaluatedAt;
 
@@ -108,6 +109,7 @@ public static class KoLSessionHealthEvaluator
                         "KoL rate-limited the session check.");
 
                 case KoLServerResponseKind.TransientFailure:
+                case KoLServerResponseKind.EmptyResponse:
                     return BuildRetryable(
                         result,
                         observation,

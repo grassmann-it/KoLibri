@@ -1,6 +1,7 @@
 using System.Net;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using KolArbitrage.Core.Security;
 using KolArbitrage.Core.Pricing;
 
 namespace KolArbitrage.Core.Integration;
@@ -13,7 +14,23 @@ public sealed record MallListing(
     int Quantity,
     int? PurchaseLimit,
     DateTimeOffset ObservedAt,
-    Uri SourceUri);
+    Uri SourceUri)
+{
+    /// <summary>
+    /// Numeric seller id when the Mall row exposes a showplayer/owner link.
+    /// Older KoL responses do not include this field, so it remains optional.
+    /// </summary>
+    public string? SellerId { get; init; }
+
+    /// <summary>Seller display name when it is present in the Mall row.</summary>
+    public string? SellerName { get; init; }
+
+    /// <summary>Compatibility alias used by purchase planners.</summary>
+    public string? Seller => SellerId;
+
+    /// <summary>Compatibility alias for owner-oriented Mall terminology.</summary>
+    public string? OwnerId => SellerId;
+}
 
 public sealed record MallSnapshot(
     string ItemId,
@@ -36,6 +53,14 @@ public sealed record MallReadPolicy
     public TimeSpan MaxStale { get; init; } = TimeSpan.FromHours(12);
     public TimeSpan MinimumRequestInterval { get; init; } = TimeSpan.FromSeconds(1);
     public int MaxListingsPerItem { get; init; } = 100;
+    /// <summary>Endpoint and redirect boundary for Mall HTTP requests.</summary>
+    public KoLSecurityPolicy Security { get; init; } = new();
+    /// <summary>Compatibility alias for callers that use the longer name.</summary>
+    public KoLSecurityPolicy SecurityPolicy
+    {
+        get => Security;
+        init => Security = value;
+    }
 
     public void Validate()
     {
@@ -43,6 +68,7 @@ public sealed record MallReadPolicy
         if (MaxStale < CacheTtl) throw new ArgumentException("MaxStale must be at least CacheTtl.", nameof(MaxStale));
         if (MinimumRequestInterval < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MinimumRequestInterval));
         if (MaxListingsPerItem <= 0) throw new ArgumentOutOfRangeException(nameof(MaxListingsPerItem));
+        (Security ?? throw new ArgumentException("A Mall HTTP security policy is required.", nameof(Security))).Validate();
     }
 }
 
@@ -64,6 +90,15 @@ public sealed class KoLMallReadClient : IMallReadClient
     private static readonly Regex MeatPrice = new("<td[^>]*class=[\\\"']small price[\\\"'][^>]*>.*?>(?<price>\\d[\\d,]*)\\s*(?:&nbsp;)?Meat", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex Quantity = new("<td[^>]*class=[\\\"']small stock[\\\"'][^>]*>(?<quantity>\\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex StoreName = new("<td[^>]*class=[\\\"']small store[\\\"'][^>]*>.*?<b>(?<name>.*?)</b>", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex SellerId = new(
+        "(?:showplayer\\.php\\?who=|(?:seller|owner)(?:id)?=|whichplayer=)(?<seller>\\d+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex SellerName = new(
+        "<a[^>]*href=[\\\"'][^\\\"']*(?:showplayer\\.php\\?who=|(?:seller|owner)(?:id)?=|whichplayer=)[^\\\"']*[\\\"'][^>]*>(?<name>.*?)</a>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+    private static readonly Regex PurchaseLimit = new(
+        "(?:<(?:td|span|div)\\b[^>]*\\bclass=[\\\"'][^\\\"']*(?:limit|buylimit|purchase_limit|purchaselimit)[^\\\"']*[\\\"'][^>]*>(?<body>.*?)(?:</(?:td|span|div)>|$)|\\b(?:data-limit|data-purchase-limit)=[\\\"'](?<body>\\d+))",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
     private static readonly Regex OwnRow = new(
         "<tr\\s+class=[\\\"']deets[\\\"'][^>]*>(?<row>.*?)</tr>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
@@ -76,6 +111,7 @@ public sealed class KoLMallReadClient : IMallReadClient
     private readonly HttpClient _http;
     private readonly Uri _baseUri;
     private readonly MallReadPolicy _policy;
+    private readonly KoLSecurityPolicy _security;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly Dictionary<string, MallSnapshot> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -86,12 +122,21 @@ public sealed class KoLMallReadClient : IMallReadClient
     private DateTimeOffset? _lastRequest;
     private DateTimeOffset? _ownShopFetchedAt;
 
-    public KoLMallReadClient(HttpClient httpClient, Uri? baseUri = null, MallReadPolicy? policy = null, TimeProvider? clock = null)
+    public KoLMallReadClient(
+        HttpClient httpClient,
+        Uri? baseUri = null,
+        MallReadPolicy? policy = null,
+        TimeProvider? clock = null,
+        KoLSecurityPolicy? securityPolicy = null)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _baseUri = baseUri ?? new Uri("https://www.kingdomofloathing.com/", UriKind.Absolute);
         _policy = policy ?? new MallReadPolicy();
+        if (securityPolicy is not null)
+            _policy = _policy with { Security = securityPolicy };
         _policy.Validate();
+        _security = _policy.Security;
+        _security.EnsureAllowed(_baseUri, "KoL Mall base");
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -133,6 +178,7 @@ public sealed class KoLMallReadClient : IMallReadClient
         try
         {
             var uri = new Uri(_baseUri, KoLRoutes.MallSearch);
+            _security.EnsureAllowed(uri);
             var html = await PostStringAsync(uri, new Dictionary<string, string>
             {
                 ["pudnuggler"] = normalized,
@@ -201,6 +247,7 @@ public sealed class KoLMallReadClient : IMallReadClient
     private async Task<IReadOnlyList<OwnShopListing>> FetchOwnShopCoreAsync()
     {
         var uri = new Uri(_baseUri, KoLRoutes.ManageStore);
+        _security.EnsureAllowed(uri);
         try
         {
             var html = await GetStringAsync(uri, CancellationToken.None).ConfigureAwait(false);
@@ -249,8 +296,12 @@ public sealed class KoLMallReadClient : IMallReadClient
                 if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
             }
             using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            _security.EnsureResponseUri(uri, response.RequestMessage?.RequestUri);
+            if (response.Headers.Location is { } location && !response.IsSuccessStatusCode)
+                _security.ResolveRedirect(uri, location.ToString());
             response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            KoLHtmlResponseClassifier.EnsureContent(body, uri);
             _lastRequest = _clock.GetUtcNow();
             return body;
         }
@@ -269,8 +320,12 @@ public sealed class KoLMallReadClient : IMallReadClient
             }
             using var content = new FormUrlEncodedContent(values);
             using var response = await _http.PostAsync(uri, content, cancellationToken).ConfigureAwait(false);
+            _security.EnsureResponseUri(uri, response.RequestMessage?.RequestUri);
+            if (response.Headers.Location is { } location && !response.IsSuccessStatusCode)
+                _security.ResolveRedirect(uri, location.ToString());
             response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            KoLHtmlResponseClassifier.EnsureContent(body, uri);
             _lastRequest = _clock.GetUtcNow();
             return body;
         }
@@ -282,6 +337,12 @@ public sealed class KoLMallReadClient : IMallReadClient
         var result = new List<MallListing>();
         foreach (Match match in ListingRow.Matches(html))
         {
+            // A Mall search can contain recommendation/advertising rows for
+            // other items. Never let one of those rows enter a snapshot for
+            // the requested item.
+            var listedItemId = match.Groups["item"].Value;
+            if (!string.Equals(listedItemId, itemId, StringComparison.Ordinal))
+                continue;
             var block = match.Groups["row"].Value;
             var priceMatch = MeatPrice.Match(block);
             if (!priceMatch.Success || !long.TryParse(priceMatch.Groups["price"].Value.Replace(",", ""), out var price)) continue;
@@ -289,7 +350,28 @@ public sealed class KoLMallReadClient : IMallReadClient
             var quantity = qty.Success && int.TryParse(qty.Groups["quantity"].Value, out var q) ? Math.Max(1, q) : 1;
             var store = StoreName.Match(block);
             var storeName = store.Success ? WebUtility.HtmlDecode(store.Groups["name"].Value).Trim() : null;
-            result.Add(new MallListing(match.Groups["item"].Value, match.Groups["store"].Value, storeName, price, quantity, null, observedAt ?? _clock.GetUtcNow(), source));
+            var sellerIdMatch = SellerId.Match(block);
+            var sellerId = sellerIdMatch.Success ? sellerIdMatch.Groups["seller"].Value : null;
+            var sellerNameMatch = SellerName.Match(block);
+            var sellerName = sellerNameMatch.Success
+                ? WebUtility.HtmlDecode(StripTags(sellerNameMatch.Groups["name"].Value)).Trim()
+                : null;
+            var limitMatch = PurchaseLimit.Match(block);
+            int? purchaseLimit = null;
+            if (limitMatch.Success)
+            {
+                var limitText = limitMatch.Groups["limit"].Success
+                    ? limitMatch.Groups["limit"].Value
+                    : StripTags(limitMatch.Groups["body"].Value);
+                var number = Regex.Match(limitText, "\\d+");
+                if (number.Success && int.TryParse(number.Value, out var parsedLimit))
+                    purchaseLimit = parsedLimit;
+            }
+            result.Add(new MallListing(listedItemId, match.Groups["store"].Value, storeName, price, quantity, purchaseLimit, observedAt ?? _clock.GetUtcNow(), source)
+            {
+                SellerId = sellerId,
+                SellerName = sellerName
+            });
             if (result.Count >= _policy.MaxListingsPerItem) break;
         }
         return result.OrderBy(x => x.Price).ToArray();
