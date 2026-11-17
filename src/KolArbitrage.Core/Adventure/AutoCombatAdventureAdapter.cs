@@ -7,6 +7,8 @@ public sealed record AutoCombatAdventureDecision
     public AdventureFightAction? Action { get; init; }
     public bool Allowed { get; init; }
     public string? BlockReason { get; init; }
+    /// <summary>Recovery evidence used to gate this decision, when supplied.</summary>
+    public RecoveryPlan? RecoveryPlan { get; init; }
 }
 
 /// <summary>
@@ -21,35 +23,53 @@ public static class AutoCombatAdventureAdapter
         CombatObservation observation,
         string adventureId,
         string? encounterId = null,
-        AutoCombatUsage? usage = null)
+        AutoCombatUsage? usage = null,
+        RecoveryPlan? recoveryPlan = null)
     {
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentException.ThrowIfNullOrWhiteSpace(adventureId);
         var value = observation.Normalize();
         if (value.IsTerminal || value.Round <= 0)
-            return Block(policy.Evaluate(ToContext(value), usage), "The combat observation is terminal or has no valid round.");
+            return Block(policy.Evaluate(ToContext(value), usage), "The combat observation is terminal or has no valid round.", recoveryPlan);
 
         var decision = policy.Evaluate(ToContext(value), usage);
+        if (recoveryPlan is not null && !recoveryPlan.CanEnterCombat)
+        {
+            var reason = recoveryPlan.StopReasons.Count > 0
+                ? $"Recovery gate blocked combat: {string.Join(", ", recoveryPlan.StopReasons)}."
+                : "Recovery gate blocked combat; a fresh safe recovery plan is required.";
+            return Block(decision, reason, recoveryPlan);
+        }
         if (!decision.IsAction)
-            return Block(decision, decision.Reason);
+            return Block(decision, decision.Reason, recoveryPlan);
 
         var actionId = ToActionId(decision.Action);
         if (actionId is null)
-            return Block(decision, "The policy action is not a fight action.");
+            return Block(decision, "The policy action is not a fight action.", recoveryPlan);
         if (!IsLegal(decision.Action, value.AvailableActions))
-            return Block(decision, $"Policy action '{actionId}' is not present in the current legal-action snapshot.");
+            return Block(decision, $"Policy action '{actionId}' is not present in the current legal-action snapshot.", recoveryPlan);
 
         return new AutoCombatAdventureDecision
         {
             PolicyDecision = decision,
             Action = new AdventureFightAction(adventureId.Trim(), actionId, value.Round, encounterId, value.MonsterId ?? value.MonsterName),
-            Allowed = true
+            Allowed = true,
+            RecoveryPlan = recoveryPlan
         };
     }
 
-    private static AutoCombatAdventureDecision Block(AutoCombatDecision decision, string? reason)
-        => new() { PolicyDecision = decision, Allowed = false, BlockReason = reason };
+    private static AutoCombatAdventureDecision Block(
+        AutoCombatDecision decision,
+        string? reason,
+        RecoveryPlan? recoveryPlan = null)
+        => new()
+        {
+            PolicyDecision = decision,
+            Allowed = false,
+            BlockReason = reason,
+            RecoveryPlan = recoveryPlan
+        };
 
     private static AutoCombatContext ToContext(CombatObservation observation)
         => new()
