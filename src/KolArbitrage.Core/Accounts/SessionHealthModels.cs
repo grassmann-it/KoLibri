@@ -221,7 +221,9 @@ public record KoLServerResponse
             IsLoginPage = kind == KoLHtmlResponseKind.LoginPage,
             IsAuthenticated = kind == KoLHtmlResponseKind.Content,
             ObservedAt = observedAt,
-            Error = kind == KoLHtmlResponseKind.Empty ? "empty-html" : null
+            Error = kind == KoLHtmlResponseKind.Empty && statusCode is >= 200 and <= 299
+                ? "empty-html"
+                : null
         };
     }
 }
