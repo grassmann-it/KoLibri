@@ -23,6 +23,12 @@ public sealed record KoLLoginOptions
         get => Security;
         init => Security = value;
     }
+    /// <summary>Convenience forwarding property for explicit test endpoints.</summary>
+    public IReadOnlySet<string> AllowedHosts
+    {
+        get => Security.AllowedHosts;
+        init => Security = Security with { AllowedHosts = value };
+    }
 
     public Uri LoginUri => new(BaseUri, "login.php");
 
