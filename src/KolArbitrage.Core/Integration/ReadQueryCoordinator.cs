@@ -75,6 +75,13 @@ public sealed record ReadQueryPolicy
         MaxStale = TimeSpan.FromHours(24)
     };
 
+    public SnapshotCachePolicy StatusPolicy => Status;
+    public SnapshotCachePolicy InventoryPolicy => Inventory;
+    public SnapshotCachePolicy MallPolicy => Mall;
+    public SnapshotCachePolicy PricegunPolicy => Pricegun;
+    public SnapshotCachePolicy OwnShopPolicy => OwnShop;
+    public SnapshotCachePolicy ShopSalesPolicy => ShopSales;
+
     public StaleReadMode StaleMode { get; init; } = StaleReadMode.Allow;
 
     public bool AllowStale
