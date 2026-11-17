@@ -44,6 +44,7 @@ internal static partial class KolibriCli
             "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
             "step" or "advance" => await AdventureStepAsync(args[1..]),
             "bounded-preview" or "run-preview" => await AdventureBoundedPreviewAsync(args[1..]),
+            "run" or "execute" => await AdventureRunAsync(args[1..]),
             "stop" or "abort" => await AdventureStopAsync(args[1..]),
             _ => Fail($"Unbekannter adventure-Befehl: {args[0]}")
         };
@@ -368,6 +369,113 @@ internal static partial class KolibriCli
             note = "Preview only; no adventure.php, fight.php or choice.php request was sent."
         });
         return Task.FromResult(stopReason == "ConditionsBlocked" ? 3 : 0);
+    }
+
+    private static async Task<int> AdventureRunAsync(string[] args)
+    {
+        var location = ReadAdventureId(args);
+        var runId = GetOption(args, "--run-id") ?? $"cli-{Guid.NewGuid():N}";
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var conditionsPath = GetOption(args, "--conditions-file");
+        var conditions = conditionsPath is null
+            ? Array.Empty<AdventureCondition>()
+            : ReadJsonArray<AdventureCondition>(conditionsPath, "conditions");
+        if (!HasFlag(args, "--execute"))
+        {
+            WriteJson(new
+            {
+                command = "adventure run",
+                readOnly = true,
+                previewOnly = true,
+                executed = false,
+                approvalRequired = true,
+                runId,
+                location,
+                role = role.ToString(),
+                conditions,
+                note = "Preview only. Add --execute and --approval-token to submit allowlisted requests."
+            });
+            return 0;
+        }
+
+        var approvalToken = GetOption(args, "--approval-token");
+        if (string.IsNullOrWhiteSpace(approvalToken))
+            throw new ArgumentException("Live adventure execution requires --approval-token.");
+
+        var approval = new DelegateAdventureApprovalHook((context, _) =>
+            ValueTask.FromResult(string.Equals(approvalToken, GetOption(args, "--approval-token"), StringComparison.Ordinal)
+                ? AdventureApprovalDecision.Allow(approvalToken)
+                : AdventureApprovalDecision.Deny("The supplied approval token does not match the command approval.")));
+        var verification = new DelegateAdventureVerificationHook((context, _) =>
+            ValueTask.FromResult(context.Response.Accepted == true && context.Observation.Kind != AdventureEncounterKind.Unknown
+                ? AdventureVerificationResult.Success()
+                : AdventureVerificationResult.Failed("The live response was not a known, accepted adventure encounter.")));
+
+        await using var session = await KoLAdventureSessionFactory.CreateAsync(
+            role,
+            approval,
+            verification,
+            cancellationToken: CancellationToken.None).ConfigureAwait(false);
+        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
+        foreach (var actionId in GetOptions(args, "--fight-action"))
+            allowlist.AddFightAction(location, actionId);
+        foreach (var choice in GetOptions(args, "--choice-action"))
+        {
+            var separator = choice.IndexOf(':');
+            if (separator <= 0 || separator == choice.Length - 1)
+                throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID.");
+            allowlist.AddChoiceOption(location, choice[..separator], choice[(separator + 1)..]);
+        }
+
+        var request = new AdventureRunRequest
+        {
+            RunId = runId,
+            AdventureId = location,
+            Role = role,
+            DailyLimit = new AdventureDailyLimitContract
+            {
+                Day = DateOnly.FromDateTime(DateTime.UtcNow),
+                MaxTurns = Math.Max(0, ReadInt(args, "--max-turns", int.MaxValue)),
+                MaxRuns = Math.Max(0, ReadInt(args, "--max-runs", int.MaxValue))
+            }
+        };
+        var provider = new AccountAdventureConditionSnapshotProvider(session.AccountReader, conditions, forceRefresh: true);
+        var runner = new BoundedAdventureRunner(session.Gateway);
+        var result = await runner.RunAsync(
+            request,
+            allowlist,
+            conditions,
+            provider,
+            new BoundedAdventureRunnerOptions
+            {
+                MaxGatewaySteps = ReadInt(args, "--max-steps", 20),
+                MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)))
+            }).ConfigureAwait(false);
+
+        WriteJson(new
+        {
+            command = "adventure run",
+            readOnly = false,
+            previewOnly = false,
+            executed = true,
+            approvalRequired = true,
+            runId,
+            location,
+            role = role.ToString(),
+            stopReason = result.StopReason.ToString(),
+            conditions = result.Conditions,
+            steps = result.Steps.Select(step => new
+            {
+                status = step.Status.ToString(),
+                requestId = step.RequestId,
+                responseHash = step.Response?.ResponseHash,
+                abortReason = step.AbortReason?.ToString(),
+                requiresRefresh = step.RequiresRefresh,
+                complete = step.IsComplete
+            }).ToArray(),
+            auditPath = KoLAdventureSessionFactory.DefaultAuditPath
+        });
+        return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
     }
 
     private static async Task<int> CombatCommandAsync(string[] args)
@@ -885,6 +993,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure inspect [--checkpoint PATH] [--location ID] [--fixture HTML]");
         Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
         Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
+        Console.WriteLine("  adventure run --location ID [--execute --approval-token TOKEN] [--fight-action attack]");
         Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
         Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
     }

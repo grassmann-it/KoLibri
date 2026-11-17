@@ -105,10 +105,10 @@ public sealed class BoundedAdventureRunner
         IAdventureConditionSnapshotProvider? provider,
         CancellationToken cancellationToken)
     {
-        if (conditions.Count == 0)
-            return Array.Empty<AdventureConditionResult>();
         if (provider is null)
         {
+            if (conditions.Count == 0)
+                return Array.Empty<AdventureConditionResult>();
             return conditions.Select(condition => new AdventureConditionResult
             {
                 Condition = condition,
@@ -117,6 +117,8 @@ public sealed class BoundedAdventureRunner
             }).ToArray();
         }
         var snapshot = await provider.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (conditions.Count == 0)
+            return Array.Empty<AdventureConditionResult>();
         return AdventureConditionEvaluator.EvaluateAll(conditions, snapshot);
     }
 
