@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KolArbitrage.Core.Security;
 
 namespace KolArbitrage.Core.Integration;
 
@@ -25,12 +26,24 @@ public sealed record AccountReadPolicy
     public TimeSpan CacheTtl { get; init; } = TimeSpan.FromMinutes(2);
     public TimeSpan MaxStale { get; init; } = TimeSpan.FromHours(12);
     public TimeSpan MinimumRequestInterval { get; init; } = TimeSpan.FromSeconds(1);
+    public KoLSecurityPolicy Security { get; init; } = new();
+    public KoLSecurityPolicy SecurityPolicy
+    {
+        get => Security;
+        init => Security = value;
+    }
+    public IReadOnlyCollection<string> AllowedHosts
+    {
+        get => Security.AllowedHosts;
+        init => Security = Security with { AllowedHosts = value };
+    }
 
     public void Validate()
     {
         if (CacheTtl <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(CacheTtl));
         if (MaxStale < CacheTtl) throw new ArgumentException("MaxStale must be at least CacheTtl.", nameof(MaxStale));
         if (MinimumRequestInterval < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MinimumRequestInterval));
+        (Security ?? throw new ArgumentException("A KoL account HTTP security policy is required.", nameof(Security))).Validate();
     }
 }
 
@@ -49,6 +62,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
     private readonly HttpClient _http;
     private readonly Uri _baseUri;
     private readonly AccountReadPolicy _policy;
+    private readonly KoLSecurityPolicy _security;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly object _cacheGate = new();
@@ -60,14 +74,17 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         HttpClient httpClient,
         Uri? baseUri = null,
         AccountReadPolicy? policy = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        KoLSecurityPolicy? securityPolicy = null)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _baseUri = baseUri ?? new Uri("https://www.kingdomofloathing.com/", UriKind.Absolute);
-        if (!_baseUri.IsAbsoluteUri || _baseUri.Scheme != Uri.UriSchemeHttps)
-            throw new ArgumentException("KoL API requires an HTTPS base URI.", nameof(baseUri));
         _policy = policy ?? new AccountReadPolicy();
+        if (securityPolicy is not null)
+            _policy = _policy with { Security = securityPolicy };
         _policy.Validate();
+        _security = _policy.Security;
+        _security.EnsureAllowed(_baseUri, "KoL account base");
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -145,9 +162,20 @@ public sealed class KoLAccountReadClient : IAccountReadClient
                 if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
             }
 
-            using var response = await _http.GetAsync(new Uri(_baseUri, relativePath), cancellationToken).ConfigureAwait(false);
+            var uri = new Uri(_baseUri, relativePath);
+            _security.EnsureAllowed(uri);
+            using var response = await _http.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+            _security.EnsureResponseUri(uri, response.RequestMessage?.RequestUri);
+            if (response.Headers.Location is { } location && !response.IsSuccessStatusCode)
+                _security.ResolveRedirect(uri, location.ToString());
             response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var htmlKind = KoLHtmlResponseClassifier.Classify(body);
+            if (htmlKind is KoLHtmlResponseKind.LoginPage or KoLHtmlResponseKind.Empty)
+                throw new KoLHtmlResponseException(htmlKind,
+                    htmlKind == KoLHtmlResponseKind.LoginPage
+                        ? "KoL returned a login page; the session is not authenticated."
+                        : "KoL returned an empty API response.");
             _lastRequest = _clock.GetUtcNow();
             try
             {
