@@ -93,6 +93,7 @@ public sealed record ShopRepriceRequest
     public IReadOnlyList<ShopPriceUpdate> Updates { get; init; } = Array.Empty<ShopPriceUpdate>();
     public IReadOnlyList<ShopPriceUpdate> Changes => Updates;
     public IReadOnlyList<ShopPriceUpdate> PriceUpdates => Updates;
+    public IReadOnlyList<ShopPriceUpdate> Items => Updates;
     public string? Reason { get; init; }
     public string? IdempotencyKey { get; init; }
 
@@ -210,6 +211,7 @@ public sealed record ShopRepriceApproval
     public string ApprovalId { get; init; } = string.Empty;
     public string ActionId { get; init; } = string.Empty;
     public string ApprovalToken { get; init; } = string.Empty;
+    public string Token => ApprovalToken;
     public string? ApprovedBy { get; init; }
     public DateTimeOffset ApprovedAt { get; init; }
     public DateTimeOffset ExpiresAt { get; init; }
@@ -276,8 +278,10 @@ public sealed record ShopRepriceCommitResult
     public string PreviewId => ActionId;
     public string? IdempotencyKey { get; init; }
     public ShopRepriceOperationStatus Status { get; init; }
+    public ShopRepriceOperationStatus OperationStatus => Status;
     public ShopRepriceVerificationStatus VerificationStatus { get; init; }
         = ShopRepriceVerificationStatus.NotAttempted;
+    public ShopRepriceVerificationStatus Verification => VerificationStatus;
     public bool Committed { get; init; }
     public bool Accepted => Committed;
     public bool Verified => VerificationStatus == ShopRepriceVerificationStatus.Verified;

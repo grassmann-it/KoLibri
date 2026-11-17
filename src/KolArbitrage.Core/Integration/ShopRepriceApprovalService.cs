@@ -872,3 +872,18 @@ public sealed class KoLShopRepriceService : ShopRepriceApprovalService
     }
 }
 
+/// <summary>Compatibility name for hosts that expose a gateway boundary.</summary>
+public sealed class ShopRepriceGateway : ShopRepriceApprovalService
+{
+    public ShopRepriceGateway(
+        KoLShopMutationClient client,
+        ShopRepricePolicy? policy = null,
+        IAccountExecutionLane? accountLane = null,
+        TimeProvider? clock = null,
+        IShopRepriceIdempotencyStore? idempotency = null,
+        IAuditEventJournal? audit = null)
+        : base(client, policy, accountLane, clock, idempotency, audit)
+    {
+    }
+}
+
