@@ -561,6 +561,7 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
     private readonly ConcurrentDictionary<(string Account, string Item), Lazy<Task<PricegunSnapshot>>> _pricegunInflight = new();
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyList<OwnShopListing>>>> _ownShopInflight = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Lazy<Task<ShopSalesSnapshot>>> _shopSalesInflight = new(StringComparer.OrdinalIgnoreCase);
+    private long _cacheVersion;
     private bool _disposed;
 
     public ReadQueryCoordinator(
@@ -724,6 +725,7 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
     public void Invalidate(string? accountId = null, string? itemId = null)
     {
         ThrowIfDisposed();
+        Interlocked.Increment(ref _cacheVersion);
         var accountFilter = string.IsNullOrWhiteSpace(accountId) ? null : accountId.Trim();
         var itemFilter = string.IsNullOrWhiteSpace(itemId) ? null : itemId.Trim();
         lock (_cacheGate)
@@ -876,13 +878,15 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFresh(_status, source.AccountId, _policy.Status, options, out var cached))
             return Classify(cached, ReadSnapshotKind.Status, source.AccountId, null, _policy.Status, options, sourceStale: cached.IsStale);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _statusInflight.GetOrAdd(source.AccountId, _ => new Lazy<Task<KoLStatusSnapshot>>(
             () => source.Account.FetchStatusAsync(forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate) _status[source.AccountId] = value;
+            if (version == Volatile.Read(ref _cacheVersion))
+                lock (_cacheGate) _status[source.AccountId] = value;
             return Classify(value, ReadSnapshotKind.Status, source.AccountId, null, _policy.Status, options, sourceStale: value.IsStale);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -902,13 +906,15 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFresh(_inventory, source.AccountId, _policy.Inventory, options, out var cached))
             return Classify(cached, ReadSnapshotKind.Inventory, source.AccountId, null, _policy.Inventory, options, sourceStale: cached.IsStale);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _inventoryInflight.GetOrAdd(source.AccountId, _ => new Lazy<Task<KoLInventorySnapshot>>(
             () => source.Account.FetchInventoryAsync(forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate) _inventory[source.AccountId] = value;
+            if (version == Volatile.Read(ref _cacheVersion))
+                lock (_cacheGate) _inventory[source.AccountId] = value;
             return Classify(value, ReadSnapshotKind.Inventory, source.AccountId, null, _policy.Inventory, options, sourceStale: value.IsStale);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -934,13 +940,15 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFresh(_mall, key, _policy.Mall, options, out var cached))
             return Classify(cached, ReadSnapshotKind.Mall, source.AccountId, itemId, _policy.Mall, options, sourceStale: cached.IsStale);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _mallInflight.GetOrAdd(key, _ => new Lazy<Task<MallSnapshot>>(
             () => client.SearchAsync(itemId, forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate) _mall[key] = value;
+            if (version == Volatile.Read(ref _cacheVersion))
+                lock (_cacheGate) _mall[key] = value;
             return Classify(value, ReadSnapshotKind.Mall, source.AccountId, itemId, _policy.Mall, options, sourceStale: value.IsStale);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -966,13 +974,15 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFresh(_pricegun, key, _policy.Pricegun, options, out var cached))
             return Classify(cached, ReadSnapshotKind.Pricegun, source.AccountId, itemId, _policy.Pricegun, options, sourceStale: cached.IsStale);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _pricegunInflight.GetOrAdd(key, _ => new Lazy<Task<PricegunSnapshot>>(
             () => client.FetchAsync(itemId, forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate) _pricegun[key] = value;
+            if (version == Volatile.Read(ref _cacheVersion))
+                lock (_cacheGate) _pricegun[key] = value;
             return Classify(value, ReadSnapshotKind.Pricegun, source.AccountId, itemId, _policy.Pricegun, options, sourceStale: value.IsStale);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -995,13 +1005,14 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFreshOwnShop(source.AccountId, _policy.OwnShop, options, out var cached))
             return Classify(cached, source.AccountId, _policy.OwnShop, options);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _ownShopInflight.GetOrAdd(source.AccountId, _ => new Lazy<Task<IReadOnlyList<OwnShopListing>>>(
             () => client.FetchOwnShopAsync(forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate)
+            if (version == Volatile.Read(ref _cacheVersion)) lock (_cacheGate)
             {
                 _ownShop[source.AccountId] = value.ToArray();
                 _ownShopFetchedAt[source.AccountId] = value.Count == 0
@@ -1030,13 +1041,15 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (!options.ForceRefresh && TryGetFresh(_shopSales, source.AccountId, _policy.ShopSales, options, out var cached))
             return Classify(cached, source.AccountId, _policy.ShopSales, options);
 
+        var version = Volatile.Read(ref _cacheVersion);
         var lazy = _shopSalesInflight.GetOrAdd(source.AccountId, _ => new Lazy<Task<ShopSalesSnapshot>>(
             () => client.FetchSalesAsync(forceRefresh: true, cancellationToken: CancellationToken.None),
             LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-            lock (_cacheGate) _shopSales[source.AccountId] = value;
+            if (version == Volatile.Read(ref _cacheVersion))
+                lock (_cacheGate) _shopSales[source.AccountId] = value;
             return Classify(value, source.AccountId, _policy.ShopSales, options);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

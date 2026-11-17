@@ -300,6 +300,29 @@ public class ShopRepriceApprovalService : IDisposable
         CancellationToken cancellationToken)
     {
         var now = _clock.GetUtcNow();
+        if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        {
+            var existing = FindPreviewByIdempotency(request.IdempotencyKey);
+            if (existing is not null)
+            {
+                if (string.Equals(existing.Request.Fingerprint(), request.Fingerprint(), StringComparison.Ordinal))
+                    return existing;
+
+                var conflict = new ShopRepricePreview(
+                    Guid.NewGuid().ToString("N"),
+                    request,
+                    EmptyMutation(now, request.Updates),
+                    now,
+                    now + _policy.PreviewLifetime,
+                    _policy.RequireApproval,
+                    _policy.DryRun,
+                    [ShopRepriceAbortReason.IdempotencyConflict],
+                    ["The idempotency key is already bound to a different reprice request."]);
+                RegisterPreview(conflict);
+                await AuditPreviewAsync(conflict, cancellationToken).ConfigureAwait(false);
+                return conflict;
+            }
+        }
         var actionId = Guid.NewGuid().ToString("N");
         var reasons = new List<ShopRepriceAbortReason>();
         var warnings = new List<string>();
@@ -610,6 +633,15 @@ public class ShopRepriceApprovalService : IDisposable
                 // still registered so the caller can inspect the refusal.
             }
             _previews[preview.ActionId] = preview;
+        }
+    }
+
+    private ShopRepricePreview? FindPreviewByIdempotency(string idempotencyKey)
+    {
+        lock (_registrationGate)
+        {
+            return _previews.Values.FirstOrDefault(x =>
+                string.Equals(x.Request.IdempotencyKey, idempotencyKey, StringComparison.Ordinal));
         }
     }
 
