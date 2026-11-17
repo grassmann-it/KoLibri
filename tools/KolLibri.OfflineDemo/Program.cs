@@ -4,6 +4,7 @@ using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Analytics;
 using KolArbitrage.Core.Integration;
 using KolArbitrage.Core.Pricing;
+using KolArbitrage.Core.Security;
 
 // Dependency-free smoke harness: no real account, credentials, or network.
 await OfflineChecks.RunAsync();
@@ -94,7 +95,11 @@ static class OfflineChecks
         using var http = new HttpClient(handler);
         var mall = new KoLMallReadClient(http, new Uri("https://fixture.invalid/"), new MallReadPolicy
         {
-            MinimumRequestInterval = TimeSpan.Zero
+            MinimumRequestInterval = TimeSpan.Zero,
+            Security = new KoLSecurityPolicy
+            {
+                AllowedHosts = new[] { "fixture.invalid" }
+            }
         });
 
         var first = await mall.SearchAsync(" 123 ");
@@ -285,7 +290,11 @@ static class OfflineChecks
             MallbotMeatReserve = 1_000_000,
             MainCanOpenBags = true,
             MainCanAdventure = true,
-            MainCanUseHermit = true
+            MainCanUseHermit = true,
+            AdventurePlanReady = true,
+            PriceSourcesFresh = true,
+            OwnShopScanned = true,
+            InventoryScanned = true
         }, new DateTimeOffset(2026, 11, 16, 0, 0, 0, TimeSpan.Zero));
         Assert(!ready.HasBlockingStep, "Ready workflow unexpectedly contains a blocked step");
         Assert(ready.Steps.Any(x => x.Action == KoLWorkflowAction.PlanForeignBribeBagPurchase &&
