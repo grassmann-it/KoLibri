@@ -62,7 +62,7 @@ public sealed record MallReadPolicy
         init => Security = value;
     }
     /// <summary>Convenience forwarding property for simple host overrides.</summary>
-    public IReadOnlySet<string> AllowedHosts
+    public IReadOnlyCollection<string> AllowedHosts
     {
         get => Security.AllowedHosts;
         init => Security = Security with { AllowedHosts = value };

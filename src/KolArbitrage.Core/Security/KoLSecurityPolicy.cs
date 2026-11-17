@@ -18,11 +18,11 @@ public static class KoLHostAllowlist
             "www.kingdomofloathing.com"
         };
 
-    public static bool Contains(Uri uri, IReadOnlySet<string>? allowedHosts = null)
+    public static bool Contains(Uri uri, IEnumerable<string>? allowedHosts = null)
     {
         ArgumentNullException.ThrowIfNull(uri);
         var hosts = allowedHosts ?? OfficialHosts;
-        return uri.IsAbsoluteUri && hosts.Contains(uri.Host);
+        return uri.IsAbsoluteUri && hosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
     }
 }
 
@@ -34,7 +34,7 @@ public static class KoLHostAllowlist
 /// </summary>
 public sealed record KoLSecurityPolicy
 {
-    public IReadOnlySet<string> AllowedHosts { get; init; } = KoLHostAllowlist.OfficialHosts;
+    public IReadOnlyCollection<string> AllowedHosts { get; init; } = KoLHostAllowlist.OfficialHosts;
     public bool RequireHttps { get; init; } = true;
     public int MaxRedirects { get; init; } = 5;
 
@@ -64,7 +64,7 @@ public sealed record KoLSecurityPolicy
         if (!RequireHttps && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
             return false;
-        return AllowedHosts.Contains(uri.Host);
+        return AllowedHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
     }
 
     public void EnsureAllowed(Uri uri, string operation = "KoL request")

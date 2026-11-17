@@ -24,7 +24,7 @@ public sealed record KoLLoginOptions
         init => Security = value;
     }
     /// <summary>Convenience forwarding property for explicit test endpoints.</summary>
-    public IReadOnlySet<string> AllowedHosts
+    public IReadOnlyCollection<string> AllowedHosts
     {
         get => Security.AllowedHosts;
         init => Security = Security with { AllowedHosts = value };
