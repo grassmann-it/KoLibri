@@ -19,6 +19,7 @@ public enum BoundedManualCombatStopReason
     NoAction,
     StepLimitReached,
     DeadlineReached,
+    RecoveryBlocked,
     PreviewRejected,
     GatewayStopped,
     InspectionBlocked
@@ -30,6 +31,7 @@ public sealed record BoundedManualCombatResult
     public IReadOnlyList<ManualCombatExecutionResult> Steps { get; init; }
         = Array.Empty<ManualCombatExecutionResult>();
     public ManualCombatObservation? LastObservation { get; init; }
+    public RecoveryPlan? RecoveryPlan { get; init; }
     public ManualCombatExecutionResult? LastStep => Steps.Count == 0 ? null : Steps[^1];
     public bool IsSafeStop => StopReason is not BoundedManualCombatStopReason.GatewayStopped;
 }
@@ -55,7 +57,8 @@ public sealed class BoundedManualCombatRunner
         Func<ManualCombatObservation, CancellationToken, ValueTask<ManualCombatAction?>> selectAction,
         string? approvalToken = null,
         BoundedManualCombatRunnerOptions? options = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<ManualCombatObservation, CancellationToken, ValueTask<RecoveryPlan?>>? recoveryProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(combatId);
         ArgumentNullException.ThrowIfNull(selectAction);
@@ -87,6 +90,14 @@ public sealed class BoundedManualCombatRunner
             if (_clock.GetUtcNow() - started >= settings.MaxDuration)
                 return Result(BoundedManualCombatStopReason.DeadlineReached, steps, observation);
 
+            RecoveryPlan? recoveryPlan = null;
+            if (recoveryProvider is not null)
+            {
+                recoveryPlan = await recoveryProvider(observation, cancellationToken).ConfigureAwait(false);
+                if (recoveryPlan is not null && !recoveryPlan.CanEnterCombat)
+                    return Result(BoundedManualCombatStopReason.RecoveryBlocked, steps, observation, recoveryPlan);
+            }
+
             var action = await selectAction(observation, cancellationToken).ConfigureAwait(false);
             if (action is null)
                 return Result(BoundedManualCombatStopReason.NoAction, steps, observation);
@@ -100,27 +111,34 @@ public sealed class BoundedManualCombatRunner
                 ExpectedResponseHash = observation.ResponseHash ?? string.Empty
             }, cancellationToken).ConfigureAwait(false);
             if (!preview.IsReady)
-                return Result(BoundedManualCombatStopReason.PreviewRejected, steps, preview.Observation);
+                return Result(BoundedManualCombatStopReason.PreviewRejected, steps, preview.Observation, recoveryPlan);
 
             var execution = await _gateway.ExecuteAsync(preview, approvalToken, cancellationToken).ConfigureAwait(false);
             steps.Add(execution);
             if (execution.IsAborted || execution.IsIndeterminate || execution.RequiresRefresh)
-                return Result(BoundedManualCombatStopReason.GatewayStopped, steps, execution.After ?? observation);
+                return Result(BoundedManualCombatStopReason.GatewayStopped, steps, execution.After ?? observation, recoveryPlan);
             if (execution.After is { IsTerminal: true } afterTerminal)
-                return Result(BoundedManualCombatStopReason.Complete, steps, afterTerminal);
+                return Result(BoundedManualCombatStopReason.Complete, steps, afterTerminal, recoveryPlan);
 
             var refreshed = await _gateway.RefreshAsync(combatId.Trim(), cancellationToken).ConfigureAwait(false);
             if (refreshed.Observation is null)
-                return Result(BoundedManualCombatStopReason.InspectionBlocked, steps, execution.After ?? observation);
+                return Result(BoundedManualCombatStopReason.InspectionBlocked, steps, execution.After ?? observation, recoveryPlan);
             observation = refreshed.Observation;
             if (observation.IsTerminal)
-                return Result(BoundedManualCombatStopReason.Complete, steps, observation);
+                return Result(BoundedManualCombatStopReason.Complete, steps, observation, recoveryPlan);
         }
     }
 
     private static BoundedManualCombatResult Result(
         BoundedManualCombatStopReason reason,
         IReadOnlyList<ManualCombatExecutionResult> steps,
-        ManualCombatObservation? observation)
-        => new() { StopReason = reason, Steps = steps.ToArray(), LastObservation = observation };
+        ManualCombatObservation? observation,
+        RecoveryPlan? recoveryPlan = null)
+        => new()
+        {
+            StopReason = reason,
+            Steps = steps.ToArray(),
+            LastObservation = observation,
+            RecoveryPlan = recoveryPlan
+        };
 }

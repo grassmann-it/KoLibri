@@ -71,6 +71,33 @@ public sealed class ManualCombatFixtureTests
         Assert.Equal(1, transport.Count(ManualCombatTransportOperation.Refresh));
     }
 
+    [Fact]
+    public async Task BoundedRunnerStopsOnRecoveryGateBeforePreviewOrPost()
+    {
+        var transport = new ManualCombatFixtureTransport();
+        transport.EnqueueObservation(
+            ManualCombatTransportOperation.Inspect,
+            Active("recovery-hash", actions: LegalActions()));
+        await using var gateway = new ManualCombatGateway(transport);
+        var runner = new BoundedManualCombatRunner(gateway);
+        var recovery = new RecoveryPlan
+        {
+            Status = RecoveryPlanStatus.Blocked,
+            CanEnterCombat = false,
+            StopReasons = new[] { RecoveryStopReason.StaleSnapshot }
+        };
+
+        var result = await runner.RunAsync(
+            "combat-1",
+            (_, _) => ValueTask.FromResult<ManualCombatAction?>(ManualCombatAction.Attack()),
+            recoveryProvider: (_, _) => ValueTask.FromResult<RecoveryPlan?>(recovery));
+
+        Assert.Equal(BoundedManualCombatStopReason.RecoveryBlocked, result.StopReason);
+        Assert.Same(recovery, result.RecoveryPlan);
+        Assert.Equal(1, transport.Count(ManualCombatTransportOperation.Inspect));
+        Assert.Equal(0, transport.Count(ManualCombatTransportOperation.Submit));
+    }
+
     [Theory]
     [MemberData(nameof(ManualActions))]
     public async Task ManualActionPreviewAndCommitSendExactlyOneTypedPost(ManualCombatAction action)
