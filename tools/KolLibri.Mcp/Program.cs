@@ -1,3 +1,4 @@
 using KolLibri.Mcp;
 
-return await KolibriMcpServer.RunStdioAsync();
+var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
+return await KolibriMcpServer.RunStdioAsync(runtime);

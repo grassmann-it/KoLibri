@@ -1,0 +1,39 @@
+{
+  "fetchedAt": "2026-11-17T12:00:00Z",
+  "stale": false,
+  "inventory": {
+    "101": {
+      "itemId": "101",
+      "name": "Fixture usable item",
+      "quantity": 2,
+      "costBasis": "42.5",
+      "firstSeenAt": "2026-11-01T00:00:00Z"
+    },
+    "102": {
+      "quantity": 3
+    }
+  },
+  "closet": [
+    { "itemId": "101", "quantity": 4 }
+  ],
+  "storage": {
+    "103": 5
+  },
+  "equipment": {
+    "hat": { "itemId": "104", "name": "Fixture hat" }
+  },
+  "familiar": {
+    "itemId": "105",
+    "name": "Fixture familiar"
+  },
+  "usable": {
+    "101": 2,
+    "103": 1
+  },
+  "costBasis": {
+    "102": 12.5
+  },
+  "firstSeen": {
+    "102": "2026-10-20T00:00:00Z"
+  }
+}

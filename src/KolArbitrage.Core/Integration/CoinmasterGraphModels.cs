@@ -17,7 +17,8 @@ public record CoinmasterCatalogEntry(
 {
     public static implicit operator CoinmasterCatalogEntry(ForeignBribeCatalogEntry entry) =>
         new(entry.Currency, entry.ItemId, entry.ItemName, entry.CurrencyCost,
-            entry.IsTradeable, entry.IsOneDayTicket);
+            entry.IsTradeable, entry.IsOneDayTicket, entry.RequiresTicket,
+            entry.TicketCurrency, entry.TicketCost);
 
     /// <summary>Compatibility overload for catalogs that put ticket units in the seventh column.</summary>
     public CoinmasterCatalogEntry(
@@ -112,15 +113,31 @@ public class CoinmasterCatalog
     private readonly IReadOnlyList<CoinmasterCatalogEntry> _entries;
     private readonly IReadOnlyDictionary<string, int> _ticketCosts;
 
+    /// <summary>Optional provenance for a dynamically imported catalog.</summary>
+    public CoinmasterCatalogManifest? Manifest { get; }
+
     public CoinmasterCatalog(
         IEnumerable<CoinmasterCatalogEntry> entries,
         IReadOnlyDictionary<string, int>? ticketCosts = null)
+        : this(entries, ticketCosts, null)
+    {
+    }
+
+    public CoinmasterCatalog(
+        IEnumerable<CoinmasterCatalogEntry> entries,
+        IReadOnlyDictionary<string, int>? ticketCosts,
+        CoinmasterCatalogManifest? manifest)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        var rows = entries.ToArray();
+        var rows = entries.Select(row => new CoinmasterCatalogEntry(
+            row.Currency.Trim(), row.ItemId.Trim(), row.ItemName.Trim(), row.CurrencyCost,
+            row.IsTradeable, row.IsOneDayTicket, row.RequiresTicket,
+            string.IsNullOrWhiteSpace(row.TicketCurrency) ? null : row.TicketCurrency.Trim(),
+            row.TicketCost)).ToArray();
         foreach (var row in rows) row.Validate();
         _entries = Array.AsReadOnly(rows);
         _ticketCosts = ToTicketDictionary(ticketCosts);
+        Manifest = manifest;
     }
 
     public CoinmasterCatalog(
@@ -131,8 +148,23 @@ public class CoinmasterCatalog
     {
     }
 
+    public CoinmasterCatalog(
+        IEnumerable<CoinmasterCatalogEntry> entries,
+        IEnumerable<CoinmasterTicketCost> ticketCosts,
+        CoinmasterCatalogManifest? manifest)
+        : this(entries, ticketCosts?.ToDictionary(x => x.Currency, x => x.CurrencyUnits,
+            StringComparer.OrdinalIgnoreCase), manifest)
+    {
+    }
+
     public IReadOnlyList<CoinmasterCatalogEntry> Entries => _entries;
     public IReadOnlyDictionary<string, int> TicketCosts => _ticketCosts;
+
+    public static CoinmasterCatalog FromSnapshot(CoinmasterCatalogSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.ToCatalog();
+    }
 
     public IEnumerable<CoinmasterCatalogEntry> ForCurrency(string currency)
     {
@@ -179,6 +211,14 @@ public sealed class AirportCatalog : CoinmasterCatalog
     public AirportCatalog(IEnumerable<CoinmasterCatalogEntry> entries,
         IReadOnlyDictionary<string, int>? ticketCosts = null)
         : base(entries, ticketCosts)
+    {
+    }
+
+    public AirportCatalog(
+        IEnumerable<CoinmasterCatalogEntry> entries,
+        IReadOnlyDictionary<string, int>? ticketCosts,
+        CoinmasterCatalogManifest? manifest)
+        : base(entries, ticketCosts, manifest)
     {
     }
 

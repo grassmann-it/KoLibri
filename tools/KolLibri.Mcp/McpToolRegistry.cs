@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using KolArbitrage.Core.Accounts;
 
 namespace KolLibri.Mcp;
 
@@ -68,6 +69,8 @@ public record KolibriMcpServerOptions
     public string ServerVersion { get; init; } = "0.1.0";
     public string ProtocolVersion { get; init; } = "2024-11-05";
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(60);
+    /// <summary>Fallback role used when a read tool omits its optional role.</summary>
+    public AccountRole DefaultRole { get; init; } = AccountRole.Main;
 
     public void Validate()
     {

@@ -8,15 +8,20 @@ All tools return JSON objects and include `fetchedAt` and `isStale` where the un
 
 | Tool | Input | Purpose | Side effects |
 | --- | --- | --- | --- |
-| `kol_status` | `{ "forceRefresh": false }` | Fetch the current KoL status (`name`, adventures, meat, level). | Read-only HTTPS request; cached and rate-limited. |
-| `kol_inventory` | `{ "forceRefresh": false }` | Fetch inventory item IDs, names and quantities. | Read-only HTTPS request; cached and rate-limited. |
-| `kol_price_summary` | `{ "itemId": "...", "forceRefresh": false }` | Return lowest buy/sell and weighted median prices. | Read-only provider request; cached. |
-| `kol_price_recommendation` | `{ "itemId": "...", "acquisitionCost": 123.0, "forceRefresh": false }` | Explain whether an item is underpriced and provide a target sell price. | Read-only provider request; cached. |
+| `kol_status` | `{ "forceRefresh": false, "role": "Main" }` | Fetch the current KoL status (`name`, adventures, meat, level). | Read-only HTTPS request; cached and rate-limited. |
+| `kol_inventory` | `{ "forceRefresh": false, "role": "Main" }` | Fetch inventory item IDs, names and quantities. | Read-only HTTPS request; cached and rate-limited. |
+| `kol_price_summary` | `{ "itemId": "...", "forceRefresh": false, "role": "Mallbot" }` | Return lowest buy/sell and weighted median prices. | Read-only provider request; cached. |
+| `kol_price_recommendation` | `{ "itemId": "...", "acquisitionCost": 123.0, "forceRefresh": false, "role": "Mallbot" }` | Explain whether an item is underpriced and provide a target sell price. | Read-only provider request; cached. |
 | `kol_plan_daily_adventures` | `{ "inventory": [...] }` | Build the daily adventure plan from local state. | Pure computation; no KoL request. |
-| `kol_preview_purchase` | `{ "itemId": "...", "quantity": 1, "unitPrice": 0, "approvalToken": null }` | Validate a proposed purchase against `AutomationPolicy`; produce a preview only. | Never submits an order. |
+| `kol_preview_purchase` | `{ "itemId": "...", "quantity": 1, "unitPrice": 0, "role": "Mallbot", "approvalToken": null }` | Validate a proposed purchase against `AutomationPolicy`; produce a preview only. | Never submits an order. |
 | `kol_preview_transfer` | `{ "itemId": "...", "quantity": 1, "from": "Main", "to": "Mallbot", "approvalToken": null }` | Validate a proposed transfer against policy; produce a preview only. | Never transfers an item. |
 
 The server should advertise only the first six tools unless the caller explicitly requests mutation workflows. `kol_preview_*` tools remain non-mutating and are useful for a human approval UI.
+
+`role` is optional on read tools and selects the configured `Main` or
+`Mallbot` runtime scope. The MCP request never contains a cookie, password or
+session token; the host loads encrypted credentials from the account store and
+binds them to each role's read clients before serving requests.
 
 ## Approval protocol for future mutations
 

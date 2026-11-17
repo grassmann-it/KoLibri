@@ -277,6 +277,12 @@ public sealed class AdventureRunKernel
                 observation.ResponseHash);
         }
 
+        action = action with
+        {
+            ExtraFields = observation.ExtraFields
+                ?? new Dictionary<string, string>(StringComparer.Ordinal)
+        };
+
         var next = new AdventureChoiceRunState(
             state.RunId,
             state.AdventureId,

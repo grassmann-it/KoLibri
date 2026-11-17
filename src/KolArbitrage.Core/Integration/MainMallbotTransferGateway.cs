@@ -420,7 +420,9 @@ public class MainMallbotTransferGateway
         }
         catch (Exception exception)
         {
-            var failed = Failure(preview, before, [TransferAbortReason.CommitRejected], [exception.Message]);
+            var failed = Failure(preview, before,
+                [TransferAbortReason.CommitRejected, TransferAbortReason.ReconciliationRequired],
+                [exception.Message]);
             if (operationStarted && idempotencyKey is not null)
                 _idempotency!.Complete(idempotencyKey, failed, now);
             return failed;

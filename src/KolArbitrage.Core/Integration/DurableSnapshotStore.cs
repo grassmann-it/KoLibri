@@ -837,6 +837,10 @@ public class DurableSnapshotStore : IDurableSnapshotStore, ILocalSnapshotStore, 
         {
             return null;
         }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
         catch (InvalidDataException)
         {
             return null;
@@ -1039,6 +1043,34 @@ public sealed class JsonSnapshotStore : DurableSnapshotStore
     }
 
     public JsonSnapshotStore(SnapshotStoreOptions options)
+        : base(options)
+    {
+    }
+}
+
+/// <summary>Short alias for hosts that call persisted entries file snapshots.</summary>
+public sealed class FileSnapshotStore : DurableSnapshotStore
+{
+    public FileSnapshotStore()
+        : base()
+    {
+    }
+
+    public FileSnapshotStore(string directoryPath)
+        : base(directoryPath)
+    {
+    }
+
+    public FileSnapshotStore(
+        string directoryPath,
+        SnapshotCachePolicy? policy = null,
+        TimeProvider? clock = null,
+        JsonSerializerOptions? jsonOptions = null)
+        : base(directoryPath, policy, clock, jsonOptions)
+    {
+    }
+
+    public FileSnapshotStore(SnapshotStoreOptions options)
         : base(options)
     {
     }

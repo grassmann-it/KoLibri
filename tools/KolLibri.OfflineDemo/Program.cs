@@ -87,8 +87,11 @@ static class OfflineChecks
         {
             if (request.RequestUri?.AbsolutePath.EndsWith("mall.php", StringComparison.Ordinal) == true)
             {
-                return HtmlResponse("<table><tr class=\"graybelow\" id=\"stock_7_123\"><td class=\"small store\"><b>Fixture Shop</b></td><td class=\"small stock\">12</td><td class=\"small price\"><a>1,234&nbsp;Meat</a></td></tr>" +
-                    "<tr class=\"grayabove\" id=\"stock_8_123\"><td class=\"small store\"><b>Second Shop</b></td><td class=\"small stock\">3</td><td class=\"small price\"><a>1,100&nbsp;Meat</a></td></tr></table>");
+                var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+                var itemId = request.RequestUri?.Query.Contains("456", StringComparison.Ordinal) == true
+                    || body.Contains("456", StringComparison.Ordinal) ? "456" : "123";
+                return HtmlResponse($"<table><tr class=\"graybelow\" id=\"stock_7_{itemId}\"><td class=\"small store\"><b>Fixture Shop</b></td><td class=\"small stock\">12</td><td class=\"small price\"><a>1,234&nbsp;Meat</a></td></tr>" +
+                    $"<tr class=\"grayabove\" id=\"stock_8_{itemId}\"><td class=\"small store\"><b>Second Shop</b></td><td class=\"small stock\">3</td><td class=\"small price\"><a>1,100&nbsp;Meat</a></td></tr></table>");
             }
             return HtmlResponse("<tr class=\"deets\" rel=\"fixture\"><td><b>Fixture Item</b></td><td>4</td><td><span class=\"tohide\">1,500</span><input class=\"hideit price\" name=\"price[123]\" /></td><td><input name=\"limit[123]\" value=\"2\" /></td></tr>");
         });

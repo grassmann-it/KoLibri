@@ -1,3 +1,4 @@
+using System.Text.Json;
 using KolArbitrage.Core.Accounts;
 
 namespace KolArbitrage.Core.Adventure;
@@ -52,7 +53,25 @@ public enum AdventureAbortReason
     InvalidObservation,
     ResumeMismatch,
     TerminalState,
-    InvalidCheckpoint
+    InvalidCheckpoint,
+    /// <summary>The transport returned a response for a different request.</summary>
+    ResponseCorrelationMismatch,
+    /// <summary>The same response hash was observed twice for one run.</summary>
+    DuplicateResponse,
+    /// <summary>A checkpoint compare-and-swap did not match the stored value.</summary>
+    CheckpointConflict,
+    /// <summary>An approval hook refused the mutating request.</summary>
+    ApprovalRequired,
+    /// <summary>A post-response verification hook refused the result.</summary>
+    VerificationFailed,
+    /// <summary>A non-idempotent request timed out or failed without a response.</summary>
+    IndeterminatePost,
+    /// <summary>The injected transport failed before producing a response.</summary>
+    TransportFailure,
+    /// <summary>The transport response could not be parsed or was incomplete.</summary>
+    InvalidTransportResponse,
+    /// <summary>The session/login boundary was reached while executing a run.</summary>
+    SessionInvalid
 }
 
 /// <summary>
@@ -159,6 +178,8 @@ public sealed record AdventureKernelObservation
     public int? FightRound { get; init; }
     public string? ChoiceId { get; init; }
     public IReadOnlyList<string> AvailableChoices { get; init; } = Array.Empty<string>();
+    public IReadOnlyDictionary<string, string> ExtraFields { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
     public bool CanContinue { get; init; } = true;
     public int? AdventuresBefore { get; init; }
     public int? AdventuresAfter { get; init; }
@@ -175,6 +196,8 @@ public sealed record AdventureKernelObservation
             EncounterId = encounter.Location,
             ChoiceId = encounter.ChoiceId,
             AvailableChoices = encounter.AvailableChoices ?? Array.Empty<string>(),
+            ExtraFields = encounter.ExtraFields
+                ?? new Dictionary<string, string>(StringComparer.Ordinal),
             CanContinue = encounter.CanContinue,
             FightRound = encounter.FightRound,
             ResponseHash = encounter.ResponseHash,
@@ -357,17 +380,21 @@ public sealed record AdventureChoiceAction : AdventureKernelAction
         string adventureId,
         string choiceId,
         string optionId,
-        string? encounterId = null)
+        string? encounterId = null,
+        IReadOnlyDictionary<string, string>? extraFields = null)
         : base(AdventureKernelActionKind.Choice, adventureId)
     {
         ChoiceId = choiceId;
         OptionId = optionId;
         EncounterId = encounterId;
+        ExtraFields = extraFields
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     public string ChoiceId { get; }
     public string OptionId { get; }
     public string? EncounterId { get; }
+    public IReadOnlyDictionary<string, string> ExtraFields { get; init; }
 }
 
 /// <summary>Result of a deterministic state transition.</summary>
@@ -389,6 +416,11 @@ public sealed record AdventureKernelDecision
 public sealed record AdventureCheckpoint
 {
     public int Version { get; init; } = 1;
+    /// <summary>
+    /// Monotonic gateway revision.  The kernel ignores this value; a CAS store
+    /// uses it to make a stale worker unable to overwrite a newer checkpoint.
+    /// </summary>
+    public long Revision { get; init; }
     public string RunId { get; init; } = string.Empty;
     public string AdventureId { get; init; } = string.Empty;
     public AccountRole Role { get; init; } = AccountRole.Main;
@@ -405,8 +437,18 @@ public sealed record AdventureCheckpoint
     public string? PendingActionId { get; init; }
     public string? PendingChoiceId { get; init; }
     public string? PendingChoiceOption { get; init; }
+    public IReadOnlyDictionary<string, string> PendingChoiceFields { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
     public AdventureAbortReason? AbortReason { get; init; }
     public string? AbortMessage { get; init; }
+    /// <summary>
+    /// Set immediately before a request is sent.  A non-null value means a
+    /// process may have sent a mutating request without observing its response;
+    /// resume must refresh/reconcile rather than retry the POST.
+    /// </summary>
+    public string? InFlightRequestId { get; init; }
+    /// <summary>All response hashes consumed by the gateway, used to reject stale pages.</summary>
+    public IReadOnlyList<string> ResponseHashes { get; init; } = Array.Empty<string>();
 
     public static AdventureCheckpoint FromState(AdventureRunState state)
     {
@@ -429,8 +471,14 @@ public sealed record AdventureCheckpoint
             PendingActionId = state.PendingAction is AdventureFightAction fight ? fight.ActionId : null,
             PendingChoiceId = state.PendingAction is AdventureChoiceAction choice ? choice.ChoiceId : null,
             PendingChoiceOption = state.PendingAction is AdventureChoiceAction choiceOption ? choiceOption.OptionId : null,
+            PendingChoiceFields = state.PendingAction is AdventureChoiceAction choiceFields
+                ? choiceFields.ExtraFields
+                : new Dictionary<string, string>(StringComparer.Ordinal),
             AbortReason = state is AdventureAbortedRunState aborted ? aborted.Reason : null,
-            AbortMessage = state.AbortMessage
+            AbortMessage = state.AbortMessage,
+            Revision = 0,
+            InFlightRequestId = null,
+            ResponseHashes = Array.Empty<string>()
         };
     }
 
@@ -440,7 +488,10 @@ public sealed record AdventureCheckpoint
             RunId = RunId.Trim(),
             AdventureId = AdventureId.Trim(),
             DailyLimit = (DailyLimit ?? new AdventureDailyLimitContract()).Normalize(),
-            Counters = (Counters ?? new AdventureCounterContract()).Normalize()
+            Counters = (Counters ?? new AdventureCounterContract()).Normalize(),
+            ResponseHashes = ResponseHashes ?? Array.Empty<string>(),
+            PendingChoiceFields = PendingChoiceFields
+                ?? new Dictionary<string, string>(StringComparer.Ordinal)
         };
 }
 
@@ -450,8 +501,63 @@ public interface IAdventureRunCheckpointStore
     Task<AdventureCheckpoint?> LoadAsync(string runId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Compare-and-swap extension for execution gateways.  The expected checkpoint
+/// is compared while the store lock is held; callers must treat a false result
+/// as a stale worker and stop rather than overwrite the newer run.
+/// </summary>
+public interface IAdventureRunCheckpointCasStore : IAdventureRunCheckpointStore
+{
+    Task<AdventureCheckpointCasResult> CompareAndSwapAsync(
+        string runId,
+        AdventureCheckpoint? expected,
+        AdventureCheckpoint replacement,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Short aliases used by hosts that do not include the Run prefix.</summary>
+public interface IAdventureCheckpointCasStore : IAdventureRunCheckpointCasStore
+{
+}
+
+public interface IAdventureExecutionCheckpointStore : IAdventureRunCheckpointCasStore
+{
+}
+
+public sealed record AdventureCheckpointCasResult
+{
+    public bool Succeeded { get; init; }
+    public AdventureCheckpoint? Current { get; init; }
+    public AdventureCheckpoint? Saved { get; init; }
+    public AdventureCheckpoint? Previous { get; init; }
+    public bool Conflict => !Succeeded;
+
+    public static AdventureCheckpointCasResult Success(
+        AdventureCheckpoint saved,
+        AdventureCheckpoint? previous = null)
+        => new() { Succeeded = true, Current = saved, Saved = saved, Previous = previous };
+
+    public static AdventureCheckpointCasResult Failed(AdventureCheckpoint? current)
+        => new() { Succeeded = false, Current = current };
+}
+
+internal static class AdventureCheckpointComparer
+{
+    public static bool Equals(AdventureCheckpoint? left, AdventureCheckpoint? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null) return false;
+        return string.Equals(
+            JsonSerializer.Serialize(left.Normalize()),
+            JsonSerializer.Serialize(right.Normalize()),
+            StringComparison.Ordinal);
+    }
+}
+
 /// <summary>Simple process-local checkpoint store for tests and offline hosts.</summary>
-public sealed class InMemoryAdventureRunCheckpointStore : IAdventureRunCheckpointStore
+public sealed class InMemoryAdventureRunCheckpointStore : IAdventureRunCheckpointCasStore,
+    IAdventureCheckpointCasStore,
+    IAdventureExecutionCheckpointStore
 {
     private readonly Dictionary<string, AdventureCheckpoint> _checkpoints = new(StringComparer.Ordinal);
     private readonly object _gate = new();
@@ -473,5 +579,31 @@ public sealed class InMemoryAdventureRunCheckpointStore : IAdventureRunCheckpoin
         if (string.IsNullOrWhiteSpace(runId)) throw new ArgumentException("Run id is required.", nameof(runId));
         lock (_gate)
             return Task.FromResult(_checkpoints.TryGetValue(runId, out var value) ? value : null);
+    }
+
+    public Task<AdventureCheckpointCasResult> CompareAndSwapAsync(
+        string runId,
+        AdventureCheckpoint? expected,
+        AdventureCheckpoint replacement,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(runId))
+            throw new ArgumentException("Run id is required.", nameof(runId));
+        ArgumentNullException.ThrowIfNull(replacement);
+        var value = replacement.Normalize();
+        if (!string.Equals(value.RunId, runId.Trim(), StringComparison.Ordinal))
+            throw new ArgumentException("The checkpoint run id does not match the CAS key.", nameof(replacement));
+
+        lock (_gate)
+        {
+            _checkpoints.TryGetValue(runId.Trim(), out var current);
+            var matches = AdventureCheckpointComparer.Equals(current, expected);
+            if (!matches)
+                return Task.FromResult(AdventureCheckpointCasResult.Failed(current));
+
+            _checkpoints[value.RunId] = value;
+            return Task.FromResult(AdventureCheckpointCasResult.Success(value, current));
+        }
     }
 }

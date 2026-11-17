@@ -13,7 +13,10 @@
   "$defs": {
     "refresh": {
       "type": "object",
-      "properties": {"forceRefresh": {"type": "boolean", "default": false}},
+      "properties": {
+        "forceRefresh": {"type": "boolean", "default": false},
+        "role": {"enum": ["Main", "Mallbot"]}
+      },
       "additionalProperties": false
     },
     "itemQuery": {
@@ -21,7 +24,8 @@
       "required": ["itemId"],
       "properties": {
         "itemId": {"type": "string", "minLength": 1},
-        "forceRefresh": {"type": "boolean", "default": false}
+        "forceRefresh": {"type": "boolean", "default": false},
+        "role": {"enum": ["Main", "Mallbot"]}
       },
       "additionalProperties": false
     },
@@ -38,6 +42,7 @@
         "itemId": {"type": "string", "minLength": 1},
         "quantity": {"type": "integer", "minimum": 1},
         "unitPrice": {"type": "number", "minimum": 0},
+        "role": {"enum": ["Main", "Mallbot"]},
         "approvalToken": {"type": ["string", "null"]}
       },
       "additionalProperties": false

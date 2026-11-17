@@ -14,16 +14,31 @@ public partial class MainWindow : Window
     private Border? _sidebar;
     private Border? _compactNavigation;
     private StackPanel? _contentRoot;
+    private StackPanel? _overviewPanel;
     private Button? _themeToggleButton;
     private Button? _compactThemeToggleButton;
     private TextBlock? _sidebarThemeLabel;
     private bool _isOpsDark;
     private TextBlock? _statusText;
     private Border? _statusBar;
+    private TextBlock? _shellPageTitle;
+    private TextBlock? _shellPageDescription;
+    private Border? _pageStatePanel;
+    private TextBlock? _pageStateTitle;
+    private TextBlock? _pageStateDescription;
+    private TextBlock? _pageStateStatus;
     private Border? _accountsPanel;
     private Border? _mallPanel;
+    private TextBlock? _mallRoleLabel;
     private TextBlock? _mallSummary;
     private TextBlock? _mallRows;
+    private ComboBox? _accountRoleSelector;
+    private Button? _globalRefreshButton;
+    private ProgressBar? _busyIndicator;
+    private Button? _cancelRefreshButton;
+    private CancellationTokenSource? _refreshCancellation;
+    private string _activeSection = "Übersicht";
+    private AccountRole _selectedRole = AccountRole.Mallbot;
     private readonly AccountSessionManager _accounts = AccountSessionManager.CreateDefault();
     private readonly KoLLoginClient _loginClient = new();
 
@@ -33,16 +48,32 @@ public partial class MainWindow : Window
         _sidebar = this.FindControl<Border>("Sidebar");
         _compactNavigation = this.FindControl<Border>("CompactNavigation");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
+        _overviewPanel = this.FindControl<StackPanel>("OverviewPanel");
         _themeToggleButton = this.FindControl<Button>("ThemeToggleButton");
         _compactThemeToggleButton = this.FindControl<Button>("CompactThemeToggleButton");
         _sidebarThemeLabel = this.FindControl<TextBlock>("SidebarThemeLabel");
         _statusText = this.FindControl<TextBlock>("StatusText");
         _statusBar = this.FindControl<Border>("StatusBar");
+        _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
+        _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
+        _pageStatePanel = this.FindControl<Border>("PageStatePanel");
+        _pageStateTitle = this.FindControl<TextBlock>("PageStateTitle");
+        _pageStateDescription = this.FindControl<TextBlock>("PageStateDescription");
+        _pageStateStatus = this.FindControl<TextBlock>("PageStateStatus");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
         _mallPanel = this.FindControl<Border>("MallPanel");
+        _mallRoleLabel = this.FindControl<TextBlock>("MallRoleLabel");
         _mallSummary = this.FindControl<TextBlock>("MallSummary");
         _mallRows = this.FindControl<TextBlock>("MallRows");
+        _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
+        _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
+        _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
+        _cancelRefreshButton = this.FindControl<Button>("CancelRefreshButton");
+        _selectedRole = ReadSelectedRole();
+        SetActiveNavigation(_activeSection);
+        UpdatePageState(_activeSection);
         SizeChanged += WindowSizeChanged;
+        UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         Opened += (_, _) => UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         _ = LoadSavedAccountsAsync();
     }
@@ -87,45 +118,151 @@ public partial class MainWindow : Window
 
     private void Navigate(string section)
     {
+        _activeSection = section;
         SetActiveNavigation(section);
-        if (_statusText is not null)
-            _statusText.Text = $"Bereich „{section}“ ist vorbereitet. Datenquellen werden im nächsten Schritt verbunden.";
-        if (_statusBar is not null)
-            _statusBar.IsVisible = true;
+        UpdatePageState(section);
+        SetStatus($"Bereich „{section}“ ausgewählt.");
     }
 
     private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Übersicht");
     private void PricingClick(object? sender, RoutedEventArgs e) => Navigate("Pricing Engine");
     private async void MallClick(object? sender, RoutedEventArgs e)
     {
-        if (_mallPanel is not null) _mallPanel.IsVisible = true;
         Navigate("Mall & Shop");
-        await RefreshMallAsync();
+        await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(false, cancellationToken));
     }
     private async void AccountsClick(object? sender, RoutedEventArgs e)
     {
-        if (_accountsPanel is not null)
-            _accountsPanel.IsVisible = true;
         Navigate("Konten & Transfer");
-        await LoadSavedAccountsAsync();
+        await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
     }
     private void AdventureClick(object? sender, RoutedEventArgs e) => Navigate("Adventure");
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Einstellungen");
-    private void RefreshClick(object? sender, RoutedEventArgs e) => Navigate("Aktualisierung gestartet");
-    private async void RefreshMallClick(object? sender, RoutedEventArgs e) => await RefreshMallAsync();
+    private async void RefreshClick(object? sender, RoutedEventArgs e)
+    {
+        switch (_activeSection)
+        {
+            case "Mall & Shop":
+                await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(true, cancellationToken));
+                break;
+            case "Konten & Transfer":
+                await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
+                break;
+            default:
+                await RunBusyOperationAsync("Aktualisierung", RefreshCurrentPageStateAsync);
+                break;
+        }
+    }
 
-    private async Task RefreshMallAsync()
+    private async void RefreshMallClick(object? sender, RoutedEventArgs e)
+        => await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(true, cancellationToken));
+
+    private void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        _selectedRole = ReadSelectedRole();
+        if (_mallRoleLabel is not null)
+            _mallRoleLabel.Text = $"Konto: {_selectedRole}";
+
+        if (_activeSection == "Mall & Shop")
+        {
+            if (_mallSummary is not null)
+                _mallSummary.Text = $"Konto „{_selectedRole}“ ausgewählt. Mall-Daten neu laden.";
+            if (_mallRows is not null)
+                _mallRows.Text = string.Empty;
+        }
+
+        SetStatus($"Konto „{_selectedRole}“ ausgewählt. Read-only-Abfragen verwenden dieses Konto.");
+    }
+
+    private async Task RefreshCurrentPageStateAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Keep the busy/cancel affordance visible for at least one dispatcher
+        // turn even when a page has no query service yet.
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+        UpdatePageStateStatus(_activeSection, "Keine externe Datenquelle für diesen Bereich geladen.");
+        SetStatus(_activeSection == "Übersicht"
+            ? "Übersicht aktualisiert. Read-only-Kennzahlen warten auf einen verbundenen Query-Service."
+            : $"{_activeSection}: Noch keine Daten geladen.");
+    }
+
+    private async Task RunBusyOperationAsync(
+        string operation,
+        Func<CancellationToken, Task> action)
+    {
+        if (_refreshCancellation is not null)
+        {
+            SetStatus("Eine Aktualisierung läuft bereits. Abbrechen oder warten, bevor eine neue gestartet wird.");
+            return;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _refreshCancellation = cancellation;
+        SetBusy(true, $"{operation} läuft …");
+        try
+        {
+            // Yield once so the disabled refresh button, progress indicator,
+            // and cancel action are rendered before a fast local read returns.
+            await Task.Yield();
+            cancellation.Token.ThrowIfCancellationRequested();
+            await action(cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            SetStatus($"{operation} abgebrochen.");
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"{operation} fehlgeschlagen: {exception.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_refreshCancellation, cancellation))
+                _refreshCancellation = null;
+            SetBusy(false);
+        }
+    }
+
+    private void CancelRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (_refreshCancellation is null)
+            return;
+        _refreshCancellation.Cancel();
+        SetStatus("Abbruch angefordert …");
+    }
+
+    private void SetBusy(bool busy, string? message = null)
+    {
+        if (_globalRefreshButton is not null)
+        {
+            _globalRefreshButton.IsEnabled = !busy;
+            _globalRefreshButton.Content = busy ? "⟳  Aktualisierung läuft …" : "⟳  Daten aktualisieren";
+        }
+        if (_busyIndicator is not null)
+            _busyIndicator.IsVisible = busy;
+        if (_cancelRefreshButton is not null)
+            _cancelRefreshButton.IsVisible = busy;
+        if (_statusBar is not null)
+            _statusBar.IsVisible = true;
+        if (message is not null && _statusText is not null)
+            _statusText.Text = message;
+    }
+
+    private async Task RefreshMallAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
         if (_mallSummary is null || _mallRows is null) return;
         try
         {
-            await _accounts.InitializeAsync();
-            var session = await _accounts.GetSessionAsync(AccountRole.Mallbot)
-                ?? await _accounts.GetSessionAsync(AccountRole.Main);
+            await _accounts.InitializeAsync(cancellationToken);
+            var role = _selectedRole;
+            var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken);
             if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
             {
-                _mallSummary.Text = "Bitte zuerst Main oder Mallbot über Konten anmelden.";
+                _mallSummary.Text = $"Bitte zuerst {role} über Konten anmelden.";
                 _mallRows.Text = string.Empty;
+                UpdatePageStateStatus("Mall & Shop", $"Kein gültiger {role}-Login vorhanden.");
+                SetStatus($"Mall konnte nicht geladen werden: {role} ist nicht angemeldet.");
                 return;
             }
 
@@ -133,12 +270,16 @@ public partial class MainWindow : Window
                 session.Credentials,
                 new Uri("https://www.kingdomofloathing.com/"));
             var mall = new KoLMallReadClient(http);
-            var listings = await mall.FetchOwnShopAsync();
+            var listings = await mall.FetchOwnShopAsync(forceRefresh, cancellationToken);
             var categorizer = new InventoryCategorizer();
             var analyses = new List<InventoryCategorization>();
             foreach (var listing in listings.Take(20))
             {
-                var market = await mall.SearchAsync(listing.DisplayName ?? listing.ItemId);
+                cancellationToken.ThrowIfCancellationRequested();
+                var market = await mall.SearchAsync(
+                    listing.DisplayName ?? listing.ItemId,
+                    forceRefresh,
+                    cancellationToken);
                 var lowest = market.Listings.Count == 0 ? (decimal?)null : market.Listings.Min(x => (decimal)x.Price);
                 analyses.Add(categorizer.Analyze(new InventoryItemSnapshot
                 {
@@ -156,23 +297,35 @@ public partial class MainWindow : Window
                 ? "Keine Listings gefunden oder Shopseite konnte noch nicht geparst werden."
                 : string.Join(Environment.NewLine, analyses.Select(x =>
                     $"{x.DisplayName}   {x.CurrentPrice:N0} Meat   {string.Join(", ", x.Categories)}   → {x.SuggestedAction}"));
+            UpdatePageStateStatus("Mall & Shop", $"{listings.Count} Listings von {role} geladen.");
             SetStatus("Mall- und Shopdaten aktualisiert. Preisänderungen bleiben deaktiviert.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
             _mallSummary.Text = "Mall-Aktualisierung fehlgeschlagen.";
             _mallRows.Text = exception.Message;
+            UpdatePageStateStatus("Mall & Shop", "Abruf fehlgeschlagen; vorhandene Daten bleiben unverändert.");
             SetStatus("Mall konnte nicht aktualisiert werden: " + exception.Message);
         }
     }
 
-    private async Task LoadSavedAccountsAsync()
+    private async Task LoadSavedAccountsAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            await _accounts.InitializeAsync();
-            await LoadSavedAccountAsync(AccountRole.Main);
-            await LoadSavedAccountAsync(AccountRole.Mallbot);
+            await _accounts.InitializeAsync(cancellationToken);
+            await LoadSavedAccountAsync(AccountRole.Main, cancellationToken);
+            await LoadSavedAccountAsync(AccountRole.Mallbot, cancellationToken);
+            UpdatePageStateStatus("Konten & Transfer", "Gespeicherte Rollen und Sessions geprüft.");
+            SetStatus("Konten geladen. Passwörter bleiben geschützt und werden nicht angezeigt.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -180,9 +333,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LoadSavedAccountAsync(AccountRole role)
+    private async Task LoadSavedAccountAsync(AccountRole role, CancellationToken cancellationToken = default)
     {
-        var session = await _accounts.GetSessionAsync(role, includeExpired: true);
+        var session = await _accounts.GetSessionAsync(
+            role,
+            includeExpired: true,
+            cancellationToken: cancellationToken);
         if (session is null)
             return;
 
@@ -266,6 +422,70 @@ public partial class MainWindow : Window
         {
             button.IsEnabled = true;
         }
+    }
+
+    private void UpdatePageState(string section)
+    {
+        var isOverview = string.Equals(section, "Übersicht", StringComparison.Ordinal);
+        var isAccounts = string.Equals(section, "Konten & Transfer", StringComparison.Ordinal);
+        var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
+        var (title, description) = DescribeSection(section);
+
+        if (_overviewPanel is not null)
+            _overviewPanel.IsVisible = isOverview;
+        if (_accountsPanel is not null)
+            _accountsPanel.IsVisible = isAccounts;
+        if (_mallPanel is not null)
+            _mallPanel.IsVisible = isMall;
+        if (_pageStatePanel is not null)
+            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall;
+        if (_shellPageTitle is not null)
+            _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
+        if (_shellPageDescription is not null)
+            _shellPageDescription.Text = isOverview
+                ? "Dein Arbitrage-Überblick für heute."
+                : description;
+        if (_pageStateTitle is not null)
+            _pageStateTitle.Text = title;
+        if (_pageStateDescription is not null)
+            _pageStateDescription.Text = description;
+        if (isMall && _mallRoleLabel is not null)
+            _mallRoleLabel.Text = $"Konto: {_selectedRole}";
+        if (_pageStateStatus is not null && !isOverview)
+            _pageStateStatus.Text = isAccounts
+                ? "Noch keine Kontenprüfung ausgeführt."
+                : isMall
+                    ? $"Noch keine Mall-Daten für {_selectedRole} geladen."
+                    : "Noch keine Daten geladen.";
+    }
+
+    private void UpdatePageStateStatus(string section, string status)
+    {
+        if (_activeSection == section && _pageStateStatus is not null)
+            _pageStateStatus.Text = status;
+    }
+
+    private static (string Title, string Description) DescribeSection(string section)
+        => section switch
+        {
+            "Pricing Engine" => ("Pricing Engine", "Preisquellen, Referenzen und Kaufkandidaten werden hier als read-only Vorschau geprüft."),
+            "Mall & Shop" => ("Mall & Shop", "Eigene Listings und Marktpreise werden für das ausgewählte Konto read-only geladen."),
+            "Konten & Transfer" => ("Konten & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
+            "Adventure" => ("Adventure", "Tagesziele und Farm-vs-Buy-Pläne erscheinen hier, sobald ein Query-Service verbunden ist."),
+            "Einstellungen" => ("Einstellungen", "Shell-, Cache- und Sicherheitsoptionen werden hier verwaltet."),
+            _ => (section, "Dieser Bereich hat noch keine geladenen Daten.")
+        };
+
+    private AccountRole ReadSelectedRole()
+    {
+        var value = _accountRoleSelector?.SelectedItem switch
+        {
+            ComboBoxItem item => item.Content?.ToString(),
+            _ => _accountRoleSelector?.SelectedItem?.ToString()
+        };
+        return Enum.TryParse<AccountRole>(value, ignoreCase: true, out var role)
+            ? role
+            : AccountRole.Mallbot;
     }
 
     private void SetStatus(string message)

@@ -62,7 +62,8 @@ public static class AdventureCheckpointExtensions
                     value.AdventureId,
                     value.PendingChoiceId,
                     value.PendingChoiceOption,
-                    value.EncounterId),
+                    value.EncounterId,
+                    value.PendingChoiceFields),
             _ => null
         };
 }

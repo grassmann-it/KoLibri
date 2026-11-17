@@ -24,25 +24,55 @@ public sealed record CoinmasterResale(
     : CoinmasterResaleObservation(ItemId, ExpectedResale, IsStale: IsStale);
 
 /// <summary>Controls fees, filtering and safety requirements for ROI plans.</summary>
-public sealed record CoinmasterRoiOptions
+public record CoinmasterRoiOptions
 {
     /// <summary>KoL Mall's sale cut; callers can set this to .01 for live Mall proceeds.</summary>
     public decimal SaleFeeRate { get; init; }
+    public decimal SaleFee { get => SaleFeeRate; init => SaleFeeRate = value; }
+    public decimal SaleFeePercent { get => SaleFeeRate; init => SaleFeeRate = value; }
+    public decimal SaleCommissionRate { get => SaleFeeRate; init => SaleFeeRate = value; }
     /// <summary>Fixed listing fee to subtract from each output unit.</summary>
     public decimal ListingFee { get; init; }
+    public decimal TransactionFee { get => ListingFee; init => ListingFee = value; }
+    public decimal Fee { get => ListingFee; init => ListingFee = value; }
+    public decimal ListingFeeMeat { get => ListingFee; init => ListingFee = value; }
+    public decimal MallListingFee { get => ListingFee; init => ListingFee = value; }
+    /// <summary>Known transfer/handling cost charged for one output route.</summary>
+    public decimal TransferCost { get; init; }
+    public decimal TransferCostInMeat { get => TransferCost; init => TransferCost = value; }
+    public decimal TransferCostPerUnit { get => TransferCost; init => TransferCost = value; }
+    /// <summary>Opportunity cost of holding one output before it sells.</summary>
+    public decimal HoldingCost { get; init; }
+    public decimal HoldingCostPerDay { get => HoldingCost; init => HoldingCost = value; }
+    public decimal HandlingCost { get => HoldingCost; init => HoldingCost = value; }
+    public decimal HoldingCostInMeat { get => HoldingCost; init => HoldingCost = value; }
+    public decimal HoldingCostPerUnit { get => HoldingCost; init => HoldingCost = value; }
+    /// <summary>Optional share of the bag or batch acquisition cost allocated to this output.</summary>
+    public decimal BagCostAllocation { get; init; }
+    public decimal BagCostInMeat { get => BagCostAllocation; init => BagCostAllocation = value; }
+    public decimal AcquisitionCostAllocation { get => BagCostAllocation; init => BagCostAllocation = value; }
     /// <summary>Extra conservative buffer in Meat per output unit.</summary>
     public decimal SafetyBuffer { get; init; }
+    public decimal SafetyBufferInMeat { get => SafetyBuffer; init => SafetyBuffer = value; }
     public bool IncludeNonTradeable { get; init; }
     public bool IncludeTickets { get; init; } = true;
     /// <summary>Tickets are route inputs by default, rather than resale candidates.</summary>
     public bool AllowTicketCandidates { get; init; }
     /// <summary>Only routes with a positive net resale are candidates by default.</summary>
     public bool RequirePositiveNet { get; init; } = true;
+    /// <summary>
+    /// Unknown currency values are review-only. A zero-cost route remains
+    /// eligible because it does not consume a currency unit.
+    /// </summary>
+    public bool RequireKnownCurrency { get; init; } = true;
 
     public void Validate()
     {
         if (SaleFeeRate < 0m || SaleFeeRate >= 1m) throw new ArgumentOutOfRangeException(nameof(SaleFeeRate));
         if (ListingFee < 0m) throw new ArgumentOutOfRangeException(nameof(ListingFee));
+        if (TransferCost < 0m) throw new ArgumentOutOfRangeException(nameof(TransferCost));
+        if (HoldingCost < 0m) throw new ArgumentOutOfRangeException(nameof(HoldingCost));
+        if (BagCostAllocation < 0m) throw new ArgumentOutOfRangeException(nameof(BagCostAllocation));
         if (SafetyBuffer < 0m) throw new ArgumentOutOfRangeException(nameof(SafetyBuffer));
     }
 }
@@ -82,6 +112,18 @@ public record CoinmasterRoiPlan(
     public decimal? GrossResale => ExpectedResale;
     public bool BuyCandidate => IsCandidate;
     public bool IsTicket => IsOneDayTicket;
+
+    /// <summary>Sale commission in Meat, when a resale observation exists.</summary>
+    public decimal? SaleFeeInMeat { get; init; }
+    public decimal? SaleFee => SaleFeeInMeat;
+    public decimal ListingFeeInMeat { get; init; }
+    public decimal TransferCostInMeat { get; init; }
+    public decimal HoldingCostInMeat { get; init; }
+    public decimal BagCostAllocationInMeat { get; init; }
+    public decimal SafetyBufferInMeat { get; init; }
+    public decimal? TotalCostsInMeat { get; init; }
+    public decimal? TotalCostInMeat => TotalCostsInMeat;
+    public decimal? NetResaleAfterCosts => NetResale;
 }
 
 /// <summary>Alias used by callers that model each result as a ranking row.</summary>
@@ -167,7 +209,8 @@ public class CoinmasterRoiPlanner
         var settings = options ?? new CoinmasterRoiOptions();
         settings.Validate();
         var sale = expectedResale.Value * (1m - settings.SaleFeeRate)
-            - settings.ListingFee - settings.SafetyBuffer;
+            - settings.ListingFee - settings.TransferCost - settings.HoldingCost
+            - settings.BagCostAllocation - settings.SafetyBuffer;
         return sale - currencyCost * currencyOpportunityCost.Value - (ticketCostInMeat ?? 0m);
     }
 
@@ -264,6 +307,7 @@ public class CoinmasterRoiPlanner
         IReadOnlyDictionary<string, bool>? stale = null)
     {
         var values = MergeCurrencyValues(explicitCurrencyValues);
+        var explicitCurrencyKeys = values.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         // If no explicit value exists for a currency, use the best tradeable
         // alternative in this same graph. This makes a catalog self-contained
         // while allowing callers to override it with a live observed value.
@@ -278,13 +322,13 @@ public class CoinmasterRoiPlanner
         {
             if (!_options.IncludeTickets && edge.IsOneDayTicket) continue;
             resale.TryGetValue(edge.ItemId, out var expected);
-            values.TryGetValue(edge.Currency, out var currencyValue);
+            var hasCurrencyValue = values.TryGetValue(edge.Currency, out var currencyValue);
             // A zero-valued currency is a known (free) input, whereas a
             // missing dictionary entry is represented by null.  Keep the
             // distinction so free event currencies still produce a route.
             var currencyCost = edge.CurrencyCost == 0
                 ? 0m
-                : currencyValue >= 0m && values.ContainsKey(edge.Currency)
+                : hasCurrencyValue && currencyValue >= 0m
                     ? edge.CurrencyCost * currencyValue
                 : (decimal?)null;
 
@@ -305,24 +349,62 @@ public class CoinmasterRoiPlanner
                     ticketCost = ticketUnits.Value * ticketValue;
             }
 
+            // A value inferred only from the same output is not an observed
+            // currency quote. It makes the row algebraically break even and
+            // must remain review-only until a separate output or an explicit
+            // quote anchors the currency value.
+            var derivedFromAlternative = _graph.Edges.Any(other =>
+                !ReferenceEquals(other, edge)
+                && string.Equals(other.Currency, edge.Currency, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(other.ItemId, edge.ItemId, StringComparison.OrdinalIgnoreCase)
+                && other.IsTradeable && !other.IsOneDayTicket && other.CurrencyCost > 0
+                && resale.TryGetValue(other.ItemId, out var alternativeResale)
+                && alternativeResale is not null);
+            var hasExplicitCurrencyValue = explicitCurrencyKeys.Contains(edge.Currency);
+            var knownCurrency = edge.CurrencyCost == 0 || hasExplicitCurrencyValue || derivedFromAlternative;
+            if (_options.RequireKnownCurrency && !knownCurrency)
+            {
+                currencyCost = null;
+                if (edge.RequiresTicket) ticketCost = null;
+            }
+
             decimal? net = null;
             if (expected is not null && currencyCost is not null)
             {
                 var sale = expected.Value * (1m - _options.SaleFeeRate)
-                    - _options.ListingFee - _options.SafetyBuffer;
+                    - _options.ListingFee - _options.TransferCost - _options.HoldingCost
+                    - _options.BagCostAllocation - _options.SafetyBuffer;
                 net = sale - currencyCost.Value - (ticketCost ?? 0m);
             }
 
             var ticketPriced = !edge.RequiresTicket || ticketCost is not null;
-            var eligible = edge.IsTradeable && expected is not null && currencyCost is not null && ticketPriced;
+            var eligible = edge.IsTradeable && expected is not null && currencyCost is not null
+                && ticketPriced && (!_options.RequireKnownCurrency || knownCurrency);
             var candidate = eligible && (_options.AllowTicketCandidates || !edge.IsOneDayTicket) &&
                 (!_options.RequirePositiveNet || net > 0m) &&
                 (!_options.IncludeNonTradeable || edge.IsTradeable);
-            var reason = BuildRationale(edge, expected, currencyCost, ticketCost, net, candidate);
+            var reason = BuildRationale(edge, expected, currencyCost, ticketCost, net, candidate,
+                knownCurrency || !_options.RequireKnownCurrency);
+            decimal? saleFee = expected is null ? null : expected.Value * _options.SaleFeeRate;
+            var knownCosts = expected is null ? (decimal?)null
+                : (saleFee ?? 0m) + _options.ListingFee + _options.TransferCost
+                    + _options.HoldingCost + _options.BagCostAllocation + _options.SafetyBuffer;
+            var totalCosts = knownCosts is null || currencyCost is null || ticketCost is null && edge.RequiresTicket
+                ? (decimal?)null
+                : knownCosts.Value + currencyCost.Value + (ticketCost ?? 0m);
             plans.Add(new CoinmasterRoiPlan(edge.ToCatalogEntry(), expected,
-                values.TryGetValue(edge.Currency, out var opportunity) ? opportunity : null,
+                knownCurrency && values.TryGetValue(edge.Currency, out var opportunity) ? opportunity : null,
                 currencyCost, ticketCost, net, edge.IsTradeable, candidate, reason,
-                stale is not null && stale.TryGetValue(edge.ItemId, out var rowStale) && rowStale));
+                stale is not null && stale.TryGetValue(edge.ItemId, out var rowStale) && rowStale)
+            {
+                SaleFeeInMeat = saleFee,
+                ListingFeeInMeat = _options.ListingFee,
+                TransferCostInMeat = _options.TransferCost,
+                HoldingCostInMeat = _options.HoldingCost,
+                BagCostAllocationInMeat = _options.BagCostAllocation,
+                SafetyBufferInMeat = _options.SafetyBuffer,
+                TotalCostsInMeat = totalCosts
+            });
         }
 
         return plans
@@ -368,10 +450,12 @@ public class CoinmasterRoiPlanner
         decimal? currencyCost,
         decimal? ticketCost,
         decimal? net,
-        bool candidate)
+        bool candidate,
+        bool knownCurrency = true)
     {
         if (!edge.IsTradeable) return "Output is not tradeable.";
         if (expected is null) return "No resale observation is available.";
+        if (!knownCurrency) return "Currency opportunity cost is unknown.";
         if (currencyCost is null) return "Currency opportunity cost is unknown.";
         if (edge.RequiresTicket && ticketCost is null) return "Required ticket cost is unknown.";
         if (candidate) return "Tradeable output has a fully priced route.";

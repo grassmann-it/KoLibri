@@ -38,12 +38,13 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         var path = responseUri?.AbsolutePath ?? string.Empty;
         var responseHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(html))).ToLowerInvariant();
         var advisories = new List<string>();
+        var extraFields = ExtractExtraFields(html);
 
         if (LooksLikeExpiredSession(path, html))
         {
             advisories.Add("Session appears expired; refresh credentials before continuing.");
             return Build(adventureId, AdventureEncounterKind.Unknown, path, null, [], false,
-                advisories, null, responseHash, retryCount);
+                advisories, null, responseHash, retryCount, extraFields);
         }
 
         var choiceId = ExtractInputValue(html, "whichchoice");
@@ -57,7 +58,8 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             if (choices.Count == 0)
                 advisories.Add("Choice page has no recognised options; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Choice, path, choiceId, choices,
-                choiceId is not null && choices.Count > 0, advisories, null, responseHash, retryCount);
+                choiceId is not null && choices.Count > 0, advisories, null, responseHash, retryCount,
+                extraFields);
         }
 
         var round = ExtractFightRound(html);
@@ -68,19 +70,19 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             if (round is null)
                 advisories.Add("Combat response has no round marker; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Fight, path, null, [], round is not null,
-                advisories, round, responseHash, retryCount);
+                advisories, round, responseHash, retryCount, extraFields);
         }
 
         if (Regex.IsMatch(html, @"(?:you acquire|you gain|adventure complete|adventure is over)",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return Build(adventureId, AdventureEncounterKind.Reward, path, null, [], false,
-                advisories, null, responseHash, retryCount);
+                advisories, null, responseHash, retryCount, extraFields);
         }
 
         advisories.Add("Response did not match a known fight, choice, or reward; manual review required.");
         return Build(adventureId, AdventureEncounterKind.Unknown, path, null, [], false,
-            advisories, null, responseHash, retryCount);
+            advisories, null, responseHash, retryCount, extraFields);
     }
 
     private static AdventureEncounterState Build(
@@ -93,8 +95,10 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         IReadOnlyList<string> advisories,
         int? fightRound,
         string responseHash,
-        int retryCount)
-        => new(
+        int retryCount,
+        IReadOnlyDictionary<string, string>? extraFields = null)
+    {
+        var state = new AdventureEncounterState(
             adventureId,
             kind,
             string.IsNullOrWhiteSpace(path) ? null : path,
@@ -105,6 +109,12 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             fightRound,
             responseHash,
             Math.Max(0, retryCount));
+        return state with
+        {
+            ExtraFields = extraFields
+                ?? new Dictionary<string, string>(StringComparer.Ordinal)
+        };
+    }
 
     private static bool LooksLikeExpiredSession(string path, string html)
         => path.Contains("login", StringComparison.OrdinalIgnoreCase)
@@ -153,6 +163,31 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
                 choices.Add(match.Groups[1].Value);
         }
         return choices;
+    }
+
+    private static IReadOnlyDictionary<string, string> ExtractExtraFields(string html)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match tag in TagPattern.Matches(html))
+        {
+            var name = GetAttribute(tag.Value, "name");
+            var value = GetAttribute(tag.Value, "value");
+            if (string.IsNullOrWhiteSpace(name) || value is null)
+                continue;
+            // These are selected explicitly by the kernel/transport and must
+            // never be replaced by a hidden field copied from a page.
+            if (name.Equals("whichchoice", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("option", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("action", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (name.Equals("pwd", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("whichskill", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("whichitem", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("whichplace", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("whichfam", StringComparison.OrdinalIgnoreCase))
+                fields[name] = value;
+        }
+        return fields;
     }
 
     private static string? GetAttribute(string tag, string name)

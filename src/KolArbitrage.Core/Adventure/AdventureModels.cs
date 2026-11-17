@@ -52,7 +52,16 @@ public sealed record AdventureEncounterState(
     IReadOnlyList<string> Advisories,
     int? FightRound = null,
     string? ResponseHash = null,
-    int RetryCount = 0);
+    int RetryCount = 0)
+{
+    /// <summary>
+    /// Safe hidden fields carried by a choice form (for example KoL's short
+    /// password token).  The allowlist still chooses the option; these fields
+    /// are only submitted with that already-approved choice.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ExtraFields { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
+}
 
 /// <summary>
 /// Durable, read-before-act state for a future KoLmafia-style adventure

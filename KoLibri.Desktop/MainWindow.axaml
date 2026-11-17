@@ -44,7 +44,7 @@
           <Border Classes="badge warning" HorizontalAlignment="Stretch">
             <StackPanel Spacing="3">
               <TextBlock Text="Konten" Classes="badge-text warning" />
-              <TextBlock Text="2 Rollen vorbereitet"
+              <TextBlock Text="Main · Mallbot"
                          Classes="badge-text"
                          FontWeight="Normal" />
             </StackPanel>
@@ -173,133 +173,170 @@
       <StackPanel x:Name="ContentRoot"
                   Margin="{DynamicResource ComfortableContentMargin}"
                   Spacing="24">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
-          <StackPanel>
-            <TextBlock Text="Guten Morgen" Classes="h1" />
-            <TextBlock Text="Dein Arbitrage-Überblick für heute."
-                       Classes="muted"
-                       FontSize="14"
-                       Margin="0,6,0,0" />
-          </StackPanel>
-          <StackPanel Grid.Column="1"
-                      Orientation="Horizontal"
-                      Spacing="8"
-                      VerticalAlignment="Center">
-            <Border Classes="badge success">
-              <TextBlock Text="● Read-only"
-                         Classes="badge-text success"
-                         AutomationProperties.Name="Read-only Modus" />
-            </Border>
-            <Border Classes="badge info">
-              <TextBlock Text="⌁ Cache vor 4 Min."
-                         Classes="badge-text info"
-                         AutomationProperties.Name="Cache vor vier Minuten aktualisiert" />
-            </Border>
-            <Button Classes="primary"
-                    Content="⟳  Daten aktualisieren"
-                    Click="RefreshClick"
-                    AutomationProperties.Name="Daten aktualisieren" />
-          </StackPanel>
-        </Grid>
+        <StackPanel x:Name="ShellHeader" Spacing="0">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
+            <StackPanel>
+              <TextBlock x:Name="ShellPageTitle" Text="Guten Morgen" Classes="h1" />
+              <TextBlock x:Name="ShellPageDescription" Text="Dein Arbitrage-Überblick für heute."
+                         Classes="muted"
+                         FontSize="14"
+                         Margin="0,6,0,0" />
+            </StackPanel>
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Center">
+              <Border Classes="badge success">
+                <TextBlock Text="● Read-only"
+                           Classes="badge-text success"
+                           AutomationProperties.Name="Read-only Modus" />
+              </Border>
+              <Border Classes="badge info">
+                <TextBlock Text="⌁ Cache vor 4 Min."
+                           Classes="badge-text info"
+                           AutomationProperties.Name="Cache vor vier Minuten aktualisiert" />
+              </Border>
+              <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="Konto" Classes="muted" FontSize="10" />
+                <ComboBox x:Name="AccountRoleSelector"
+                          Width="112"
+                          SelectedIndex="1"
+                          SelectionChanged="AccountRoleSelectionChanged"
+                          AutomationProperties.Name="Aktives Konto auswählen">
+                  <ComboBoxItem Content="Main" />
+                  <ComboBoxItem Content="Mallbot" />
+                </ComboBox>
+              </StackPanel>
+              <Button x:Name="GlobalRefreshButton"
+                      Classes="primary"
+                      Content="⟳  Daten aktualisieren"
+                      Click="RefreshClick"
+                      AutomationProperties.Name="Daten aktualisieren" />
+            </StackPanel>
+          </Grid>
 
-        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
-          <Border Classes="card">
-            <StackPanel Spacing="8">
-              <TextBlock Text="Knucklebones heute" Classes="muted" />
-              <TextBlock Text="42 / 100" Classes="kpi" Foreground="{DynamicResource AdventureBrush}" />
-              <ProgressBar Value="42" Maximum="100" Height="7" />
-              <TextBlock Text="Nächster Lauf: in 18 Min."
-                         Classes="muted"
-                         FontSize="12" />
-            </StackPanel>
-          </Border>
-          <Border Grid.Column="1" Classes="card">
-            <StackPanel Spacing="8">
-              <TextBlock Text="Preisquellen-Cache" Classes="muted" />
-              <TextBlock Text="96 % frisch" Classes="kpi" Foreground="{DynamicResource SuccessBrush}" />
-              <TextBlock Text="Letzter Abgleich vor 4 Min."
-                         Classes="muted"
-                         FontSize="12" />
-              <TextBlock Text="Pricegun · Mall · Shop"
-                         Classes="muted"
-                         FontSize="12" />
-            </StackPanel>
-          </Border>
-          <Border Grid.Column="2" Classes="card">
-            <StackPanel Spacing="8">
-              <TextBlock Text="Kaufkandidaten" Classes="muted" />
-              <TextBlock Text="7" Classes="kpi" Foreground="{DynamicResource MeatBrush}" />
-              <TextBlock Text="über 20 % erwartete Marge"
-                         Classes="muted"
-                         FontSize="12" />
-              <TextBlock Text="3 benötigen Detailpreis"
-                         Classes="muted"
-                         FontSize="12" />
-            </StackPanel>
-          </Border>
-        </Grid>
+        </StackPanel>
 
-        <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="14">
-          <Border Classes="card">
-            <StackPanel Spacing="14">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <StackPanel>
-                  <TextBlock Text="Arbitrage-Pipeline" Classes="h2" />
-                  <TextBlock Text="Priorisierte Aktionen aus dem letzten Scan"
-                             Classes="muted"
-                             FontSize="12" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Content="Alle anzeigen →"
-                        Classes="secondary"
-                        Foreground="{DynamicResource AccentBrush}"
-                        Click="PricingClick"
-                        AutomationProperties.Name="Alle Pricing-Aktionen anzeigen" />
-              </Grid>
-              <Grid ColumnDefinitions="2*,*,*,Auto"
-                    RowDefinitions="Auto,Auto,Auto"
-                    RowSpacing="12">
-                <TextBlock Text="Artikel" Classes="muted" FontSize="12" />
-                <TextBlock Grid.Column="1" Text="Einkauf" Classes="muted" FontSize="12" />
-                <TextBlock Grid.Column="2" Text="Zielpreis" Classes="muted" FontSize="12" />
-                <TextBlock Grid.Column="3" Text="Score" Classes="muted" FontSize="12" />
-                <TextBlock Grid.Row="1"
-                           Text="Tiny Plastic Figure · Set A"
-                           Classes="body" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Text="12 000 meat" Classes="body" />
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="18 500 meat" Foreground="{DynamicResource SuccessBrush}" />
-                <TextBlock Grid.Row="1" Grid.Column="3" Text="92" Foreground="{DynamicResource MeatBrush}" />
-                <TextBlock Grid.Row="2" Text="Pirate Encryption Key" Classes="body" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="8 400 meat" Classes="body" />
-                <TextBlock Grid.Row="2" Grid.Column="2" Text="11 200 meat" Foreground="{DynamicResource SuccessBrush}" />
-                <TextBlock Grid.Row="2" Grid.Column="3" Text="81" Foreground="{DynamicResource MeatBrush}" />
-              </Grid>
-            </StackPanel>
-          </Border>
-          <Border Grid.Column="1" Classes="card">
-            <StackPanel Spacing="12">
-              <TextBlock Text="Systemstatus" Classes="h2" />
-              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
-                <TextBlock Text="Main-Account" Classes="body" />
-                <Border Grid.Column="1" Classes="badge warning">
-                  <TextBlock Text="Simulation" Classes="badge-text warning" />
-                </Border>
-                <TextBlock Grid.Row="1" Text="Mallbot" Classes="body" />
-                <Border Grid.Row="1" Grid.Column="1" Classes="badge warning">
-                  <TextBlock Text="Simulation" Classes="badge-text warning" />
-                </Border>
-                <TextBlock Grid.Row="2" Text="Letzte Aktion" Classes="muted" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Text="vor 4 Min." Classes="muted" />
-              </Grid>
-              <Border Classes="panel-subtle" Margin="0,5,0,0">
-                <TextBlock Text="Automatisches Kaufen bleibt bis zur Freigabe im Simulationsmodus."
-                           TextWrapping="Wrap"
+        <StackPanel x:Name="OverviewPanel" Spacing="24">
+
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Knucklebones heute" Classes="muted" />
+                <TextBlock Text="42 / 100" Classes="kpi" Foreground="{DynamicResource AdventureBrush}" />
+                <ProgressBar Value="42" Maximum="100" Height="7" />
+                <TextBlock Text="Nächster Lauf: in 18 Min."
                            Classes="muted"
                            FontSize="12" />
-              </Border>
-            </StackPanel>
-          </Border>
-        </Grid>
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Preisquellen-Cache" Classes="muted" />
+                <TextBlock Text="96 % frisch" Classes="kpi" Foreground="{DynamicResource SuccessBrush}" />
+                <TextBlock Text="Letzter Abgleich vor 4 Min."
+                           Classes="muted"
+                           FontSize="12" />
+                <TextBlock Text="Pricegun · Mall · Shop"
+                           Classes="muted"
+                           FontSize="12" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Kaufkandidaten" Classes="muted" />
+                <TextBlock Text="7" Classes="kpi" Foreground="{DynamicResource MeatBrush}" />
+                <TextBlock Text="über 20 % erwartete Marge"
+                           Classes="muted"
+                           FontSize="12" />
+                <TextBlock Text="3 benötigen Detailpreis"
+                           Classes="muted"
+                           FontSize="12" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="14">
+            <Border Classes="card">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <StackPanel>
+                    <TextBlock Text="Arbitrage-Pipeline" Classes="h2" />
+                    <TextBlock Text="Priorisierte Aktionen aus dem letzten Scan"
+                               Classes="muted"
+                               FontSize="12" />
+                  </StackPanel>
+                  <Button Grid.Column="1"
+                          Content="Alle anzeigen →"
+                          Classes="secondary"
+                          Foreground="{DynamicResource AccentBrush}"
+                          Click="PricingClick"
+                          AutomationProperties.Name="Alle Pricing-Aktionen anzeigen" />
+                </Grid>
+                <Grid ColumnDefinitions="2*,*,*,Auto"
+                      RowDefinitions="Auto,Auto,Auto"
+                      RowSpacing="12">
+                  <TextBlock Text="Artikel" Classes="muted" FontSize="12" />
+                  <TextBlock Grid.Column="1" Text="Einkauf" Classes="muted" FontSize="12" />
+                  <TextBlock Grid.Column="2" Text="Zielpreis" Classes="muted" FontSize="12" />
+                  <TextBlock Grid.Column="3" Text="Score" Classes="muted" FontSize="12" />
+                  <TextBlock Grid.Row="1"
+                             Text="Tiny Plastic Figure · Set A"
+                             Classes="body" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="12 000 meat" Classes="body" />
+                  <TextBlock Grid.Row="1" Grid.Column="2" Text="18 500 meat" Foreground="{DynamicResource SuccessBrush}" />
+                  <TextBlock Grid.Row="1" Grid.Column="3" Text="92" Foreground="{DynamicResource MeatBrush}" />
+                  <TextBlock Grid.Row="2" Text="Pirate Encryption Key" Classes="body" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="8 400 meat" Classes="body" />
+                  <TextBlock Grid.Row="2" Grid.Column="2" Text="11 200 meat" Foreground="{DynamicResource SuccessBrush}" />
+                  <TextBlock Grid.Row="2" Grid.Column="3" Text="81" Foreground="{DynamicResource MeatBrush}" />
+                </Grid>
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Systemstatus" Classes="h2" />
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+                  <TextBlock Text="Main-Account" Classes="body" />
+                  <Border Grid.Column="1" Classes="badge warning">
+                    <TextBlock Text="Simulation" Classes="badge-text warning" />
+                  </Border>
+                  <TextBlock Grid.Row="1" Text="Mallbot" Classes="body" />
+                  <Border Grid.Row="1" Grid.Column="1" Classes="badge warning">
+                    <TextBlock Text="Simulation" Classes="badge-text warning" />
+                  </Border>
+                  <TextBlock Grid.Row="2" Text="Letzte Aktion" Classes="muted" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Text="vor 4 Min." Classes="muted" />
+                </Grid>
+                <Border Classes="panel-subtle" Margin="0,5,0,0">
+                  <TextBlock Text="Automatisches Kaufen bleibt bis zur Freigabe im Simulationsmodus."
+                             TextWrapping="Wrap"
+                             Classes="muted"
+                             FontSize="12" />
+                </Border>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </StackPanel>
+
+        <Border x:Name="PageStatePanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="10">
+            <TextBlock x:Name="PageStateTitle" Text="Bereich" Classes="h2" />
+            <TextBlock x:Name="PageStateDescription"
+                       Classes="muted"
+                       TextWrapping="Wrap" />
+            <Border Classes="panel-subtle">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <TextBlock Text="Datenstatus" Classes="muted" />
+                <TextBlock x:Name="PageStateStatus"
+                           Grid.Column="1"
+                           Classes="body"
+                           Text="Noch keine Daten geladen."
+                           TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
 
         <Border x:Name="AccountsPanel" Classes="card" IsVisible="False">
           <StackPanel Spacing="14">
@@ -364,6 +401,10 @@
                            Classes="muted"
                            TextWrapping="Wrap"
                            FontSize="12" />
+                <TextBlock x:Name="MallRoleLabel"
+                           Text="Konto: Mallbot"
+                           Classes="muted"
+                           FontSize="12" />
               </StackPanel>
               <Button Grid.Column="1"
                       Content="⟳  Mall aktualisieren"
@@ -377,7 +418,7 @@
         </Border>
 
         <Border x:Name="StatusBar" Classes="panel-subtle" IsVisible="False">
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
             <Border Classes="badge info">
               <TextBlock Text="● Status" Classes="badge-text info" />
             </Border>
@@ -386,6 +427,20 @@
                        Classes="body"
                        VerticalAlignment="Center"
                        TextWrapping="Wrap" />
+            <ProgressBar x:Name="BusyIndicator"
+                         Grid.Column="2"
+                         Width="100"
+                         Height="6"
+                         IsIndeterminate="True"
+                         IsVisible="False"
+                         AutomationProperties.Name="Aktualisierung läuft" />
+            <Button x:Name="CancelRefreshButton"
+                    Grid.Column="3"
+                    Classes="secondary"
+                    Content="Abbrechen"
+                    IsVisible="False"
+                    Click="CancelRefreshClick"
+                    AutomationProperties.Name="Aktualisierung abbrechen" />
           </Grid>
         </Border>
       </StackPanel>

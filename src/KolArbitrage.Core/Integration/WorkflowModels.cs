@@ -98,10 +98,19 @@ public sealed class KoLWorkflowPlanner
             s.MallbotSessionValid ? KoLWorkflowStepStatus.ReadOnly : KoLWorkflowStepStatus.Blocked,
             "Mall, Pricegun und bekannte Currency-/Ticketquellen mit Cache aktualisieren.");
 
+        // A mutation or a Ready recommendation must be based on the same
+        // observation set.  The scan actions above remain available when a
+        // flag is false so callers can refresh the missing input; downstream
+        // steps stay blocked until both sessions and all three observations
+        // are healthy.
+        var workflowSnapshotReady = s.MainSessionValid && s.MallbotSessionValid &&
+                                    s.PriceSourcesFresh && s.OwnShopScanned && s.InventoryScanned;
+
         var affordable = s.ForeignBribeBagPrice is > 0
             ? Math.Min(s.PilotBagQuantity, Math.Max(0, (s.MallbotMeat - s.MallbotMeatReserve) / s.ForeignBribeBagPrice.Value))
             : 0;
-        var bagReady = s.MallbotSessionValid && s.ForeignBribeBagPrice is > 0 && affordable > 0 && s.ForeignBribeBagStock >= affordable;
+        var bagReady = s.MallbotSessionValid && workflowSnapshotReady &&
+                       s.ForeignBribeBagPrice is > 0 && affordable > 0 && s.ForeignBribeBagStock >= affordable;
         Add(steps, "bags", KoLWorkflowAction.PlanForeignBribeBagPurchase, AccountRole.Mallbot,
             bagReady ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Blocked,
             bagReady ? $"Pilotcharge {affordable} Bags innerhalb des Meat-Reserves." : "Bagpreis, Bestand, Session oder Meat-Reserve reichen für den Pilotplan nicht.");
@@ -112,31 +121,31 @@ public sealed class KoLWorkflowPlanner
             bagReady && s.MainSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Ungeöffnete Bags getrennt zum Main verschieben; Mengen und Item-ID vor Commit prüfen.");
         Add(steps, "bags", KoLWorkflowAction.OpenForeignBribeBagsOnMain, AccountRole.Main,
-            s.MainSessionValid && s.MainCanOpenBags ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            s.MainSessionValid && workflowSnapshotReady && s.MainCanOpenBags ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Main öffnet die Pilotcharge und protokolliert jede erhaltene Currency.");
         Add(steps, "coinmasters", KoLWorkflowAction.RankCoinmasterOutputs, AccountRole.Main,
-            s.MainSessionValid ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Blocked,
+            s.MainSessionValid && workflowSnapshotReady ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Blocked,
             "Nur handelbare Airport-Shop-Items anhand Currency-Kosten, Mall und Pricegun ranken.");
         Add(steps, "coinmasters", KoLWorkflowAction.BuyBestCoinmasterOutputs, AccountRole.Main,
-            s.MainSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            s.MainSessionValid && workflowSnapshotReady ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Tickets und Shopitems nur bei positiver Netto-Marge und Tagesbudget kaufen.");
         Add(steps, "transfer", KoLWorkflowAction.TransferSellablesToMallbot, AccountRole.Main,
-            s.MainSessionValid && s.MallbotSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            s.MainSessionValid && s.MallbotSessionValid && workflowSnapshotReady ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Handelbare Ware zum Mallbot verschieben; Crimbo-Reserven und Account-bound Items ausschließen.");
         Add(steps, "shop", KoLWorkflowAction.RepriceAndRelist, AccountRole.Mallbot,
-            s.MallbotSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            s.MallbotSessionValid && workflowSnapshotReady ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Preisleiter, historische Preise und eigenen Shop-Floor berücksichtigen; Relisting bleibt Commit-Schritt.");
         Add(steps, "shop", KoLWorkflowAction.RotateExcessOneUnitSale, AccountRole.Mallbot,
-            s.MallbotSessionValid ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
+            s.MallbotSessionValid && workflowSnapshotReady ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Blocked,
             "Ein einzelnes Stück echter Überbestände als kurze Promo prüfen; unabhängige Mall-/Pricegun-Referenz, Cooldown und Mindestmarge erzwingen.");
         Add(steps, "hermit", KoLWorkflowAction.BuyHermitElevenLeafClover, AccountRole.Main,
-            s.MainSessionValid && s.MainCanUseHermit ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
+            s.MainSessionValid && workflowSnapshotReady && s.MainCanUseHermit ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
             "Hermit-Bestand vor dem Adventure-Run prüfen, Utility-Reserve abziehen und nur den sicheren Überschuss für Mallbot/Verkauf freigeben.");
         Add(steps, "adventure", KoLWorkflowAction.PlanDailyAdventure, AccountRole.Main,
-            s.MainSessionValid && s.AdventurePlanReady ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Deferred,
+            s.MainSessionValid && workflowSnapshotReady && s.AdventurePlanReady ? KoLWorkflowStepStatus.Ready : KoLWorkflowStepStatus.Deferred,
             "Tägliches Skeleton-/Knucklebones-Ziel planen und Ressourcen vor Kämpfen prüfen.");
         Add(steps, "adventure", KoLWorkflowAction.FarmOneDayTicket, AccountRole.Main,
-            s.MainSessionValid && s.MainCanAdventure ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
+            s.MainSessionValid && workflowSnapshotReady && s.MainCanAdventure ? KoLWorkflowStepStatus.ApprovalRequired : KoLWorkflowStepStatus.Deferred,
             "One-Day-Ticket nur in eine Zone investieren, deren erwartete Resale-Marge die Ticket-/Adventurekosten übersteigt.");
         Add(steps, "audit", KoLWorkflowAction.AuditAndPersist, null, KoLWorkflowStepStatus.ReadOnly,
             "Snapshot, Entscheidungen, Transfers und Verkäufe mit Plan-ID protokollieren.");

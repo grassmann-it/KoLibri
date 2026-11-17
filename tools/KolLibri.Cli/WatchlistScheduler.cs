@@ -281,7 +281,7 @@ public sealed class WatchlistScanner
                     TopN = options.TopN,
                     MaxAge = options.MaximumReferenceAge
                 })
-                .Estimate(snapshot);
+                .Estimate(snapshot, _clock.GetUtcNow());
             var listings = independent.Select(x => new UnderpricedPurchaseListing(
                 x.ItemId, x.StoreId, x.Price, x.Quantity, x.ObservedAt, x.PurchaseLimit, x.StoreName)).ToArray();
             var tradeability = new Dictionary<string, UnderpricedItemTradeability>(StringComparer.OrdinalIgnoreCase)
@@ -616,9 +616,14 @@ internal static class WatchlistSchedulerCommand
         }
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
         var workers = ParseInt(GetOption(args, "--workers"), 8, 1, 20, "--workers");
-        var interval = ParseDouble(GetOption(args, "--interval"), 300d, "--interval");
+        var intervalOption = GetOption(args, "--interval") ?? GetOption(args, "--interval-seconds");
+        var interval = ParseDouble(intervalOption, 300d, "--interval");
         if (interval <= 0) throw new ArgumentException("--interval muss positiv sein.");
-        var once = HasFlag(args, "--once") || (!HasFlag(args, "--periodic") && !HasOption(args, "--iterations"));
+        var mode = GetOption(args, "--mode")?.ToLowerInvariant();
+        if (mode is not null && mode is not ("once" or "periodic"))
+            throw new ArgumentException("--mode muss once oder periodic sein.");
+        var periodic = HasFlag(args, "--periodic") || mode == "periodic";
+        var once = HasFlag(args, "--once") || mode == "once" || (!periodic && !HasOption(args, "--iterations"));
         var iterations = ParseInt(GetOption(args, "--iterations"), once ? 1 : int.MaxValue, 1, 10_000, "--iterations");
         var refresh = HasFlag(args, "--refresh");
         var budget = ParseDecimal(GetOption(args, "--budget"), decimal.MaxValue, "--budget");
@@ -654,6 +659,8 @@ internal static class WatchlistSchedulerCommand
         Console.CancelKeyPress += handler;
         try
         {
+            using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var pricegun = new PricegunReadClient(pricegunHttp);
             var document = await store.LoadAsync(cancellation.Token);
             var itemOverrides = GetOptions(args, "--item").Select(NormalizeItemId).ToArray();
             var entries = document.Entries.Where(x => IsInWatchlist(x, watchlistId)).ToArray();
@@ -682,7 +689,7 @@ internal static class WatchlistSchedulerCommand
                     catch { effectiveBudget = decimal.MaxValue; }
                 }
                 var effectiveOptions = options with { Budget = effectiveBudget, Reserve = Math.Min(options.Reserve, effectiveBudget) };
-                var scanner = new WatchlistScanner(clients.Mall, new PricegunReadClient(new HttpClient { Timeout = TimeSpan.FromSeconds(30) }));
+                var scanner = new WatchlistScanner(clients.Mall, pricegun);
                 var result = await scanner.ScanAsync(watchlistId, entries, effectiveOptions, ownShop, cancellation.Token);
                 document = document with
                 {

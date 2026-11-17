@@ -23,14 +23,17 @@ public class KolibriMcpServer
     private readonly Dictionary<string, string> _aliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly TimeProvider _clock;
-    private PricingEngine? _derivedPricing;
+    private readonly RoleScopedRuntime _roleRuntime;
+    private readonly Dictionary<AccountRole, PricingEngine> _derivedPricing = [];
 
     public KolibriMcpServer(
         LibKolibriRuntime? runtime = null,
         KolibriMcpServerOptions? options = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        RoleScopedRuntime? roleRuntime = null)
     {
         _runtime = runtime ?? new LibKolibriRuntime();
+        _roleRuntime = roleRuntime ?? new RoleScopedRuntime(_runtime);
         _options = options ?? new KolibriMcpServerOptions();
         _options.Validate();
         _clock = clock ?? TimeProvider.System;
@@ -38,8 +41,24 @@ public class KolibriMcpServer
         RegisterReadOnlyTools();
     }
 
+    /// <summary>
+    /// Creates a server over role-specific account adapters. The role facade
+    /// can contain distinct authenticated clients for Main and Mallbot while
+    /// keeping credentials out of every MCP request.
+    /// </summary>
+    public KolibriMcpServer(
+        RoleScopedRuntime roleRuntime,
+        KolibriMcpServerOptions? options = null,
+        TimeProvider? clock = null)
+        : this(roleRuntime?.Fallback, options, clock, roleRuntime)
+    {
+    }
+
     /// <summary>Runtime used to resolve account, mall, pricing and planner contracts.</summary>
     public LibKolibriRuntime Runtime => _runtime;
+
+    /// <summary>Role-aware runtime facade used for each tool invocation.</summary>
+    public RoleScopedRuntime RoleRuntime => _roleRuntime;
 
     /// <summary>Fixed read-only tool allowlist exposed by this server.</summary>
     public McpToolRegistry Tools => _registry;
@@ -163,8 +182,28 @@ public class KolibriMcpServer
         CancellationToken cancellationToken = default)
         => RunStdioCoreAsync(runtime, options, cancellationToken);
 
+    /// <summary>Runs stdio with role-specific read adapters.</summary>
+    public static Task<int> RunStdioAsync(
+        RoleScopedRuntime runtime,
+        KolibriMcpServerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        return RunStdioCoreAsync(runtime, options, cancellationToken);
+    }
+
     private static async Task<int> RunStdioCoreAsync(
         LibKolibriRuntime? runtime,
+        KolibriMcpServerOptions? options,
+        CancellationToken cancellationToken)
+    {
+        await new KolibriMcpServer(runtime, options).RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), cancellationToken)
+            .ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> RunStdioCoreAsync(
+        RoleScopedRuntime runtime,
         KolibriMcpServerOptions? options,
         CancellationToken cancellationToken)
     {
@@ -226,7 +265,7 @@ public class KolibriMcpServer
             protocolVersion = _options.ProtocolVersion,
             capabilities = new { tools = new { } },
             serverInfo = new { name = _options.ServerName, version = _options.ServerVersion },
-            instructions = "Read-only KoLibri status, inventory, pricing, underprice, workflow and preview tools."
+            instructions = "Read-only KoLibri status, inventory, pricing, underprice, workflow and preview tools. Read tools accept an optional Main or Mallbot role; credentials stay in the configured account runtime."
         };
 
     private void RegisterReadOnlyTools()
@@ -269,9 +308,10 @@ public class KolibriMcpServer
     private async Task<object?> StatusAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         var forceRefresh = BoolProperty(arguments, "forceRefresh");
-        if (_runtime.TryGet<IAccountReadClient>(out var readClient))
+        var role = RoleFor(arguments, _options.DefaultRole);
+        if (_roleRuntime.TryGet<IAccountReadClient>(role, out var readClient))
             return await readClient!.FetchStatusAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
-        if (_runtime.TryGet<IAccountGateway>(out var gateway))
+        if (_roleRuntime.TryGet<IAccountGateway>(role, out var gateway))
             return await gateway!.GetStatusAsync(cancellationToken).ConfigureAwait(false);
         throw new InvalidOperationException("No account read gateway is registered.");
     }
@@ -279,9 +319,10 @@ public class KolibriMcpServer
     private async Task<object?> InventoryAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         var forceRefresh = BoolProperty(arguments, "forceRefresh");
-        if (_runtime.TryGet<IAccountReadClient>(out var readClient))
+        var role = RoleFor(arguments, _options.DefaultRole);
+        if (_roleRuntime.TryGet<IAccountReadClient>(role, out var readClient))
             return await readClient!.FetchInventoryAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
-        if (_runtime.TryGet<IAccountGateway>(out var gateway))
+        if (_roleRuntime.TryGet<IAccountGateway>(role, out var gateway))
             return await gateway!.GetInventoryAsync(cancellationToken).ConfigureAwait(false);
         throw new InvalidOperationException("No account read gateway is registered.");
     }
@@ -290,11 +331,12 @@ public class KolibriMcpServer
     {
         var itemId = RequiredString(arguments, "itemId");
         var forceRefresh = BoolProperty(arguments, "forceRefresh");
-        var pricing = GetPricingEngine();
+        var role = RoleFor(arguments, _options.DefaultRole);
+        var pricing = GetPricingEngine(role);
         if (pricing is not null)
             return await pricing.SummarizeAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
 
-        var mall = await SearchMallAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
+        var mall = await SearchMallAsync(itemId, forceRefresh, cancellationToken, role).ConfigureAwait(false);
         return BuildMallSummary(mall);
     }
 
@@ -303,11 +345,13 @@ public class KolibriMcpServer
         var itemId = RequiredString(arguments, "itemId");
         var forceRefresh = BoolProperty(arguments, "forceRefresh");
         var acquisitionCost = DecimalProperty(arguments, "acquisitionCost");
-        var pricing = GetPricingEngine();
+        var role = RoleFor(arguments, _options.DefaultRole);
+        var pricing = GetPricingEngine(role);
         if (pricing is not null)
             return await pricing.RecommendAsync(itemId, acquisitionCost, forceRefresh, cancellationToken).ConfigureAwait(false);
 
-        var summary = await PriceSummaryAsync(arguments, cancellationToken).ConfigureAwait(false) as PriceSummary
+        var summaryArguments = arguments;
+        var summary = await PriceSummaryAsync(summaryArguments, cancellationToken).ConfigureAwait(false) as PriceSummary
             ?? throw new InvalidOperationException("Unable to build a price summary.");
         var reference = summary.WeightedMedianSellPrice ?? summary.LowestSellPrice ?? summary.WeightedMedianBuyPrice;
         var lowest = summary.LowestSellPrice ?? summary.LowestBuyPrice;
@@ -341,6 +385,7 @@ public class KolibriMcpServer
     {
         var itemId = OptionalString(arguments, "itemId");
         var forceRefresh = BoolProperty(arguments, "forceRefresh");
+        var role = RoleFor(arguments, _options.DefaultRole);
         var listingElements = ArrayProperty(arguments, "listings");
         var referenceElements = ArrayProperty(arguments, "references");
         var listings = listingElements is null
@@ -351,7 +396,7 @@ public class KolibriMcpServer
 
         if (listings.Count == 0 && !string.IsNullOrWhiteSpace(itemId))
         {
-            var mall = await SearchMallAsync(itemId!, forceRefresh, cancellationToken).ConfigureAwait(false);
+            var mall = await SearchMallAsync(itemId!, forceRefresh, cancellationToken, role).ConfigureAwait(false);
             listings.AddRange(mall.Listings.Select(x => new UnderpricedPurchaseListing(
                 x.ItemId, x.StoreId, x.Price, x.Quantity, x.ObservedAt, x.PurchaseLimit, x.StoreName)));
             var market = new PriceSnapshot(mall).Estimate(new MarketPriceEstimatorOptions { TopN = 10 });
@@ -410,10 +455,11 @@ public class KolibriMcpServer
         var stateElement = arguments.TryGetProperty("state", out var nested)
             && nested.ValueKind == JsonValueKind.Object ? nested : arguments;
         var state = ParseAdventureState(stateElement);
+        var role = RoleFor(arguments, _options.DefaultRole);
         var hasOptions = arguments.TryGetProperty("options", out var optionsElement)
             && optionsElement.ValueKind == JsonValueKind.Object;
         DailyAdventurePlan plan;
-        if (!hasOptions && _runtime.TryGet<IAdventureGateway>(out var gateway))
+        if (!hasOptions && _roleRuntime.TryGet<IAdventureGateway>(role, out var gateway))
             plan = await gateway!.PlanAsync(state, cancellationToken).ConfigureAwait(false);
         else
             plan = new DailyAdventurePlanner(ParseAdventureOptions(hasOptions ? optionsElement : arguments))
@@ -430,18 +476,19 @@ public class KolibriMcpServer
     private async Task<object?> PurchasePreviewAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         var request = ParsePurchaseRequest(arguments);
+        var role = RoleFor(arguments, _options.DefaultRole);
         var listing = ParseMallListing(arguments, request);
         if (listing is null)
         {
-            var mall = await SearchMallAsync(request.ItemId, BoolProperty(arguments, "forceRefresh"), cancellationToken).ConfigureAwait(false);
+            var mall = await SearchMallAsync(request.ItemId, BoolProperty(arguments, "forceRefresh"), cancellationToken, role).ConfigureAwait(false);
             listing = mall.Listings.FirstOrDefault(x => string.Equals(x.StoreId, request.StoreId, StringComparison.Ordinal))
                 ?? mall.Listings.FirstOrDefault();
             if (listing is null)
                 throw new McpInvalidParamsException("purchase preview could not find a read-only Mall listing.");
         }
 
-        var status = await ParseOrReadStatusAsync(arguments, cancellationToken).ConfigureAwait(false);
-        var inventory = await ParseOrReadInventoryAsync(arguments, cancellationToken).ConfigureAwait(false);
+        var status = await ParseOrReadStatusAsync(arguments, cancellationToken, role).ConfigureAwait(false);
+        var inventory = await ParseOrReadInventoryAsync(arguments, cancellationToken, role).ConfigureAwait(false);
         var budget = ParsePurchaseBudget(arguments, status.Meat);
         var policy = ParsePurchasePolicy(arguments);
         var preview = PurchaseApprovalService.Preview(request, listing, status, inventory, budget, policy, _clock.GetUtcNow());
@@ -471,40 +518,51 @@ public class KolibriMcpServer
         return new { readOnly = true, transferExecuted = false, commitSupported = false, preview };
     }
 
-    private PricingEngine? GetPricingEngine()
+    private PricingEngine? GetPricingEngine(AccountRole role)
     {
-        if (_runtime.TryGet<PricingEngine>(out var pricing)) return pricing;
-        if (!_runtime.TryGet<IPriceProvider>(out var provider)) return null;
-        return _derivedPricing ??= new PricingEngine(provider!);
+        if (_roleRuntime.TryGet<PricingEngine>(role, out var pricing)) return pricing;
+        if (!_roleRuntime.TryGet<IPriceProvider>(role, out var provider)) return null;
+        if (_derivedPricing.TryGetValue(role, out var derived)) return derived;
+        return _derivedPricing[role] = new PricingEngine(provider!);
     }
 
-    private async Task<MallSnapshot> SearchMallAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
+    private async Task<MallSnapshot> SearchMallAsync(
+        string itemId,
+        bool forceRefresh,
+        CancellationToken cancellationToken,
+        AccountRole role = AccountRole.Mallbot)
     {
-        if (_runtime.TryGet<IMallReadClient>(out var readClient))
+        if (_roleRuntime.TryGet<IMallReadClient>(role, out var readClient))
             return await readClient!.SearchAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
-        if (_runtime.TryGet<IMallGateway>(out var gateway))
+        if (_roleRuntime.TryGet<IMallGateway>(role, out var gateway))
             return await gateway!.SearchAsync(itemId, cancellationToken).ConfigureAwait(false);
         throw new InvalidOperationException("No Mall read gateway is registered.");
     }
 
-    private async Task<KoLStatusSnapshot> ParseOrReadStatusAsync(JsonElement arguments, CancellationToken cancellationToken)
+    private async Task<KoLStatusSnapshot> ParseOrReadStatusAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken,
+        AccountRole role = AccountRole.Mallbot)
     {
         if (arguments.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.Object)
             return Deserialize<KoLStatusSnapshot>(status, "status");
-        if (_runtime.TryGet<IAccountReadClient>(out var readClient))
+        if (_roleRuntime.TryGet<IAccountReadClient>(role, out var readClient))
             return await readClient!.FetchStatusAsync(BoolProperty(arguments, "forceRefresh"), cancellationToken).ConfigureAwait(false);
-        if (_runtime.TryGet<IAccountGateway>(out var gateway))
+        if (_roleRuntime.TryGet<IAccountGateway>(role, out var gateway))
             return await gateway!.GetStatusAsync(cancellationToken).ConfigureAwait(false);
         throw new McpInvalidParamsException("purchase preview requires status or a registered account gateway.");
     }
 
-    private async Task<KoLInventorySnapshot> ParseOrReadInventoryAsync(JsonElement arguments, CancellationToken cancellationToken)
+    private async Task<KoLInventorySnapshot> ParseOrReadInventoryAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken,
+        AccountRole role = AccountRole.Mallbot)
     {
         if (arguments.TryGetProperty("inventory", out var inventory) && inventory.ValueKind == JsonValueKind.Object)
             return Deserialize<KoLInventorySnapshot>(inventory, "inventory");
-        if (_runtime.TryGet<IAccountReadClient>(out var readClient))
+        if (_roleRuntime.TryGet<IAccountReadClient>(role, out var readClient))
             return await readClient!.FetchInventoryAsync(BoolProperty(arguments, "forceRefresh"), cancellationToken).ConfigureAwait(false);
-        if (_runtime.TryGet<IAccountGateway>(out var gateway))
+        if (_roleRuntime.TryGet<IAccountGateway>(role, out var gateway))
             return await gateway!.GetInventoryAsync(cancellationToken).ConfigureAwait(false);
         throw new McpInvalidParamsException("purchase preview requires inventory or a registered account gateway.");
     }
@@ -813,6 +871,21 @@ public class KolibriMcpServer
         throw new McpInvalidParamsException($"{name} must be a positive duration (for example PT6H).");
     }
 
+    private AccountRole RoleFor(JsonElement arguments, AccountRole fallback)
+    {
+        if (!arguments.TryGetProperty("role", out var element)
+            || element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return fallback;
+        if (element.ValueKind != JsonValueKind.String)
+            throw new McpInvalidParamsException("role must be Main or Mallbot.");
+        var value = element.GetString()?.Trim();
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        if (Enum.TryParse<AccountRole>(value, ignoreCase: true, out var role)
+            && Enum.IsDefined(role))
+            return role;
+        throw new McpInvalidParamsException("role must be Main or Mallbot.");
+    }
+
     private static string StringProperty(JsonElement element, string name)
         => OptionalString(element, name) ?? string.Empty;
 
@@ -866,16 +939,16 @@ public class KolibriMcpServer
         => Schema("{\"type\":\"object\",\"required\":[\"itemId\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"acquisitionCost\":{\"type\":[\"number\",\"null\"],\"minimum\":0},\"forceRefresh\":{\"type\":\"boolean\",\"default\":false},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":false}");
 
     private static JsonElement UnderpriceSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{\"itemId\":{\"type\":\"string\"},\"forceRefresh\":{\"type\":\"boolean\"},\"listings\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"references\":{\"type\":\"object\"},\"limits\":{\"type\":\"object\"},\"tradeability\":{\"type\":\"object\"}},\"additionalProperties\":true}");
+        => Schema("{\"type\":\"object\",\"properties\":{\"itemId\":{\"type\":\"string\"},\"forceRefresh\":{\"type\":\"boolean\"},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"listings\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"references\":{\"type\":\"object\"},\"limits\":{\"type\":\"object\"},\"tradeability\":{\"type\":\"object\"}},\"additionalProperties\":true}");
 
     private static JsonElement WorkflowSchema()
         => Schema("{\"type\":\"object\",\"properties\":{\"snapshot\":{\"type\":\"object\"},\"mainSessionValid\":{\"type\":\"boolean\"},\"mallbotSessionValid\":{\"type\":\"boolean\"},\"mallbotMeat\":{\"type\":\"integer\"},\"foreignBribeBagPrice\":{\"type\":[\"integer\",\"null\"]},\"foreignBribeBagStock\":{\"type\":\"integer\"},\"pilotBagQuantity\":{\"type\":\"integer\"},\"mallbotMeatReserve\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
 
     private static JsonElement AdventureSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{\"state\":{\"type\":\"object\"},\"options\":{\"type\":\"object\"},\"knucklebones\":{\"type\":\"integer\"},\"adventureTurnsRemaining\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
+        => Schema("{\"type\":\"object\",\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"state\":{\"type\":\"object\"},\"options\":{\"type\":\"object\"},\"knucklebones\":{\"type\":\"integer\"},\"adventureTurnsRemaining\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
 
     private static JsonElement PurchaseSchema()
-        => Schema("{\"type\":\"object\",\"required\":[\"itemId\",\"quantity\",\"unitPrice\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"storeId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"integer\",\"minimum\":1},\"unitPrice\":{\"type\":\"number\",\"minimum\":0},\"approvalToken\":{\"type\":[\"string\",\"null\"]},\"listing\":{\"type\":\"object\"},\"status\":{\"type\":\"object\"},\"inventory\":{\"type\":\"object\"},\"budget\":{\"type\":\"object\"},\"policy\":{\"type\":\"object\"}},\"additionalProperties\":true}");
+        => Schema("{\"type\":\"object\",\"required\":[\"itemId\",\"quantity\",\"unitPrice\"],\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"itemId\":{\"type\":\"string\",\"minLength\":1},\"storeId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"integer\",\"minimum\":1},\"unitPrice\":{\"type\":\"number\",\"minimum\":0},\"approvalToken\":{\"type\":[\"string\",\"null\"]},\"listing\":{\"type\":\"object\"},\"status\":{\"type\":\"object\"},\"inventory\":{\"type\":\"object\"},\"budget\":{\"type\":\"object\"},\"policy\":{\"type\":\"object\"}},\"additionalProperties\":true}");
 
     private static JsonElement TransferSchema()
         => Schema("{\"type\":\"object\",\"required\":[\"itemId\",\"quantity\",\"from\",\"to\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"quantity\":{\"type\":\"integer\",\"minimum\":1},\"from\":{\"enum\":[\"Main\",\"Mallbot\"]},\"to\":{\"enum\":[\"Main\",\"Mallbot\"]},\"reason\":{\"type\":\"string\"},\"approvalToken\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false}");
@@ -888,12 +961,18 @@ public sealed class KoLibriMcpServer : KolibriMcpServer
 {
     public KoLibriMcpServer(LibKolibriRuntime? runtime = null, KolibriMcpServerOptions? options = null, TimeProvider? clock = null)
         : base(runtime, options, clock) { }
+
+    public KoLibriMcpServer(RoleScopedRuntime runtime, KolibriMcpServerOptions? options = null, TimeProvider? clock = null)
+        : base(runtime, options, clock) { }
 }
 
 /// <summary>Generic MCP host alias for embedding applications.</summary>
 public sealed class McpServer : KolibriMcpServer
 {
     public McpServer(LibKolibriRuntime? runtime = null, KolibriMcpServerOptions? options = null, TimeProvider? clock = null)
+        : base(runtime, options, clock) { }
+
+    public McpServer(RoleScopedRuntime runtime, KolibriMcpServerOptions? options = null, TimeProvider? clock = null)
         : base(runtime, options, clock) { }
 }
 
