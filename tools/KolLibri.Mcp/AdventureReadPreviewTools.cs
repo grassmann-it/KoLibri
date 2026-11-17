@@ -31,6 +31,7 @@ public partial class KolibriMcpServer
         Register("kol_recovery_plan", "Build a bounded HP/MP/effects/familiar/equipment recovery plan from snapshots only.", RecoveryPlanSchema(), RecoveryPlanAsync);
         Register("kol_choice_options", "Inspect choice id/options and preview an allowlisted option without posting it.", ChoiceOptionsSchema(), ChoiceOptionsAsync);
         Register("kol_adventure_bounded_preview", "Evaluate a bounded adventure run and its typed stop conditions without posting.", BoundedAdventurePreviewSchema(), BoundedAdventurePreviewAsync);
+        Register("kol_adventure_daily_schedule", "Build bounded recurring daily adventure plans from supplied snapshots without posting.", AdventureDailyScheduleSchema(), AdventureDailyScheduleAsync);
 
         // Command-shaped aliases make the additive surface convenient for
         // existing hosts while tools/list keeps the canonical kol_* names.
@@ -54,6 +55,8 @@ public partial class KolibriMcpServer
         Alias("choice-preview", "kol_choice_options");
         Alias("adventure-bounded-preview", "kol_adventure_bounded_preview");
         Alias("adventure_bounded_preview", "kol_adventure_bounded_preview");
+        Alias("adventure-daily-schedule", "kol_adventure_daily_schedule");
+        Alias("adventure_daily_schedule", "kol_adventure_daily_schedule");
     }
 
     private Task<object?> AdventureLocationsAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -127,6 +130,71 @@ public partial class KolibriMcpServer
             conditions = results,
             note = "Preview only; no adventure.php, fight.php or choice.php request was sent."
         });
+    }
+
+    private async Task<object?> AdventureDailyScheduleAsync(JsonElement arguments, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var values = FindArray(arguments, "snapshots", "states")
+            ?? (NestedObject(arguments, "snapshot") is { } one
+                ? JsonDocument.Parse($"[{one.GetRawText()}]").RootElement
+                : default);
+        if (values.ValueKind != JsonValueKind.Array || values.GetArrayLength() == 0)
+            throw new McpInvalidParamsException("snapshots must contain at least one AdventureState object.");
+
+        AdventureState[] snapshots;
+        try
+        {
+            snapshots = values.Deserialize<AdventureState[]>(McpJson.Options)
+                ?? Array.Empty<AdventureState>();
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException or ArgumentException)
+        {
+            throw new McpInvalidParamsException($"Invalid adventure snapshot: {exception.Message}");
+        }
+
+        var target = Math.Clamp(NullableIntProperty(arguments, "dailyKnucklebonesTarget") ?? 100, 0, 100_000);
+        var expectedYield = decimal.TryParse(
+            OptionalString(arguments, "expectedKnucklebonesPerAdventure"),
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var parsedYield)
+            ? Math.Max(0m, parsedYield)
+            : 0.5m;
+        var plannerOptions = new AdventurePlannerOptions
+        {
+            DailyKnucklebonesTarget = target,
+            ExpectedKnucklebonesPerAdventure = expectedYield,
+            ConsumeLuckySurpriseEggs = !BoolProperty(arguments, "disableEggs")
+        };
+        var iterations = Math.Clamp(NullableIntProperty(arguments, "iterations") ?? snapshots.Length, 1, 1_000);
+        var scheduler = new DailyAdventurePlanScheduler(new DailyAdventurePlanner(plannerOptions));
+        var index = 0;
+        var ticks = new List<DailyAdventureScheduleTick>();
+        await foreach (var tick in scheduler.RunAsync(
+            _ => Task.FromResult(snapshots[Math.Min(index++, snapshots.Length - 1)]),
+            plannerOptions,
+            new DailyAdventureSchedulerOptions
+            {
+                MaxIterations = iterations,
+                Interval = TimeSpan.Zero,
+                WorkerLimit = Math.Clamp(NullableIntProperty(arguments, "workers") ?? 1, 1, 20)
+            },
+            cancellationToken))
+        {
+            ticks.Add(tick);
+        }
+
+        return new
+        {
+            readOnly = true,
+            execution = "bounded-daily-schedule-preview",
+            mutation = "disabled",
+            post = false,
+            snapshotCount = snapshots.Length,
+            ticks,
+            note = "Snapshots are supplied by the caller; no status, inventory, adventure, fight, choice or item request was sent."
+        };
     }
 
     private Task<object?> CombatInspectAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -961,4 +1029,7 @@ public partial class KolibriMcpServer
 
     private static JsonElement BoundedAdventurePreviewSchema()
         => Schema("{\"type\":\"object\",\"properties\":{\"locationId\":{\"type\":\"string\"},\"adventureId\":{\"type\":\"string\"},\"runId\":{\"type\":\"string\"},\"conditions\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"snapshot\":{\"type\":\"object\"},\"maxGatewaySteps\":{\"type\":\"integer\"},\"maxDurationSeconds\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
+
+    private static JsonElement AdventureDailyScheduleSchema()
+        => Schema("{\"type\":\"object\",\"properties\":{\"snapshots\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"snapshot\":{\"type\":\"object\"},\"iterations\":{\"type\":\"integer\"},\"workers\":{\"type\":\"integer\"},\"dailyKnucklebonesTarget\":{\"type\":\"integer\"},\"expectedKnucklebonesPerAdventure\":{\"type\":\"number\"},\"disableEggs\":{\"type\":\"boolean\"}},\"additionalProperties\":true}");
 }
