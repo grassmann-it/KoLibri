@@ -43,6 +43,7 @@ internal static partial class KolibriCli
             "start" or "begin" => await AdventureStartAsync(args[1..]),
             "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
             "step" or "advance" => await AdventureStepAsync(args[1..]),
+            "bounded-preview" or "run-preview" => await AdventureBoundedPreviewAsync(args[1..]),
             "stop" or "abort" => await AdventureStopAsync(args[1..]),
             _ => Fail($"Unbekannter adventure-Befehl: {args[0]}")
         };
@@ -319,6 +320,54 @@ internal static partial class KolibriCli
             note = "The local preview was stopped; no KoL request was sent."
         });
         return Task.FromResult(0);
+    }
+
+    private static Task<int> AdventureBoundedPreviewAsync(string[] args)
+    {
+        var location = ReadAdventureId(args);
+        var runId = GetOption(args, "--run-id") ?? $"preview-{Guid.NewGuid():N}";
+        var conditionsPath = GetOption(args, "--conditions-file");
+        var snapshotPath = GetOption(args, "--snapshot-file");
+        var conditions = conditionsPath is null
+            ? Array.Empty<AdventureCondition>()
+            : ReadJsonArray<AdventureCondition>(conditionsPath, "conditions");
+        AdventureConditionSnapshot? snapshot = snapshotPath is null
+            ? null
+            : ReadJsonObject<AdventureConditionSnapshot>(snapshotPath, "snapshot");
+        var results = snapshot is null
+            ? conditions.Select(condition => new AdventureConditionResult
+            {
+                Condition = condition.Normalize(),
+                IsSatisfied = false,
+                Reason = "A fresh condition snapshot is required before an adventure run can start."
+            }).ToArray()
+            : AdventureConditionEvaluator.EvaluateAll(conditions, snapshot);
+        var stopReason = conditions.Length == 0
+            ? "No conditions supplied; preview is ready for an explicit bounded run."
+            : snapshot is null
+                ? "ConditionsBlocked"
+                : results.All(result => result.IsSatisfied) ? "ConditionsSatisfied" : "ReadyToRun";
+
+        WriteJson(new
+        {
+            command = "adventure bounded-preview",
+            readOnly = true,
+            previewOnly = true,
+            mutating = false,
+            post = false,
+            executed = false,
+            approvalRequired = true,
+            runId,
+            location,
+            maxGatewaySteps = Math.Clamp(ReadInt(args, "--max-steps", 20), 1, 10_000),
+            maxDurationSeconds = Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)),
+            stopReason,
+            conditions = results,
+            conditionSource = conditionsPath,
+            snapshotSource = snapshotPath,
+            note = "Preview only; no adventure.php, fight.php or choice.php request was sent."
+        });
+        return Task.FromResult(stopReason == "ConditionsBlocked" ? 3 : 0);
     }
 
     private static async Task<int> CombatCommandAsync(string[] args)
@@ -650,6 +699,34 @@ internal static partial class KolibriCli
         }
     }
 
+    private static T[] ReadJsonArray<T>(string path, string propertyName)
+    {
+        using var document = ReadJsonDocument(path);
+        var element = document.RootElement.ValueKind == JsonValueKind.Array
+            ? document.RootElement
+            : document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : default;
+        if (element.ValueKind != JsonValueKind.Array)
+            throw new ArgumentException($"{path} muss ein JSON-Array oder ein Objekt mit '{propertyName}' sein.");
+        return element.Deserialize<T[]>(JsonOptions) ?? Array.Empty<T>();
+    }
+
+    private static T ReadJsonObject<T>(string path, string propertyName)
+    {
+        using var document = ReadJsonDocument(path);
+        var element = document.RootElement.ValueKind == JsonValueKind.Object
+            && document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : document.RootElement;
+        return element.Deserialize<T>(JsonOptions)
+            ?? throw new ArgumentException($"{path} enthält kein gültiges {typeof(T).Name}-Objekt.");
+    }
+
+    private static JsonDocument ReadJsonDocument(string path)
+    {
+        if (!File.Exists(path))
+            throw new ArgumentException($"JSON-Datei '{path}' wurde nicht gefunden.");
+        try { return JsonDocument.Parse(File.ReadAllText(path)); }
+        catch (JsonException exception) { throw new ArgumentException($"JSON-Datei '{path}' ist ungültig.", exception); }
+    }
+
     private static void SaveCheckpoint(string path, AdventureCheckpoint checkpoint)
     {
         var directory = Path.GetDirectoryName(Path.GetFullPath(path));
@@ -807,6 +884,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure start --location ID [--role main] [--run-id ID] [--checkpoint PATH]");
         Console.WriteLine("  adventure inspect [--checkpoint PATH] [--location ID] [--fixture HTML]");
         Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
+        Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
         Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
         Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
     }
