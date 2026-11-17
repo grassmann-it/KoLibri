@@ -63,6 +63,44 @@ public sealed class BoundedAdventureRunnerTests
         Assert.Contains("fresh condition snapshot", result.Conditions[0].Reason);
     }
 
+    [Fact]
+    public async Task RunsAllowlistedAdventureFightAndRewardToCompletion()
+    {
+        using var transport = new AdventureExecutionFixtureTransport();
+        transport.EnqueueObservation(AdventureTransportOperation.Adventure,
+            new AdventureKernelObservation
+            {
+                AdventureId = "skeleton",
+                Kind = AdventureEncounterKind.Fight,
+                EncounterId = "encounter-1",
+                MonsterId = "skeleton",
+                FightRound = 1,
+                ResponseHash = "start-hash"
+            });
+        transport.EnqueueObservation(AdventureTransportOperation.Fight,
+            new AdventureKernelObservation
+            {
+                AdventureId = "skeleton",
+                Kind = AdventureEncounterKind.Reward,
+                ResponseHash = "reward-hash"
+            });
+
+        await using var gateway = new AdventureExecutionGateway(transport, new InMemoryAdventureRunCheckpointStore());
+        var allowlist = new AdventureActionAllowlist()
+            .AddAdventure("skeleton")
+            .AddFightAction("skeleton", "attack", "encounter-1", 1, "skeleton");
+        var result = await new BoundedAdventureRunner(gateway).RunAsync(
+            new AdventureRunRequest { RunId = "complete", AdventureId = "skeleton" },
+            allowlist,
+            options: new BoundedAdventureRunnerOptions { MaxGatewaySteps = 3 });
+
+        Assert.Equal(BoundedAdventureRunStopReason.Complete, result.StopReason);
+        Assert.Equal(2, result.Steps.Count);
+        Assert.Equal(1, transport.Count(AdventureTransportOperation.Adventure));
+        Assert.Equal(1, transport.Count(AdventureTransportOperation.Fight));
+        Assert.True(result.LastStep!.IsComplete);
+    }
+
     private sealed class StaticConditionProvider(AdventureConditionSnapshot snapshot) : IAdventureConditionSnapshotProvider
     {
         public ValueTask<AdventureConditionSnapshot> ReadAsync(CancellationToken cancellationToken = default)
