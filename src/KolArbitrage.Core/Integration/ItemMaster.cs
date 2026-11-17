@@ -331,7 +331,8 @@ public sealed record ItemMasterRecord
             value.Contains("(unopened)", StringComparison.Ordinal) ||
             value.StartsWith("wrapped ", StringComparison.Ordinal) ||
             value.Contains("(wrapped)", StringComparison.Ordinal) ||
-            value.Contains("boxed", StringComparison.Ordinal) ||
+            (!value.Contains("unboxed", StringComparison.Ordinal) &&
+                value.Contains("boxed", StringComparison.Ordinal)) ||
             value.Contains("scabbarded", StringComparison.Ordinal) ||
             value.Contains("shrink-wrapped", StringComparison.Ordinal) ||
             value.Contains("shrink wrapped", StringComparison.Ordinal) ||
@@ -345,9 +346,11 @@ public sealed record ItemMasterRecord
             return ItemVariantKind.Packaged;
         if (useTags.Contains("open") || useTags.Contains("opened") ||
             value.StartsWith("opened ", StringComparison.Ordinal) ||
+            value.StartsWith("unboxed ", StringComparison.Ordinal) ||
             value.StartsWith("unwrapped ", StringComparison.Ordinal) ||
             value.Contains("(opened)", StringComparison.Ordinal) ||
-            value.Contains("(unwrapped)", StringComparison.Ordinal))
+            value.Contains("(unwrapped)", StringComparison.Ordinal) ||
+            value.Contains("unboxed", StringComparison.Ordinal))
             return ItemVariantKind.Opened;
         return ItemVariantKind.None;
     }
