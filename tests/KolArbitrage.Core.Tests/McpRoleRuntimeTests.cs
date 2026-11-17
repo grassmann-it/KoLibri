@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Integration;
 using KolLibri.Mcp;
@@ -59,6 +60,19 @@ public sealed class McpRoleRuntimeTests
         Assert.NotNull(response);
         var structured = response!.Value.GetProperty("result").GetProperty("structuredContent");
         Assert.Equal(20, structured.GetProperty("lowestSellPrice").GetDecimal());
+    }
+
+    [Fact]
+    public void CombatGatewayRegistrationIsExplicitAndDiscoverable()
+    {
+        using var transport = new ManualCombatFixtureTransport();
+        using var gateway = new ManualCombatGateway(transport);
+        var runtime = new LibKolibriRuntime().RegisterCombatGateway(gateway);
+
+        var combat = runtime.Get<ICombatGateway>();
+        Assert.IsType<CoreCombatGateway>(combat);
+        Assert.Contains(KolibriCapability.Combat,
+            runtime.Describe().Modules.Single().Capabilities);
     }
 
     private static JsonElement Parse(string json)
