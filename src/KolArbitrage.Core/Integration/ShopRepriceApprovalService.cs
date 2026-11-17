@@ -875,6 +875,17 @@ public sealed class ShopRepriceService : ShopRepriceApprovalService
         : base(client, policy, accountLane, clock, idempotency, audit)
     {
     }
+
+    public ShopRepriceService(
+        KoLShopMutationClient client,
+        IAccountExecutionLane accountLane,
+        ShopRepricePolicy? policy = null,
+        TimeProvider? clock = null,
+        IShopRepriceIdempotencyStore? idempotency = null,
+        IAuditEventJournal? audit = null)
+        : base(client, accountLane, policy, clock, idempotency, audit)
+    {
+    }
 }
 
 /// <summary>Compatibility name for hosts that expose a KoL-specific adapter.</summary>
@@ -890,6 +901,17 @@ public sealed class KoLShopRepriceService : ShopRepriceApprovalService
         : base(client, policy, accountLane, clock, idempotency, audit)
     {
     }
+
+    public KoLShopRepriceService(
+        KoLShopMutationClient client,
+        IAccountExecutionLane accountLane,
+        ShopRepricePolicy? policy = null,
+        TimeProvider? clock = null,
+        IShopRepriceIdempotencyStore? idempotency = null,
+        IAuditEventJournal? audit = null)
+        : base(client, accountLane, policy, clock, idempotency, audit)
+    {
+    }
 }
 
 /// <summary>Compatibility name for hosts that expose a gateway boundary.</summary>
@@ -903,6 +925,17 @@ public sealed class ShopRepriceGateway : ShopRepriceApprovalService
         IShopRepriceIdempotencyStore? idempotency = null,
         IAuditEventJournal? audit = null)
         : base(client, policy, accountLane, clock, idempotency, audit)
+    {
+    }
+
+    public ShopRepriceGateway(
+        KoLShopMutationClient client,
+        IAccountExecutionLane accountLane,
+        ShopRepricePolicy? policy = null,
+        TimeProvider? clock = null,
+        IShopRepriceIdempotencyStore? idempotency = null,
+        IAuditEventJournal? audit = null)
+        : base(client, accountLane, policy, clock, idempotency, audit)
     {
     }
 }
