@@ -1271,7 +1271,7 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
             snapshot.Kind,
             snapshot.AccountId,
             snapshot.ItemId,
-            snapshot.IsError || snapshot.IsExpired));
+            !optional && (snapshot.IsError || snapshot.IsExpired)));
     }
 
     private void InvalidateAdapter(ReadAccountSource source, string? accountId, string? itemId)
