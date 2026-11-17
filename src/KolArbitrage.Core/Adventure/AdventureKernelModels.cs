@@ -150,6 +150,8 @@ public sealed record AdventureRunRequest
 {
     public string RunId { get; init; } = string.Empty;
     public string AdventureId { get; init; } = string.Empty;
+    /// <summary>KoL's numeric adventure form value, when supplied by the catalog.</summary>
+    public int? Snarfblat { get; init; }
     /// <summary>
     /// Optional typed location metadata. Existing callers can continue to set
     /// only <see cref="AdventureId"/>; when present this entry keeps the
@@ -455,6 +457,8 @@ public sealed record AdventureCheckpoint
     public long Revision { get; init; }
     public string RunId { get; init; } = string.Empty;
     public string AdventureId { get; init; } = string.Empty;
+    /// <summary>KoL's numeric adventure form value persisted for resume.</summary>
+    public int? Snarfblat { get; init; }
     public AccountRole Role { get; init; } = AccountRole.Main;
     public AdventureRunPhase Phase { get; init; } = AdventureRunPhase.Ready;
     public AdventureDailyLimitContract DailyLimit { get; init; } = new();
@@ -489,6 +493,7 @@ public sealed record AdventureCheckpoint
         {
             RunId = state.RunId,
             AdventureId = state.AdventureId,
+            Snarfblat = null,
             Role = state.Role,
             Phase = state.Phase,
             DailyLimit = state.DailyLimit,
@@ -519,6 +524,7 @@ public sealed record AdventureCheckpoint
         {
             RunId = RunId.Trim(),
             AdventureId = AdventureId.Trim(),
+            Snarfblat = Snarfblat is > 0 ? Snarfblat : null,
             DailyLimit = (DailyLimit ?? new AdventureDailyLimitContract()).Normalize(),
             Counters = (Counters ?? new AdventureCounterContract()).Normalize(),
             ResponseHashes = ResponseHashes ?? Array.Empty<string>(),

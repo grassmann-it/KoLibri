@@ -274,14 +274,13 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         switch (operation)
         {
             case AdventureTransportOperation.Adventure:
-                // The gateway includes all three aliases for compatibility
-                // with KoL pages. A direct transport caller only needs the
-                // canonical snarfblat field.
+                var expectedSnarfblat = request.Snarfblat?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? request.AdventureId;
                 if (!fields.ContainsKey("snarfblat"))
-                    fields["snarfblat"] = request.AdventureId;
-                EnsureFieldMatches(fields, "snarfblat", request.AdventureId);
-                EnsureFieldMatches(fields, "adventure", request.AdventureId);
-                EnsureFieldMatches(fields, "location", request.AdventureId);
+                    fields["snarfblat"] = expectedSnarfblat;
+                EnsureFieldMatches(fields, "snarfblat", expectedSnarfblat);
+                if (fields.ContainsKey("adventure")) EnsureFieldMatches(fields, "adventure", request.AdventureId);
+                if (fields.ContainsKey("location")) EnsureFieldMatches(fields, "location", request.AdventureId);
                 break;
             case AdventureTransportOperation.Fight:
                 if (!fields.ContainsKey("action") && !string.IsNullOrWhiteSpace(request.ActionId))

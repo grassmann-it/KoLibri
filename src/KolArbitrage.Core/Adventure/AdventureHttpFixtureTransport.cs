@@ -300,9 +300,11 @@ public class AdventureHttpFixtureTransport : IAdventureExecutionHttpTransport, I
         switch (operation)
         {
             case AdventureTransportOperation.Adventure:
-                EnsureFieldMatches(fields, "snarfblat", request.AdventureId);
-                EnsureFieldMatches(fields, "adventure", request.AdventureId);
-                EnsureFieldMatches(fields, "location", request.AdventureId);
+                var expectedSnarfblat = request.Snarfblat?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? request.AdventureId;
+                EnsureFieldMatches(fields, "snarfblat", expectedSnarfblat);
+                if (fields.ContainsKey("adventure")) EnsureFieldMatches(fields, "adventure", request.AdventureId);
+                if (fields.ContainsKey("location")) EnsureFieldMatches(fields, "location", request.AdventureId);
                 break;
             case AdventureTransportOperation.Fight:
                 if (!fields.ContainsKey("action") && request.Action is not AdventureFightAction)

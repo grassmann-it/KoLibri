@@ -422,6 +422,7 @@ public sealed record AdventureTransportRequest
 
     public string RunId { get; init; } = string.Empty;
     public string AdventureId { get; init; } = string.Empty;
+    public int? Snarfblat { get; init; }
     /// <summary>
     /// Optional profile id for hosts that bind a transport to one account.
     /// The gateway can leave this empty; a configured transport then uses its
@@ -510,6 +511,8 @@ public sealed record AdventureTransportRequest
             throw new ArgumentException("An adventure run id is too long.", nameof(RunId));
         if (string.IsNullOrWhiteSpace(AdventureId))
             throw new ArgumentException("An adventure id is required.", nameof(AdventureId));
+        if (Snarfblat is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(Snarfblat));
         if (!Enum.IsDefined(Operation))
             throw new ArgumentOutOfRangeException(nameof(Operation));
         if (!Enum.IsDefined(Role))

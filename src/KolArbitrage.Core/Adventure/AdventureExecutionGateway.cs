@@ -162,6 +162,9 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
 
         var decision = _kernel.Begin(value, allowlist);
         var initial = PrepareCheckpoint(decision.Checkpoint, expected: null);
+        var snarfblat = value.Location?.Snarfblat ?? value.Snarfblat;
+        if (snarfblat is > 0)
+            initial = initial with { Snarfblat = snarfblat };
         if (!await TryCasAsync(null, initial, cancellationToken).ConfigureAwait(false))
         {
             var conflict = AbortForRequest(value, AdventureAbortReason.CheckpointConflict,
@@ -627,7 +630,8 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
             case AdventureEncounterAction:
                 fields["adventure"] = state.AdventureId;
                 fields["location"] = state.AdventureId;
-                fields["snarfblat"] = state.AdventureId;
+                fields["snarfblat"] = checkpoint.Snarfblat?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? state.AdventureId;
                 break;
             case AdventureFightAction fight:
                 fields["action"] = fight.ActionId;
@@ -655,6 +659,7 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
             RequestId = NewRequestId(),
             RunId = state.RunId,
             AdventureId = state.AdventureId,
+            Snarfblat = checkpoint.Snarfblat,
             Operation = operation,
             Action = action,
             Checkpoint = checkpoint,

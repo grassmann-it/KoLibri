@@ -20,6 +20,34 @@ public sealed class AdventureExecutionGatewayTests
         };
 
     [Fact]
+    public async Task StartPersistsCatalogSnarfblatAndBindsItToAdventureForm()
+    {
+        var transport = new AdventureExecutionFixtureTransport();
+        transport.EnqueueObservation(
+            AdventureTransportOperation.Adventure,
+            new AdventureKernelObservation
+            {
+                AdventureId = "skeleton",
+                Kind = AdventureEncounterKind.Reward,
+                CanContinue = false,
+                ResponseHash = "snarfblat-page"
+            });
+
+        var request = Request("snarfblat-gateway") with { Snarfblat = 123 };
+        await using var gateway = new AdventureExecutionGateway(
+            transport, new InMemoryAdventureRunCheckpointStore());
+
+        var result = await gateway.StartAsync(request, SkeletonAllowlist());
+
+        Assert.Equal(AdventureExecutionStatus.Complete, result.Status);
+        var post = Assert.Single(transport.Requests);
+        Assert.Equal(123, post.Snarfblat);
+        Assert.Equal("123", post.Fields["snarfblat"]);
+        Assert.Equal("skeleton", post.Fields["adventure"]);
+        Assert.Equal("skeleton", post.Fields["location"]);
+    }
+
+    [Fact]
     public async Task StartAndFightUseCorrelatedFixtureRequestsAndCasCheckpoint()
     {
         var transport = new AdventureExecutionFixtureTransport();
