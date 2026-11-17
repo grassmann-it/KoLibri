@@ -97,6 +97,11 @@ public class ShopRepriceApprovalService : IDisposable
         CancellationToken cancellationToken = default)
         => PreviewAsync(request, cancellationToken);
 
+    public Task<ShopRepricePreview> PlanAsync(
+        ShopRepriceRequest request,
+        CancellationToken cancellationToken = default)
+        => PreviewAsync(request, cancellationToken);
+
     public ShopRepricePreview Preview(
         ShopRepriceRequest request,
         CancellationToken cancellationToken = default)
