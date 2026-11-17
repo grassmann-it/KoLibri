@@ -39,6 +39,38 @@ public sealed class ManualCombatFixtureTests
             ResponseHash = hash
         };
 
+    [Fact]
+    public async Task BoundedRunnerRefreshesBetweenApprovedRoundsAndStopsOnVictory()
+    {
+        var transport = new ManualCombatFixtureTransport();
+        transport.EnqueueObservation(
+            ManualCombatTransportOperation.Inspect,
+            Active("hash-1", actions: LegalActions()));
+        transport.EnqueueObservation(
+            ManualCombatTransportOperation.Inspect,
+            Active("hash-1", actions: LegalActions()));
+        transport.EnqueueObservation(
+            ManualCombatTransportOperation.Submit,
+            Active("hash-2", round: 2, actions: LegalActions()));
+        transport.EnqueueObservation(
+            ManualCombatTransportOperation.Refresh,
+            Won("hash-3", round: 3));
+        await using var gateway = new ManualCombatGateway(transport);
+        var runner = new BoundedManualCombatRunner(gateway);
+
+        var result = await runner.RunAsync(
+            "combat-1",
+            (_, _) => ValueTask.FromResult<ManualCombatAction?>(ManualCombatAction.Attack()),
+            options: new BoundedManualCombatRunnerOptions { MaxActions = 3 });
+
+        Assert.Equal(BoundedManualCombatStopReason.Complete, result.StopReason);
+        Assert.Single(result.Steps);
+        Assert.Equal(ManualCombatStatus.Committed, result.Steps[0].Status);
+        Assert.Equal(2, transport.Count(ManualCombatTransportOperation.Inspect));
+        Assert.Equal(1, transport.Count(ManualCombatTransportOperation.Submit));
+        Assert.Equal(1, transport.Count(ManualCombatTransportOperation.Refresh));
+    }
+
     [Theory]
     [MemberData(nameof(ManualActions))]
     public async Task ManualActionPreviewAndCommitSendExactlyOneTypedPost(ManualCombatAction action)
