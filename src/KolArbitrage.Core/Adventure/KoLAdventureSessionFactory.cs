@@ -1,4 +1,5 @@
 using KolArbitrage.Core.Accounts;
+using KolArbitrage.Core.Integration;
 
 namespace KolArbitrage.Core.Adventure;
 
@@ -21,6 +22,7 @@ public static class KoLAdventureSessionFactory
         IAdventureVerificationHook verification,
         AccountSessionManager? accounts = null,
         IAdventureRunCheckpointStore? checkpoints = null,
+        IAuditEventJournal? auditJournal = null,
         AdventureHttpTransportOptions? options = null,
         CancellationToken cancellationToken = default)
     {
@@ -38,11 +40,14 @@ public static class KoLAdventureSessionFactory
         try
         {
             var transport = new HttpAdventureExecutionTransport(http, binding, options);
+            var hooks = auditJournal is null
+                ? null
+                : new AuditedAdventureHooks(approval, verification, auditJournal);
             var gateway = new AdventureExecutionGateway(
                 transport,
                 checkpoints ?? new JsonFileAdventureRunCheckpointStore(DefaultCheckpointDirectory),
-                approval: approval,
-                verification: verification);
+                approval: hooks ?? approval,
+                verification: hooks ?? verification);
             return new KoLAdventureSession(session, http, transport, gateway);
         }
         catch
