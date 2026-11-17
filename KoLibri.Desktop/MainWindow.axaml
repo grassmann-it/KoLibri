@@ -95,6 +95,12 @@
                   Tag="Adventure"
                   Click="AdventureClick"
                   AutomationProperties.Name="Adventure öffnen" />
+          <Button x:Name="NavCombat"
+                  Classes="nav-item"
+                  Content="⚔   Combat"
+                  Tag="Combat"
+                  Click="CombatClick"
+                  AutomationProperties.Name="Combat öffnen" />
           <Button x:Name="NavSettings"
                   Classes="nav-item"
                   Content="⚙   Einstellungen"
@@ -151,6 +157,12 @@
                   Tag="Adventure"
                   Click="AdventureClick"
                   AutomationProperties.Name="Adventure öffnen" />
+          <Button x:Name="CompactNavCombat"
+                  Classes="nav-item"
+                  Content="⚔ Combat"
+                  Tag="Combat"
+                  Click="CombatClick"
+                  AutomationProperties.Name="Combat öffnen" />
           <Button x:Name="CompactNavSettings"
                   Classes="nav-item"
                   Content="⚙ Mehr"
@@ -461,6 +473,46 @@
                            Classes="muted" TextWrapping="Wrap" />
                 <TextBlock x:Name="AdventurePlanAdvisories" Classes="muted"
                            TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="CombatPanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="3">
+              <TextBlock Text="Combat" Classes="h2" />
+              <TextBlock Text="Manuelle und AutoCombat-Entscheidungen werden aus dem aktuellen Fight-Snapshot previewt."
+                         Classes="muted" TextWrapping="Wrap" FontSize="12" />
+            </StackPanel>
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+              <Border Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Modus" Classes="muted" />
+                  <TextBlock Text="Manual / AutoCombat" Classes="body" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="1" Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Policy" Classes="muted" />
+                  <TextBlock Text="deterministisch · allowlisted" Classes="body" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="2" Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Mutation" Classes="muted" />
+                  <TextBlock Text="Approval erforderlich" Classes="body" />
+                </StackPanel>
+              </Border>
+            </Grid>
+            <Border Classes="panel-subtle">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Nächste Aktion" Classes="body" />
+                <TextBlock x:Name="CombatPreviewSummary"
+                           Text="Noch keine Combat-Observation geladen."
+                           Classes="muted" TextWrapping="Wrap" />
+                <TextBlock Text="CLI: combat manual · MCP: kol_autocombat_action_preview"
+                           Classes="muted" FontSize="12" />
               </StackPanel>
             </Border>
           </StackPanel>

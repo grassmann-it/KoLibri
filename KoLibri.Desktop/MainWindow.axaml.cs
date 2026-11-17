@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private Border? _accountsPanel;
     private Border? _mallPanel;
     private Border? _adventurePanel;
+    private Border? _combatPanel;
     private TextBlock? _mallRoleLabel;
     private TextBlock? _mallSummary;
     private TextBlock? _mallRows;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private TextBlock? _adventureKnucklebonesLabel;
     private TextBlock? _adventurePlanSummary;
     private TextBlock? _adventurePlanAdvisories;
+    private TextBlock? _combatPreviewSummary;
     private ComboBox? _accountRoleSelector;
     private Button? _globalRefreshButton;
     private ProgressBar? _busyIndicator;
@@ -69,6 +71,7 @@ public partial class MainWindow : Window
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
         _mallPanel = this.FindControl<Border>("MallPanel");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
+        _combatPanel = this.FindControl<Border>("CombatPanel");
         _mallRoleLabel = this.FindControl<TextBlock>("MallRoleLabel");
         _mallSummary = this.FindControl<TextBlock>("MallSummary");
         _mallRows = this.FindControl<TextBlock>("MallRows");
@@ -77,6 +80,7 @@ public partial class MainWindow : Window
         _adventureKnucklebonesLabel = this.FindControl<TextBlock>("AdventureKnucklebonesLabel");
         _adventurePlanSummary = this.FindControl<TextBlock>("AdventurePlanSummary");
         _adventurePlanAdvisories = this.FindControl<TextBlock>("AdventurePlanAdvisories");
+        _combatPreviewSummary = this.FindControl<TextBlock>("CombatPreviewSummary");
         _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
@@ -152,6 +156,12 @@ public partial class MainWindow : Window
     {
         Navigate("Adventure");
         await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(false, cancellationToken));
+    }
+    private void CombatClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Combat");
+        if (_combatPreviewSummary is not null)
+            _combatPreviewSummary.Text = "Keine Observation geladen. Preview bleibt blockiert, bis Monster, Runde und legale Actions frisch gelesen wurden.";
     }
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Einstellungen");
     private async void RefreshClick(object? sender, RoutedEventArgs e)
@@ -498,6 +508,7 @@ public partial class MainWindow : Window
         var isAccounts = string.Equals(section, "Konten & Transfer", StringComparison.Ordinal);
         var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
         var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
+        var isCombat = string.Equals(section, "Combat", StringComparison.Ordinal);
         var (title, description) = DescribeSection(section);
 
         if (_overviewPanel is not null)
@@ -508,8 +519,10 @@ public partial class MainWindow : Window
             _mallPanel.IsVisible = isMall;
         if (_adventurePanel is not null)
             _adventurePanel.IsVisible = isAdventure;
+        if (_combatPanel is not null)
+            _combatPanel.IsVisible = isCombat;
         if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall && !isAdventure;
+            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall && !isAdventure && !isCombat;
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
         if (_shellPageDescription is not null)
@@ -543,6 +556,7 @@ public partial class MainWindow : Window
             "Mall & Shop" => ("Mall & Shop", "Eigene Listings und Marktpreise werden für das ausgewählte Konto read-only geladen."),
             "Konten & Transfer" => ("Konten & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
             "Adventure" => ("Adventure", "Tagesziele und Farm-vs-Buy-Pläne erscheinen hier, sobald ein Query-Service verbunden ist."),
+            "Combat" => ("Combat", "Manuelle und deklarative AutoCombat-Entscheidungen bleiben an frische Fight-Observations und Approval gebunden."),
             "Einstellungen" => ("Einstellungen", "Shell-, Cache- und Sicherheitsoptionen werden hier verwaltet."),
             _ => (section, "Dieser Bereich hat noch keine geladenen Daten.")
         };
@@ -576,12 +590,14 @@ public partial class MainWindow : Window
             this.FindControl<Button>("NavMall"),
             this.FindControl<Button>("NavAccounts"),
             this.FindControl<Button>("NavAdventure"),
+            this.FindControl<Button>("NavCombat"),
             this.FindControl<Button>("NavSettings"),
             this.FindControl<Button>("CompactNavOverview"),
             this.FindControl<Button>("CompactNavPricing"),
             this.FindControl<Button>("CompactNavMall"),
             this.FindControl<Button>("CompactNavAccounts"),
             this.FindControl<Button>("CompactNavAdventure"),
+            this.FindControl<Button>("CompactNavCombat"),
             this.FindControl<Button>("CompactNavSettings")
         };
 
