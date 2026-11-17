@@ -235,6 +235,7 @@ public sealed record TurnCounterCasResult
     public TurnCounter? Previous { get; init; }
     public long Version => Saved?.Revision ?? Current?.Revision ?? 0;
     public bool Conflict => !Succeeded;
+    public bool IsConflict => Conflict;
     public static implicit operator bool(TurnCounterCasResult? result) => result?.Succeeded == true;
     public static TurnCounterCasResult SuccessResult(TurnCounter saved, TurnCounter? previous = null)
         => new() { Succeeded = true, Current = saved, Saved = saved, Previous = previous };
@@ -252,6 +253,7 @@ public sealed record TurnSnapshotCasResult
     public TurnSnapshot? Previous { get; init; }
     public long Version => Saved?.Revision ?? Current?.Revision ?? 0;
     public bool Conflict => !Succeeded;
+    public bool IsConflict => Conflict;
     public static implicit operator bool(TurnSnapshotCasResult? result) => result?.Succeeded == true;
     public static TurnSnapshotCasResult SuccessResult(TurnSnapshot saved, TurnSnapshot? previous = null)
         => new() { Succeeded = true, Current = saved, Saved = saved, Previous = previous };
