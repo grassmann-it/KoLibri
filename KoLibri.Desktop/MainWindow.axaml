@@ -417,6 +417,55 @@
           </StackPanel>
         </Border>
 
+        <Border x:Name="AdventurePanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <StackPanel Spacing="3">
+                <TextBlock Text="Adventure &amp; Farm" Classes="h2" />
+                <TextBlock Text="Frischer Status-/Inventar-Read und bounded Tagesplan; Ausführung bleibt separat freigabepflichtig."
+                           Classes="muted" TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="⟳  Plan aktualisieren"
+                      Click="RefreshAdventureClick" Classes="primary"
+                      AutomationProperties.Name="Adventure-Plan aktualisieren" />
+            </Grid>
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+              <Border Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Konto" Classes="muted" />
+                  <TextBlock x:Name="AdventureAccountLabel" Text="Mallbot" Classes="body" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="1" Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Adventures" Classes="muted" />
+                  <TextBlock x:Name="AdventureTurnsLabel" Text="—" Classes="body" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="2" Classes="panel-subtle">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Knucklebones" Classes="muted" />
+                  <TextBlock x:Name="AdventureKnucklebonesLabel" Text="— / 100" Classes="body" />
+                </StackPanel>
+              </Border>
+            </Grid>
+            <Border Classes="panel-subtle">
+              <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="Tagesplan" Classes="body" />
+                  <Border Grid.Column="1" Classes="badge info">
+                    <TextBlock Text="Preview only" Classes="badge-text info" />
+                  </Border>
+                </Grid>
+                <TextBlock x:Name="AdventurePlanSummary" Text="Noch kein Snapshot geladen."
+                           Classes="muted" TextWrapping="Wrap" />
+                <TextBlock x:Name="AdventurePlanAdvisories" Classes="muted"
+                           TextWrapping="Wrap" FontSize="12" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
         <Border x:Name="StatusBar" Classes="panel-subtle" IsVisible="False">
           <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
             <Border Classes="badge info">

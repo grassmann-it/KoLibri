@@ -29,9 +29,15 @@ public partial class MainWindow : Window
     private TextBlock? _pageStateStatus;
     private Border? _accountsPanel;
     private Border? _mallPanel;
+    private Border? _adventurePanel;
     private TextBlock? _mallRoleLabel;
     private TextBlock? _mallSummary;
     private TextBlock? _mallRows;
+    private TextBlock? _adventureAccountLabel;
+    private TextBlock? _adventureTurnsLabel;
+    private TextBlock? _adventureKnucklebonesLabel;
+    private TextBlock? _adventurePlanSummary;
+    private TextBlock? _adventurePlanAdvisories;
     private ComboBox? _accountRoleSelector;
     private Button? _globalRefreshButton;
     private ProgressBar? _busyIndicator;
@@ -62,9 +68,15 @@ public partial class MainWindow : Window
         _pageStateStatus = this.FindControl<TextBlock>("PageStateStatus");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
         _mallPanel = this.FindControl<Border>("MallPanel");
+        _adventurePanel = this.FindControl<Border>("AdventurePanel");
         _mallRoleLabel = this.FindControl<TextBlock>("MallRoleLabel");
         _mallSummary = this.FindControl<TextBlock>("MallSummary");
         _mallRows = this.FindControl<TextBlock>("MallRows");
+        _adventureAccountLabel = this.FindControl<TextBlock>("AdventureAccountLabel");
+        _adventureTurnsLabel = this.FindControl<TextBlock>("AdventureTurnsLabel");
+        _adventureKnucklebonesLabel = this.FindControl<TextBlock>("AdventureKnucklebonesLabel");
+        _adventurePlanSummary = this.FindControl<TextBlock>("AdventurePlanSummary");
+        _adventurePlanAdvisories = this.FindControl<TextBlock>("AdventurePlanAdvisories");
         _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
@@ -136,7 +148,11 @@ public partial class MainWindow : Window
         Navigate("Konten & Transfer");
         await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
     }
-    private void AdventureClick(object? sender, RoutedEventArgs e) => Navigate("Adventure");
+    private async void AdventureClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Adventure");
+        await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(false, cancellationToken));
+    }
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Einstellungen");
     private async void RefreshClick(object? sender, RoutedEventArgs e)
     {
@@ -148,6 +164,9 @@ public partial class MainWindow : Window
             case "Konten & Transfer":
                 await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
                 break;
+            case "Adventure":
+                await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
+                break;
             default:
                 await RunBusyOperationAsync("Aktualisierung", RefreshCurrentPageStateAsync);
                 break;
@@ -156,6 +175,9 @@ public partial class MainWindow : Window
 
     private async void RefreshMallClick(object? sender, RoutedEventArgs e)
         => await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(true, cancellationToken));
+
+    private async void RefreshAdventureClick(object? sender, RoutedEventArgs e)
+        => await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
 
     private void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -313,6 +335,52 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task RefreshAdventureAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        if (_adventureAccountLabel is null || _adventureTurnsLabel is null
+            || _adventureKnucklebonesLabel is null || _adventurePlanSummary is null
+            || _adventurePlanAdvisories is null) return;
+        await _accounts.InitializeAsync(cancellationToken);
+        var role = _selectedRole;
+        _adventureAccountLabel.Text = role.ToString();
+        var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken);
+        if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
+        {
+            _adventureTurnsLabel.Text = "—";
+            _adventureKnucklebonesLabel.Text = "— / 100";
+            _adventurePlanSummary.Text = $"Bitte zuerst {role} über Konten anmelden.";
+            _adventurePlanAdvisories.Text = "Kein Session-Snapshot verfügbar.";
+            UpdatePageStateStatus("Adventure", $"Kein gültiger {role}-Login vorhanden.");
+            return;
+        }
+
+        using var http = KoLLoginClient.CreateAuthenticatedClient(
+            session.Credentials,
+            new Uri("https://www.kingdomofloathing.com/"));
+        var account = new KoLAccountReadClient(http);
+        var status = await account.FetchStatusAsync(forceRefresh, cancellationToken);
+        var inventory = await account.FetchInventoryAsync(forceRefresh, cancellationToken);
+        var knucklebones = inventory.Items
+            .Where(item => item.ItemId.Contains("knucklebone", StringComparison.OrdinalIgnoreCase)
+                || item.Name.Contains("knucklebone", StringComparison.OrdinalIgnoreCase))
+            .Sum(item => item.Quantity);
+        _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
+        _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
+        var state = new KolArbitrage.Core.Adventure.AdventureState
+        {
+            Knucklebones = Math.Max(0, knucklebones),
+            AdventureTurnsRemaining = Math.Max(0, status.Adventures),
+            SkeletonOfCrimbosPastAvailable = true
+        };
+        var plan = new KolArbitrage.Core.Adventure.DailyAdventurePlanner().Plan(state);
+        _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} Schritt(e), prognostiziert {plan.ProjectedKnucklebones:N1} Knucklebones.";
+        _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
+            ? "Keine Warnungen. Jede Ausführung bleibt Approval-/Verify-gebunden."
+            : string.Join(Environment.NewLine, plan.Advisories);
+        UpdatePageStateStatus("Adventure", $"Status und Inventar von {role} geladen; Preview only.");
+        SetStatus("Adventure-Plan aktualisiert. Keine Adventure- oder Kampfaktion wurde gesendet.");
+    }
+
     private async Task LoadSavedAccountsAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -429,6 +497,7 @@ public partial class MainWindow : Window
         var isOverview = string.Equals(section, "Übersicht", StringComparison.Ordinal);
         var isAccounts = string.Equals(section, "Konten & Transfer", StringComparison.Ordinal);
         var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
+        var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
         var (title, description) = DescribeSection(section);
 
         if (_overviewPanel is not null)
@@ -437,8 +506,10 @@ public partial class MainWindow : Window
             _accountsPanel.IsVisible = isAccounts;
         if (_mallPanel is not null)
             _mallPanel.IsVisible = isMall;
+        if (_adventurePanel is not null)
+            _adventurePanel.IsVisible = isAdventure;
         if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall;
+            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall && !isAdventure;
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
         if (_shellPageDescription is not null)
