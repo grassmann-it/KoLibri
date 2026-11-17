@@ -82,7 +82,8 @@ internal static class KolibriCli
         var password = await ReadPasswordAsync();
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("Passwort fehlt.");
 
-        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword: true);
+        var rememberPassword = !HasFlag(args, "--no-remember-password");
+        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword);
         var accounts = AccountSessionManager.CreateDefault();
         await accounts.SetProfileAsync(new AccountProfile
         {
@@ -92,7 +93,7 @@ internal static class KolibriCli
             Enabled = true
         });
         await accounts.SetCredentialsAsync(role, login.Credentials);
-        WriteJson(new { ok = true, role = role.ToString(), username, loggedInAt = login.LoggedInAt });
+        WriteJson(new { ok = true, role = role.ToString(), username, rememberPassword, loggedInAt = login.LoggedInAt });
         return 0;
     }
 
@@ -783,7 +784,7 @@ internal static class KolibriCli
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
         Console.WriteLine("  login main|mallbot                         fragt Benutzername/Passwort interaktiv ab");
-        Console.WriteLine("  login --role main|mallbot --username NAME  Passwort kommt aus stdin oder Prompt");
+        Console.WriteLine("  login --role main|mallbot --username NAME [--no-remember-password]");
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  shop --role mallbot [--refresh]");

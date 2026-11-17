@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Styling;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Analytics;
 using KolArbitrage.Core.Integration;
@@ -8,6 +11,13 @@ namespace KoLibri.Desktop;
 
 public partial class MainWindow : Window
 {
+    private Border? _sidebar;
+    private Border? _compactNavigation;
+    private StackPanel? _contentRoot;
+    private Button? _themeToggleButton;
+    private Button? _compactThemeToggleButton;
+    private TextBlock? _sidebarThemeLabel;
+    private bool _isOpsDark;
     private TextBlock? _statusText;
     private Border? _statusBar;
     private Border? _accountsPanel;
@@ -20,19 +30,64 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _sidebar = this.FindControl<Border>("Sidebar");
+        _compactNavigation = this.FindControl<Border>("CompactNavigation");
+        _contentRoot = this.FindControl<StackPanel>("ContentRoot");
+        _themeToggleButton = this.FindControl<Button>("ThemeToggleButton");
+        _compactThemeToggleButton = this.FindControl<Button>("CompactThemeToggleButton");
+        _sidebarThemeLabel = this.FindControl<TextBlock>("SidebarThemeLabel");
         _statusText = this.FindControl<TextBlock>("StatusText");
         _statusBar = this.FindControl<Border>("StatusBar");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
         _mallPanel = this.FindControl<Border>("MallPanel");
         _mallSummary = this.FindControl<TextBlock>("MallSummary");
         _mallRows = this.FindControl<TextBlock>("MallRows");
+        SizeChanged += WindowSizeChanged;
+        Opened += (_, _) => UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         _ = LoadSavedAccountsAsync();
     }
 
     private void InitializeComponent() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
 
+    private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
+        => UpdateResponsiveLayout(e.NewSize.Width);
+
+    private void UpdateResponsiveLayout(double width)
+    {
+        // Keep the desktop rail when there is room for it. At smaller widths
+        // the same commands move into a horizontally scrollable top rail;
+        // no navigation state or handler changes between the two shells.
+        var compact = width > 0 && width < 1080;
+        if (_sidebar is not null)
+            _sidebar.IsVisible = !compact;
+        if (_compactNavigation is not null)
+            _compactNavigation.IsVisible = compact;
+        if (_contentRoot is not null)
+            _contentRoot.Margin = compact ? new Thickness(20, 20) : new Thickness(34, 30);
+    }
+
+    private void ThemeToggleClick(object? sender, RoutedEventArgs e)
+    {
+        _isOpsDark = !_isOpsDark;
+        if (Application.Current is not null)
+            Application.Current.RequestedThemeVariant = _isOpsDark ? ThemeVariant.Dark : ThemeVariant.Light;
+
+        var themeName = _isOpsDark ? "Ops Dark" : "Stickman Standard";
+        var buttonText = _isOpsDark ? "☀  Stickman Standard öffnen" : "☾  Ops Dark öffnen";
+        var compactButtonText = _isOpsDark ? "☀ Stickman" : "☾ Ops Dark";
+        if (_themeToggleButton is not null)
+            _themeToggleButton.Content = buttonText;
+        if (_compactThemeToggleButton is not null)
+            _compactThemeToggleButton.Content = compactButtonText;
+        if (_sidebarThemeLabel is not null)
+            _sidebarThemeLabel.Text = themeName;
+        RefreshAccountStatusBrushes();
+        SetStatus($"Theme „{themeName}“ aktiviert.");
+    }
+
     private void Navigate(string section)
     {
+        SetActiveNavigation(section);
         if (_statusText is not null)
             _statusText.Text = $"Bereich „{section}“ ist vorbereitet. Datenquellen werden im nächsten Schritt verbunden.";
         if (_statusBar is not null)
@@ -144,7 +199,7 @@ public partial class MainWindow : Window
         // or used implicitly for a new login.
         passwordBox.Text = string.Empty;
         status.Text = "Gespeichert (Session noch nicht geprüft)";
-        status.Foreground = Avalonia.Media.Brushes.DarkGoldenrod;
+        status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
     }
 
     private async void SaveAccountClick(object? sender, RoutedEventArgs e)
@@ -166,7 +221,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
             status.Text = "Benutzername und Passwort erforderlich";
-            status.Foreground = Avalonia.Media.Brushes.IndianRed;
+            status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
             return;
         }
 
@@ -186,25 +241,25 @@ public partial class MainWindow : Window
             await _accounts.ClearCredentialsAsync(role);
 
             status.Text = "Login läuft …";
-            status.Foreground = Avalonia.Media.Brushes.DarkGoldenrod;
+            status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
             var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
             await _accounts.SetCredentialsAsync(role, login.Credentials);
             status.Text = "Verbunden und verschlüsselt gespeichert";
-            status.Foreground = Avalonia.Media.Brushes.LightGreen;
+            status.Foreground = ThemeBrush("SuccessBrush", Brushes.LightGreen);
             SetStatus($"{role} ist bei KoL angemeldet. Read-only-Daten können jetzt geladen werden.");
         }
         catch (KoLLoginException exception)
         {
             passwordBox.Text = string.Empty;
             status.Text = "Login fehlgeschlagen (Passwort nicht gespeichert)";
-            status.Foreground = Avalonia.Media.Brushes.IndianRed;
+            status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
             SetStatus($"{role}: KoL-Login fehlgeschlagen [{exception.Reason}] ({exception.Message}). Bitte erneut versuchen.");
         }
         catch (Exception exception)
         {
             passwordBox.Text = string.Empty;
             status.Text = "Speichern fehlgeschlagen";
-            status.Foreground = Avalonia.Media.Brushes.IndianRed;
+            status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
             SetStatus($"{role} konnte nicht gespeichert werden: {exception.Message}");
         }
         finally
@@ -219,5 +274,60 @@ public partial class MainWindow : Window
             _statusText.Text = message;
         if (_statusBar is not null)
             _statusBar.IsVisible = true;
+    }
+
+    private void SetActiveNavigation(string section)
+    {
+        var buttons = new[]
+        {
+            this.FindControl<Button>("NavOverview"),
+            this.FindControl<Button>("NavPricing"),
+            this.FindControl<Button>("NavMall"),
+            this.FindControl<Button>("NavAccounts"),
+            this.FindControl<Button>("NavAdventure"),
+            this.FindControl<Button>("NavSettings"),
+            this.FindControl<Button>("CompactNavOverview"),
+            this.FindControl<Button>("CompactNavPricing"),
+            this.FindControl<Button>("CompactNavMall"),
+            this.FindControl<Button>("CompactNavAccounts"),
+            this.FindControl<Button>("CompactNavAdventure"),
+            this.FindControl<Button>("CompactNavSettings")
+        };
+
+        foreach (var button in buttons)
+        {
+            if (button is null)
+                continue;
+            if (string.Equals(button.Tag?.ToString(), section, StringComparison.Ordinal))
+                button.Classes.Add("active");
+            else
+                button.Classes.Remove("active");
+        }
+    }
+
+    private IBrush ThemeBrush(string key, IBrush fallback)
+        => this.FindResource(key) as IBrush ?? fallback;
+
+    private void RefreshAccountStatusBrushes()
+    {
+        var statuses = new[]
+        {
+            this.FindControl<TextBlock>("MainAccountStatus"),
+            this.FindControl<TextBlock>("MallbotAccountStatus")
+        };
+        foreach (var status in statuses)
+        {
+            if (status is null)
+                continue;
+            var text = status.Text ?? string.Empty;
+            var key = text.Contains("fehl", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("erforderlich", StringComparison.OrdinalIgnoreCase)
+                || text.Contains("fehlgeschlagen", StringComparison.OrdinalIgnoreCase)
+                ? "ErrorBrush"
+                : text.Contains("Verbunden", StringComparison.OrdinalIgnoreCase)
+                    ? "SuccessBrush"
+                    : "WarningBrush";
+            status.Foreground = ThemeBrush(key, Brushes.Gray);
+        }
     }
 }

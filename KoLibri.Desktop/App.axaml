@@ -1,43 +1,257 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="KoLibri.Desktop.App">
+             x:Class="KoLibri.Desktop.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <!--
+      KoLibri uses semantic tokens instead of page-specific colours. The
+      Light dictionary is Stickman Standard: warm paper, ink lines and
+      restrained KoL accents. Dark is the optional Ops Dark mode. Views only
+      consume token names, so changing modes preserves the information
+      hierarchy and navigation state.
+    -->
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="CanvasBrush" Color="#F7F2E9" />
+          <SolidColorBrush x:Key="CanvasSubtleBrush" Color="#EEE6D9" />
+          <SolidColorBrush x:Key="PanelBrush" Color="#FFFDF8" />
+          <SolidColorBrush x:Key="PanelAltBrush" Color="#F5EFE4" />
+          <SolidColorBrush x:Key="RaisedBrush" Color="#F5EFE4" />
+          <SolidColorBrush x:Key="SidebarBrush" Color="#EDE4D6" />
+          <SolidColorBrush x:Key="ControlBrush" Color="#FFFDF8" />
+          <SolidColorBrush x:Key="ControlAltBrush" Color="#F5EFE4" />
+          <SolidColorBrush x:Key="InkBrush" Color="#221F1B" />
+          <SolidColorBrush x:Key="TextBrush" Color="#221F1B" />
+          <SolidColorBrush x:Key="MutedTextBrush" Color="#6F675C" />
+          <SolidColorBrush x:Key="TextMutedBrush" Color="#6F675C" />
+          <SolidColorBrush x:Key="BorderBrush" Color="#CFC3B3" />
+          <SolidColorBrush x:Key="BorderStrongBrush" Color="#8B7A64" />
+          <SolidColorBrush x:Key="FocusBrush" Color="#0B5FA5" />
+          <SolidColorBrush x:Key="FocusRingBrush" Color="#0B5FA5" />
+          <SolidColorBrush x:Key="AccentBrush" Color="#0B5FA5" />
+          <SolidColorBrush x:Key="AccentHoverBrush" Color="#084A80" />
+          <SolidColorBrush x:Key="AccentSoftBrush" Color="#DCEAF5" />
+          <SolidColorBrush x:Key="SuccessBrush" Color="#177245" />
+          <SolidColorBrush x:Key="SuccessSoftBrush" Color="#D9EFE1" />
+          <SolidColorBrush x:Key="WarningBrush" Color="#9B5B00" />
+          <SolidColorBrush x:Key="WarningSoftBrush" Color="#F7E8C2" />
+          <SolidColorBrush x:Key="ErrorBrush" Color="#A13A2D" />
+          <SolidColorBrush x:Key="ErrorSoftBrush" Color="#F5D9D4" />
+          <SolidColorBrush x:Key="MeatBrush" Color="#986915" />
+          <SolidColorBrush x:Key="CrimboBrush" Color="#B33C35" />
+          <SolidColorBrush x:Key="AdventureBrush" Color="#2E7D4F" />
+          <SolidColorBrush x:Key="InkBlueBrush" Color="#0B5FA5" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="CanvasBrush" Color="#0E141A" />
+          <SolidColorBrush x:Key="CanvasSubtleBrush" Color="#111A21" />
+          <SolidColorBrush x:Key="PanelBrush" Color="#16212A" />
+          <SolidColorBrush x:Key="PanelAltBrush" Color="#1D2B35" />
+          <SolidColorBrush x:Key="RaisedBrush" Color="#1D2B35" />
+          <SolidColorBrush x:Key="SidebarBrush" Color="#10181F" />
+          <SolidColorBrush x:Key="ControlBrush" Color="#1A2730" />
+          <SolidColorBrush x:Key="ControlAltBrush" Color="#22333E" />
+          <SolidColorBrush x:Key="InkBrush" Color="#EBF0F2" />
+          <SolidColorBrush x:Key="TextBrush" Color="#E7EEF2" />
+          <SolidColorBrush x:Key="MutedTextBrush" Color="#9FB2BC" />
+          <SolidColorBrush x:Key="TextMutedBrush" Color="#9FB2BC" />
+          <SolidColorBrush x:Key="BorderBrush" Color="#31434D" />
+          <SolidColorBrush x:Key="BorderStrongBrush" Color="#587280" />
+          <SolidColorBrush x:Key="FocusBrush" Color="#78B7FF" />
+          <SolidColorBrush x:Key="FocusRingBrush" Color="#78B7FF" />
+          <SolidColorBrush x:Key="AccentBrush" Color="#6CB6FF" />
+          <SolidColorBrush x:Key="AccentHoverBrush" Color="#9BCFFF" />
+          <SolidColorBrush x:Key="AccentSoftBrush" Color="#1B344A" />
+          <SolidColorBrush x:Key="SuccessBrush" Color="#5CD49A" />
+          <SolidColorBrush x:Key="SuccessSoftBrush" Color="#16392D" />
+          <SolidColorBrush x:Key="WarningBrush" Color="#F0BA57" />
+          <SolidColorBrush x:Key="WarningSoftBrush" Color="#3F2E12" />
+          <SolidColorBrush x:Key="ErrorBrush" Color="#FF8E82" />
+          <SolidColorBrush x:Key="ErrorSoftBrush" Color="#46231F" />
+          <SolidColorBrush x:Key="MeatBrush" Color="#EBC76C" />
+          <SolidColorBrush x:Key="CrimboBrush" Color="#FF8F83" />
+          <SolidColorBrush x:Key="AdventureBrush" Color="#72D69F" />
+          <SolidColorBrush x:Key="InkBlueBrush" Color="#87C7FF" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!-- Densities stay semantic so future compact tables can opt in without
+           changing the shell's spacing contract. -->
+      <Thickness x:Key="ComfortableCardPadding">18</Thickness>
+      <Thickness x:Key="ComfortableContentMargin">34,30</Thickness>
+      <Thickness x:Key="CompactContentMargin">20,20</Thickness>
+    </ResourceDictionary>
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
+
     <Style Selector="Window">
-      <Setter Property="Background" Value="#0d1117" />
+      <Setter Property="Background" Value="{DynamicResource CanvasBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       <Setter Property="FontFamily" Value="Inter" />
     </Style>
+
     <Style Selector="TextBlock.h1">
       <Setter Property="FontSize" Value="28" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#f0f6fc" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="TextBlock.muted">
-      <Setter Property="Foreground" Value="#8b949e" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     </Style>
+    <Style Selector="TextBlock.kpi">
+      <Setter Property="FontSize" Value="27" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.body">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
     <Style Selector="Border.card">
-      <Setter Property="Background" Value="#161b22" />
-      <Setter Property="BorderBrush" Value="#30363d" />
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="18" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="{DynamicResource ComfortableCardPadding}" />
     </Style>
+    <Style Selector="Border.panel-subtle">
+      <Setter Property="Background" Value="{DynamicResource RaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.shell-sidebar">
+      <Setter Property="Background" Value="{DynamicResource SidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Border.shell-header">
+      <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+
     <Style Selector="Button.nav-item">
       <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="12,9" />
       <Setter Property="Margin" Value="0,2" />
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="#c9d1d9" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
     </Style>
     <Style Selector="Button.nav-item:pointerover">
-      <Setter Property="Background" Value="#21262d" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
+    <Style Selector="Button.nav-item:pressed">
+      <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Button.nav-item.active">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="#238636" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CanvasBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="13,8" />
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+      <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="11,7" />
+    </Style>
+    <Style Selector="Button.secondary:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ControlAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+    </Style>
+    <Style Selector="Button:focus">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="9,7" />
+    </Style>
+    <Style Selector="TextBox:focus">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ProgressBar">
+      <Setter Property="Foreground" Value="{DynamicResource AdventureBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ControlAltBrush}" />
+    </Style>
+
+    <!-- Status badges always include a textual label in the view. Colour is a
+         secondary cue for sighted users and is never the only signal. -->
+    <Style Selector="Border.badge">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.badge.success">
+      <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="Border.badge.warning">
+      <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="Border.badge.error">
+      <Setter Property="Background" Value="{DynamicResource ErrorSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ErrorBrush}" />
+    </Style>
+    <Style Selector="Border.badge.info">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.badge-text">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.badge-text.success">
+      <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="TextBlock.badge-text.warning">
+      <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="TextBlock.badge-text.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    </Style>
+    <Style Selector="TextBlock.badge-text.info">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <Style Selector="Separator">
+      <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
     </Style>
   </Application.Styles>
 </Application>

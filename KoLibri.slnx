@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/KolLibri.Cli/KolLibri.Cli.csproj" />
+    <Project Path="tools/KolLibri.Mcp/KolLibri.Mcp.csproj" />
   </Folder>
   <Project Path="KoLibri.Desktop/KoLibri.Desktop.csproj" />
   <Project Path="tools/KolLibri.OfflineDemo/KolLibri.OfflineDemo.csproj" />

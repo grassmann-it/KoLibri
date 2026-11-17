@@ -45,6 +45,8 @@ erfordert `--commit` und prüft den erwarteten alten Preis. Interaktiv:
 
 ```bash
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- login --role mallbot --username DEIN_NAME
+# Passwort nicht im Shell-Argument; optional nicht speichern:
+# ... login --role mallbot --username DEIN_NAME --no-remember-password
 ```
 
 Für einen automatisierten Aufruf kann das Passwort über stdin kommen:
@@ -68,6 +70,8 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- workflow-plan --o
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- adventure-plan --role main --target 100 --yield 0.5 --skeleton-available --refresh
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- apply-prices \
   --role mallbot --set 2880:96969:1199
+# Read-only MCP-stdio-Server für CLI/Agenten:
+dotnet run --project tools/KolLibri.Mcp/KolLibri.Mcp.csproj
 ```
 
 Die CLI hat bewusst keine Kauf-, Verkaufs- oder Transferbefehle.
@@ -109,4 +113,4 @@ Die vorhandenen KoLmafia-Skripte unter dem lokalen Benutzerprofil waren dabei fa
 
 ## MCP-Anbindung
 
-Eine MCP-freundliche Tool-Spezifikation für Status-, Inventar- und Preisabfragen sowie Approval-geschützte Vorschauen liegt in [`docs/MCP.md`](docs/MCP.md). Die maschinenlesbaren Eingabeschemas stehen in [`docs/mcp-tools.schema.json`](docs/mcp-tools.schema.json). Mutierende Aktionen folgen einem Preview-/Commit-Protokoll mit erneuter Status- und Policy-Prüfung; die vorhandenen Core-Adapter bleiben read-only.
+Der MCP-stdio-Server startet mit `dotnet run --project tools/KolLibri.Mcp/KolLibri.Mcp.csproj`; er stellt Status, Inventar, Pricing, Underprice-, Workflow-, Adventure- und Transfer-Vorschauen bereit und führt keine Mutation aus. Die Tool-Spezifikation für Status-, Inventar- und Preisabfragen sowie Approval-geschützte Vorschauen liegt in [`docs/MCP.md`](docs/MCP.md). Die maschinenlesbaren Eingabeschemas stehen in [`docs/mcp-tools.schema.json`](docs/mcp-tools.schema.json). Mutierende Aktionen folgen einem Preview-/Commit-Protokoll mit erneuter Status- und Policy-Prüfung; die vorhandenen Core-Adapter bleiben read-only.
