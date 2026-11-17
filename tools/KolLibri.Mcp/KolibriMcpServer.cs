@@ -15,7 +15,7 @@ namespace KolLibri.Mcp;
 /// contracts and only registers queries, deterministic plans, and previews.
 /// No handler in this class submits a KoL request that changes account state.
 /// </summary>
-public class KolibriMcpServer
+public partial class KolibriMcpServer
 {
     private readonly LibKolibriRuntime _runtime;
     private readonly KolibriMcpServerOptions _options;
@@ -279,6 +279,7 @@ public class KolibriMcpServer
         Register("kol_plan_daily_adventures", "Build a daily adventure plan from a read-only state snapshot.", AdventureSchema(), AdventureAsync);
         Register("kol_preview_purchase", "Validate a proposed purchase and return a review object only.", PurchaseSchema(), PurchasePreviewAsync);
         Register("kol_preview_transfer", "Validate a proposed cross-account transfer and return a review object only.", TransferSchema(), TransferPreviewAsync);
+        RegisterAdventurePreviewTools();
 
         // Friendly command-shaped aliases are accepted by tools/call while the
         // advertised list stays the fixed, documented `kol_*` surface.

@@ -150,18 +150,50 @@ public sealed record AdventureRunRequest
 {
     public string RunId { get; init; } = string.Empty;
     public string AdventureId { get; init; } = string.Empty;
+    /// <summary>
+    /// Optional typed location metadata. Existing callers can continue to set
+    /// only <see cref="AdventureId"/>; when present this entry keeps the
+    /// stable location key separate from KoL's numeric snarfblat and zone.
+    /// </summary>
+    public AdventureLocation? Location { get; init; }
+
+    /// <summary>Compatibility alias for hosts that call the target location.</summary>
+    public AdventureLocation? TargetLocation
+    {
+        get => Location;
+        init => Location = value;
+    }
+
+    /// <summary>Alias for integrations that call the catalog entry explicitly.</summary>
+    public AdventureLocation? CatalogLocation
+    {
+        get => Location;
+        init => Location = value;
+    }
+
     public AccountRole Role { get; init; } = AccountRole.Main;
     public AdventureDailyLimitContract DailyLimit { get; init; } = new();
     public AdventureCounterContract Counters { get; init; } = new();
 
     public AdventureRunRequest Normalize()
-        => this with
+    {
+        var location = Location?.Normalize();
+        var adventureId = AdventureId?.Trim() ?? string.Empty;
+        // A typed location can provide the stable id for new callers.  An
+        // explicitly supplied AdventureId remains authoritative for backwards
+        // compatibility with existing allowlists and checkpoints.
+        if (string.IsNullOrWhiteSpace(adventureId) && location is not null)
+            adventureId = location.LocationId;
+
+        return this with
         {
-            RunId = RunId.Trim(),
-            AdventureId = AdventureId.Trim(),
+            RunId = RunId?.Trim() ?? string.Empty,
+            AdventureId = adventureId,
+            Location = location,
             DailyLimit = (DailyLimit ?? new AdventureDailyLimitContract()).Normalize(),
             Counters = (Counters ?? new AdventureCounterContract()).Normalize()
         };
+    }
 }
 
 /// <summary>

@@ -8,8 +8,22 @@ public enum ShellPage
     Arbitrage,
     Shop,
     Approvals,
-    Operations
+    Operations,
+    Adventure,
+    Combat
 }
+
+/// <summary>
+/// Stable metadata for a shell page.  Keeping title and description in the
+/// ViewModel lets compact and full navigation render the same contract while
+/// the legacy MainWindow can continue to use its existing handlers.
+/// </summary>
+public sealed record ShellPageContract(
+    ShellPage Page,
+    string Title,
+    string Description,
+    string AutomationName,
+    bool IsReadOnly = true);
 
 public sealed record ShellSnapshot(DateTimeOffset ObservedAt)
 {
@@ -32,14 +46,28 @@ public class ShellViewModel : DesktopViewModel
         ArbitrageViewModel? arbitrage = null,
         ShopViewModel? shop = null,
         ApprovalViewModel? approvals = null,
-        OperationsViewModel? operations = null)
+        OperationsViewModel? operations = null,
+        AdventureViewModel? adventure = null,
+        CombatViewModel? combat = null)
     {
         Cockpit = cockpit ?? new CockpitViewModel();
         Arbitrage = arbitrage ?? new ArbitrageViewModel();
         Shop = shop ?? new ShopViewModel();
         Approvals = approvals ?? new ApprovalViewModel();
         Operations = operations ?? new OperationsViewModel();
+        Adventure = adventure ?? new AdventureViewModel();
+        Combat = combat ?? new CombatViewModel();
         Pages = new ReadOnlyCollection<ShellPage>(Enum.GetValues<ShellPage>());
+        PageContracts = new ReadOnlyCollection<ShellPageContract>(new[]
+        {
+            new ShellPageContract(ShellPage.Cockpit, "Cockpit", "Account- und Inventar-Snapshot für Main und Mallbot.", "Cockpit öffnen"),
+            new ShellPageContract(ShellPage.Arbitrage, "Arbitrage", "Preisquellen und Kaufkandidaten als read-only Vorschau.", "Arbitrage öffnen"),
+            new ShellPageContract(ShellPage.Shop, "Shop", "Eigene Listings und Reprice-Vorschauen.", "Shop öffnen"),
+            new ShellPageContract(ShellPage.Approvals, "Approvals", "Approval-Inbox und Verifikationsstatus.", "Approvals öffnen"),
+            new ShellPageContract(ShellPage.Operations, "Operations", "Audit- und Operations-Ledger.", "Operations öffnen"),
+            new ShellPageContract(ShellPage.Adventure, "Adventure", "Tagesplan, Encounter und sichere Resume-Aktionen.", "Adventure öffnen"),
+            new ShellPageContract(ShellPage.Combat, "Combat", "Manuelle Einzelaktion und AutoCombat-Policy-Vorschau.", "Combat öffnen")
+        });
     }
 
     public CockpitViewModel Cockpit { get; }
@@ -47,7 +75,16 @@ public class ShellViewModel : DesktopViewModel
     public ShopViewModel Shop { get; }
     public ApprovalViewModel Approvals { get; }
     public OperationsViewModel Operations { get; }
+    public AdventureViewModel Adventure { get; }
+    public CombatViewModel Combat { get; }
     public ReadOnlyCollection<ShellPage> Pages { get; }
+    public ReadOnlyCollection<ShellPageContract> PageContracts { get; }
+
+    /// <summary>Alias used by hosts that call the Adventure page an executor.</summary>
+    public AdventureViewModel AdventurePage => Adventure;
+
+    /// <summary>Alias used by hosts that call the Combat page a fight page.</summary>
+    public CombatViewModel CombatPage => Combat;
 
     public ShellPage CurrentPage
     {
@@ -62,8 +99,13 @@ public class ShellViewModel : DesktopViewModel
         ShellPage.Shop => "Shop",
         ShellPage.Approvals => "Approvals",
         ShellPage.Operations => "Operations",
+        ShellPage.Adventure => "Adventure",
+        ShellPage.Combat => "Combat",
         _ => CurrentPage.ToString()
     };
+
+    public ShellPageContract CurrentPageContract
+        => PageContracts.First(contract => contract.Page == CurrentPage);
 
     public string? StatusMessage
     {
@@ -72,13 +114,16 @@ public class ShellViewModel : DesktopViewModel
     }
 
     public bool IsAnyLoading =>
-        Cockpit.IsLoading || Arbitrage.IsLoading || Shop.IsLoading || Approvals.IsLoading || Operations.IsLoading;
+        Cockpit.IsLoading || Arbitrage.IsLoading || Shop.IsLoading || Approvals.IsLoading || Operations.IsLoading
+        || Adventure.IsLoading || Combat.IsLoading;
 
     public bool HasStaleData =>
-        Cockpit.IsStale || Arbitrage.IsStale || Shop.IsStale || Approvals.IsStale || Operations.IsStale;
+        Cockpit.IsStale || Arbitrage.IsStale || Shop.IsStale || Approvals.IsStale || Operations.IsStale
+        || Adventure.IsStaleData || Combat.IsStaleData;
 
     public bool HasErrors =>
-        Cockpit.HasError || Arbitrage.HasError || Shop.HasError || Approvals.HasError || Operations.HasError;
+        Cockpit.HasError || Arbitrage.HasError || Shop.HasError || Approvals.HasError || Operations.HasError
+        || Adventure.HasError || Combat.HasError;
 
     public ObservableCollection<string> StaleSources
     {
@@ -90,6 +135,8 @@ public class ShellViewModel : DesktopViewModel
             if (Shop.IsStale) stale.Add("Shop");
             if (Approvals.IsStale) stale.Add("Approvals");
             if (Operations.IsStale) stale.Add("Operations");
+            if (Adventure.IsStaleData) stale.Add("Adventure");
+            if (Combat.IsStaleData) stale.Add("Combat");
             return stale;
         }
     }
@@ -129,7 +176,9 @@ public class ShellViewModel : DesktopViewModel
             Arbitrage.LoadAsync(cancellationToken: cancellationToken),
             Shop.LoadAsync(cancellationToken),
             Approvals.LoadAsync(cancellationToken),
-            Operations.LoadAsync(cancellationToken: cancellationToken)).ConfigureAwait(false);
+            Operations.LoadAsync(cancellationToken: cancellationToken),
+            Adventure.LoadAsync(cancellationToken),
+            Combat.LoadAsync(cancellationToken)).ConfigureAwait(false);
 
         return new ShellSnapshot(DateTimeOffset.UtcNow)
         {
@@ -141,6 +190,8 @@ public class ShellViewModel : DesktopViewModel
                 && Shop.LoadState == DesktopLoadState.Empty
                 && Approvals.LoadState == DesktopLoadState.Empty
                 && Operations.LoadState == DesktopLoadState.Empty
+                && Adventure.LoadState == DesktopLoadState.Empty
+                && Combat.LoadState == DesktopLoadState.Empty
         };
     }
 
@@ -153,6 +204,7 @@ public class ShellViewModel : DesktopViewModel
         OnPropertyChanged(nameof(HasStaleData));
         OnPropertyChanged(nameof(HasErrors));
         OnPropertyChanged(nameof(StaleSources));
+        OnPropertyChanged(nameof(CurrentPageContract));
     }
 }
 
@@ -160,6 +212,7 @@ public sealed class ShellState : ShellViewModel
 {
     public ShellState(CockpitViewModel? cockpit = null, ArbitrageViewModel? arbitrage = null,
         ShopViewModel? shop = null, ApprovalViewModel? approvals = null,
-        OperationsViewModel? operations = null)
-        : base(cockpit, arbitrage, shop, approvals, operations) { }
+        OperationsViewModel? operations = null, AdventureViewModel? adventure = null,
+        CombatViewModel? combat = null)
+        : base(cockpit, arbitrage, shop, approvals, operations, adventure, combat) { }
 }

@@ -1,0 +1,22 @@
+{
+  "locations": [
+    {
+      "locationId": "haunted-woods",
+      "snarfblat": 56,
+      "zone": "Haunted Woods",
+      "requirements": ["level>=5", { "key": "quest", "value": "woods", "kind": "Quest" }],
+      "turnCost": 1,
+      "unlockState": "Unlocked",
+      "encounters": [
+        { "encounterId": "woods-skeleton", "kind": "Fight", "monsterId": "skeleton" }
+      ]
+    },
+    {
+      "locationId": "hidden-city",
+      "snarfblat": "80",
+      "zone": "The Hidden City",
+      "requirements": [],
+      "turnCost": 2
+    }
+  ]
+}

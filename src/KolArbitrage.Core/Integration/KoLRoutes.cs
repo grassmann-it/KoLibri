@@ -1,3 +1,5 @@
+using KolArbitrage.Core.Adventure;
+
 namespace KolArbitrage.Core.Integration;
 
 /// <summary>
@@ -33,6 +35,25 @@ public static class KoLRoutes
     {
         if (string.IsNullOrWhiteSpace(adventureId)) throw new ArgumentException("Adventure id is required.", nameof(adventureId));
         return $"{Adventure}?snarfblat={Uri.EscapeDataString(adventureId)}";
+    }
+
+    /// <summary>
+    /// Builds an adventure route from a catalog entry. The stable location key
+    /// is never sent as snarfblat by accident; the numeric KoL value is used.
+    /// </summary>
+    public static string AdventureAtLocation(AdventureLocation location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        var value = location.Normalize();
+        if (value.Snarfblat <= 0)
+            throw new ArgumentOutOfRangeException(nameof(location), "Snarfblat must be positive.");
+        return AdventureAt(value.Snarfblat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static string AdventureAt(int snarfblat)
+    {
+        if (snarfblat <= 0) throw new ArgumentOutOfRangeException(nameof(snarfblat));
+        return AdventureAt(snarfblat.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }
 

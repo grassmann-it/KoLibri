@@ -1,0 +1,16 @@
+<html>
+  <body>
+    <span id="monname" monsterid="123">Skeleton</span>
+    <span id="playerhp">80/100</span>
+    <span id="playermp">40/50</span>
+    <span id="effects"><span id="effect-poison">Poison (3)</span></span>
+    <span id="familiar" data-name="Ghost">Ghost</span>
+    <script>var monsterstats = { hp: 90, maxhp: 120 };</script>
+    <form action="fight.php" method="post">
+      <input type="hidden" name="onturn" value="1">
+      <button name="action" value="attack">Attack</button>
+      <button name="action" value="skill:1001">Use skill</button>
+      <button name="action" value="item:2002">Use item</button>
+    </form>
+  </body>
+</html>

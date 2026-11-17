@@ -10,7 +10,7 @@ using KolArbitrage.Core.Safety;
 
 return await KolibriCli.RunAsync(args);
 
-internal static class KolibriCli
+internal static partial class KolibriCli
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -44,6 +44,9 @@ internal static class KolibriCli
                 "bribe-plan" => await BribePlanAsync(args[1..]),
                 "workflow-plan" => await WorkflowPlanAsync(args[1..]),
                 "adventure-plan" => await AdventurePlanAsync(args[1..]),
+                "adventure" => await AdventureCommandAsync(args[1..]),
+                "combat" => await CombatCommandAsync(args[1..]),
+                "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),
                 "categorize" => await CategorizeAsync(args[1..]),
                 "reprice" => await RepriceAsync(args[1..]),
                 "batch" => await RepriceAsync(args[1..]),
@@ -799,6 +802,9 @@ internal static class KolibriCli
         Console.WriteLine("  workflow-plan [--refresh] [--offline --main-ready --mallbot-ready]");
         Console.WriteLine("                [--meat N --bag-price N --bag-stock N --quantity N --reserve N]");
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
+        Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
+        Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
+        Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");
         Console.WriteLine("  reprice --role mallbot [--filter tiny|high|tiny-and-high|all] [--refresh]");
         Console.WriteLine("  snatch-plan --role mallbot [--item ITEM_ID ...] [--limit 20] [--workers 8]");
@@ -811,5 +817,6 @@ internal static class KolibriCli
         Console.WriteLine();
         Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");
         Console.WriteLine("Es gibt keine Kauf- oder Transfer-Befehle.");
+        Console.WriteLine("Adventure- und Combat-Befehle senden keine Live-POSTs; sie erzeugen nur Vorschauen.");
     }
 }

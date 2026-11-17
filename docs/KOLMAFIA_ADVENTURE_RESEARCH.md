@@ -23,6 +23,53 @@ adventure adapter. The implementation is split by server page, while
   handed to `FightRequest`; a choice redirect is handed back to
   `ChoiceManager`.
 
+The other upstream components that matter for a bounded adapter are:
+
+- [`RecoveryManager`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/moods/RecoveryManager.java)
+  only runs recovery when no fight round, multi-fight, non-walkable choice,
+  Valhalla transition, or path restriction blocks it. Between-battle checks
+  run the configured script and mood, recover HP and MP from configured skills
+  and restores, and abort when health remains at zero. This is a broad,
+  preference-driven policy; LibKolibri should expose a bounded recovery
+  preflight instead of executing arbitrary scripts or purchases.
+- [`TurnCounter`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/session/TurnCounter.java)
+  stores counters against the absolute session turn, persists them in the
+  `relayCounters` preference, and parses `loc=`, `loc=*`, `type=wander`, and
+  URL suffixes from labels. Counters can expire per location and adventure
+  turn cost, or be marked informational. LibKolibri's B3 counter contract
+  should retain the typed deadline, location scope, and warning state without
+  copying the preference string format.
+
+The relevant CLI implementations are also primary references:
+
+- [`AdventureCommand`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/textui/command/AdventureCommand.java)
+  implements `adventure [count] <location>`, `*` for all remaining turns,
+  `last` for the last location, and non-positive counts as “all except” the
+  requested number. It resolves names through `AdventureDatabase` and has a
+  check-only path that prints the resolved location without sending a request.
+- [`ConditionsCommand`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/textui/command/ConditionsCommand.java)
+  implements `conditions clear|check|add|remove|set`; parsers cover items,
+  meat, choice adventures, factoids, stats/levels, HP/MP, outfits, and
+  zone-specific pseudo-goals. KoLibri should start with typed item/count,
+  turn, HP/MP, stat, and choice-count conditions.
+- [`ChoiceCommand`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/textui/command/ChoiceCommand.java)
+  lists the current options or submits a numeric decision with validated
+  `FIELD=VALUE` fields; `always` persists the selected option in
+  `choiceAdventure<ID>`.
+- [`RecoverCommand`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/textui/command/RecoverCommand.java)
+  exposes `recover hp|mp|both`, using the configured auto-recovery targets.
+- [`CountersCommand`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/textui/command/CountersCommand.java)
+  exposes `counters clear|add|stop|warn|nowarn` (plus the internal
+  `deletehash` operation).
+
+The complete command semantics, including `adventure`, `conditions`,
+`rest`/`relax`, moods, and triggers, are in the official
+[`scripting.html` manual](https://github.com/kolmafia/kolmafia.sourceforge.net/blob/main/scripting.html).
+These commands map to KoLibri work packages A1/A6 (location and runner), A4
+(choice), A5 (recovery), B3 (counters and conditions), and B4 (CLI/MCP/Desktop
+parity). A narrow typed command surface can be added in P2/P3; a general
+ASH/macro interpreter is deliberately out of scope.
+
 The test suite uses saved HTML fixtures and a fake HTTP client. See
 [`AdventureRequestTest`](https://github.com/kolmafia/kolmafia/blob/main/src/test/java/net/sourceforge/kolmafia/request/AdventureRequestTest.java),
 [`FightRequestTest`](https://github.com/kolmafia/kolmafia/blob/main/src/test/java/net/sourceforge/kolmafia/request/FightRequestTest.java),
