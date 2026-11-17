@@ -25,6 +25,21 @@ public sealed record ShellPageContract(
     string AutomationName,
     bool IsReadOnly = true);
 
+/// <summary>Command metadata shared by menu, shortcut help and future key routing.</summary>
+public sealed record ShellShortcutContract(
+    string CommandId,
+    string Label,
+    string Gesture,
+    ShellPage Page,
+    bool Configurable = true);
+
+/// <summary>Context-menu action metadata for the selected row or encounter.</summary>
+public sealed record ShellContextActionContract(
+    string CommandId,
+    string Label,
+    ShellPage Page,
+    bool RequiresApproval = false);
+
 public sealed record ShellSnapshot(DateTimeOffset ObservedAt)
 {
     public bool IsStale { get; init; }
@@ -68,6 +83,26 @@ public class ShellViewModel : DesktopViewModel
             new ShellPageContract(ShellPage.Adventure, "Adventure", "Tagesplan, Encounter und sichere Resume-Aktionen.", "Adventure öffnen"),
             new ShellPageContract(ShellPage.Combat, "Combat", "Manuelle Einzelaktion und AutoCombat-Policy-Vorschau.", "Combat öffnen")
         });
+        Shortcuts = new ReadOnlyCollection<ShellShortcutContract>(new[]
+        {
+            new ShellShortcutContract("navigation.overview", "Übersicht", "Ctrl+1", ShellPage.Cockpit),
+            new ShellShortcutContract("navigation.arbitrage", "Arbitrage", "Ctrl+2", ShellPage.Arbitrage),
+            new ShellShortcutContract("navigation.shop", "Shop", "Ctrl+3", ShellPage.Shop),
+            new ShellShortcutContract("navigation.adventure", "Adventure", "Ctrl+4", ShellPage.Adventure),
+            new ShellShortcutContract("navigation.combat", "Combat", "Ctrl+5", ShellPage.Combat),
+            new ShellShortcutContract("shell.refresh", "Daten aktualisieren", "F5", ShellPage.Cockpit),
+            new ShellShortcutContract("shell.shortcut-help", "Tastaturhilfe", "F1", ShellPage.Cockpit),
+            new ShellShortcutContract("shell.stop", "Lauf stoppen", "Escape", ShellPage.Adventure)
+        });
+        ContextActions = new ReadOnlyCollection<ShellContextActionContract>(new[]
+        {
+            new ShellContextActionContract("adventure.inspect", "Encounter inspizieren", ShellPage.Adventure),
+            new ShellContextActionContract("adventure.refresh", "Encounter aktualisieren", ShellPage.Adventure),
+            new ShellContextActionContract("combat.manual-preview", "Manuelle Kampfaktion vorschauen", ShellPage.Combat),
+            new ShellContextActionContract("combat.stop", "Kampf stoppen", ShellPage.Combat),
+            new ShellContextActionContract("shop.price-detail", "Detailpreis laden", ShellPage.Shop),
+            new ShellContextActionContract("shop.reprice-preview", "Reprice-Vorschau erstellen", ShellPage.Shop)
+        });
     }
 
     public CockpitViewModel Cockpit { get; }
@@ -79,6 +114,8 @@ public class ShellViewModel : DesktopViewModel
     public CombatViewModel Combat { get; }
     public ReadOnlyCollection<ShellPage> Pages { get; }
     public ReadOnlyCollection<ShellPageContract> PageContracts { get; }
+    public ReadOnlyCollection<ShellShortcutContract> Shortcuts { get; }
+    public ReadOnlyCollection<ShellContextActionContract> ContextActions { get; }
 
     /// <summary>Alias used by hosts that call the Adventure page an executor.</summary>
     public AdventureViewModel AdventurePage => Adventure;
