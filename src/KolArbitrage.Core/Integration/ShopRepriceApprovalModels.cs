@@ -286,6 +286,8 @@ public sealed record ShopRepriceCommitResult
 {
     public string ActionId { get; init; } = string.Empty;
     public string PreviewId => ActionId;
+    public ShopRepricePreview? Preview { get; init; }
+    public string? AccountId { get; init; }
     public string? IdempotencyKey { get; init; }
     public ShopRepriceOperationStatus Status { get; init; }
     public ShopRepriceOperationStatus OperationStatus => Status;

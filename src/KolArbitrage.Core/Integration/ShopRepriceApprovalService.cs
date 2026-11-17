@@ -533,6 +533,8 @@ public class ShopRepriceApprovalService : IDisposable
             var stale = new ShopRepriceCommitResult
             {
                 ActionId = preview.ActionId,
+                Preview = preview,
+                AccountId = preview.AccountId,
                 IdempotencyKey = key,
                 Status = ShopRepriceOperationStatus.Conflict,
                 VerificationStatus = ShopRepriceVerificationStatus.Aborted,
@@ -747,6 +749,8 @@ public class ShopRepriceApprovalService : IDisposable
         => new()
         {
             ActionId = preview.ActionId,
+            Preview = preview,
+            AccountId = preview.AccountId,
             IdempotencyKey = preview.Request.IdempotencyKey,
             Status = verification.Verified ? ShopRepriceOperationStatus.Verified : ShopRepriceOperationStatus.Failed,
             VerificationStatus = verification.Status,
@@ -771,6 +775,8 @@ public class ShopRepriceApprovalService : IDisposable
         return new ShopRepriceCommitResult
         {
             ActionId = preview.ActionId,
+            Preview = preview,
+            AccountId = preview.AccountId,
             IdempotencyKey = key,
             Status = verified
                 ? ShopRepriceOperationStatus.Verified
