@@ -255,12 +255,12 @@ public sealed record TurnSnapshotCasResult
 
 public interface ITurnSnapshotReader
 {
-    Task<TurnSnapshot?> ReadSnapshotAsync(string accountId, CancellationToken cancellationToken = default);
-    Task<TurnSnapshot?> ReadAsync(string accountId, CancellationToken cancellationToken = default)
+    Task<TurnSnapshot?> ReadSnapshotAsync(string accountId = "default", CancellationToken cancellationToken = default);
+    Task<TurnSnapshot?> ReadAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
-    Task<TurnSnapshot?> GetAsync(string accountId, CancellationToken cancellationToken = default)
+    Task<TurnSnapshot?> GetAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
-    Task<TurnSnapshot?> GetSnapshotAsync(string accountId, CancellationToken cancellationToken = default)
+    Task<TurnSnapshot?> GetSnapshotAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
 }
 
@@ -318,6 +318,16 @@ public interface ICounterStore : ITurnCounterReader
             replacement,
             cancellationToken);
 
+    Task<TurnCounterCasResult> CompareAndSwapAsync(string counterId,
+        long expectedVersion, TurnCounter replacement,
+        CancellationToken cancellationToken = default)
+        => CompareAndSwapAsync(
+            replacement.AccountId,
+            counterId,
+            expectedVersion,
+            replacement,
+            cancellationToken);
+
     Task<TurnCounterCasResult> CompareAndSwapAsync(string accountId, string counterId,
         long expectedVersion, TurnCounter replacement,
         CancellationToken cancellationToken = default)
@@ -344,20 +354,20 @@ public class CounterStore : ICounterStore, ITurnCounterStore, ITurnSnapshotStore
     private readonly Dictionary<string, TurnSnapshot> _snapshots = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TurnCounter> _counters = new(StringComparer.Ordinal);
 
-    public Task<TurnSnapshot?> ReadSnapshotAsync(string accountId, CancellationToken cancellationToken = default)
+    public Task<TurnSnapshot?> ReadSnapshotAsync(string accountId = "default", CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var key = NormalizeKey(accountId, nameof(accountId));
         lock (_gate) return Task.FromResult(_snapshots.TryGetValue(key, out var value) ? value.Normalize() : null);
     }
 
-    public Task<TurnSnapshot?> GetSnapshotAsync(string accountId, CancellationToken cancellationToken = default)
+    public Task<TurnSnapshot?> GetSnapshotAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
 
-    public Task<TurnSnapshot?> ReadAsync(string accountId, CancellationToken cancellationToken = default)
+    public Task<TurnSnapshot?> ReadAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
 
-    public Task<TurnSnapshot?> GetAsync(string accountId, CancellationToken cancellationToken = default)
+    public Task<TurnSnapshot?> GetAsync(string accountId = "default", CancellationToken cancellationToken = default)
         => ReadSnapshotAsync(accountId, cancellationToken);
 
     public Task<TurnCounter?> ReadCounterAsync(string accountId, string counterId, CancellationToken cancellationToken = default)
@@ -393,6 +403,16 @@ public class CounterStore : ICounterStore, ITurnCounterStore, ITurnSnapshotStore
             : replacement.AccountId;
         return CompareAndSwapAsync(account ?? "default", counterId, expected,
             replacement, cancellationToken);
+    }
+
+    public Task<TurnCounterCasResult> CompareAndSwapAsync(string counterId,
+        long expectedVersion, TurnCounter replacement, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        var account = string.IsNullOrWhiteSpace(replacement.AccountId)
+            ? "default"
+            : replacement.AccountId;
+        return CompareAndSwapAsync(account, counterId, expectedVersion, replacement, cancellationToken);
     }
 
     public Task<TurnCounterCasResult> CompareAndSwapAsync(string accountId, string counterId,
@@ -547,6 +567,10 @@ public static class TurnCounterContractExtensions
     }
 
     public static TurnSnapshot ToTurnSnapshot(this AdventureCounterContract counters,
+        string accountId = "", DateOnly? gameDay = null, DateTimeOffset? observedAt = null)
+        => TurnSnapshot.From(counters, accountId, gameDay, observedAt);
+
+    public static TurnSnapshot ToSnapshot(this AdventureCounterContract counters,
         string accountId = "", DateOnly? gameDay = null, DateTimeOffset? observedAt = null)
         => TurnSnapshot.From(counters, accountId, gameDay, observedAt);
 }
