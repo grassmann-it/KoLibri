@@ -846,6 +846,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  workflow-plan [--refresh] [--offline --main-ready --mallbot-ready]");
         Console.WriteLine("                [--meat N --bag-price N --bag-stock N --quantity N --reserve N]");
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
+        Console.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
         Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");

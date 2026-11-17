@@ -44,6 +44,7 @@ internal static partial class KolibriCli
             "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
             "step" or "advance" => await AdventureStepAsync(args[1..]),
             "bounded-preview" or "run-preview" => await AdventureBoundedPreviewAsync(args[1..]),
+            "choice-chain" or "choicechain" => await AdventureChoiceChainAsync(args[1..]),
             "run" or "execute" => await AdventureRunAsync(args[1..]),
             "stop" or "abort" => await AdventureStopAsync(args[1..]),
             _ => Fail($"Unbekannter adventure-Befehl: {args[0]}")
@@ -479,6 +480,89 @@ internal static partial class KolibriCli
             auditPath = KoLAdventureSessionFactory.DefaultAuditPath
         });
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
+    }
+
+    private static async Task<int> AdventureChoiceChainAsync(string[] args)
+    {
+        var location = ReadAdventureId(args);
+        var runId = GetOption(args, "--run-id");
+        if (string.IsNullOrWhiteSpace(runId))
+            throw new ArgumentException("choice-chain requires --run-id for an existing checkpoint.");
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var maxChoices = Math.Clamp(ReadInt(args, "--max-choices", 10), 1, 1_000);
+        var maxDuration = Math.Max(1, ReadInt(args, "--max-duration-seconds", 120));
+        var choiceActions = GetOptions(args, "--choice-action");
+
+        if (!HasFlag(args, "--execute"))
+        {
+            WriteJson(new
+            {
+                command = "adventure choice-chain",
+                readOnly = true,
+                previewOnly = true,
+                executed = false,
+                approvalRequired = true,
+                runId,
+                role = role.ToString(),
+                location,
+                maxChoices,
+                maxDurationSeconds = maxDuration,
+                choiceActions,
+                note = "Preview only. Add --execute and --approval-token to submit allowlisted choice requests."
+            });
+            return 0;
+        }
+
+        var approvalToken = GetOption(args, "--approval-token");
+        if (string.IsNullOrWhiteSpace(approvalToken))
+            throw new ArgumentException("Live choice-chain execution requires --approval-token.");
+        var approval = new DelegateAdventureApprovalHook((_, _) =>
+            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
+        var verification = new DelegateAdventureVerificationHook((context, _) =>
+            ValueTask.FromResult(context.Response.Accepted == true && context.Observation.Kind != AdventureEncounterKind.Unknown
+                ? AdventureVerificationResult.Success()
+                : AdventureVerificationResult.Failed("The live response was not a known, accepted choice encounter.")));
+
+        await using var session = await KoLAdventureSessionFactory.CreateAsync(
+            role, approval, verification, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
+        foreach (var choice in choiceActions)
+        {
+            var separator = choice.IndexOf(':');
+            if (separator <= 0 || separator == choice.Length - 1)
+                throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID.");
+            allowlist.AddChoiceOption(location, choice[..separator], choice[(separator + 1)..]);
+        }
+
+        var result = await new BoundedChoiceChainRunner(session.Gateway).RunAsync(
+            runId,
+            allowlist,
+            new BoundedChoiceChainOptions
+            {
+                MaxChoices = maxChoices,
+                MaxDuration = TimeSpan.FromSeconds(maxDuration)
+            }).ConfigureAwait(false);
+        WriteJson(new
+        {
+            command = "adventure choice-chain",
+            readOnly = false,
+            previewOnly = false,
+            executed = true,
+            approvalRequired = true,
+            runId,
+            role = role.ToString(),
+            location,
+            stopReason = result.StopReason.ToString(),
+            steps = result.Steps.Select(step => new
+            {
+                status = step.Status.ToString(),
+                requestId = step.RequestId,
+                responseHash = step.Response?.ResponseHash,
+                abortReason = step.AbortReason?.ToString(),
+                nextAction = step.NextAction is null ? null : KernelActionDocument(step.NextAction)
+            }).ToArray()
+        });
+        return result.StopReason == BoundedChoiceChainStopReason.Aborted ? 3 : 0;
     }
 
     private static async Task<int> CombatCommandAsync(string[] args)
