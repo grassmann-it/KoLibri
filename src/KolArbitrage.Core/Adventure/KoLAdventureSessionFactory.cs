@@ -9,6 +9,12 @@ namespace KolArbitrage.Core.Adventure;
 /// </summary>
 public static class KoLAdventureSessionFactory
 {
+    public static string DefaultCheckpointDirectory
+        => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "KoLibri",
+            "adventure-checkpoints");
+
     public static async Task<KoLAdventureSession> CreateAsync(
         AccountRole role,
         IAdventureApprovalHook approval,
@@ -34,7 +40,7 @@ public static class KoLAdventureSessionFactory
             var transport = new HttpAdventureExecutionTransport(http, binding, options);
             var gateway = new AdventureExecutionGateway(
                 transport,
-                checkpoints ?? new InMemoryAdventureRunCheckpointStore(),
+                checkpoints ?? new JsonFileAdventureRunCheckpointStore(DefaultCheckpointDirectory),
                 approval: approval,
                 verification: verification);
             return new KoLAdventureSession(session, http, transport, gateway);
