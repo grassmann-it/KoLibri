@@ -59,6 +59,8 @@ public sealed record KoLSecurityPolicy
     {
         if (uri is null || !uri.IsAbsoluteUri)
             return false;
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+            return false;
         if (RequireHttps && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             return false;
         if (!RequireHttps && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
