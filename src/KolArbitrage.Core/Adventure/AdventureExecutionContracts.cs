@@ -313,6 +313,11 @@ public record AdventureHttpTransportOptions
 
     public AdventureHttpRouteMap RouteMap => AdventureHttpRouteMap.Default;
 
+    public string AdventurePath => AdventureHttpRoutes.Adventure;
+    public string FightPath => AdventureHttpRoutes.Fight;
+    public string ChoicePath => AdventureHttpRoutes.Choice;
+    public string RefreshPath => AdventureHttpRoutes.Refresh;
+
     /// <summary>Redirects are intentionally never followed by this adapter.</summary>
     public bool AllowRedirects => false;
     public bool FollowRedirects => false;
@@ -643,6 +648,15 @@ public interface IAdventureExecutionTransport
 
 /// <summary>Short interface alias for callers that use an adventure transport.</summary>
 public interface IAdventureTransport : IAdventureExecutionTransport
+{
+}
+
+/// <summary>Marker interface for guarded live/fixture HTTP adapters.</summary>
+public interface IAdventureHttpTransport : IAdventureTransport
+{
+}
+
+public interface IAdventureExecutionHttpTransport : IAdventureHttpTransport
 {
 }
 

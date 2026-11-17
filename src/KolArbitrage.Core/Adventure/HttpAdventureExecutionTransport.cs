@@ -17,7 +17,7 @@ namespace KolArbitrage.Core.Adventure;
 /// host, scheme, redirect behavior and response size are checked before any
 /// response is handed back to the parser.
 /// </remarks>
-public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
+public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport, IDisposable
 {
     private readonly HttpClient _http;
     private readonly AdventureHttpTransportOptions _options;
@@ -235,6 +235,8 @@ public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
             throw new ArgumentException("An adventure id is too long.", nameof(request));
         if (request.RunId.Length > 200)
             throw new ArgumentException("A run id is too long.", nameof(request));
+        if (operation == AdventureTransportOperation.Refresh && request.Fields.Count > 0)
+            throw new AdventureHttpTransportException("Refresh requests cannot carry form fields.");
 
         var role = request.Checkpoint?.Role ?? request.Role;
         if (!Enum.IsDefined(role))
@@ -266,6 +268,8 @@ public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
                 throw new AdventureHttpTransportException("Adventure form field exceeds its bound.");
             fields[field.Key] = field.Value ?? string.Empty;
         }
+        if (fields.Keys.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
+            throw new AdventureHttpTransportException("Adventure form field names must be unique.");
 
         switch (operation)
         {
@@ -275,6 +279,9 @@ public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
                 // canonical snarfblat field.
                 if (!fields.ContainsKey("snarfblat"))
                     fields["snarfblat"] = request.AdventureId;
+                EnsureFieldMatches(fields, "snarfblat", request.AdventureId);
+                EnsureFieldMatches(fields, "adventure", request.AdventureId);
+                EnsureFieldMatches(fields, "location", request.AdventureId);
                 break;
             case AdventureTransportOperation.Fight:
                 if (!fields.ContainsKey("action") && !string.IsNullOrWhiteSpace(request.ActionId))
@@ -283,6 +290,12 @@ public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
                     fields["round"] = round.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 if (!fields.ContainsKey("action"))
                     throw new AdventureHttpTransportException("A fight action is required.");
+                if (request.Action is AdventureFightAction fight)
+                {
+                    EnsureFieldMatches(fields, "action", fight.ActionId);
+                    EnsureFieldMatches(fields, "round",
+                        fight.Round.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
                 break;
             case AdventureTransportOperation.Choice:
                 if (!fields.ContainsKey("whichchoice") && !string.IsNullOrWhiteSpace(request.ChoiceId))
@@ -291,12 +304,28 @@ public class HttpAdventureExecutionTransport : IAdventureTransport, IDisposable
                     fields["option"] = request.OptionId!;
                 if (!fields.ContainsKey("whichchoice") || !fields.ContainsKey("option"))
                     throw new AdventureHttpTransportException("A choice id and option are required.");
+                if (request.Action is AdventureChoiceAction choice)
+                {
+                    EnsureFieldMatches(fields, "whichchoice", choice.ChoiceId);
+                    EnsureFieldMatches(fields, "option", choice.OptionId);
+                }
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation));
         }
 
         return fields;
+    }
+
+    private static void EnsureFieldMatches(
+        IReadOnlyDictionary<string, string> fields,
+        string name,
+        string expected)
+    {
+        if (fields.TryGetValue(name, out var actual)
+            && !string.Equals(actual, expected, StringComparison.Ordinal))
+            throw new AdventureHttpTransportException(
+                $"Adventure form field '{name}' does not match the allowlisted action.");
     }
 
     private CancellationTokenSource CreateTimeoutSource(CancellationToken cancellationToken)

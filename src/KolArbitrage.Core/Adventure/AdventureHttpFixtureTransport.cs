@@ -16,7 +16,7 @@ public sealed record AdventureFixtureHttpRequest(
 /// It never opens a socket, but applies the same fixed route, account binding
 /// and response-size checks so gateway tests exercise the live contract.
 /// </summary>
-public class AdventureHttpFixtureTransport : IAdventureTransport, IDisposable
+public class AdventureHttpFixtureTransport : IAdventureExecutionHttpTransport, IDisposable
 {
     private readonly object _gate = new();
     private readonly Dictionary<AdventureTransportOperation, Queue<AdventureTransportResponse>> _responses = new();
@@ -228,6 +228,7 @@ public class AdventureHttpFixtureTransport : IAdventureTransport, IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             ValidateRequest(request, operation);
+            ValidateFields(request, operation);
             var uri = new Uri(_options.BaseUri, AdventureHttpRoutes.For(operation));
             _requests.Add(new AdventureFixtureHttpRequest(
                 request,
@@ -280,6 +281,66 @@ public class AdventureHttpFixtureTransport : IAdventureTransport, IDisposable
     private static bool UriEquals(Uri left, Uri right)
         => Uri.Compare(left, right, UriComponents.AbsoluteUri,
             UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0;
+
+    private static void ValidateFields(
+        AdventureTransportRequest request,
+        AdventureTransportOperation operation)
+    {
+        var fields = request.Fields;
+        if (fields.Keys.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
+            throw new AdventureHttpTransportException("Adventure form field names must be unique.");
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Key)
+                || field.Key.Length > 80
+                || field.Value is { Length: > 4000 })
+                throw new AdventureHttpTransportException("Adventure form field exceeds its bound.");
+        }
+
+        switch (operation)
+        {
+            case AdventureTransportOperation.Adventure:
+                EnsureFieldMatches(fields, "snarfblat", request.AdventureId);
+                EnsureFieldMatches(fields, "adventure", request.AdventureId);
+                EnsureFieldMatches(fields, "location", request.AdventureId);
+                break;
+            case AdventureTransportOperation.Fight:
+                if (!fields.ContainsKey("action") && request.Action is not AdventureFightAction)
+                    throw new AdventureHttpTransportException("A fight action is required.");
+                if (request.Action is AdventureFightAction fight)
+                {
+                    EnsureFieldMatches(fields, "action", fight.ActionId);
+                    EnsureFieldMatches(fields, "round",
+                        fight.Round.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+                break;
+            case AdventureTransportOperation.Choice:
+                if ((!fields.ContainsKey("whichchoice") || !fields.ContainsKey("option"))
+                    && request.Action is not AdventureChoiceAction)
+                    throw new AdventureHttpTransportException("A choice id and option are required.");
+                if (request.Action is AdventureChoiceAction choice)
+                {
+                    EnsureFieldMatches(fields, "whichchoice", choice.ChoiceId);
+                    EnsureFieldMatches(fields, "option", choice.OptionId);
+                }
+                break;
+            case AdventureTransportOperation.Refresh:
+                if (fields.Count > 0)
+                    throw new AdventureHttpTransportException("Refresh requests cannot carry form fields.");
+                break;
+        }
+    }
+
+    private static void EnsureFieldMatches(
+        IReadOnlyDictionary<string, string> fields,
+        string name,
+        string expected)
+    {
+        if (fields.TryGetValue(name, out var actual)
+            && !string.Equals(actual, expected, StringComparison.Ordinal))
+            throw new AdventureHttpTransportException(
+                $"Adventure form field '{name}' does not match the allowlisted action.");
+    }
 
     private void ValidateRequest(
         AdventureTransportRequest request,

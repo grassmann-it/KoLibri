@@ -63,8 +63,10 @@ public record TurnSnapshot
     public int FreeTurnsRemaining { get; init; }
     public int TurnsRemaining { get => AdventuresRemaining; init => AdventuresRemaining = value; }
     public int AvailableTurns { get => AdventuresRemaining; init => AdventuresRemaining = value; }
-    public int Adventures => AdventuresRemaining;
-    public int Turns => AdventuresRemaining;
+    public int Adventures { get => AdventuresRemaining; init => AdventuresRemaining = value; }
+    public int Turns { get => AdventuresRemaining; init => AdventuresRemaining = value; }
+    public int Available { get => AdventuresRemaining; init => AdventuresRemaining = value; }
+    public int NormalTurns { get => AdventuresRemaining; init => AdventuresRemaining = value; }
     public int TotalTurns => AdventuresRemaining + FreeTurnsRemaining;
     public DateTimeOffset ObservedAt { get; init; }
     public DateTimeOffset FetchedAt { get => ObservedAt; init => ObservedAt = value; }
@@ -168,6 +170,8 @@ public record TurnCounter
     public int Turns { get => RemainingTurns; init => RemainingTurns = value; }
     public int Count { get => RemainingTurns; init => RemainingTurns = value; }
     public int TurnsRemaining { get => RemainingTurns; init => RemainingTurns = value; }
+    public int Remaining { get => RemainingTurns; init => RemainingTurns = value; }
+    public int Value { get => RemainingTurns; init => RemainingTurns = value; }
     public int? WarnAt { get; init; }
     public string? ExpiryAction { get; init; }
     public bool Enabled { get; init; } = true;
