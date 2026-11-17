@@ -27,6 +27,13 @@ Kontextmenü wechseln, ohne Befehle doppelt zu implementieren. Eingabefelder,
 Dialoge und offene Overlays behalten ihre normalen Tasten; globale Bindings
 werden nur ausgeführt, wenn der aktive Bereich sie nicht konsumiert.
 
+Auf breiten Fenstern ergänzt eine ausblendbare rechte Kontextleiste die
+Sidebar. Sie zeigt den Typ des aktiven Arbeitsbereichs und sichere
+Vorschau-/Refresh-Aktionen für eine ausgewählte Mall-Zeile, ein Encounter oder
+eine Combat-Observation. Unterhalb der Desktop-Breite verschwindet sie; die
+gleichen Aktionen bleiben über die kompakte obere Navigation und Kontextmenüs
+erreichbar.
+
 ## Nächste UI-Arbeitspakete
 
 1. Einen zentralen Shortcut-Router mit konfigurierbaren Profilen und

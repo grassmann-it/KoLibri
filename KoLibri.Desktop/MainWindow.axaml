@@ -11,7 +11,7 @@
         AutomationProperties.Name="KoLibri Arbitrage Console">
   <Grid x:Name="ShellRoot"
         RowDefinitions="Auto,*"
-        ColumnDefinitions="Auto,*"
+        ColumnDefinitions="Auto,*,Auto"
         Background="{DynamicResource CanvasBrush}">
     <Border x:Name="Sidebar"
             Grid.Column="0"
@@ -546,5 +546,45 @@
         </Border>
       </StackPanel>
     </ScrollViewer>
+
+    <Border x:Name="ContextRail"
+            Grid.Column="2"
+            Grid.RowSpan="2"
+            Width="300"
+            IsVisible="False"
+            Classes="shell-sidebar context-rail"
+            BorderThickness="1,0,0,0"
+            Padding="18,24">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="4">
+          <TextBlock Text="KONTEXT" Classes="muted" FontSize="11" FontWeight="SemiBold" />
+          <TextBlock x:Name="ContextRailTitle" Text="Übersicht" Classes="h2" FontSize="20" />
+          <TextBlock x:Name="ContextRailKind" Text="Arbeitsbereich" Classes="muted" FontSize="12" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,20,0,0">
+          <Button x:Name="ContextPreviewButton"
+                  Content="Vorschau öffnen"
+                  Classes="primary"
+                  Click="ContextPreviewClick"
+                  AutomationProperties.Name="Kontextvorschau öffnen" />
+          <Button x:Name="ContextRefreshButton"
+                  Content="Kontext aktualisieren"
+                  Classes="secondary"
+                  Click="ContextRefreshClick"
+                  AutomationProperties.Name="Kontext aktualisieren" />
+          <TextBlock Text="Mutierende Aktionen bleiben hinter Preview → Approval → Commit." Classes="muted" FontSize="11" TextWrapping="Wrap" />
+        </StackPanel>
+        <Border Classes="panel-subtle" Margin="0,22,0,0">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Auswahl" Classes="body" />
+            <TextBlock x:Name="ContextRailDetails"
+                       Text="Wähle eine Mall-Zeile, ein Encounter oder eine Combat-Aktion aus, um Details und sichere Vorschauen zu sehen."
+                       Classes="muted"
+                       TextWrapping="Wrap"
+                       FontSize="12" />
+          </StackPanel>
+        </Border>
+      </DockPanel>
+    </Border>
   </Grid>
 </Window>

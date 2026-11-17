@@ -12,6 +12,7 @@ namespace KoLibri.Desktop;
 public partial class MainWindow : Window
 {
     private Border? _sidebar;
+    private Border? _contextRail;
     private Border? _compactNavigation;
     private StackPanel? _contentRoot;
     private StackPanel? _overviewPanel;
@@ -40,6 +41,9 @@ public partial class MainWindow : Window
     private TextBlock? _adventurePlanSummary;
     private TextBlock? _adventurePlanAdvisories;
     private TextBlock? _combatPreviewSummary;
+    private TextBlock? _contextRailTitle;
+    private TextBlock? _contextRailKind;
+    private TextBlock? _contextRailDetails;
     private ComboBox? _accountRoleSelector;
     private Button? _globalRefreshButton;
     private ProgressBar? _busyIndicator;
@@ -54,6 +58,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _sidebar = this.FindControl<Border>("Sidebar");
+        _contextRail = this.FindControl<Border>("ContextRail");
         _compactNavigation = this.FindControl<Border>("CompactNavigation");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
         _overviewPanel = this.FindControl<StackPanel>("OverviewPanel");
@@ -81,6 +86,9 @@ public partial class MainWindow : Window
         _adventurePlanSummary = this.FindControl<TextBlock>("AdventurePlanSummary");
         _adventurePlanAdvisories = this.FindControl<TextBlock>("AdventurePlanAdvisories");
         _combatPreviewSummary = this.FindControl<TextBlock>("CombatPreviewSummary");
+        _contextRailTitle = this.FindControl<TextBlock>("ContextRailTitle");
+        _contextRailKind = this.FindControl<TextBlock>("ContextRailKind");
+        _contextRailDetails = this.FindControl<TextBlock>("ContextRailDetails");
         _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
@@ -105,8 +113,11 @@ public partial class MainWindow : Window
         // the same commands move into a horizontally scrollable top rail;
         // no navigation state or handler changes between the two shells.
         var compact = width > 0 && width < 1080;
+        var showContextRail = width >= 1320;
         if (_sidebar is not null)
             _sidebar.IsVisible = !compact;
+        if (_contextRail is not null)
+            _contextRail.IsVisible = !compact && showContextRail;
         if (_compactNavigation is not null)
             _compactNavigation.IsVisible = compact;
         if (_contentRoot is not null)
@@ -137,7 +148,31 @@ public partial class MainWindow : Window
         _activeSection = section;
         SetActiveNavigation(section);
         UpdatePageState(section);
+        UpdateContextRail(section);
         SetStatus($"Bereich „{section}“ ausgewählt.");
+    }
+
+    private void UpdateContextRail(string section)
+    {
+        if (_contextRailTitle is not null)
+            _contextRailTitle.Text = section;
+        if (_contextRailKind is not null)
+            _contextRailKind.Text = section switch
+            {
+                "Mall & Shop" => "Shopzeile / Preisvergleich",
+                "Adventure" => "Encounter / Tagesplan",
+                "Combat" => "Fight-Observation / Policy",
+                "Konten & Transfer" => "Konto / Rollenstatus",
+                _ => "Arbeitsbereich"
+            };
+        if (_contextRailDetails is not null)
+            _contextRailDetails.Text = section switch
+            {
+                "Mall & Shop" => "Wähle ein Listing für Detailpreis, historische Spanne und Reprice-Vorschau.",
+                "Adventure" => "Wähle ein Encounter für Status, Allowlist und bounded Preview.",
+                "Combat" => "Wähle eine legale Action für manuelle oder AutoCombat-Preview.",
+                _ => "Wähle ein Objekt, um sichere Kontextaktionen zu sehen."
+            };
     }
 
     private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Übersicht");
@@ -164,6 +199,19 @@ public partial class MainWindow : Window
             _combatPreviewSummary.Text = "Keine Observation geladen. Preview bleibt blockiert, bis Monster, Runde und legale Actions frisch gelesen wurden.";
     }
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Einstellungen");
+    private void ContextPreviewClick(object? sender, RoutedEventArgs e)
+    {
+        SetStatus($"Kontextvorschau für „{_activeSection}“ geöffnet. Es wurde keine KoL-Aktion gesendet.");
+        if (_contextRailDetails is not null)
+            _contextRailDetails.Text = "Preview erzeugt: aktuelle Daten und erlaubte nächste Schritte werden angezeigt; Commit bleibt separat freizugeben.";
+    }
+
+    private void ContextRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        SetStatus($"Kontext „{_activeSection}“ markiert. Aktualisierung läuft über den Bereichs-Refresh.");
+        if (_contextRailDetails is not null)
+            _contextRailDetails.Text = "Der Bereichs-Refresh lädt den gemeinsamen Cache. Das Kontextpanel bleibt read-only.";
+    }
     private async void RefreshClick(object? sender, RoutedEventArgs e)
     {
         switch (_activeSection)
