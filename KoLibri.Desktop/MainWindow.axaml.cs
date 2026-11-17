@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -103,6 +104,71 @@ public partial class MainWindow : Window
     }
 
     private void InitializeComponent() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
+
+    private void WindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Let text editors keep ordinary typing and only consume the explicit
+        // application gestures defined by the shared UX catalog.
+        if (e.Key == Key.F1)
+        {
+            ShowShortcutHelp();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F5 && e.KeyModifiers == KeyModifiers.None)
+        {
+            RefreshClick(sender, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift)
+        {
+            ContextPreviewClick(sender, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.Control)
+        {
+            CancelRefreshClick(sender, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers == KeyModifiers.Control && TryNavigateShortcut(e.Key))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool TryNavigateShortcut(Key key)
+    {
+        var section = key switch
+        {
+            Key.D1 or Key.NumPad1 => "Übersicht",
+            Key.D2 or Key.NumPad2 => "Pricing Engine",
+            Key.D3 or Key.NumPad3 => "Mall & Shop",
+            Key.D4 or Key.NumPad4 => "Adventure",
+            Key.D5 or Key.NumPad5 => "Combat",
+            Key.D6 or Key.NumPad6 => "Konten & Transfer",
+            Key.D7 or Key.NumPad7 => "Einstellungen",
+            _ => null
+        };
+        if (section is null)
+            return false;
+
+        Navigate(section);
+        return true;
+    }
+
+    private void ShowShortcutHelp()
+    {
+        SetStatus("Tastatur: Ctrl+1..7 Bereiche · F5 Aktualisieren · Shift+F10 Kontextvorschau · Ctrl+Esc Abbrechen · F1 Hilfe.");
+        if (_contextRailDetails is not null)
+            _contextRailDetails.Text = "Ctrl+1..7 wechseln den Bereich. F5 aktualisiert. Shift+F10 öffnet die sichere Kontextvorschau. Ctrl+Esc bricht laufende lokale Reads ab.";
+    }
 
     private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
         => UpdateResponsiveLayout(e.NewSize.Width);

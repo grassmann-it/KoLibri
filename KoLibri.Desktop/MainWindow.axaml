@@ -8,6 +8,7 @@
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource CanvasBrush}"
+        KeyDown="WindowKeyDown"
         AutomationProperties.Name="KoLibri Arbitrage Console">
   <Grid x:Name="ShellRoot"
         RowDefinitions="Auto,*"

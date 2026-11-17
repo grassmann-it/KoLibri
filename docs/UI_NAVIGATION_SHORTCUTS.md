@@ -34,6 +34,11 @@ eine Combat-Observation. Unterhalb der Desktop-Breite verschwindet sie; die
 gleichen Aktionen bleiben über die kompakte obere Navigation und Kontextmenüs
 erreichbar.
 
+Die Avalonia-Shell routet diese Kernbelegung jetzt direkt am Fenster:
+`F1`, `F5`, `Ctrl+Escape`, `Shift+F10` und `Ctrl+1..7`. Textfelder behalten
+ihre normale Eingabe; die globalen Gesten werden nur für die ausdrücklich
+definierten Kombinationen konsumiert.
+
 ## Nächste UI-Arbeitspakete
 
 1. Einen zentralen Shortcut-Router mit konfigurierbaren Profilen und
