@@ -48,6 +48,7 @@ internal static class KolibriCli
                 "reprice" => await RepriceAsync(args[1..]),
                 "batch" => await RepriceAsync(args[1..]),
                 "snatch-plan" => await SnatchPlanAsync(args[1..]),
+                "watchlist" or "scheduler" => await WatchlistSchedulerCommand.RunAsync(args[1..], ReadClientAsync, JsonOptions),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
                 _ => Fail($"Unbekannter Befehl: {args[0]}")
             };
@@ -802,6 +803,9 @@ internal static class KolibriCli
         Console.WriteLine("  reprice --role mallbot [--filter tiny|high|tiny-and-high|all] [--refresh]");
         Console.WriteLine("  snatch-plan --role mallbot [--item ITEM_ID ...] [--limit 20] [--workers 8]");
         Console.WriteLine("              [--budget N --reserve N --min-margin 0.10 --min-profit N --min-spread N]");
+        Console.WriteLine("  watchlist add|remove|list --store PATH --item ITEM_ID [--tradeable true --can-sell true]");
+        Console.WriteLine("  watchlist scan --role mallbot [--once|--periodic --interval SEC --iterations N] [--workers 8]");
+        Console.WriteLine("              [--store PATH --watchlist-id ID --transfer-cost N --min-sales N --min-liquidity 0.05 --max-age-hours 6]");
         Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:ERWARTET:NEU [--set ...] [--commit]");
         Console.WriteLine();
         Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");
