@@ -177,6 +177,15 @@ public sealed record ShopRepricePreview
     public IReadOnlyList<ShopRepriceAbortReason> Reasons => AbortReasons;
     public ShopRepriceAbortReason? PrimaryAbortReason
         => AbortReasons.Count == 0 ? null : AbortReasons[0];
+    public ShopRepriceOperationStatus State
+        => !IsReady
+            ? AbortReasons.Contains(ShopRepriceAbortReason.Conflict)
+                ? ShopRepriceOperationStatus.Conflict
+                : ShopRepriceOperationStatus.Aborted
+            : RequiresApproval
+                ? ShopRepriceOperationStatus.AwaitingApproval
+                : ShopRepriceOperationStatus.Previewed;
+    public ShopRepriceOperationStatus OperationStatus => State;
 
     public ShopRepricePreview()
     {
@@ -241,6 +250,8 @@ public sealed record ShopRepriceRefreshResult
     public bool IsReady => AbortReasons.Count == 0
         && Fresh.Results.All(x => x.Status is ShopPriceUpdateStatus.Ready or ShopPriceUpdateStatus.Hold);
     public bool Ready => IsReady;
+    public ShopRepriceOperationStatus State
+        => IsReady ? ShopRepriceOperationStatus.Previewed : ShopRepriceOperationStatus.Conflict;
     public ShopRepriceAbortReason? PrimaryAbortReason
         => AbortReasons.Count == 0 ? null : AbortReasons[0];
 }
