@@ -334,6 +334,12 @@ public class ShopRepriceApprovalService : IDisposable
         catch (ArgumentException exception)
         {
             Add(reasons, ShopRepriceAbortReason.InvalidRequest);
+            if (exception.Message.Contains("Account id", StringComparison.OrdinalIgnoreCase))
+                Add(reasons, ShopRepriceAbortReason.MissingAccount);
+            if (exception.Message.Contains("price update", StringComparison.OrdinalIgnoreCase))
+                Add(reasons, ShopRepriceAbortReason.MissingUpdates);
+            if (exception.Message.Contains("idempotency", StringComparison.OrdinalIgnoreCase))
+                Add(reasons, ShopRepriceAbortReason.MissingIdempotencyKey);
             warnings.Add(exception.Message);
         }
 
