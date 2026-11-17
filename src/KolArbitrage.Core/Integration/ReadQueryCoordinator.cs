@@ -1039,7 +1039,7 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         if (client is null)
             return ReadSnapshot<ShopSalesSnapshot>.Missing(ReadSnapshotKind.ShopSales, string.Empty, _clock.GetUtcNow(), source.AccountId, null);
         if (!options.ForceRefresh && TryGetFresh(_shopSales, source.AccountId, _policy.ShopSales, options, out var cached))
-            return Classify(cached, source.AccountId, _policy.ShopSales, options);
+            return Classify(cached, source.AccountId, _policy.ShopSales, options, sourceStale: cached.IsStale);
 
         var version = Volatile.Read(ref _cacheVersion);
         var lazy = _shopSalesInflight.GetOrAdd(source.AccountId, _ => new Lazy<Task<ShopSalesSnapshot>>(
@@ -1050,7 +1050,7 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
             var value = await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
             if (version == Volatile.Read(ref _cacheVersion))
                 lock (_cacheGate) _shopSales[source.AccountId] = value;
-            return Classify(value, source.AccountId, _policy.ShopSales, options);
+            return Classify(value, source.AccountId, _policy.ShopSales, options, sourceStale: value.IsStale);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -1118,8 +1118,9 @@ public class ReadQueryCoordinator : IReadQueryCoordinator, IReadSnapshotCoordina
         ShopSalesSnapshot value,
         string accountId,
         SnapshotCachePolicy policy,
-        ReadQueryOptions options)
-        => Classify(value, ReadSnapshotKind.ShopSales, accountId, null, policy, options, value.FetchedAt, value.IsStale);
+        ReadQueryOptions options,
+        bool sourceStale = false)
+        => Classify(value, ReadSnapshotKind.ShopSales, accountId, null, policy, options, value.FetchedAt, value.IsStale || sourceStale);
 
     private static DateTimeOffset? GetFetchedAt<T>(T value)
         where T : class
