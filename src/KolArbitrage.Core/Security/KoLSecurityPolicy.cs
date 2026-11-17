@@ -91,7 +91,7 @@ public sealed record KoLSecurityPolicy
             || requestUri.Port != responseUri.Port)
         {
             throw new KoLSecurityException(
-                $"KoL request was redirected to a different host or scheme ({Redact(requestUri)} -> {Redact(responseUri)}).");
+                $"KoL request was redirected to a different host, port or scheme ({Redact(requestUri)} -> {Redact(responseUri)}).");
         }
     }
 
