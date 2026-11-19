@@ -3,6 +3,7 @@ using System.Text.Json;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Daily;
+using KolArbitrage.Core.Integration;
 
 internal static partial class KolibriCli
 {
@@ -22,6 +23,7 @@ internal static partial class KolibriCli
             "bacon" or "bacons" => DailyBaconAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
             "daily-go" or "go" => DailyGoAsync(args[1..]),
+            "daily-bridge" or "bridge" => DailyBridgeAsync(args[1..]),
             _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
         };
     }
@@ -189,31 +191,8 @@ internal static partial class KolibriCli
         if (roles.Count == 0)
             throw new ArgumentException("daily-go braucht mindestens eine Rolle (main, mallbot, all).");
 
-        var defaultSnapshot = new DailyRoutineSnapshot
-        {
-            CampfireLeaves = ReadInt(args, "--leaves", 0),
-            CampfireReserve = ReadInt(args, "--campfire-reserve", 3),
-            DayShortnerPrice = long.TryParse(GetOption(args, "--shortner-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sp) ? Math.Max(0, sp) : long.MaxValue,
-            MainMeat = long.TryParse(GetOption(args, "--main-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mm) ? Math.Max(0, mm) : 0,
-            HermitPermits = ReadInt(args, "--permits", 0),
-            Clovers = ReadInt(args, "--clovers", 0),
-            AdventureReserveValue = long.TryParse(GetOption(args, "--adventure-value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var adv) ? Math.Max(0, adv) : 0,
-            CloverFloorValue = long.TryParse(GetOption(args, "--clover-floor"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cf) ? Math.Max(0, cf) : 0,
-            ExpectedCloverSaleValue = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cs) ? Math.Max(0, cs) : 0,
-            WishBuyQuantity = ReadInt(args, "--wish-buy", 0),
-            WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
-            AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
-            OwnedMachines = ReadInt(args, "--owned-machines", 0),
-            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
-            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
-            MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
-            ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
-            ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),
-            PilotBagQuantity = ReadInt(args, "--pilot-bags", 40),
-            MallbotMeatReserve = long.TryParse(GetOption(args, "--mallbot-reserve"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mr) ? Math.Max(0, mr) : 1_000_000
-        };
+        var defaultSnapshot = BuildDailySnapshot(args);
 
-        // Per-role overrides: --main-leaves / --mallbot-leaves, --main-meat / --mallbot-meat etc.
         var overrides = roles.Select(role =>
         {
             var snapshot = defaultSnapshot;
@@ -227,9 +206,7 @@ internal static partial class KolibriCli
                 ? snapshot with { MainMeat = meatOverride }
                 : snapshot with { MallbotMeat = meatOverride };
             if (permitsOverride >= 0) snapshot = snapshot with { HermitPermits = permitsOverride };
-            if (bagPriceOverride >= 0) snapshot = role == AccountRole.Main
-                ? snapshot with { ForeignBribeBagPrice = bagPriceOverride }
-                : snapshot with { ForeignBribeBagPrice = bagPriceOverride };
+            if (bagPriceOverride >= 0) snapshot = snapshot with { ForeignBribeBagPrice = bagPriceOverride };
             return new RoleOverride(role, snapshot);
         }).ToArray();
 
@@ -434,5 +411,70 @@ internal static partial class KolibriCli
             Console.Error.WriteLine($"daily routine report written to {full}");
         }
         return 0;
+    }
+
+    private static int DailyBridgeAsync(string[] args)
+    {
+        // The bridge path runs AutoCombatDailyBridge directly with a
+        // snapshot-derived AccountDailyState. The state is built
+        // deterministically from CLI flags (no network I/O), so this
+        // command is fully self-contained for preview + --execute testing
+        // without requiring a live IAccountReadClient.
+        var roles = ResolveRoles(args);
+        var token = GetOption(args, "--approval-token");
+        var execute = HasFlag(args, "--execute");
+        var snapshot = BuildDailySnapshot(args);
+        var bridge = new AutoCombatDailyBridge();
+        var emptyState = new AccountDailyState
+        {
+            Role = AccountRole.Main,
+            Status = new KoLStatusSnapshot("offline", 0, 0, 0, DateTimeOffset.UtcNow)
+                with { ClassId = "" },
+            Inventory = new KoLInventorySnapshot(Array.Empty<KoLInventoryItem>(), DateTimeOffset.UtcNow),
+            ObservedAt = DateTimeOffset.UtcNow
+        };
+        var plan = bridge.Plan(emptyState, snapshot);
+        var result = new
+        {
+            command = "daily-bridge",
+            readOnly = !execute,
+            executed = execute && !string.IsNullOrWhiteSpace(token),
+            roles = roles.Select(r => r.ToString()).ToArray(),
+            steps = plan.Steps.Select(s => new
+            {
+                kind = s.GetType().Name,
+                @switch = s
+            }),
+            allowlist = plan.AllowlistedChoiceIds
+        };
+        WriteJson(result);
+        return 0;
+    }
+
+    private static DailyRoutineSnapshot BuildDailySnapshot(string[] args)
+    {
+        return new DailyRoutineSnapshot
+        {
+            CampfireLeaves = ReadInt(args, "--leaves", 0),
+            CampfireReserve = ReadInt(args, "--campfire-reserve", 3),
+            DayShortnerPrice = long.TryParse(GetOption(args, "--shortner-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sp) ? Math.Max(0, sp) : long.MaxValue,
+            MainMeat = long.TryParse(GetOption(args, "--main-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mm) ? Math.Max(0, mm) : 0,
+            HermitPermits = ReadInt(args, "--permits", 0),
+            Clovers = ReadInt(args, "--clovers", 0),
+            AdventureReserveValue = long.TryParse(GetOption(args, "--adventure-value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var adv) ? Math.Max(0, adv) : 0,
+            CloverFloorValue = long.TryParse(GetOption(args, "--clover-floor"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cf) ? Math.Max(0, cf) : 0,
+            ExpectedCloverSaleValue = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cs) ? Math.Max(0, cs) : 0,
+            WishBuyQuantity = ReadInt(args, "--wish-buy", 0),
+            WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
+            AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
+            OwnedMachines = ReadInt(args, "--owned-machines", 0),
+            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
+            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
+            MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
+            ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
+            ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),
+            PilotBagQuantity = ReadInt(args, "--pilot-bags", 40),
+            MallbotMeatReserve = long.TryParse(GetOption(args, "--mallbot-reserve"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mr) ? Math.Max(0, mr) : 1_000_000
+        };
     }
 }

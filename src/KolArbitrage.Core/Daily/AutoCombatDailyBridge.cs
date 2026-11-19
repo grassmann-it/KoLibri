@@ -1,4 +1,5 @@
 using KolArbitrage.Core.Accounts;
+using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Data;
 
 namespace KolArbitrage.Core.Daily;
@@ -32,6 +33,34 @@ public sealed record DailyDecision
 /// </summary>
 public sealed class AutoCombatDailyBridge
 {
+    /// <summary>
+    /// Live outcome of one AutoCombat bridge run. Each <see cref="AdventureStepSpec"/>
+    /// is mapped to a single bounded-runner request and recorded as an audit row.
+    /// </summary>
+    public sealed record BridgeExecutionResult
+    {
+        public required bool Executed { get; init; }
+        public required IReadOnlyList<AdventureStepSpec> Steps { get; init; }
+        public required IReadOnlyList<string> AllowlistedChoiceIds { get; init; }
+        public required string? AuditPath { get; init; }
+    }
+
+    public BridgeExecutionResult Plan(
+        AccountDailyState state,
+        DailyRoutineSnapshot snapshot,
+        BaconSnapshot? bacon = null)
+    {
+        var steps = BuildSteps(state, snapshot, bacon);
+        return new BridgeExecutionResult
+        {
+            Executed = steps.Count > 0,
+            Steps = steps,
+            AllowlistedChoiceIds = steps.OfType<ChoiceStepSpec>()
+                .Select(c => c.ChoiceId + ":" + c.OptionId).ToArray(),
+            AuditPath = null
+        };
+    }
+
     public IReadOnlyList<AdventureStepSpec> BuildSteps(
         AccountDailyState state,
         DailyRoutineSnapshot snapshot,
@@ -109,6 +138,51 @@ public sealed class AutoCombatDailyBridge
         }
 
         return steps;
+    }
+
+    /// <summary>
+    /// Live execution path. Takes a pre-built plan and routes each choice step
+    /// through the bounded runner with the supplied approval token. Item-only
+    /// steps (spade, bacon-machine) are surfaced in the result for the operator
+    /// to handle through the dedicated write paths; the bounded runner cannot
+    /// buy from the mall today.
+    /// </summary>
+    public async Task<BridgeExecutionResult> ExecuteAsync(
+        IReadOnlyList<AdventureStepSpec> steps,
+        AdventureExecutionGateway gateway,
+        AdventureActionAllowlist? extraAllowlist = null,
+        TimeProvider? clock = null,
+        BoundedChoiceChainOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+        ArgumentNullException.ThrowIfNull(gateway);
+        var choiceSteps = steps.OfType<ChoiceStepSpec>().ToArray();
+        if (choiceSteps.Length == 0)
+        {
+            return new BridgeExecutionResult
+            {
+                Executed = false,
+                Steps = steps,
+                AllowlistedChoiceIds = Array.Empty<string>(),
+                AuditPath = "<memory>"
+            };
+        }
+        var allowlist = extraAllowlist ?? new AdventureActionAllowlist();
+        foreach (var cs in choiceSteps)
+            allowlist = allowlist.AddChoiceOption(cs.ChoiceId, cs.ChoiceId, cs.OptionId);
+        var runner = new BoundedChoiceChainRunner(gateway, clock ?? TimeProvider.System);
+        var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
+        var runId = $"bridge-{Guid.NewGuid():N}";
+        var outcome = await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
+        return new BridgeExecutionResult
+        {
+            Executed = outcome.Steps.Count > 0,
+            Steps = steps,
+            AllowlistedChoiceIds = choiceSteps
+                .Select(c => c.ChoiceId + ":" + c.OptionId).ToArray(),
+            AuditPath = gateway.CheckpointStore is null ? "<memory>" : "<persisted>"
+        };
     }
 
     public DailyDecision Decide(string surface, AccountDailyState state, DailyRoutineSnapshot snapshot, BaconSnapshot? bacon = null)

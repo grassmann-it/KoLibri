@@ -1,5 +1,6 @@
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Adventure;
+using KolArbitrage.Core.Data;
 
 namespace KolArbitrage.Core.Daily;
 
@@ -59,6 +60,8 @@ public sealed class DailyOrchestrator
     private readonly Func<AccountRole, AdventureExecutionGateway> _gatewayFactory;
     private readonly string? _approvalToken;
     private readonly TimeProvider _clock;
+    private readonly Func<AccountRole, IAccountDailyStateReader>? _stateReaderFactory;
+    private readonly Func<AccountRole, BaconSnapshot>? _baconSnapshotFactory;
 
     public DailyOrchestrator(
         Func<AccountRole, AdventureExecutionGateway> gatewayFactory,
@@ -70,7 +73,24 @@ public sealed class DailyOrchestrator
         _clock = clock ?? TimeProvider.System;
     }
 
+    /// <summary>Constructor for bridge-backed execution. The state-reader
+    /// produces the live <see cref="AccountDailyState"/> per role so the
+    /// AutoCombatDailyBridge can run the same predicate set both offline
+    /// and on the live account.</summary>
+    public DailyOrchestrator(
+        Func<AccountRole, AdventureExecutionGateway> gatewayFactory,
+        string? approvalToken,
+        Func<AccountRole, IAccountDailyStateReader> stateReaderFactory,
+        Func<AccountRole, BaconSnapshot>? baconSnapshotFactory = null,
+        TimeProvider? clock = null)
+        : this(gatewayFactory, approvalToken, clock)
+    {
+        _stateReaderFactory = stateReaderFactory ?? throw new ArgumentNullException(nameof(stateReaderFactory));
+        _baconSnapshotFactory = baconSnapshotFactory;
+    }
+
     public bool CanExecute => !string.IsNullOrWhiteSpace(_approvalToken);
+    public bool CanUseBridge => _stateReaderFactory is not null;
 
     public DailyOrchestrationReport BuildPlan(
         IEnumerable<RoleOverride> overrides,
@@ -136,6 +156,91 @@ public sealed class DailyOrchestrator
             SucceededRoleCount = results.Count(r => r.Execution.Steps.Count > 0
                 && r.Execution.Steps.All(s => s.Status != AdventureExecutionStatus.Aborted)),
             FailedRoleCount = results.Count(r => r.Execution.Steps.Any(s => s.Status == AdventureExecutionStatus.Aborted))
+        };
+    }
+
+    /// <summary>
+    /// Bridge-backed execution: per role, read the live <see cref="AccountDailyState"/>
+    /// via the configured <see cref="AccountDailyStateReader"/>, run the
+    /// AutoCombatDailyBridge to produce <see cref="AdventureStepSpec"/>s,
+    /// and submit the choice-steps through the gateway with the approval
+    /// token. Item-only steps (spade, bacon-machine) are returned in the
+    /// plan but not executed by the bounded runner.
+    /// </summary>
+    public async Task<DailyOrchestrationResult> ExecuteBridgeAsync(
+        DailyOrchestrationReport report,
+        BoundedChoiceChainOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        if (!CanExecute || !CanUseBridge)
+        {
+            return new DailyOrchestrationResult
+            {
+                Results = report.Plans.Select(p => (p, new DailyRoutineExecutionResult
+                {
+                    Executed = false,
+                    Role = p.Role,
+                    Steps = Array.Empty<DailyStepOutcome>(),
+                    AuditPath = null
+                })).ToArray(),
+                ExecutedRoleCount = 0,
+                SucceededRoleCount = 0,
+                FailedRoleCount = 0
+            };
+        }
+        var tasks = report.Plans.Select(async plan =>
+        {
+            var reader = _stateReaderFactory!(plan.Role);
+            var state = await reader.ReadAsync(plan.Role, cancellationToken).ConfigureAwait(false);
+            var bacon = _baconSnapshotFactory?.Invoke(plan.Role);
+            var bridge = new AutoCombatDailyBridge();
+            var planned = bridge.Plan(state, plan.Snapshot, bacon);
+            if (planned.AllowlistedChoiceIds.Count == 0)
+            {
+                return (Plan: plan, Execution: new DailyRoutineExecutionResult
+                {
+                    Executed = false,
+                    Role = plan.Role,
+                    Steps = Array.Empty<DailyStepOutcome>(),
+                    AuditPath = null
+                });
+            }
+            var gateway = _gatewayFactory(plan.Role);
+            var result = await bridge.ExecuteAsync(planned.Steps, gateway,
+                options: options, cancellationToken: cancellationToken).ConfigureAwait(false);
+            // Convert to the legacy DailyRoutineExecutionResult shape so the
+            // existing CLI / MCP renderers keep working. Each choice-step is
+            // represented by a single DailyStepOutcome.
+            var steps = result.Steps
+                .Where(s => s is ChoiceStepSpec)
+                .Select((_, i) => new DailyStepOutcome
+                {
+                    StepKind = "bridge.choice",
+                    Location = ((ChoiceStepSpec)result.Steps.First(s => s is ChoiceStepSpec)).ChoiceId,
+                    RunId = $"bridge-{plan.Role}",
+                    Status = result.Executed
+                        ? AdventureExecutionStatus.Complete
+                        : AdventureExecutionStatus.Advanced,
+                    RequestId = null,
+                    StopReason = "Complete",
+                    Message = string.Join(",", result.AllowlistedChoiceIds)
+                }).ToArray();
+            return (Plan: plan, Execution: new DailyRoutineExecutionResult
+            {
+                Executed = result.Executed,
+                Role = plan.Role,
+                Steps = steps,
+                AuditPath = result.AuditPath
+            });
+        });
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        return new DailyOrchestrationResult
+        {
+            Results = results,
+            ExecutedRoleCount = results.Count(r => r.Execution.Executed),
+            SucceededRoleCount = results.Count(r => r.Execution.Steps.Count > 0),
+            FailedRoleCount = 0
         };
     }
 
