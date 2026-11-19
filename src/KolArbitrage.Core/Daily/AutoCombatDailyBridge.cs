@@ -91,11 +91,30 @@ public sealed class AutoCombatDailyBridge
         }
 
         // 2. Hermit: open a clover only when the expected sale beats the reserve value.
+        //    When permits are missing AND we have enough useless items to trade
+        //    for one (3 worthless items → 1 hermit permit) AND there's at least
+        //    one clover to open, the bridge emits the trade AND the clover step
+        //    so the operator sees the full happy-path in the plan.
         if (snapshot.HermitPermits > 0 && snapshot.Clovers > 0
             && snapshot.ExpectedCloverSaleValue > snapshot.CloverFloorValue
             && snapshot.ExpectedCloverSaleValue > snapshot.AdventureReserveValue)
         {
             steps.Add(new ChoiceStepSpec("choice-clover", "1"));
+        }
+        else if (snapshot.HermitPermits == 0 && snapshot.Clovers > 0
+            && snapshot.UselessItems >= 3)
+        {
+            // Trade 3 useless items for 1 permit, then open the clover. The
+            // bridge emits both steps so the audit ledger captures the
+            // operator-approved happy path. The bounded runner does not
+            // execute the trade today — operators drive it through
+            // `kolibri hermit trade --quantity N`.
+            var tradeRuns = Math.Min(snapshot.Clovers, snapshot.UselessItems / 3);
+            for (var i = 0; i < tradeRuns; i++)
+                steps.Add(new ItemStepSpec("worthless-item", Quantity: 3,
+                    MonsterId: null, Round: null));
+            for (var i = 0; i < tradeRuns; i++)
+                steps.Add(new ChoiceStepSpec("choice-clover", "1"));
         }
         if (snapshot.WishBuyQuantity > 0 && snapshot.WishUnitPrice > 0
             && snapshot.MainMeat - snapshot.WishBuyQuantity * snapshot.WishUnitPrice >= 200_000)
@@ -142,10 +161,12 @@ public sealed class AutoCombatDailyBridge
 
     /// <summary>
     /// Live execution path. Takes a pre-built plan and routes each choice step
-    /// through the bounded runner with the supplied approval token. Item-only
-    /// steps (spade, bacon-machine) are surfaced in the result for the operator
-    /// to handle through the dedicated write paths; the bounded runner cannot
-    /// buy from the mall today.
+    /// through a fresh bounded adventure run with the supplied approval token.
+    /// Each choice is its own short-lived run: <c>StartAsync</c> posts to the
+    /// choice URL, then <c>ExecutePendingAsync</c> follows up if KoL answers
+    /// with a follow-up choice. Item-only steps (spade, bacon-machine) are
+    /// surfaced in the result for the operator to handle through dedicated
+    /// write paths; the bounded runner cannot buy from the mall today.
     /// </summary>
     public async Task<BridgeExecutionResult> ExecuteAsync(
         IReadOnlyList<AdventureStepSpec> steps,
@@ -170,14 +191,48 @@ public sealed class AutoCombatDailyBridge
         }
         var allowlist = extraAllowlist ?? new AdventureActionAllowlist();
         foreach (var cs in choiceSteps)
+            // The bounded runner keys allowlist on AdventureId; for free-pull
+            // choices the "adventure id" *is* the choice id, and the option
+            // id is passed verbatim. This is the same shortcut the existing
+            // DailyRoutineExecutor uses.
             allowlist = allowlist.AddChoiceOption(cs.ChoiceId, cs.ChoiceId, cs.OptionId);
-        var runner = new BoundedChoiceChainRunner(gateway, clock ?? TimeProvider.System);
-        var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
-        var runId = $"bridge-{Guid.NewGuid():N}";
-        var outcome = await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
+        var executedCount = 0;
+        foreach (var cs in choiceSteps)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var runId = $"bridge-{cs.ChoiceId}-{Guid.NewGuid():N}";
+            var request = new AdventureRunRequest
+            {
+                RunId = runId,
+                // Choice pages don't have an AdventureId. We re-use the
+                // choice id so the bounded runner can still key its lookup.
+                AdventureId = cs.ChoiceId
+            };
+            try
+            {
+                // Step 1: hit the choice URL via the gateway's StartAsync.
+                var started = await gateway.StartAsync(request, allowlist, cancellationToken).ConfigureAwait(false);
+                // Step 2: pick up follow-up choices if KoL presented one.
+                var runner = new BoundedChoiceChainRunner(gateway, clock ?? TimeProvider.System);
+                var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
+                await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
+                if (started.Status != AdventureExecutionStatus.Aborted)
+                    executedCount++;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // Continue with the next step; partial failure is fine for
+                // a "do what we can" daily run. The audit ledger records
+                // each abort via the checkpoint store.
+            }
+        }
         return new BridgeExecutionResult
         {
-            Executed = outcome.Steps.Count > 0,
+            Executed = executedCount > 0,
             Steps = steps,
             AllowlistedChoiceIds = choiceSteps
                 .Select(c => c.ChoiceId + ":" + c.OptionId).ToArray(),

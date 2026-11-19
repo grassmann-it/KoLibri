@@ -16,6 +16,7 @@ public sealed record DailyRoutineSnapshot
     // Hermit
     public int HermitPermits { get; init; }
     public int Clovers { get; init; }
+    public int UselessItems { get; init; }
     public long AdventureReserveValue { get; init; }
     public long CloverFloorValue { get; init; }
     public long ExpectedCloverSaleValue { get; init; }
