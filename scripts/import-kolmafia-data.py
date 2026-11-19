@@ -36,20 +36,28 @@ ACCESS_TOKENS = {"q", "g", "t", "d"}
 
 
 def parse_items(line: str) -> dict | None:
-    """Tab-separated: id\tname\tdescid\timage\tuseflags\taccessflags\tautosell\tplural"""
+    """Tab-separated: id\tname\tdescid\timage\tuseflags\taccessflags\tautosell\tplural
+
+    KoLmafia writes short rows for items that have no image/flags yet
+    (for example "10881<TAB>11-leaf clover<TAB>477842994"). Those rows are
+    valid items and must not be dropped, so the parser fills the missing
+    columns with empty defaults instead of rejecting the row.
+    """
     parts = line.split("\t")
-    if len(parts) < 8 or not parts[0].isdigit():
+    if len(parts) < 2 or not parts[0].isdigit():
         return None
     item_id = int(parts[0])
     name = parts[1]
-    desc_id = parts[2]
-    image = parts[3]
-    use_flags = [t for t in parts[4].split(",") if t.strip() and t.strip() in USE_TOKENS or t.strip() in SECONDARY_TOKENS]
+    desc_id = parts[2] if len(parts) > 2 else ""
+    image = parts[3] if len(parts) > 3 else ""
+    use_field = parts[4] if len(parts) > 4 else ""
+    access_field = parts[5] if len(parts) > 5 else ""
+    autosell = parts[6] if len(parts) > 6 else ""
+    plural = parts[7] if len(parts) > 7 else ""
+    use_flags = [t for t in use_field.split(",") if t.strip() and (t.strip() in USE_TOKENS or t.strip() in SECONDARY_TOKENS)]
     secondary = [t for t in use_flags if t in SECONDARY_TOKENS]
     primary = [t for t in use_flags if t in USE_TOKENS and t not in SECONDARY_TOKENS]
-    access_flags = [t for t in parts[5] if t in ACCESS_TOKENS]
-    autosell = parts[6]
-    plural = parts[7]
+    access_flags = [t for t in access_field if t in ACCESS_TOKENS]
     return {
         "id": str(item_id),
         "name": name,

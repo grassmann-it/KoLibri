@@ -381,10 +381,15 @@ internal static partial class KolibriCli
                 "inventory.php?which=2",
                 "inventory.php?which=3",
                 "api.php?what=inv_easy",
+                "api.php?what=item&itemid=10881&for=KoLibri",
+                "api.php?what=item&itemid=42&for=KoLibri",
+                "api.php?what=item&itemid=9025&for=KoLibri",
+                "api.php?what=item&itemid=53&for=KoLibri",
                 "storage.php",
                 "campaway.php",
                 "place.php?whichplace=campaway",
-                "hermit.php"
+                "hermit.php",
+                "hermit.php?action=trade&whichitem=10881&quantity=1"
             })
             {
                 try

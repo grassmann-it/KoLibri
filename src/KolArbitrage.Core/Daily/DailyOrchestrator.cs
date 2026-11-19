@@ -271,6 +271,7 @@ public sealed class DailyOrchestrator
             MainMeat = overrideSnapshot.MainMeat != 0 ? overrideSnapshot.MainMeat : defaults.MainMeat,
             HermitPermits = overrideSnapshot.HermitPermits != 0 ? overrideSnapshot.HermitPermits : defaults.HermitPermits,
             Clovers = overrideSnapshot.Clovers != 0 ? overrideSnapshot.Clovers : defaults.Clovers,
+            UselessItems = overrideSnapshot.UselessItems != 0 ? overrideSnapshot.UselessItems : defaults.UselessItems,
             AdventureReserveValue = overrideSnapshot.AdventureReserveValue != 0 ? overrideSnapshot.AdventureReserveValue : defaults.AdventureReserveValue,
             CloverFloorValue = overrideSnapshot.CloverFloorValue != 0 ? overrideSnapshot.CloverFloorValue : defaults.CloverFloorValue,
             ExpectedCloverSaleValue = overrideSnapshot.ExpectedCloverSaleValue != 0 ? overrideSnapshot.ExpectedCloverSaleValue : defaults.ExpectedCloverSaleValue,

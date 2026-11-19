@@ -67,7 +67,7 @@ public static class InternetShopCatalog
             ChoiceId = "choice-lucky-surprise-egg",
             OptionId = "1",
             DisplayName = "Lucky Surprise Egg",
-            SourcePage = "inventory.php?which=4",
+            SourcePage = "shop.php?whichshop=exotic",
             AlreadyClaimed = false
         },
         new InternetShopFreePull
@@ -75,7 +75,7 @@ public static class InternetShopCatalog
             ChoiceId = "choice-internet-bacon",
             OptionId = "1",
             DisplayName = "Internet Bacon",
-            SourcePage = "choice.php?whichchoice=1119",
+            SourcePage = "shop.php?whichshop=exotic",
             AlreadyClaimed = false
         },
         new InternetShopFreePull
@@ -83,7 +83,7 @@ public static class InternetShopCatalog
             ChoiceId = "choice-bacon-machine",
             OptionId = "1",
             DisplayName = "Infinite Bacon Machine",
-            SourcePage = "choice.php?whichchoice=1118",
+            SourcePage = "shop.php?whichshop=exotic",
             AlreadyClaimed = false
         }
     };

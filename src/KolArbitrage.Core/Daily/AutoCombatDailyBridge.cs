@@ -239,6 +239,65 @@ public sealed class AutoCombatDailyBridge
             allowlist = allowlist.AddChoiceOption(cs.ChoiceId, cs.ChoiceId, cs.OptionId);
         var executedCount = 0;
         string? lastFreePullSnippet = null;
+        // Item-only steps: the Hermit permit purchase. One worthless item
+        // buys one permit, so the step's quantity is the number of permits.
+        var permitSteps = steps.OfType<ItemStepSpec>()
+            .Where(s => string.Equals(s.ItemId, "worthless-item", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        foreach (var ps in permitSteps)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (freePullDispatcher is null || freePullCredentials is null)
+            {
+                if (audit is not null)
+                {
+                    await audit.AppendAsync(new AuditEvent(
+                        AuditEventPhase.Preview, opId, source,
+                        requestId: Guid.NewGuid().ToString("N"),
+                        action: $"bridge.item.hermit-permit.{ps.Quantity}.skipped",
+                        status: "no-credentials",
+                        message: freePullDispatcher is null
+                            ? "No free-pull dispatcher configured for this role."
+                            : "No stored credentials for this role.",
+                        accountId: accountId), cancellationToken).ConfigureAwait(false);
+                }
+                break;
+            }
+            try
+            {
+                var result = await freePullDispatcher.BuyPermitAsync(
+                    freePullCredentials, ps.Quantity, cancellationToken).ConfigureAwait(false);
+                lastFreePullSnippet = result.BodySnippet;
+                if (result.Accepted) executedCount++;
+                if (audit is not null)
+                {
+                    await audit.AppendAsync(new AuditEvent(
+                        AuditEventPhase.Commit, opId, source,
+                        requestId: result.RequestId,
+                        action: $"bridge.item.hermit-permit.{ps.Quantity}",
+                        status: result.Accepted ? "submitted" : $"http-{result.StatusCode}",
+                        message: result.BodySnippet,
+                        accountId: accountId), cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                if (audit is not null)
+                {
+                    await audit.AppendAsync(new AuditEvent(
+                        AuditEventPhase.Verify, opId, source,
+                        requestId: Guid.NewGuid().ToString("N"),
+                        action: $"bridge.item.hermit-permit.{ps.Quantity}",
+                        status: "exception",
+                        message: ex.Message,
+                        accountId: accountId), cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
         foreach (var cs in choiceSteps)
         {
             cancellationToken.ThrowIfCancellationRequested();

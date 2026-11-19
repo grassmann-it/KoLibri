@@ -56,13 +56,37 @@ public sealed class FreePullDispatcher
         request.Content = new FormUrlEncodedContent(form);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        var snippet = body.Length > 0 ? body.Substring(0, Math.Min(600, body.Length)) : "";
+        var snippet = ExtractMeaningfulSnippet(body);
         return new FreePullResult(
             RequestId: Guid.NewGuid().ToString("N"),
             StatusCode: (int)response.StatusCode,
             Accepted: response.IsSuccessStatusCode,
             BodySnippet: snippet,
             Location: response.Headers.Location?.ToString());
+    }
+
+    /// <summary>Extracts the interesting part of KoL's response. The pages
+    /// start with a large <c>&lt;script&gt;</c> block, so we skip past it
+    /// and surface the text that says what actually happened ("You acquire
+    /// 1 11-leaf clover", "You don't have enough Hermit Permits", …).</summary>
+    private static string ExtractMeaningfulSnippet(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "(empty body)";
+        var markers = new[]
+        {
+            "You acquire", "You don't have enough", "not allowed to visit",
+            "he sends you packing", "doesn't have that item", "Hermit Permit required",
+            "left in stock", "You lose", "You gain", "You get"
+        };
+        foreach (var marker in markers)
+        {
+            var index = body.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (index < 0) continue;
+            var start = Math.Max(0, index - 60);
+            var length = Math.Min(400, body.Length - start);
+            return body.Substring(start, length);
+        }
+        return body.Length > 300 ? body.Substring(0, 300) : body;
     }
 
     /// <summary>KoL item ids the daily flow needs. These come straight from
@@ -78,7 +102,7 @@ public sealed class FreePullDispatcher
         /// <summary>Infinite Bacon Machine — the daily Internet-shop claim.</summary>
         public const int BaconMachine = 9025;
         /// <summary>Lucky Surprise Egg — the daily Internet-shop claim.</summary>
-        public const int LuckySurpriseEgg = 53;
+        public const int LuckySurpriseEgg = 995;
         /// <summary>Internet Bacon — the daily Internet-shop claim.</summary>
         public const int InternetBacon = 8763;
     }
@@ -98,7 +122,8 @@ public sealed class FreePullDispatcher
                 // Lucky Surprise Egg / Internet Bacon live in the storage
                 // (free pulls). KoLmafia pulls them with
                 // storage.php?action=pull&whichitem1=<id>&howmany1=1.
-                // option 1 → Lucky Surprise Egg, option 2 → Internet Bacon.
+                // option 1 → Lucky Surprise Egg (995), option 2 → the
+                // Internet Bacon free pull.
                 form["action"] = "pull";
                 form["ajax"] = "1";
                 form["whichitem1"] = (option == 2
@@ -126,20 +151,24 @@ public sealed class FreePullDispatcher
             case 1100:
                 // Hermit: trade one worthless item for an 11-leaf clover.
                 // The Hermit charges one worthless item per clover and
-                // needs a Hermit Permit for the trade itself.
+                // needs a Hermit Permit for the trade itself. autopermit=on
+                // lets KoL hand out the permit automatically (paid for by
+                // one worthless item), which is what KoLmafia does.
                 form["action"] = "trade";
                 form["whichitem"] = ItemIds.ElevenLeafClover.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
                 form["quantity"] = option.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
-                return ("hermit.php", form);
+                form["autopermit"] = "on";
+                return ("hermit.php?autopermit=on", form);
             case 1107:
                 // Hermit: buy a wish (a sealed circlet).
                 form["action"] = "trade";
                 form["whichitem"] = ItemIds.ElevenLeafClover.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
                 form["quantity"] = "1";
-                return ("hermit.php", form);
+                form["autopermit"] = "on";
+                return ("hermit.php?autopermit=on", form);
             default:
 
                 form["whichchoice"] = whichChoice.ToString(
@@ -148,6 +177,51 @@ public sealed class FreePullDispatcher
                     System.Globalization.CultureInfo.InvariantCulture);
                 return ($"choice.php?whichchoice={whichChoice}", form);
         }
+    }
+
+    /// <summary>Trades worthless items for Hermit Permits. KoL's Hermit
+    /// grants a permit automatically when the request carries
+    /// <c>autopermit=on</c> — KoLmafia appends that flag to hermit.php so
+    /// the operator never has to buy permits by hand. One permit costs one
+    /// worthless item.</summary>
+    public async Task<FreePullResult> BuyPermitAsync(
+        AccountCredentials credentials,
+        int quantity = 1,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
+            throw new InvalidOperationException(
+                "Permit purchase requires a logged-in account with a cookie header.");
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+
+        // autopermit=on makes the Hermit hand out a permit (paid for by a
+        // worthless item) before the trade is processed.
+        var form = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["action"] = "trade",
+            ["whichitem"] = ItemIds.HermitPermit.ToString(
+                System.Globalization.CultureInfo.InvariantCulture),
+            ["quantity"] = quantity.ToString(
+                System.Globalization.CultureInfo.InvariantCulture),
+            ["autopermit"] = "on"
+        };
+        var uri = new Uri(_baseUri, "hermit.php?autopermit=on");
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri);
+        request.Headers.Add("Cookie", credentials.CookieHeader);
+        request.Content = new FormUrlEncodedContent(form);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var snippet = ExtractMeaningfulSnippet(body);
+        return new FreePullResult(
+            RequestId: Guid.NewGuid().ToString("N"),
+            StatusCode: (int)response.StatusCode,
+            Accepted: response.IsSuccessStatusCode,
+            BodySnippet: response.Headers.Location is { } loc
+                ? $"[{response.StatusCode}] -> {loc} | {snippet}"
+                : snippet,
+            Location: response.Headers.Location?.ToString());
     }
 
     /// <summary>Companion read-only call used by the audit-reader CLI to
