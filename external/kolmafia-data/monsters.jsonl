@@ -1,0 +1,5 @@
+{"id":"skeleton-of-crimbos-past","name":"a skeleton of crimbos past","phylum":"undead","hp":42,"attack":18,"defense":12,"elements":["spooky"],"skills":["none"],"items":["knucklebone"],"adventures":true,"Manuel":false}
+{"id":"toothy-skull","name":"a toothy skull","phylum":"undead","hp":30,"attack":15,"defense":10,"elements":["spooky"],"skills":["bite"],"items":["knucklebone"],"adventures":true,"Manuel":false}
+{"id":"party-skeleon-ton","name":"a party skeleon-ton","phylum":"undead","hp":48,"attack":22,"defense":14,"elements":["spooky","cold"],"skills":["dance"],"items":["knucklebone"],"adventures":true,"Manuel":false}
+{"id":"bony statistically-significant-other","name":"a bony statistically significant other","phylum":"undead","hp":55,"attack":25,"defense":18,"elements":["spooky","sleaze"],"skills":["embarrass"],"items":["knucklebone"],"adventures":true,"Manuel":false}
+{"id":"dreadsylvanian skeleton","name":"a Dreadsylvanian skeleton","phylum":"undead","hp":70,"attack":30,"defense":22,"elements":["spooky"],"skills":["howl"],"items":["knucklebone","dreadsylvanian banjo"],"adventures":true,"Manuel":true}
