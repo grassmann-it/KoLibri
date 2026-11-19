@@ -328,7 +328,21 @@ public sealed class KoLMallReadClient : IMallReadClient
             using var response = await _http.PostAsync(uri, content, cancellationToken).ConfigureAwait(false);
             _security.EnsureResponseUri(uri, response.RequestMessage?.RequestUri);
             if (response.Headers.Location is { } location && !response.IsSuccessStatusCode)
+            {
+                // KoL redirects the mall search to the result page. The
+                // client never follows redirects (so cookies can't leak
+                // cross-host), so we follow the location ourselves.
                 _security.ResolveRedirect(uri, location.ToString());
+                var target = new Uri(uri, location);
+                using var follow = new HttpRequestMessage(HttpMethod.Get, target);
+                using var followed = await _http.SendAsync(follow, cancellationToken).ConfigureAwait(false);
+                _security.EnsureResponseUri(target, followed.RequestMessage?.RequestUri);
+                followed.EnsureSuccessStatusCode();
+                var followBody = await followed.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                KoLHtmlResponseClassifier.EnsureContent(followBody, target);
+                _lastRequest = _clock.GetUtcNow();
+                return followBody;
+            }
             response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             KoLHtmlResponseClassifier.EnsureContent(body, uri);

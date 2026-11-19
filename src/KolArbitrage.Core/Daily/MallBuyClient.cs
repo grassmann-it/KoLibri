@@ -24,7 +24,9 @@ public sealed class MallBuyClient
     private static readonly Regex[] HashPatterns =
     {
         new(@"name=[""']?pwd[""']? value=[""']([^""']+)[""']", RegexOptions.Compiled),
-        new(@"pwd=([^&]+)", RegexOptions.Compiled),
+        // The query-string form: pwd=<hash>&other=… — the hash ends at the
+        // next separator, not at the end of the tag.
+        new(@"pwd=([^&""'\s<>]+)", RegexOptions.Compiled),
         new(@"pwd = ""([^""]+)""", RegexOptions.Compiled)
     };
 
@@ -129,6 +131,15 @@ public sealed class MallBuyClient
             TotalPrice = unitPrice * quantity,
             Message = snippet
         };
+    }
+
+    /// <summary>KoL's mall rows expose the store id as a string; the
+    /// purchase needs the numeric form.</summary>
+    public static bool TryParseStoreId(string? value, out int storeId)
+    {
+        storeId = 0;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        return int.TryParse(value.Trim(), out storeId);
     }
 
     /// <summary>Surfaces the part of KoL's response that says what happened

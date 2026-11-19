@@ -6,6 +6,7 @@ namespace KolArbitrage.Core.Daily;
 /// buy for the restock.</summary>
 public sealed record RestockCandidate
 {
+    /// <summary>KoL's numeric store id.</summary>
     public required int StoreId { get; init; }
     public required int ItemId { get; init; }
     public required string ItemName { get; init; }
@@ -58,10 +59,29 @@ public sealed record RestockPlan
 /// </summary>
 public sealed class RestockPlanner
 {
+    /// <summary>KoL item ids that cannot be bought on the mall. The
+    /// inflammable leaf (11341) is the important one: it is only obtained
+    /// from the campfire, so a restock plan for it can never be fulfilled.
+    /// </summary>
+    public static IReadOnlySet<int> UnbuyableItems { get; } =
+        new HashSet<int> { 11341 };
+
     public RestockPlan Plan(RestockSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var candidate = snapshot.CheapestListing;
+        if (candidate is not null && UnbuyableItems.Contains(candidate.ItemId))
+        {
+            return new RestockPlan
+            {
+                Verdict = "NotBuyable",
+                ShouldBuy = false,
+                Quantity = 0,
+                EstimatedSpend = 0,
+                Rationale = $"Item {candidate.ItemId} cannot be bought on the mall.",
+                Candidate = candidate
+            };
+        }
         if (candidate is null)
         {
             return new RestockPlan

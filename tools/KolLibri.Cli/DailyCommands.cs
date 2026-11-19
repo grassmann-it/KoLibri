@@ -466,6 +466,69 @@ internal static partial class KolibriCli
                         freePullCredentials: TryGetCredentials(role),
                         audit: audit, accountId: role.ToString());
                 }
+
+                // Restock + arbitrage: the mall side of the daily routine.
+                // Both accounts may buy, so each role runs its own plan with
+                // its own meat pool and its own daily shop limit.
+                var arbitrage = new List<object>();
+                if (client.Mall is not null)
+                {
+                    var buyClient = CreateMallBuyClient(role);
+                    var credentials = TryGetCredentials(role);
+                    var restock = new CloverRestockExecutor(buyClient, client.Mall);
+                    var cloverTarget = ReadInt(args, "--clover-target", 3);
+                    var cloverCeiling = long.TryParse(GetOption(args, "--clover-max-price"), out var cp) ? cp : 0;
+                    var restockPlan = await restock.PlanAsync(
+                        live.Clovers, cloverTarget, live.Meat, cloverCeiling)
+                        .ConfigureAwait(false);
+                    var restockVerdict = restockPlan.Verdict;
+                    var restockBought = false;
+                    var restockQuantity = 0;
+                    var restockSpent = 0L;
+                    var restockRationale = restockPlan.Rationale;
+                    if (execute && !string.IsNullOrWhiteSpace(token) && credentials is not null)
+                    {
+                        var restockOutcome = await restock.RunAsync(
+                            credentials, live.Clovers, cloverTarget,
+                            live.Meat, cloverCeiling).ConfigureAwait(false);
+                        restockVerdict = restockOutcome.Verdict;
+                        restockBought = restockOutcome.Bought;
+                        restockQuantity = restockOutcome.Quantity;
+                        restockSpent = restockOutcome.Spent;
+                        restockRationale = restockOutcome.Rationale;
+                    }
+                    arbitrage.Add(new
+                    {
+                        kind = "clover-restock",
+                        verdict = restockVerdict,
+                        bought = restockBought,
+                        quantity = restockQuantity,
+                        spent = restockSpent,
+                        rationale = restockRationale
+                    });
+
+                    var baconMedian = long.TryParse(GetOption(args, "--bacon-median"), out var bm) ? bm : 0;
+                    if (baconMedian > 0)
+                    {
+                        var bacon = new BaconArbitrageExecutor(buyClient, client.Mall);
+                        var baconOutcome = await bacon.RunAsync(
+                            credentials ?? throw new InvalidOperationException("no credentials"),
+                            live.BaconMachines, live.Meat, baconMedian,
+                            minimumProfitPerUnit: long.TryParse(GetOption(args, "--bacon-min-profit"), out var bp) ? bp : 50_000,
+                            maximumQuantity: ReadInt(args, "--bacon-max-qty", 10))
+                            .ConfigureAwait(false);
+                        arbitrage.Add(new
+                        {
+                            kind = "bacon-arbitrage",
+                            verdict = baconOutcome.Verdict,
+                            bought = baconOutcome.Bought,
+                            quantity = baconOutcome.Quantity,
+                            spent = baconOutcome.Spent,
+                            rationale = baconOutcome.Rationale
+                        });
+                    }
+                }
+
                 perRole.Add(new
                 {
                     role = role.ToString(),
@@ -492,6 +555,7 @@ internal static partial class KolibriCli
                     }),
                     allowlist = plan.AllowlistedChoiceIds,
                     executed = execution?.Executed ?? false,
+                    arbitrage,
                     auditPath = execution?.AuditPath
                 });
             }
@@ -583,6 +647,12 @@ internal static partial class KolibriCli
                 ObservedAt = DateTimeOffset.UtcNow
             });
         }
+    }
+
+    private static MallBuyClient CreateMallBuyClient(AccountRole role)
+    {
+        var http = ReadAuthenticatedHttpAsync(role).GetAwaiter().GetResult();
+        return new MallBuyClient(http, MallBuyClient.DefaultBaseUri);
     }
 
     private static FreePullDispatcher? CreateFreePullDispatcher(AccountRole role)

@@ -33,7 +33,7 @@ public sealed class BurningLeavesPage
     private static readonly Regex StokedPattern = new(
         @"stoked the fire with <b>(?<count>[\d,]+)</b>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex FormPattern = new(
-        @"<form[^>]*action\s*=\s*[""'](?<action>[^""']+)[""']",
+        @"<form[^>]*action\s*=\s*(?:[""'](?<action>[^""']+)[""']|(?<action2>[a-zA-Z0-9_./?=&-]+))",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex HiddenPattern = new(
         @"<input[^>]*type\s*=\s*[""']?hidden[""']?[^>]*>",
@@ -58,7 +58,11 @@ public sealed class BurningLeavesPage
             burned = ParseNumber(stokedMatch.Groups["count"].Value);
 
         var formMatch = FormPattern.Match(html);
-        var action = formMatch.Success ? formMatch.Groups["action"].Value : null;
+        var action = formMatch.Success
+            ? (formMatch.Groups["action"].Success
+                ? formMatch.Groups["action"].Value
+                : formMatch.Groups["action2"].Value)
+            : null;
 
         var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (Match hidden in HiddenPattern.Matches(html))
