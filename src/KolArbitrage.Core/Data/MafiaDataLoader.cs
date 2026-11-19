@@ -22,8 +22,7 @@ public sealed class MafiaDataLoader
         => Load(directory, out _);
 
     public KoLmafiaCatalog Load(string directory, out LoadDiagnostics diagnostics)
-    {
-        if (string.IsNullOrWhiteSpace(directory))
+    {        if (string.IsNullOrWhiteSpace(directory))
             throw new ArgumentException("A directory path is required.", nameof(directory));
         if (!Directory.Exists(directory))
             throw new DirectoryNotFoundException($"Mafia data directory '{directory}' is missing.");
@@ -99,14 +98,27 @@ public sealed class MafiaDataLoader
     private static string? GetString(Dictionary<string, object?> row, string key)
     {
         if (!row.TryGetValue(key, out var value) || value is null) return null;
-        if (value is JsonElement element)
-            return element.ValueKind switch
+        string? text = value is JsonElement element
+            ? element.ValueKind switch
             {
                 JsonValueKind.String => element.GetString(),
                 JsonValueKind.Number => element.GetRawText(),
                 _ => element.GetRawText()
-            };
-        return value.ToString();
+            }
+            : value.ToString();
+        return text is null ? null : DecodeHtmlEntities(text);
+    }
+
+    /// <summary>
+    /// KoLmafia's data dump stores item names with HTML entities — the name
+    /// of a book is <c>&quot;2 Love Me, Vol. 2&quot;</c> and umlauts arrive as
+    /// <c>&amp;Uuml;</c>. Decoding them here means every consumer sees the
+    /// plain name, the way KoLmafia shows it.
+    /// </summary>
+    private static string DecodeHtmlEntities(string value)
+    {
+        if (!value.Contains('&')) return value;
+        return System.Net.WebUtility.HtmlDecode(value);
     }
 
     private static int? GetInt(Dictionary<string, object?> row, string key)
