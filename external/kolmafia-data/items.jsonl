@@ -1,0 +1,5 @@
+{"id":"seal-tooth","name":"seal-tooth","type":"food","tradeable":true,"usable":true,"hpDelta":5}
+{"id":"healing-spray","name":"healing spray","type":"hp-restorer","tradeable":false,"usable":true,"hpDelta":50}
+{"id":"cotton-candy-pinch","name":"cotton candy pinch","type":"hp-restorer","tradeable":true,"usable":true,"hpDelta":15}
+{"id":"generic-mafia-mystery-juice","name":"generic Mafia mystery juice","type":"hp-mp-restorer","tradeable":true,"usable":true,"hpDelta":25,"mpDelta":15}
+{"id":"bottle-of-fairies","name":"bottle of fairies","type":"combat-item","tradeable":true,"usable":true,"effect":"banished"}

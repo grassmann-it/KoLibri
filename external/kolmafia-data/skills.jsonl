@@ -1,0 +1,5 @@
+{"id":"sauceror-paste","name":"Sauceror Paste","type":"combat","mpCost":3,"permable":true}
+{"id":"turtle-tamer-call","name":"Turtle Tamer Call","type":"combat","mpCost":5,"permable":true}
+{"id":"disco-bandit-shank","name":"Disco Bandit Shank","type":"combat","mpCost":4,"permable":true}
+{"id":"accordion-bash","name":"Accordion Bash","type":"combat","mpCost":8,"permable":true}
+{"id":"salsareventeen","name":"Salsareventeen","type":"combat","mpCost":12,"permable":false}

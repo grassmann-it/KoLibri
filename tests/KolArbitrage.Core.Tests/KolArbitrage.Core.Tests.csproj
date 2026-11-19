@@ -22,5 +22,6 @@
     <Content Include="Fixtures/Adventure/**/*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures/Inventory/**/*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Fixtures/Html/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
   </ItemGroup>
 </Project>
