@@ -41,38 +41,22 @@ public sealed class FreePullDispatcher
         if (option <= 0)
             throw new ArgumentOutOfRangeException(nameof(option));
 
-        // KoL's choice pages expect two round-trips:
-        //   1. GET  choice.php?whichchoice=N        (renders the choice form)
-        //   2. POST choice.php with option=K        (submits the operator's pick)
-        // Some free-pull choices only need step 1 — the GET itself claims
-        // the daily pull (e.g. the Internet Shop claim) without an option.
-        // We try the POST first; if KoL returns 200 with an "already claimed"
-        // marker in the body, we surface that as a successful no-op.
-        var visitUri = new Uri(_baseUri, $"choice.php?whichchoice={whichChoice}");
-        var postUri = new Uri(_baseUri, $"choice.php?whichchoice={whichChoice}&option={option}");
-
-        // Step 1: visit the choice page so KoL records the operator
-        // arrived at the choice this rollover.
-        using (var visit = new HttpRequestMessage(HttpMethod.Get, visitUri))
-        {
-            visit.Headers.Add("Cookie", credentials.CookieHeader);
-            using var visitResp = await _http.SendAsync(visit, cancellationToken).ConfigureAwait(false);
-            // We don't act on the visit response; we just need KoL to see
-            // the request so the claim is recorded.
-            _ = await visitResp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        // Step 2: submit the operator's option.
-        using var request = new HttpRequestMessage(HttpMethod.Post, postUri);
+        // KoL's daily claims are NOT adventure choices. choice.php only
+        // works while an adventure is running ("Whoops! You're not actually
+        // in an adventure right now." otherwise). The daily pulls live on
+        // their own pages:
+        //   * Internet shop free pull → inventory.php?which=4
+        //   * Campfire leaf burn      → campfire.php?action=burn
+        //   * Hermit clover           → hermit.php?action=clover
+        // We dispatch on the numeric choice id and use the matching page.
+        var (path, form) = ResolveTarget(whichChoice, option);
+        var uri = new Uri(_baseUri, path);
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["whichchoice"] = whichChoice.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["option"] = option.ToString(System.Globalization.CultureInfo.InvariantCulture)
-        });
+        request.Content = new FormUrlEncodedContent(form);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        var snippet = body.Length > 0 ? body.Substring(0, Math.Min(400, body.Length)) : "";
+        var snippet = body.Length > 0 ? body.Substring(0, Math.Min(600, body.Length)) : "";
         return new FreePullResult(
             RequestId: Guid.NewGuid().ToString("N"),
             StatusCode: (int)response.StatusCode,
@@ -81,9 +65,94 @@ public sealed class FreePullDispatcher
             Location: response.Headers.Location?.ToString());
     }
 
+    /// <summary>KoL item ids the daily flow needs. These come straight from
+    /// KoLmafia's ItemPool so the ids stay in sync with the game data.</summary>
+    public static class ItemIds
+    {
+        /// <summary>Hermit Permit — required to trade with the Hermit.</summary>
+        public const int HermitPermit = 42;
+        /// <summary>Worthless trinket — the trade currency for permits.</summary>
+        public const int WorthlessTrinket = 43;
+        /// <summary>11-leaf clover — the daily Hermit item worth opening.</summary>
+        public const int ElevenLeafClover = 10881;
+        /// <summary>Infinite Bacon Machine — the daily Internet-shop claim.</summary>
+        public const int BaconMachine = 9025;
+        /// <summary>Lucky Surprise Egg — the daily Internet-shop claim.</summary>
+        public const int LuckySurpriseEgg = 53;
+        /// <summary>Internet Bacon — the daily Internet-shop claim.</summary>
+        public const int InternetBacon = 8763;
+    }
+
+    /// <summary>Maps a KoL numeric choice id onto the page that actually
+    /// performs the daily claim, plus the form fields that page expects.
+    /// The pages and field names mirror KoLmafia's request classes:
+    /// HermitRequest uses hermit.php?action=trade with whichitem/quantity,
+    /// StorageRequest uses storage.php?action=pull with whichitem1/howmany1.</summary>
+    private static (string Path, Dictionary<string, string> Form) ResolveTarget(
+        int whichChoice, int option)
+    {
+        var form = new Dictionary<string, string>(StringComparer.Ordinal);
+        switch (whichChoice)
+        {
+            case 1119:
+                // Lucky Surprise Egg / Internet Bacon live in the storage
+                // (free pulls). KoLmafia pulls them with
+                // storage.php?action=pull&whichitem1=<id>&howmany1=1.
+                // option 1 → Lucky Surprise Egg, option 2 → Internet Bacon.
+                form["action"] = "pull";
+                form["ajax"] = "1";
+                form["whichitem1"] = (option == 2
+                    ? ItemIds.InternetBacon
+                    : ItemIds.LuckySurpriseEgg).ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                form["howmany1"] = "1";
+                return ("storage.php", form);
+            case 1118:
+                // Infinite Bacon Machine — same storage pull mechanism.
+                form["action"] = "pull";
+                form["ajax"] = "1";
+                form["whichitem1"] = ItemIds.BaconMachine.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                form["howmany1"] = "1";
+                return ("storage.php", form);
+            case 1106:
+                // Campfire: burn one leaf to advance the day. The leaves
+                // live in the Getaway Campsite, so the request targets
+                // place.php?whichplace=campaway with the campfire action.
+                form["whichplace"] = "campaway";
+                form["action"] = "campaway_campfire";
+                form["quantity"] = "1";
+                return ("place.php", form);
+            case 1100:
+                // Hermit: trade one worthless item for an 11-leaf clover.
+                // The Hermit charges one worthless item per clover and
+                // needs a Hermit Permit for the trade itself.
+                form["action"] = "trade";
+                form["whichitem"] = ItemIds.ElevenLeafClover.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                form["quantity"] = option.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                return ("hermit.php", form);
+            case 1107:
+                // Hermit: buy a wish (a sealed circlet).
+                form["action"] = "trade";
+                form["whichitem"] = ItemIds.ElevenLeafClover.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                form["quantity"] = "1";
+                return ("hermit.php", form);
+            default:
+
+                form["whichchoice"] = whichChoice.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                form["option"] = option.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                return ($"choice.php?whichchoice={whichChoice}", form);
+        }
+    }
+
     /// <summary>Companion read-only call used by the audit-reader CLI to
-    /// inspect what KoL rendered when the operator visited the choice
-    /// page. Returns the first 400 characters of the HTML body.</summary>
+    /// inspect what KoL rendered when the operator visited a daily page.
+    /// Returns the first 600 characters of the HTML body.</summary>
     public async Task<string> ProbeAsync(
         AccountCredentials credentials,
         int whichChoice,
@@ -99,7 +168,7 @@ public sealed class FreePullDispatcher
         request.Headers.Add("Cookie", credentials.CookieHeader);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        return body.Length > 0 ? body.Substring(0, Math.Min(400, body.Length)) : "";
+        return body.Length > 0 ? body.Substring(0, Math.Min(600, body.Length)) : "";
     }
 
     /// <summary>Maps a free-pull <c>ChoiceStepSpec</c> to its KoL numeric

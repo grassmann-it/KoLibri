@@ -380,7 +380,11 @@ internal static partial class KolibriCli
                 "inventory.php?which=1",
                 "inventory.php?which=2",
                 "inventory.php?which=3",
-                "api.php?what=inv_easy"
+                "api.php?what=inv_easy",
+                "storage.php",
+                "campaway.php",
+                "place.php?whichplace=campaway",
+                "hermit.php"
             })
             {
                 try
@@ -390,6 +394,13 @@ internal static partial class KolibriCli
                     Console.Error.WriteLine($"--- {path} [{r.StatusCode}] len={body.Length} ---");
                     if (body.Length > 0)
                         Console.Error.WriteLine(body.Substring(0, Math.Min(600, body.Length)));
+                    if (HasFlag(args, "--full"))
+                    {
+                        var outPath = Path.Combine(
+                            Path.GetTempPath(), $"kolprobe-{path.GetHashCode():X}.html");
+                        await File.WriteAllTextAsync(outPath, body);
+                        Console.Error.WriteLine($"[saved {outPath}]");
+                    }
                 }
                 catch (Exception ex)
                 {

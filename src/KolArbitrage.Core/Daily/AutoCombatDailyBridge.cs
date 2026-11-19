@@ -34,6 +34,11 @@ public sealed record DailyDecision
 /// </summary>
 public sealed class AutoCombatDailyBridge
 {
+    /// <summary>Maximum number of 11-leaf clovers the Hermit sells per day.
+    /// KoL's stock page shows "3 left in stock for today" on a fresh visit;
+    /// the cap keeps the plan inside that budget.</summary>
+    public const int HermitDailyStock = 3;
+
     /// <summary>
     /// Live outcome of one AutoCombat bridge run. Each <see cref="AdventureStepSpec"/>
     /// is mapped to a single bounded-runner request and recorded as an audit row.
@@ -92,27 +97,38 @@ public sealed class AutoCombatDailyBridge
         }
 
         // 2. Hermit: open a clover only when the expected sale beats the reserve value.
-        //    When permits are missing AND we have enough useless items to trade
-        //    for one (3 worthless items → 1 hermit permit) AND there's at least
-        //    one clover to open, the bridge emits the trade AND the clover step
-        //    so the operator sees the full happy-path in the plan.
+        //    The Hermit sells one 11-leaf clover per Hermit Permit per day
+        //    (the stock is "3 left in stock for today" on a fresh visit).
+        //    We open as many clovers as we have permits for, capped by the
+        //    clover count. When permits run out but enough worthless items
+        //    are on hand we emit the trade intent as well — one worthless
+        //    item buys one permit.
         if (snapshot.HermitPermits > 0 && snapshot.Clovers > 0
             && snapshot.ExpectedCloverSaleValue > snapshot.CloverFloorValue
             && snapshot.ExpectedCloverSaleValue > snapshot.AdventureReserveValue)
         {
-            steps.Add(new ChoiceStepSpec("choice-clover", "1"));
+            // The Hermit's daily stock is small ("3 left in stock for
+            // today"), and each clover costs one worthless item. We cap the
+            // number of trades at the permit count and the daily stock so
+            // the plan never proposes more than the Hermit can supply.
+            var tradeRuns = Math.Min(
+                Math.Min(snapshot.Clovers, snapshot.HermitPermits),
+                HermitDailyStock);
+            for (var i = 0; i < tradeRuns; i++)
+                steps.Add(new ChoiceStepSpec("choice-clover", "1"));
         }
         else if (snapshot.HermitPermits == 0 && snapshot.Clovers > 0
-            && snapshot.UselessItems >= 3)
+            && snapshot.UselessItems >= 1)
         {
-            // Trade 3 useless items for 1 permit, then open the clover. The
-            // bridge emits both steps so the audit ledger captures the
-            // operator-approved happy path. The bounded runner does not
-            // execute the trade today — operators drive it through
-            // `kolibri hermit trade --quantity N`.
-            var tradeRuns = Math.Min(snapshot.Clovers, snapshot.UselessItems / 3);
+            // One worthless item buys one Hermit Permit, one permit buys one
+            // clover. The bridge emits the permit-trade as an item step and
+            // the clover-open as a choice step so the audit ledger captures
+            // the operator-approved happy path.
+            var tradeRuns = Math.Min(
+                Math.Min(snapshot.Clovers, snapshot.UselessItems),
+                HermitDailyStock);
             for (var i = 0; i < tradeRuns; i++)
-                steps.Add(new ItemStepSpec("worthless-item", Quantity: 3,
+                steps.Add(new ItemStepSpec("worthless-item", Quantity: 1,
                     MonsterId: null, Round: null));
             for (var i = 0; i < tradeRuns; i++)
                 steps.Add(new ChoiceStepSpec("choice-clover", "1"));
@@ -129,7 +145,13 @@ public sealed class AutoCombatDailyBridge
         foreach (var pull in InternetShopCatalog.DefaultPulls)
         {
             if (alreadyClaimed.Contains(pull.DisplayName)) continue;
-            steps.Add(new ChoiceStepSpec(pull.ChoiceId, pull.OptionId));
+            // The Lucky Surprise Egg and the Internet Bacon share the
+            // storage-pull mechanism but pull different item ids, so the
+            // option id distinguishes them (1 = egg, 2 = bacon).
+            var optionId = pull.DisplayName.Contains("Internet Bacon", StringComparison.OrdinalIgnoreCase)
+                ? "2"
+                : pull.OptionId;
+            steps.Add(new ChoiceStepSpec(pull.ChoiceId, optionId));
         }
 
         // 4. Archaeologist + no spade: buy one from the mall. The bridge
@@ -236,7 +258,9 @@ public sealed class AutoCombatDailyBridge
                     requestId = result.RequestId;
                     outcome = result.Accepted ? "submitted" : $"http-{result.StatusCode}";
                     if (result.Accepted) executedCount++;
-                    lastFreePullSnippet = result.BodySnippet;
+                    lastFreePullSnippet = result.Location is { } loc
+                        ? $"[{result.StatusCode}] -> {loc} | {(result.BodySnippet.Length > 0 ? result.BodySnippet : "(empty body)")}"
+                        : result.BodySnippet;
                 }
                 else
                 {
@@ -285,14 +309,17 @@ public sealed class AutoCombatDailyBridge
                     message: $"Posted choice {cs.ChoiceId}:{cs.OptionId} ({outcome}).",
                     accountId: accountId), cancellationToken).ConfigureAwait(false);
             }
-            // Echo the body's first 200 chars into the audit when something
-            // went wrong so the operator can see why KoL rejected the pull.
-            if (outcome.StartsWith("http-") && audit is not null && lastFreePullSnippet is not null)
+            // Echo KoL's response body into the audit so the operator can see
+            // what the server actually said ("you have already claimed
+            // today's pull", a redirect to the login page, the item granted,
+            // …). Without this the audit only says "submitted" which hides
+            // every server-side refusal.
+            if (audit is not null && lastFreePullSnippet is not null)
             {
                 await audit.AppendAsync(new AuditEvent(
                     AuditEventPhase.Verify, opId, source,
                     requestId: requestId,
-                    action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}.diagnostic",
+                    action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}.response",
                     status: outcome,
                     message: lastFreePullSnippet,
                     accountId: accountId), cancellationToken).ConfigureAwait(false);
