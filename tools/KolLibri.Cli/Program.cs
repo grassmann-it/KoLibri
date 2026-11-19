@@ -896,7 +896,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
         Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
-        Console.WriteLine("                 [--output PATH]");
+        Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
+        Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
         Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");

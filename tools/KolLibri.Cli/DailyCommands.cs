@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using KolArbitrage.Core.Accounts;
+using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Daily;
 
 internal static partial class KolibriCli
@@ -156,7 +158,24 @@ internal static partial class KolibriCli
         Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
-        Console.WriteLine("                 [--output PATH]");
+        Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
+    }
+
+    private static AdventureExecutionGateway CreateAdventureGateway(AccountRole role, string? approvalToken)
+    {
+        var token = approvalToken ?? throw new ArgumentException(
+            "Live daily execution requires --approval-token.");
+        var approval = new DelegateAdventureApprovalHook((_, _) =>
+            ValueTask.FromResult(AdventureApprovalDecision.Allow(token)));
+        var verification = new DelegateAdventureVerificationHook((context, _) =>
+            ValueTask.FromResult(context.Response.Accepted != false
+                ? AdventureVerificationResult.Success()
+                : AdventureVerificationResult.Failed("The live response was rejected by KoL.")));
+        var session = KoLAdventureSessionFactory
+            .CreateAsync(role, approval, verification, cancellationToken: CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+        return session.Gateway;
     }
 
     private static int DailyRoutineAsync(string[] args)
@@ -186,11 +205,27 @@ internal static partial class KolibriCli
         };
 
         var report = new DailyRoutineRunner().Run(snapshot);
+
+        // Live execution path: --execute plus --approval-token drives the
+        // bounded runner. Without the token we stay in preview mode.
+        DailyRoutineExecutionResult? executionResult = null;
+        if (HasFlag(args, "--execute"))
+        {
+            var token = GetOption(args, "--approval-token");
+            var executor = new DailyRoutineExecutor(
+                gatewayFactory: role => CreateAdventureGateway(role, token),
+                approvalToken: token);
+            executionResult = executor.ExecuteAsync(
+                ParseRole(GetOption(args, "--role") ?? "main"),
+                report).AsTask().GetAwaiter().GetResult();
+        }
+
         WriteJson(new
         {
             command = "daily routine",
-            readOnly = true,
-            previewOnly = true,
+            readOnly = executionResult is null,
+            previewOnly = executionResult is null,
+            executed = executionResult?.Executed ?? false,
             report.GeneratedAt,
             report.Verdict,
             report.Counts,
@@ -231,7 +266,21 @@ internal static partial class KolibriCli
                 },
                 foreignBribes = report.ForeignBribes
             },
-            note = "Preview only; nothing was sent. Use the bounded-runner bridge to commit each step after --execute --approval-token."
+            execution = executionResult is null
+                ? null
+                : new
+                {
+                    role = executionResult.Role.ToString(),
+                    auditPath = executionResult.AuditPath,
+                    steps = executionResult.Steps.Select(s => new
+                    {
+                        s.StepKind, s.Location, s.RunId, status = s.Status.ToString(),
+                        s.RequestId, s.StopReason, s.Message
+                    }).ToArray()
+                },
+            note = executionResult is null
+                ? "Preview only; nothing was sent. Use the bounded-runner bridge to commit each step after --execute --approval-token."
+                : $"Live execution {executionResult.Steps.Count} step(s); see auditPath + steps for details."
         });
 
         var outputPath = GetOption(args, "--output");
@@ -246,7 +295,13 @@ internal static partial class KolibriCli
                 counts = report.Counts,
                 approvableSteps = report.ApprovableSteps,
                 advisories = report.Advisories,
-                snapshot
+                snapshot,
+                execution = executionResult is null ? null : new
+                {
+                    executionResult.Role,
+                    executionResult.AuditPath,
+                    executionResult.Steps
+                }
             }, JsonOptions));
             Console.Error.WriteLine($"daily routine report written to {full}");
         }
