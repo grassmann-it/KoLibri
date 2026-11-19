@@ -25,12 +25,14 @@ public partial class KolibriMcpServer
     private readonly TimeProvider _clock;
     private readonly RoleScopedRuntime _roleRuntime;
     private readonly Dictionary<AccountRole, PricingEngine> _derivedPricing = [];
+    private readonly AdventureMcpExecutionBridge? _executionBridge;
 
     public KolibriMcpServer(
         LibKolibriRuntime? runtime = null,
         KolibriMcpServerOptions? options = null,
         TimeProvider? clock = null,
-        RoleScopedRuntime? roleRuntime = null)
+        RoleScopedRuntime? roleRuntime = null,
+        AdventureMcpExecutionBridge? executionBridge = null)
     {
         _runtime = runtime ?? new LibKolibriRuntime();
         _roleRuntime = roleRuntime ?? new RoleScopedRuntime(_runtime);
@@ -38,6 +40,7 @@ public partial class KolibriMcpServer
         _options.Validate();
         _clock = clock ?? TimeProvider.System;
         _registry = new McpToolRegistry();
+        _executionBridge = executionBridge;
         RegisterReadOnlyTools();
     }
 
@@ -280,6 +283,7 @@ public partial class KolibriMcpServer
         Register("kol_preview_purchase", "Validate a proposed purchase and return a review object only.", PurchaseSchema(), PurchasePreviewAsync);
         Register("kol_preview_transfer", "Validate a proposed cross-account transfer and return a review object only.", TransferSchema(), TransferPreviewAsync);
         RegisterAdventurePreviewTools();
+        if (_executionBridge is not null) RegisterAdventureExecutionTools();
 
         // Friendly command-shaped aliases are accepted by tools/call while the
         // advertised list stays the fixed, documented `kol_*` surface.
