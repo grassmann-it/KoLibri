@@ -45,6 +45,7 @@ internal static partial class KolibriCli
                 "workflow-plan" => await WorkflowPlanAsync(args[1..]),
                 "adventure-plan" => await AdventurePlanAsync(args[1..]),
                 "adventure" => await AdventureCommandAsync(args[1..]),
+                "daily" => await DailyCommandAsync(args[1..]),
                 "combat" => await CombatCommandAsync(args[1..]),
                 "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),
                 "categorize" => await CategorizeAsync(args[1..]),
@@ -849,6 +850,16 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
         Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
+        Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
+        Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
+        Console.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
+        Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
+        Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
+        Console.WriteLine("               [--min-profit N] [--max-qty N]");
+        Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
+        Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
+        Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
+        Console.WriteLine("                 [--output PATH]");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
         Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");
