@@ -83,6 +83,64 @@ public sealed class KoLibriReplContext : IReplContext
         => _catalog.Concoctions.FirstOrDefault(c =>
             c.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
 
+    public async Task<IReadOnlyList<LoginStatusRow>> GetLoginStatusAsync(CancellationToken cancellationToken)
+    {
+        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var profiles = await manager.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
+        var rows = new List<LoginStatusRow>();
+        foreach (var role in Enum.GetValues<KolArbitrage.Core.Accounts.AccountRole>())
+        {
+            var profile = profiles.FirstOrDefault(p => p.Role == role);
+            var session = await manager.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken).ConfigureAwait(false);
+            rows.Add(new LoginStatusRow(
+                role,
+                profile?.Id,
+                profile?.DisplayName,
+                profile?.Enabled ?? false,
+                !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader),
+                session?.IsExpired() ?? false,
+                session?.Credentials.ExpiresAt,
+                session?.Profile.Endpoint?.ToString()));
+        }
+        return rows;
+    }
+
+    public async Task<int> ClearLoginAsync(IEnumerable<KolArbitrage.Core.Accounts.AccountRole> roles, CancellationToken cancellationToken)
+    {
+        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var cleared = 0;
+        foreach (var role in roles)
+        {
+            var profile = await manager.GetProfileAsync(role, cancellationToken).ConfigureAwait(false);
+            if (profile is null) continue;
+            try
+            {
+                await manager.SetCredentialsAsync(role, new KolArbitrage.Core.Accounts.AccountCredentials
+                {
+                    Password = string.Empty,
+                    CookieHeader = string.Empty,
+                    ExpiresAt = DateTimeOffset.MinValue
+                }, cancellationToken).ConfigureAwait(false);
+                cleared++;
+            }
+            catch (KolArbitrage.Core.Accounts.AccountConfigurationException) { }
+        }
+        return cleared;
+    }
+
+    public async Task<LoginRefreshRow> RefreshLoginAsync(
+        KolArbitrage.Core.Accounts.AccountRole role, string username, string password,
+        CancellationToken cancellationToken)
+    {
+        var login = await new KolArbitrage.Core.Accounts.KoLLoginClient().LoginAsync(username, password, rememberPassword: true, cancellationToken).ConfigureAwait(false);
+        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+        return new LoginRefreshRow(role, username, login.LoggedInAt);
+    }
+
     private MafiaItemRecord? FindItem(string query)
     {
         if (int.TryParse(query, out var id))

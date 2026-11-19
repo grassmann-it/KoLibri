@@ -149,4 +149,29 @@ public sealed class ReplSessionTests
         Assert.Contains("manual-browser", result.Text);
         Assert.Contains("app-default", result.Text);
     }
+
+    [Fact]
+    public async Task DispatchLineAsync_routes_login_status_to_known_roles()
+    {
+        var session = new ReplSession(BuildContext());
+        var result = await session.DispatchLineAsync("login status", CancellationToken.None);
+        Assert.Contains("Main", result.Text);
+        Assert.Contains("Mallbot", result.Text);
+    }
+
+    [Fact]
+    public async Task DispatchLineAsync_routes_login_unknown_subcommand_to_help()
+    {
+        var session = new ReplSession(BuildContext());
+        var result = await session.DispatchLineAsync("login banana", CancellationToken.None);
+        Assert.Contains("status, clear, refresh", result.Text);
+    }
+
+    [Fact]
+    public async Task DispatchLineAsync_routes_login_refresh_with_unknown_role()
+    {
+        var session = new ReplSession(BuildContext());
+        var result = await session.DispatchLineAsync("login refresh ghostuser me pw", CancellationToken.None);
+        Assert.Contains("unknown role", result.Text);
+    }
 }

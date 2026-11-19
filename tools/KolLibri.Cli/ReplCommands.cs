@@ -39,7 +39,35 @@ public interface IReplContext
 
     /// <summary>Optional getter for a single recipe/cooked item.</summary>
     MafiaConcoctionRecord? LookupConcoction(string query);
+
+    /// <summary>List login state for every role. Read-only, never mutates disk.</summary>
+    Task<IReadOnlyList<LoginStatusRow>> GetLoginStatusAsync(CancellationToken cancellationToken);
+
+    /// <summary>Clear stored credentials for the requested role(s).</summary>
+    Task<int> ClearLoginAsync(IEnumerable<AccountRole> roles, CancellationToken cancellationToken);
+
+    /// <summary>Force a fresh login and store the resulting credentials.</summary>
+    Task<LoginRefreshRow> RefreshLoginAsync(
+        AccountRole role, string username, string password,
+        CancellationToken cancellationToken);
 }
+
+/// <summary>One row in the `login status` REPL output.</summary>
+public sealed record LoginStatusRow(
+    AccountRole Role,
+    string? ProfileId,
+    string? DisplayName,
+    bool Enabled,
+    bool HasCookie,
+    bool Expired,
+    DateTimeOffset? ExpiresAt,
+    string? Endpoint);
+
+/// <summary>One row in the `login refresh` REPL output.</summary>
+public sealed record LoginRefreshRow(
+    AccountRole Role,
+    string Username,
+    DateTimeOffset LoggedInAt);
 
 /// <summary>
 /// Result of one REPL command: a human-readable text payload plus an
@@ -110,6 +138,7 @@ public sealed class ReplDispatcher
             "bacon" => await BaconAsync(args, context, cancellationToken),
             "reprice" => await RepriceAsync(args, context, cancellationToken),
             "tokens" => await TokensAsync(args, context, cancellationToken),
+            "login" => await LoginAsync(args, context, cancellationToken),
             "json" => ReplResult.Plain("json <on|off> — toggles structured output (currently session-scoped)"),
             _ => ReplResult.Plain($"unknown command '{head}'. type 'help'.")
         };
@@ -132,6 +161,8 @@ public sealed class ReplDispatcher
         "  bacon [--mall-price N ...]            plan Infinite Bacon Machine arbitrage",
         "  reprice [--limit N]                   reprice the current mall store",
         "  tokens                                show stored approval-token files",
+        "  login status | clear [--role ...] |    manage stored account sessions",
+        "        refresh <role> <user> <password>",
         "  exit | quit | :q                      leave the REPL"
     });
 
@@ -285,6 +316,76 @@ public sealed class ReplDispatcher
             rows.Add(new[] { label, File.Exists(path) ? "present" : "missing", path });
         }
         return Task.FromResult(ReplResult.Tabular("approval tokens", new[] { "scope", "state", "path" }, rows));
+    }
+
+    private static async Task<ReplResult> LoginAsync(string[] args, IReplContext ctx, CancellationToken token)
+    {
+        if (args.Length < 2) return ReplResult.Plain("usage: login status | login clear [--role ...] | login refresh <role> <user> <password>");
+        var sub = args[1].ToLowerInvariant();
+        switch (sub)
+        {
+            case "status":
+            {
+                var rows = await ctx.GetLoginStatusAsync(token);
+                var cells = rows.Select(r => new[]
+                {
+                    r.Role.ToString(),
+                    r.ProfileId ?? "?",
+                    r.DisplayName ?? "?",
+                    r.Enabled ? "yes" : "no",
+                    r.HasCookie ? "yes" : "no",
+                    r.Expired ? "expired" : "fresh",
+                    r.ExpiresAt?.ToString("u") ?? "-"
+                }).ToArray();
+                return ReplResult.Tabular(
+                    "login status",
+                    new[] { "role", "id", "name", "enabled", "cookie", "state", "expires" },
+                    cells);
+            }
+            case "clear":
+            {
+                var role = ResolveLoginRoleFromArgs(args, 2, "all");
+                var cleared = await ctx.ClearLoginAsync(role, token);
+                return ReplResult.Plain($"login clear: {cleared} role(s) cleared.");
+            }
+            case "refresh":
+            {
+                if (args.Length < 5)
+                    return ReplResult.Plain("usage: login refresh <role> <username> <password>");
+                if (!Enum.TryParse<AccountRole>(args[2], true, out var role))
+                    return ReplResult.Plain($"unknown role '{args[2]}'. use main or mallbot.");
+                var username = args[3];
+                var password = args[4];
+                var result = await ctx.RefreshLoginAsync(role, username, password, token);
+                return ReplResult.Plain(
+                    $"login refresh: {result.Role}={result.Username} ok at {result.LoggedInAt:u}.");
+            }
+            default:
+                return ReplResult.Plain($"unknown login subcommand '{sub}'. use: status, clear, refresh.");
+        }
+    }
+
+    private static IEnumerable<AccountRole> ResolveLoginRoleFromArgs(string[] args, int startIndex, string defaultValue)
+    {
+        for (var i = startIndex; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], "--role", StringComparison.OrdinalIgnoreCase)
+                && i + 1 < args.Length)
+            {
+                var value = args[i + 1].ToLowerInvariant();
+                if (value is "all" or "both") return new[] { AccountRole.Main, AccountRole.Mallbot };
+                return Enum.TryParse<AccountRole>(value, true, out var role)
+                    ? new[] { role }
+                    : Array.Empty<AccountRole>();
+            }
+        }
+        return defaultValue.ToLowerInvariant() switch
+        {
+            "all" or "both" => new[] { AccountRole.Main, AccountRole.Mallbot },
+            _ => Enum.TryParse<AccountRole>(defaultValue, true, out var role)
+                ? new[] { role }
+                : Array.Empty<AccountRole>()
+        };
     }
 
     internal static DailyRoutineSnapshot ParseRoutineSnapshot(string[] args)
