@@ -169,6 +169,7 @@ public sealed class DailyOrchestrator
     /// </summary>
     public async Task<DailyOrchestrationResult> ExecuteBridgeAsync(
         DailyOrchestrationReport report,
+        BridgeAuditLog? audit = null,
         BoundedChoiceChainOptions? options = null,
         CancellationToken cancellationToken = default)
     {
@@ -203,11 +204,12 @@ public sealed class DailyOrchestrator
                     Executed = false,
                     Role = plan.Role,
                     Steps = Array.Empty<DailyStepOutcome>(),
-                    AuditPath = null
+                    AuditPath = audit?.FilePath
                 });
             }
             var gateway = _gatewayFactory(plan.Role);
             var result = await bridge.ExecuteAsync(planned.Steps, gateway,
+                audit: audit, accountId: plan.Role.ToString(),
                 options: options, cancellationToken: cancellationToken).ConfigureAwait(false);
             // Convert to the legacy DailyRoutineExecutionResult shape so the
             // existing CLI / MCP renderers keep working. Each choice-step is
@@ -235,6 +237,7 @@ public sealed class DailyOrchestrator
             });
         });
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        if (audit is not null) await audit.FlushAsync(cancellationToken).ConfigureAwait(false);
         return new DailyOrchestrationResult
         {
             Results = results,

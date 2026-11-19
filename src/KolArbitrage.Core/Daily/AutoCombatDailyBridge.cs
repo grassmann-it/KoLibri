@@ -1,6 +1,7 @@
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Data;
+using KolArbitrage.Core.Integration;
 
 namespace KolArbitrage.Core.Daily;
 
@@ -167,6 +168,11 @@ public sealed class AutoCombatDailyBridge
     /// with a follow-up choice. Item-only steps (spade, bacon-machine) are
     /// surfaced in the result for the operator to handle through dedicated
     /// write paths; the bounded runner cannot buy from the mall today.
+    ///
+    /// When <paramref name="audit"/> is supplied the bridge writes a
+    /// hash-chained audit row per choice step, plus one wrap-up row when
+    /// the run completes. The audit path is returned in
+    /// <see cref="BridgeExecutionResult.AuditPath"/>.
     /// </summary>
     public async Task<BridgeExecutionResult> ExecuteAsync(
         IReadOnlyList<AdventureStepSpec> steps,
@@ -174,19 +180,34 @@ public sealed class AutoCombatDailyBridge
         AdventureActionAllowlist? extraAllowlist = null,
         TimeProvider? clock = null,
         BoundedChoiceChainOptions? options = null,
+        BridgeAuditLog? audit = null,
+        string? operationId = null,
+        string? accountId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(steps);
         ArgumentNullException.ThrowIfNull(gateway);
         var choiceSteps = steps.OfType<ChoiceStepSpec>().ToArray();
+        var opId = operationId ?? Guid.NewGuid().ToString("N");
+        var source = "AutoCombatDailyBridge";
         if (choiceSteps.Length == 0)
         {
+            if (audit is not null)
+            {
+                await audit.AppendAsync(new AuditEvent(
+                    AuditEventPhase.Preview, opId, source,
+                    requestId: $"bridge-empty-{Guid.NewGuid():N}",
+                    action: "bridge.execute.empty",
+                    status: "no-op",
+                    message: "Bridge had no choice steps; nothing to execute.",
+                    accountId: accountId), cancellationToken).ConfigureAwait(false);
+            }
             return new BridgeExecutionResult
             {
                 Executed = false,
                 Steps = steps,
                 AllowlistedChoiceIds = Array.Empty<string>(),
-                AuditPath = "<memory>"
+                AuditPath = audit?.FilePath
             };
         }
         var allowlist = extraAllowlist ?? new AdventureActionAllowlist();
@@ -208,6 +229,7 @@ public sealed class AutoCombatDailyBridge
                 // choice id so the bounded runner can still key its lookup.
                 AdventureId = cs.ChoiceId
             };
+            string outcome = "aborted";
             try
             {
                 // Step 1: hit the choice URL via the gateway's StartAsync.
@@ -217,18 +239,52 @@ public sealed class AutoCombatDailyBridge
                 var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
                 await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
                 if (started.Status != AdventureExecutionStatus.Aborted)
+                {
                     executedCount++;
+                    outcome = "submitted";
+                }
             }
             catch (OperationCanceledException)
             {
+                outcome = "cancelled";
                 throw;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Continue with the next step; partial failure is fine for
-                // a "do what we can" daily run. The audit ledger records
-                // each abort via the checkpoint store.
+                outcome = "exception";
+                if (audit is not null)
+                {
+                    await audit.AppendAsync(new AuditEvent(
+                        AuditEventPhase.Verify, opId, source,
+                        requestId: runId,
+                        action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}",
+                        status: outcome,
+                        message: ex.Message,
+                        accountId: accountId), cancellationToken).ConfigureAwait(false);
+                }
+                continue;
             }
+            if (audit is not null)
+            {
+                await audit.AppendAsync(new AuditEvent(
+                    AuditEventPhase.Commit, opId, source,
+                    requestId: runId,
+                    action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}",
+                    status: outcome,
+                    message: $"Posted choice {cs.ChoiceId}:{cs.OptionId} via bounded runner.",
+                    accountId: accountId), cancellationToken).ConfigureAwait(false);
+            }
+        }
+        if (audit is not null)
+        {
+            await audit.AppendAsync(new AuditEvent(
+                AuditEventPhase.Verify, opId, source,
+                requestId: $"bridge-summary-{Guid.NewGuid():N}",
+                action: "bridge.execute.summary",
+                status: executedCount > 0 ? "partial-or-complete" : "aborted",
+                message: $"{executedCount}/{choiceSteps.Length} choice steps submitted.",
+                accountId: accountId), cancellationToken).ConfigureAwait(false);
+            await audit.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         return new BridgeExecutionResult
         {
@@ -236,7 +292,7 @@ public sealed class AutoCombatDailyBridge
             Steps = steps,
             AllowlistedChoiceIds = choiceSteps
                 .Select(c => c.ChoiceId + ":" + c.OptionId).ToArray(),
-            AuditPath = gateway.CheckpointStore is null ? "<memory>" : "<persisted>"
+            AuditPath = audit?.FilePath ?? (gateway.CheckpointStore is null ? "<memory>" : "<persisted>")
         };
     }
 

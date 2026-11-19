@@ -3,6 +3,7 @@ using System.Text.Json;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Daily;
+using KolArbitrage.Core.Data;
 using KolArbitrage.Core.Integration;
 
 internal static partial class KolibriCli
@@ -23,7 +24,7 @@ internal static partial class KolibriCli
             "bacon" or "bacons" => DailyBaconAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
             "daily-go" or "go" => DailyGoAsync(args[1..]),
-            "daily-bridge" or "bridge" => DailyBridgeAsync(args[1..]),
+            "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
             _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
         };
     }
@@ -211,15 +212,27 @@ internal static partial class KolibriCli
         }).ToArray();
 
         var token = GetOption(args, "--approval-token");
-        var orchestrator = new DailyOrchestrator(
-            gatewayFactory: role => CreateAdventureGateway(role, token),
-            approvalToken: token);
+        var useBridge = HasFlag(args, "--use-bridge");
+        BridgeAuditLog? bridgeAudit = useBridge ? new BridgeAuditLog(BridgeAuditLog.DefaultPath()) : null;
+        var orchestrator = useBridge
+            ? new DailyOrchestrator(
+                gatewayFactory: role => CreateAdventureGateway(role, token),
+                approvalToken: token,
+                stateReaderFactory: _ => new OfflineAccountDailyStateReader())
+            : new DailyOrchestrator(
+                gatewayFactory: role => CreateAdventureGateway(role, token),
+                approvalToken: token);
         var plan = orchestrator.BuildPlan(overrides, defaultSnapshot);
 
         DailyOrchestrationResult? execution = null;
         if (HasFlag(args, "--execute"))
-            execution = orchestrator.ExecuteAsync(plan, failFast: HasFlag(args, "--fail-fast"))
-                .GetAwaiter().GetResult();
+        {
+            execution = useBridge
+                ? orchestrator.ExecuteBridgeAsync(plan, audit: bridgeAudit).GetAwaiter().GetResult()
+                : orchestrator.ExecuteAsync(plan, failFast: HasFlag(args, "--fail-fast"))
+                    .GetAwaiter().GetResult();
+        }
+        bridgeAudit?.Dispose();
 
         WriteJson(new
         {
@@ -414,13 +427,13 @@ internal static partial class KolibriCli
         return 0;
     }
 
-    private static int DailyBridgeAsync(string[] args)
+    private static async Task<int> DailyBridgeAsync(string[] args)
     {
         // The bridge path runs AutoCombatDailyBridge directly with a
-        // snapshot-derived AccountDailyState. The state is built
-        // deterministically from CLI flags (no network I/O), so this
-        // command is fully self-contained for preview + --execute testing
-        // without requiring a live IAccountReadClient.
+        // snapshot-derived AccountDailyState. Read-only is fully self-
+        // contained; with --execute + --approval-token we route each
+        // choice step through the bounded runner and write a hash-chained
+        // audit row per submission.
         var roles = ResolveRoles(args);
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
@@ -435,21 +448,57 @@ internal static partial class KolibriCli
             ObservedAt = DateTimeOffset.UtcNow
         };
         var plan = bridge.Plan(emptyState, snapshot);
+        AutoCombatDailyBridge.BridgeExecutionResult? bridgeExecution = null;
+        if (execute && !string.IsNullOrWhiteSpace(token))
+        {
+            using var audit = new BridgeAuditLog(BridgeAuditLog.DefaultPath());
+            // One gateway per role; the bridge posts each step in turn.
+            var tasks = roles.Select(async role =>
+            {
+                var gateway = CreateAdventureGateway(role, token);
+                var exec = await bridge.ExecuteAsync(
+                    plan.Steps, gateway, audit: audit,
+                    accountId: role.ToString()).ConfigureAwait(false);
+                return (role, exec);
+            }).ToArray();
+            var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+            bridgeExecution = results[0].exec;
+        }
         var result = new
         {
             command = "daily-bridge",
             readOnly = !execute,
-            executed = execute && !string.IsNullOrWhiteSpace(token),
+            executed = bridgeExecution?.Executed ?? (execute && !string.IsNullOrWhiteSpace(token)),
             roles = roles.Select(r => r.ToString()).ToArray(),
             steps = plan.Steps.Select(s => new
             {
                 kind = s.GetType().Name,
                 @switch = s
             }),
-            allowlist = plan.AllowlistedChoiceIds
+            allowlist = plan.AllowlistedChoiceIds,
+            auditPath = bridgeExecution?.AuditPath,
+            executedCount = bridgeExecution is null ? 0 : plan.Steps.OfType<ChoiceStepSpec>().Count()
         };
         WriteJson(result);
         return 0;
+    }
+
+    /// <summary>Snapshot-derived <see cref="IAccountDailyStateReader"/> that
+    /// returns an empty state, so the bridge predicate layer fires only on
+    /// snapshot-driven decisions (campfire leaves, internet-shop pulls).
+    /// Item-driven decisions (archaeologist + spade) stay quiet.</summary>
+    private sealed class OfflineAccountDailyStateReader : IAccountDailyStateReader
+    {
+        public Task<AccountDailyState> ReadAsync(AccountRole role, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new AccountDailyState
+            {
+                Role = role,
+                Status = new KoLStatusSnapshot("offline", 0, 0, 0, DateTimeOffset.UtcNow) with { ClassId = "" },
+                Inventory = new KoLInventorySnapshot(Array.Empty<KoLInventoryItem>(), DateTimeOffset.UtcNow),
+                ObservedAt = DateTimeOffset.UtcNow
+            });
+        }
     }
 
     private static DailyRoutineSnapshot BuildDailySnapshot(string[] args)
