@@ -4,9 +4,11 @@ using System.Globalization;
 using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Analytics;
+using KolArbitrage.Core.Data;
 using KolArbitrage.Core.Integration;
 using KolArbitrage.Core.Pricing;
 using KolArbitrage.Core.Safety;
+using KoLibri.Cli.Repl;
 
 return await KolibriCli.RunAsync(args);
 
@@ -53,6 +55,7 @@ internal static partial class KolibriCli
                 "batch" => await RepriceAsync(args[1..]),
                 "snatch-plan" => await SnatchPlanAsync(args[1..]),
                 "watchlist" or "scheduler" => await WatchlistSchedulerCommand.RunAsync(args[1..], ReadClientAsync, JsonOptions),
+                "repl" => await ReplMainAsync(args[1..]),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
                 _ => Fail($"Unbekannter Befehl: {args[0]}")
             };
@@ -829,6 +832,40 @@ internal static partial class KolibriCli
 
     private static void WriteJson<T>(T value) => Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
 
+    private static async Task<int> ReplMainAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var dataDir = GetOption(args, "--data")
+            ?? Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data");
+        if (!Directory.Exists(dataDir))
+        {
+            Console.Error.WriteLine($"Vendor directory '{dataDir}' is missing.");
+            return 1;
+        }
+        var loader = new MafiaDataLoader();
+        loader.Load(dataDir, out var diagnostics);
+        if (diagnostics.WarningCount > 0)
+            Console.Error.WriteLine($"Catalog loaded with {diagnostics.WarningCount} parse warnings.");
+
+        var context = new KoLibriReplContext(role, loader.Load(dataDir),
+            readClientFactory: r => new KoLAccountReadClient(BuildHttpForRole(r).GetAwaiter().GetResult()),
+            mallClientFactory: r => new KoLMallReadClient(BuildHttpForRole(r).GetAwaiter().GetResult()));
+        var session = new ReplSession(context);
+        return await session.RunAsync(CancellationToken.None);
+    }
+
+    private static async Task<HttpClient> BuildHttpForRole(AccountRole role)
+    {
+        var accounts = AccountSessionManager.CreateDefault();
+        var session = await accounts.GetSessionAsync(role)
+            ?? throw new InvalidOperationException($"{role} ist nicht angemeldet. Erst 'login --role {role.ToString().ToLowerInvariant()}'.");
+        if (string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
+            throw new InvalidOperationException($"{role} hat keine gültige KoL-Session. Erneut einloggen.");
+        return KoLLoginClient.CreateAuthenticatedClient(
+            session.Credentials,
+            new Uri("https://www.kingdomofloathing.com/"));
+    }
+
     private static void PrintHelp()
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
@@ -871,6 +908,7 @@ internal static partial class KolibriCli
         Console.WriteLine("              [--store PATH --watchlist-id ID --budget N --reserve N --transfer-cost N]");
         Console.WriteLine("              [--min-sales N --min-liquidity 0.05 --max-age-hours 6]");
         Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:ERWARTET:NEU [--set ...] [--commit]");
+        Console.WriteLine("  repl [--role main|mallbot] [--data PATH]      startet das interaktive Read-Only-REPL");
         Console.WriteLine();
         Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");
         Console.WriteLine("Es gibt keine Kauf- oder Transfer-Befehle.");

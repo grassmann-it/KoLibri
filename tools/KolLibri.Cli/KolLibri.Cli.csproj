@@ -8,4 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
+  </ItemGroup>
 </Project>
