@@ -12,7 +12,8 @@ public sealed record EncounterBrowserLocationRow(
     int Snarfblat,
     int TurnCost,
     int EncounterCount,
-    int MonsterCount);
+    int MonsterCount,
+    string? Description = null);
 
 /// <summary>One row in the monster list of the selected location.</summary>
 public sealed record EncounterBrowserMonsterRow(
@@ -135,7 +136,8 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
         foreach (var row in BuildLocations(_catalog)
                      .Where(r => string.IsNullOrEmpty(filter)
                                  || r.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                                 || r.Zone.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                                 || r.Zone.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                                 || (r.Description?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false)))
         {
             Locations.Add(row);
         }
@@ -178,7 +180,8 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
                 adventure.Snarfblat,
                 adventure.TurnCost,
                 encounterCount,
-                encounterCount);
+                encounterCount,
+                Description: adventure.Desc);
         }
     }
 
@@ -210,7 +213,18 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
         if (string.IsNullOrEmpty(locationId)) return false;
         var a = monster.Id.ToLowerInvariant();
         var b = locationId.ToLowerInvariant();
-        return a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal)
-               || a.Contains(b, StringComparison.Ordinal);
+        if (a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal)
+            || a.Contains(b, StringComparison.Ordinal))
+            return true;
+        // Fallback: the real Mafia catalog does not embed a monster→location
+        // table. As a soft heuristic, if the monster name shares a token with
+        // the location id we treat it as a candidate. This is intentionally
+        // permissive so the operator can still see a populated monster list.
+        foreach (var segment in b.Split('-', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment.Length >= 4 && a.Contains(segment, StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 }

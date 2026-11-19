@@ -1,0 +1,2214 @@
+{"monster": "1", "part": "spooky vampire", "partId": 0}
+{"monster": "3", "part": "dodecapede", "partId": 0}
+{"monster": "5", "part": "apathetic lizardman", "partId": 0}
+{"monster": "9", "part": "Gnollish Plungermaster", "partId": 0}
+{"monster": "11", "part": "Gnollish Flyslayer", "partId": 0}
+{"monster": "12", "part": "Gnollish Gearhead", "partId": 0}
+{"monster": "13", "part": "Gnollish Bodybuilder", "partId": 0}
+{"monster": "17", "part": "Gnollish Sorceress", "partId": 0}
+{"monster": "18", "part": "one-eyed Gnoll", "partId": 0}
+{"monster": "19", "part": "Gnollish Crossdresser", "partId": 0}
+{"monster": "20", "part": "Gnollish Tirejuggler", "partId": 0}
+{"monster": "21", "part": "Gorgolok, the Infernal Seal (Inner Sanctum)", "partId": 0}
+{"monster": "22", "part": "Stella, the Turtle Poacher (Inner Sanctum)", "partId": 0}
+{"monster": "23", "part": "Spaghetti Elemental (Inner Sanctum)", "partId": 0}
+{"monster": "24", "part": "Lumpy, the Sinister Sauceblob (Inner Sanctum)", "partId": 0}
+{"monster": "25", "part": "Spirit of New Wave (Inner Sanctum)", "partId": 0}
+{"monster": "26", "part": "Somerset Lopez, Dread Mariachi (Inner Sanctum)", "partId": 0}
+{"monster": "27", "part": "Gnollish Piebaker", "partId": 0}
+{"monster": "28", "part": "Guard Bugbear", "partId": 0}
+{"monster": "29", "part": "skleleton", "partId": 0}
+{"monster": "30", "part": "ghuol", "partId": 0}
+{"monster": "31", "part": "zmobie", "partId": 0}
+{"monster": "32", "part": "lihc", "partId": 0}
+{"monster": "33", "part": "zobmie", "partId": 0}
+{"monster": "34", "part": "Brainsweeper", "partId": 0}
+{"monster": "35", "part": "Bread Golem", "partId": 0}
+{"monster": "36", "part": "Yeast Beast", "partId": 0}
+{"monster": "37", "part": "Weretaco", "partId": 0}
+{"monster": "38", "part": "giant pair of tweezers", "partId": 0}
+{"monster": "39", "part": "Chowder Golem", "partId": 0}
+{"monster": "40", "part": "Smart Skelton", "partId": 0}
+{"monster": "41", "part": "albino bat", "partId": 0}
+{"monster": "42", "part": "doughbat", "partId": 0}
+{"monster": "43", "part": "baseball bat", "partId": 0}
+{"monster": "44", "part": "regular old bat", "partId": 0}
+{"monster": "45", "part": "skullbat", "partId": 0}
+{"monster": "46", "part": "briefcase bat", "partId": 0}
+{"monster": "47", "part": "perpendicular bat", "partId": 0}
+{"monster": "48", "part": "beanbat", "partId": 0}
+{"monster": "49", "part": "Boss Bat", "partId": 0}
+{"monster": "51", "part": "drunken rat", "partId": 0}
+{"monster": "52", "part": "filthy hippy", "partId": 0}
+{"monster": "53", "part": "dirty hippy", "partId": 0}
+{"monster": "54", "part": "crusty hippy", "partId": 0}
+{"monster": "55", "part": "filthy hippy Vegan chef", "partId": 0}
+{"monster": "56", "part": "dirty hippy Vegan chef", "partId": 0}
+{"monster": "57", "part": "crusty hippy Vegan chef", "partId": 0}
+{"monster": "58", "part": "filthy hippy jewelry maker", "partId": 0}
+{"monster": "59", "part": "dirty hippy jewelry maker", "partId": 0}
+{"monster": "60", "part": "crusty hippy jewelry maker", "partId": 0}
+{"monster": "61", "part": "grave rober", "partId": 0}
+{"monster": "62", "part": "Orcish Frat Boy (Music Lover)", "partId": 0}
+{"monster": "63", "part": "Orcish Frat Boy (Paddler)", "partId": 0}
+{"monster": "64", "part": "Orcish Frat Boy (Pledge)", "partId": 0}
+{"monster": "65", "part": "whitesnake", "partId": 0}
+{"monster": "66", "part": "white lion", "partId": 0}
+{"monster": "67", "part": "white chocolate golem", "partId": 0}
+{"monster": "68", "part": "Knight in White Satin", "partId": 0}
+{"monster": "69", "part": "dairy ooze", "partId": 0}
+{"monster": "70", "part": "sabre-toothed lime", "partId": 0}
+{"monster": "71", "part": "pencil golem", "partId": 0}
+{"monster": "72", "part": "giant giant moth", "partId": 0}
+{"monster": "73", "part": "mayonnaise wasp", "partId": 0}
+{"monster": "74", "part": "tonic water elemental", "partId": 0}
+{"monster": "75", "part": "vampire clam", "partId": 0}
+{"monster": "76", "part": "Knob Goblin Sous Chef", "partId": 0}
+{"monster": "77", "part": "Knob Goblin Master Chef", "partId": 0}
+{"monster": "78", "part": "Knob Goblin Harem Girl", "partId": 0}
+{"monster": "79", "part": "Knob Goblin Elite Guardsman", "partId": 0}
+{"monster": "80", "part": "Knob Goblin Bean Counter", "partId": 0}
+{"monster": "81", "part": "Knob Goblin King", "partId": 0}
+{"monster": "82", "part": "drunk goat", "partId": 0}
+{"monster": "83", "part": "dairy goat", "partId": 0}
+{"monster": "84", "part": "sabre-toothed goat", "partId": 0}
+{"monster": "85", "part": "Knob Goblin Mad Scientist", "partId": 0}
+{"monster": "86", "part": "Knob Goblin Very Mad Scientist", "partId": 0}
+{"monster": "87", "part": "BASIC Elemental", "partId": 0}
+{"monster": "88", "part": "Knob Goblin Mutant", "partId": 0}
+{"monster": "89", "part": "Fruit Golem", "partId": 0}
+{"monster": "90", "part": "Grass Elemental", "partId": 0}
+{"monster": "91", "part": "Weremoose", "partId": 0}
+{"monster": "92", "part": "Carnivorous Moxie Weed", "partId": 0}
+{"monster": "93", "part": "Spectral Jellyfish", "partId": 0}
+{"monster": "94", "part": "Portly Abomination", "partId": 0}
+{"monster": "95", "part": "Booze Giant", "partId": 0}
+{"monster": "98", "part": "7-Foot Dwarf Foreman", "partId": 0}
+{"monster": "99", "part": "Knott Yeti", "partId": 0}
+{"monster": "100", "part": "Ninja Snowman (Mask)", "partId": 0}
+{"monster": "104", "part": "sassy pirate", "partId": 0}
+{"monster": "105", "part": "swarthy pirate", "partId": 0}
+{"monster": "106", "part": "smarmy pirate", "partId": 0}
+{"monster": "107", "part": "shady pirate", "partId": 0}
+{"monster": "108", "part": "bugbear-in-the-box", "partId": 0}
+{"monster": "109", "part": "lemon-in-the-box", "partId": 0}
+{"monster": "110", "part": "disease-in-the-box", "partId": 0}
+{"monster": "111", "part": "scary clown", "partId": 0}
+{"monster": "112", "part": "creepy clown", "partId": 0}
+{"monster": "113", "part": "Goomba", "partId": 0}
+{"monster": "114", "part": "Tektite", "partId": 0}
+{"monster": "116", "part": "Koopa Troopa", "partId": 0}
+{"monster": "117", "part": "Octorok", "partId": 0}
+{"monster": "118", "part": "Blooper", "partId": 0}
+{"monster": "119", "part": "Keese", "partId": 0}
+{"monster": "120", "part": "Zol", "partId": 0}
+{"monster": "121", "part": "Bullet Bill", "partId": 0}
+{"monster": "122", "part": "W imp", "partId": 0}
+{"monster": "123", "part": "P imp", "partId": 0}
+{"monster": "124", "part": "L imp", "partId": 0}
+{"monster": "125", "part": "G imp", "partId": 0}
+{"monster": "126", "part": "Demoninja", "partId": 0}
+{"monster": "127", "part": "Fallen Archfiend", "partId": 0}
+{"monster": "128", "part": "Hellion", "partId": 0}
+{"monster": "129", "part": "shifty pirate", "partId": 0}
+{"monster": "130", "part": "Drab Bard", "partId": 0}
+{"monster": "131", "part": "Racecar Bob", "partId": 0}
+{"monster": "132", "part": "Bob Racecar", "partId": 0}
+{"monster": "133", "part": "Flock of Stab-bats", "partId": 0}
+{"monster": "134", "part": "Taco Cat", "partId": 0}
+{"monster": "135", "part": "Tan Gnat", "partId": 0}
+{"monster": "136", "part": "Evil Olive", "partId": 0}
+{"monster": "137", "part": "Ninja Snowman (Hilt)", "partId": 0}
+{"monster": "138", "part": "XXX pr0n", "partId": 0}
+{"monster": "139", "part": "Anime Smiley", "partId": 0}
+{"monster": "140", "part": "Lamz0r N00b", "partId": 0}
+{"monster": "141", "part": "1335 HaXx0r", "partId": 0}
+{"monster": "142", "part": "Flaming Troll", "partId": 0}
+{"monster": "143", "part": "Spam Witch", "partId": 0}
+{"monster": "144", "part": "me4t begZ0r", "partId": 0}
+{"monster": "145", "part": "possessed can of tomatoes", "partId": 0}
+{"monster": "146", "part": "fiendish can of asparagus", "partId": 0}
+{"monster": "147", "part": "undead elbow macaroni", "partId": 0}
+{"monster": "148", "part": "flame-broiled meat blob", "partId": 0}
+{"monster": "149", "part": "pine bat", "partId": 0}
+{"monster": "150", "part": "batrat", "partId": 0}
+{"monster": "151", "part": "ratbat", "partId": 0}
+{"monster": "152", "part": "sleeping Knob Goblin Guard", "partId": 0}
+{"monster": "153", "part": "Knob Goblin Assistant Chef", "partId": 0}
+{"monster": "154", "part": "Sub-Assistant Knob Mad Scientist", "partId": 0}
+{"monster": "155", "part": "Knob Goblin Barbecue Team", "partId": 0}
+{"monster": "156", "part": "big creepy spider", "partId": 0}
+{"monster": "157", "part": "completely different spider", "partId": 0}
+{"monster": "158", "part": "drunken half-orc hobo", "partId": 0}
+{"monster": "159", "part": "rushing bum", "partId": 0}
+{"monster": "160", "part": "Protagonist", "partId": 0}
+{"monster": "161", "part": "Quiet Healer", "partId": 0}
+{"monster": "165", "part": "Spunky Princess", "partId": 0}
+{"monster": "166", "part": "Burly Sidekick", "partId": 0}
+{"monster": "167", "part": "Irritating Series of Random Encounters", "partId": 0}
+{"monster": "170", "part": "Procrastination Giant", "partId": 0}
+{"monster": "171", "part": "Possibility Giant", "partId": 0}
+{"monster": "172", "part": "Furry Giant", "partId": 0}
+{"monster": "173", "part": "Raver Giant", "partId": 0}
+{"monster": "174", "part": "Goth Giant", "partId": 0}
+{"monster": "175", "part": "MagiMechTech MechaMech", "partId": 0}
+{"monster": "176", "part": "Alphabet Giant", "partId": 0}
+{"monster": "177", "part": "tiny barrel mimic", "partId": 0}
+{"monster": "178", "part": "One-Eyed Willie", "partId": 0}
+{"monster": "179", "part": "Trouser Snake", "partId": 0}
+{"monster": "180", "part": "Family Jewels", "partId": 0}
+{"monster": "181", "part": "Junk", "partId": 0}
+{"monster": "182", "part": "Pork Sword", "partId": 0}
+{"monster": "183", "part": "Hooded Warrior", "partId": 0}
+{"monster": "184", "part": "Astronomer", "partId": 0}
+{"monster": "185", "part": "spiny skelelton", "partId": 0}
+{"monster": "186", "part": "toothy sklelton", "partId": 0}
+{"monster": "187", "part": "giant skeelton", "partId": 0}
+{"monster": "189", "part": "gluttonous ghuol", "partId": 0}
+{"monster": "190", "part": "gaunt ghuol", "partId": 0}
+{"monster": "191", "part": "huge ghuol", "partId": 0}
+{"monster": "192", "part": "senile lihc", "partId": 0}
+{"monster": "193", "part": "slick lihc", "partId": 0}
+{"monster": "194", "part": "gargantulihc", "partId": 0}
+{"monster": "195", "part": "grave rober zmobie", "partId": 0}
+{"monster": "196", "part": "corpulent zobmie", "partId": 0}
+{"monster": "197", "part": "conjoined zmombie", "partId": 0}
+{"monster": "198", "part": "Bonerdagon", "partId": 0}
+{"monster": "199", "part": "warwelf", "partId": 0}
+{"monster": "200", "part": "wolfman", "partId": 0}
+{"monster": "201", "part": "spooky mummy", "partId": 0}
+{"monster": "202", "part": "bar", "partId": 0}
+{"monster": "203", "part": "Pretty Fly", "partId": 0}
+{"monster": "204", "part": "Fickle Finger of F8", "partId": 0}
+{"monster": "205", "part": "topiary golem", "partId": 0}
+{"monster": "206", "part": "Flaming Samurai", "partId": 0}
+{"monster": "207", "part": "Ice Cube", "partId": 0}
+{"monster": "208", "part": "Beer Batter", "partId": 0}
+{"monster": "209", "part": "Enraged Cow", "partId": 0}
+{"monster": "210", "part": "Your Shadow", "partId": 0}
+{"monster": "211", "part": "Gnollish War Chef", "partId": 0}
+{"monster": "213", "part": "vine gar", "partId": 0}
+{"monster": "214", "part": "ghostly pickle factory worker", "partId": 0}
+{"monster": "215", "part": "carnivorous dill plant", "partId": 0}
+{"monster": "216", "part": "Mob Penguin Pasta Chef", "partId": 0}
+{"monster": "217", "part": "Mob Penguin Thug", "partId": 0}
+{"monster": "218", "part": "Mob Penguin Soprano", "partId": 0}
+{"monster": "219", "part": "emaciated Knott Yeti", "partId": 0}
+{"monster": "220", "part": "acid blob", "partId": 0}
+{"monster": "221", "part": "swarm of killer bees", "partId": 0}
+{"monster": "222", "part": "mind flayer", "partId": 0}
+{"monster": "223", "part": "Quantum Mechanic", "partId": 0}
+{"monster": "224", "part": "large kobold", "partId": 0}
+{"monster": "225", "part": "poutine ooze", "partId": 0}
+{"monster": "226", "part": "cloud of disembodied whiskers", "partId": 0}
+{"monster": "227", "part": "axe handle", "partId": 0}
+{"monster": "228", "part": "forest spirit", "partId": 0}
+{"monster": "230", "part": "infinite meat bug", "partId": 0}
+{"monster": "231", "part": "Baiowulf", "partId": 0}
+{"monster": "232", "part": "Hypnotist of Hey Deze", "partId": 0}
+{"monster": "233", "part": "decent lumberjack", "partId": 0}
+{"monster": "234", "part": "lumberjill", "partId": 0}
+{"monster": "235", "part": "lumberjuan", "partId": 0}
+{"monster": "236", "part": "lumberjack supervisor", "partId": 0}
+{"monster": "237", "part": "X-headed Hydra", "partId": 0}
+{"monster": "238", "part": "Ghost of Fernswarthy's Grandfather", "partId": 0}
+{"monster": "239", "part": "Beast with X Eyes", "partId": 0}
+{"monster": "240", "part": "Beast with X Ears", "partId": 0}
+{"monster": "241", "part": "X Bottles of Beer on a Golem", "partId": 0}
+{"monster": "242", "part": "X Stone Golem", "partId": 0}
+{"monster": "243", "part": "Naughty Sorceress", "partId": 0}
+{"monster": "244", "part": "Naughty Sorceress (2)", "partId": 0}
+{"monster": "245", "part": "Naughty Sorceress (3)", "partId": 0}
+{"monster": "247", "part": "vicious gnauga", "partId": 0}
+{"monster": "248", "part": "gnasty gnome", "partId": 0}
+{"monster": "249", "part": "gnarly gnome", "partId": 0}
+{"monster": "250", "part": "gnu jack gnome", "partId": 0}
+{"monster": "251", "part": "Gnomester Blomester", "partId": 0}
+{"monster": "252", "part": "gnefarious gnome", "partId": 0}
+{"monster": "254", "part": "revolting bugbear", "partId": 0}
+{"monster": "255", "part": "revolving bugbear", "partId": 0}
+{"monster": "256", "part": "angry bugbear", "partId": 0}
+{"monster": "257", "part": "mad bugbears", "partId": 0}
+{"monster": "258", "part": "bugged bugbear", "partId": 0}
+{"monster": "259", "part": "annoying spooky gravy fairy", "partId": 0}
+{"monster": "260", "part": "spooky gravy fairy guard", "partId": 0}
+{"monster": "261", "part": "spooky gravy fairy warlock", "partId": 0}
+{"monster": "262", "part": "spooky gravy fairy ninja", "partId": 0}
+{"monster": "263", "part": "Knob Goblin Elite Guard Captain", "partId": 0}
+{"monster": "266", "part": "Felonia, Queen of the Spooky Gravy Fairies", "partId": 0}
+{"monster": "268", "part": "irate mariachi", "partId": 0}
+{"monster": "269", "part": "angry pi&ntilde;ata", "partId": 0}
+{"monster": "270", "part": "handsome mariachi", "partId": 0}
+{"monster": "271", "part": "raging bull", "partId": 0}
+{"monster": "272", "part": "mariachi calavera", "partId": 0}
+{"monster": "273", "part": "Buzzy Beetle", "partId": 0}
+{"monster": "275", "part": "Vicious Easel", "partId": 0}
+{"monster": "276", "part": "Big Meat Golem", "partId": 0}
+{"monster": "277", "part": "Bowling Cricket", "partId": 0}
+{"monster": "278", "part": "Tyrannosaurus Tex", "partId": 0}
+{"monster": "279", "part": "Giant Desktop Globe", "partId": 0}
+{"monster": "280", "part": "Electron Submarine", "partId": 0}
+{"monster": "281", "part": "hung-over half-orc hobo", "partId": 0}
+{"monster": "282", "part": "overdone flame-broiled meat blob", "partId": 0}
+{"monster": "283", "part": "mimic", "partId": 0}
+{"monster": "284", "part": "Lesser Fruit Golem", "partId": 0}
+{"monster": "285", "part": "shaky clown", "partId": 0}
+{"monster": "286", "part": "Baron von Ratsworth", "partId": 0}
+{"monster": "287", "part": "small barrel mimic", "partId": 0}
+{"monster": "288", "part": "medium-sized barrel mimic", "partId": 0}
+{"monster": "289", "part": "huge barrel mimic", "partId": 0}
+{"monster": "290", "part": "Dyspepsi-Cola Soldier", "partId": 0}
+{"monster": "291", "part": "Dyspepsi-Cola Knight", "partId": 0}
+{"monster": "292", "part": "Cloaca-Cola Soldier", "partId": 0}
+{"monster": "293", "part": "Dyspepsi-Cola General", "partId": 0}
+{"monster": "294", "part": "Cloaca-Cola Footsoldier", "partId": 0}
+{"monster": "295", "part": "Cloaca-Cola Catapult Engineer", "partId": 0}
+{"monster": "296", "part": "drunken zombie half-orc hobo", "partId": 0}
+{"monster": "297", "part": "fiendish zombie can of asparagus", "partId": 0}
+{"monster": "298", "part": "zombie apathetic lizardman", "partId": 0}
+{"monster": "299", "part": "Zombie Knob Goblin Assistant Chef", "partId": 0}
+{"monster": "300", "part": "Knob Goblin Elite Zombie", "partId": 0}
+{"monster": "301", "part": "zombie Gnollish crossdresser", "partId": 0}
+{"monster": "302", "part": "Zombie Clown", "partId": 0}
+{"monster": "303", "part": "zombie zmobie", "partId": 0}
+{"monster": "304", "part": "zombie yeast beast", "partId": 0}
+{"monster": "305", "part": "zombie frat boy", "partId": 0}
+{"monster": "306", "part": "zombie hippy", "partId": 0}
+{"monster": "307", "part": "scary pirate", "partId": 0}
+{"monster": "308", "part": "white zombie", "partId": 0}
+{"monster": "309", "part": "Zombie N00b", "partId": 0}
+{"monster": "310", "part": "Zombie eXtreme Snowboarding Orc", "partId": 0}
+{"monster": "311", "part": "Zombie Quiet Healer", "partId": 0}
+{"monster": "312", "part": "Zombie Goth Giant", "partId": 0}
+{"monster": "313", "part": "fluffy bunny", "partId": 0}
+{"monster": "314", "part": "Malevolent Tofurkey", "partId": 0}
+{"monster": "315", "part": "Stuffing Golem", "partId": 0}
+{"monster": "316", "part": "Possessed Can of Cranberry Sauce", "partId": 0}
+{"monster": "317", "part": "Candied Yam Golem", "partId": 0}
+{"monster": "318", "part": "Striking Factory-Worker Elf", "partId": 0}
+{"monster": "319", "part": "Striking Middle-Management Elf", "partId": 0}
+{"monster": "320", "part": "Striking Pencil-Pusher Elf", "partId": 0}
+{"monster": "321", "part": "Striking Stocking-Stuffer Elf", "partId": 0}
+{"monster": "322", "part": "Striking Gift-Wrapper Elf", "partId": 0}
+{"monster": "323", "part": "Rudolph the Red", "partId": 0}
+{"monster": "324", "part": "Dopey, the Reindeer", "partId": 0}
+{"monster": "325", "part": "Sleepy, the Reindeer", "partId": 0}
+{"monster": "326", "part": "Happy, the Reindeer", "partId": 0}
+{"monster": "327", "part": "Bashful, the Reindeer", "partId": 0}
+{"monster": "328", "part": "Grumpy, the Reindeer", "partId": 0}
+{"monster": "329", "part": "Doc, the Reindeer", "partId": 0}
+{"monster": "330", "part": "Sneezy, the Reindeer", "partId": 0}
+{"monster": "331", "part": "Zeppo, the Reindeer", "partId": 0}
+{"monster": "332", "part": "frog", "partId": 0}
+{"monster": "333", "part": "newt", "partId": 0}
+{"monster": "334", "part": "salamander", "partId": 0}
+{"monster": "335", "part": "business hippy", "partId": 0}
+{"monster": "336", "part": "eXtreme Sports Orcs", "partId": 0}
+{"monster": "337", "part": "angry raccoon puppet", "partId": 0}
+{"monster": "338", "part": "Ninja Snowman (Chopsticks)", "partId": 0}
+{"monster": "339", "part": "Ninja Snowman Janitor", "partId": 0}
+{"monster": "340", "part": "Ninja Snowman Weaponmaster", "partId": 0}
+{"monster": "342", "part": "triffid", "partId": 0}
+{"monster": "350", "part": "vampire bat", "partId": 0}
+{"monster": "351", "part": "Burrowing Bishop", "partId": 0}
+{"monster": "352", "part": "Twig and Berries", "partId": 0}
+{"monster": "353", "part": "Skinflute", "partId": 0}
+{"monster": "354", "part": "Astronomer (obsolete)", "partId": 0}
+{"monster": "355", "part": "Trippy Floating Head (Mona Lisa)", "partId": 0}
+{"monster": "356", "part": "Trippy Floating Head (Casey Kasem)", "partId": 0}
+{"monster": "357", "part": "Trippy Floating Head (Grand Moff Tarkin)", "partId": 0}
+{"monster": "358", "part": "Zombie Baby", "partId": 0}
+{"monster": "359", "part": "Swarm of Country Bats", "partId": 0}
+{"monster": "360", "part": "Urge to Stare at Your Hands", "partId": 0}
+{"monster": "361", "part": "Really Interesting Wallpaper", "partId": 0}
+{"monster": "362", "part": "Visible Music", "partId": 0}
+{"monster": "363", "part": "Feeling That You're Being Watched", "partId": 0}
+{"monster": "364", "part": "Best Carpet Ever", "partId": 0}
+{"monster": "365", "part": "Angels of Avalon", "partId": 0}
+{"monster": "366", "part": "Bustle in the Hedgerow", "partId": 0}
+{"monster": "367", "part": "Gathering of Angels?", "partId": 0}
+{"monster": "368", "part": "Higher Plane Serpents", "partId": 0}
+{"monster": "369", "part": "Elders of the Gentle Race", "partId": 0}
+{"monster": "370", "part": "ghost miner", "partId": 0}
+{"monster": "372", "part": "possessed silverware drawer", "partId": 0}
+{"monster": "373", "part": "demonic icebox", "partId": 0}
+{"monster": "374", "part": "paper towelgeist", "partId": 0}
+{"monster": "375", "part": "skeletal hamster", "partId": 0}
+{"monster": "376", "part": "confused goth music student", "partId": 0}
+{"monster": "377", "part": "skullery maid", "partId": 0}
+{"monster": "378", "part": "zombie chef", "partId": 0}
+{"monster": "379", "part": "skeletal cat", "partId": 0}
+{"monster": "380", "part": "skeletal monkey", "partId": 0}
+{"monster": "381", "part": "anglerbush", "partId": 0}
+{"monster": "382", "part": "man-eating plant", "partId": 0}
+{"monster": "383", "part": "chalkdust wraith", "partId": 0}
+{"monster": "384", "part": "upgraded ram", "partId": 0}
+{"monster": "385", "part": "Snow Queen", "partId": 0}
+{"monster": "386", "part": "pooltergeist", "partId": 0}
+{"monster": "387", "part": "bookbat", "partId": 0}
+{"monster": "388", "part": "banshee librarian", "partId": 0}
+{"monster": "389", "part": "malevolent hair clog", "partId": 0}
+{"monster": "390", "part": "toilet papergeist", "partId": 0}
+{"monster": "391", "part": "animated nightstand (white noncombat)", "partId": 0}
+{"monster": "393", "part": "cubist bull", "partId": 0}
+{"monster": "394", "part": "guy with a pitchfork, and his wife", "partId": 0}
+{"monster": "395", "part": "empty suit of armor", "partId": 0}
+{"monster": "396", "part": "remains of a jilted mistress", "partId": 0}
+{"monster": "397", "part": "knight (Wolf)", "partId": 0}
+{"monster": "398", "part": "knight (Snake)", "partId": 0}
+{"monster": "399", "part": "animated nightstand (mahogany noncombat)", "partId": 0}
+{"monster": "400", "part": "claw-foot bathtub", "partId": 0}
+{"monster": "401", "part": "zombie waltzers", "partId": 0}
+{"monster": "402", "part": "tapdancing skeleton", "partId": 0}
+{"monster": "403", "part": "ghastly organist", "partId": 0}
+{"monster": "404", "part": "floating platter of hors d'oeuvres", "partId": 0}
+{"monster": "405", "part": "writing desk", "partId": 0}
+{"monster": "406", "part": "animated nightstand (white combat)", "partId": 0}
+{"monster": "407", "part": "animated nightstand (mahogany combat)", "partId": 0}
+{"monster": "408", "part": "Skelter Butleton, the Butler Skeleton", "partId": 0}
+{"monster": "409", "part": "Orcish Frat Boy Spy", "partId": 0}
+{"monster": "410", "part": "War Hippy Dread Squad", "partId": 0}
+{"monster": "411", "part": "War Hippy Infantryman", "partId": 0}
+{"monster": "412", "part": "War Hippy Sky Captain", "partId": 0}
+{"monster": "413", "part": "War Hippy Fire Spinner", "partId": 0}
+{"monster": "414", "part": "black adder", "partId": 0}
+{"monster": "415", "part": "black widow", "partId": 0}
+{"monster": "416", "part": "black panther", "partId": 0}
+{"monster": "417", "part": "Black Knight", "partId": 0}
+{"monster": "418", "part": "blackberry bush", "partId": 0}
+{"monster": "419", "part": "War Hippy Spy", "partId": 0}
+{"monster": "420", "part": "War Frat Kegrider", "partId": 0}
+{"monster": "421", "part": "Panty Raider Frat Boy", "partId": 0}
+{"monster": "422", "part": "Beer Bongadier", "partId": 0}
+{"monster": "423", "part": "War Frat 151st Infantryman", "partId": 0}
+{"monster": "424", "part": "Guy Made Of Bees", "partId": 0}
+{"monster": "425", "part": "pooltergeist (ultra-rare)", "partId": 0}
+{"monster": "426", "part": "Bad ASCII Art", "partId": 0}
+{"monster": "427", "part": "flint-scraping cave elf", "partId": 0}
+{"monster": "428", "part": "rock-banging cave elf", "partId": 0}
+{"monster": "429", "part": "sinew-stretching cave elf", "partId": 0}
+{"monster": "430", "part": "hunter-gatherer cave elf", "partId": 0}
+{"monster": "431", "part": "skeletal reindeer", "partId": 0}
+{"monster": "432", "part": "gift-wrapping vampire", "partId": 0}
+{"monster": "433", "part": "stocking-stuffing zombie", "partId": 0}
+{"monster": "434", "part": "bow-making mummy", "partId": 0}
+{"monster": "435", "part": "Cookie-baking Thing from Beyond Time", "partId": 0}
+{"monster": "436", "part": "toy-making creature from the Gray Lagoon", "partId": 0}
+{"monster": "437", "part": "Ribbon-Cutting Elfborg", "partId": 0}
+{"monster": "438", "part": "Arc-Welding Elfborg", "partId": 0}
+{"monster": "439", "part": "Weapons-Assembly Elfborg", "partId": 0}
+{"monster": "440", "part": "Decal-Applying Elfborg", "partId": 0}
+{"monster": "441", "part": "Rudolphus of Crimborg", "partId": 0}
+{"monster": "442", "part": "ancient protector spirit (The Hidden Apartment Building)", "partId": 0}
+{"monster": "443", "part": "ancient protector spirit (The Hidden Hospital)", "partId": 0}
+{"monster": "444", "part": "ancient protector spirit (The Hidden Office Building)", "partId": 0}
+{"monster": "445", "part": "ancient protector spirit (The Hidden Bowling Alley)", "partId": 0}
+{"monster": "447", "part": "pygmy headhunter", "partId": 0}
+{"monster": "448", "part": "pygmy assault squad", "partId": 0}
+{"monster": "449", "part": "pygmy blowgunner", "partId": 0}
+{"monster": "450", "part": "Protector Spectre", "partId": 0}
+{"monster": "451", "part": "caveman frat boy", "partId": 0}
+{"monster": "452", "part": "caveman sorority girl", "partId": 0}
+{"monster": "453", "part": "Dr. Awkward", "partId": 0}
+{"monster": "454", "part": "possessed wine rack (obsolete)", "partId": 0}
+{"monster": "455", "part": "skeletal sommelier (obsolete)", "partId": 0}
+{"monster": "456", "part": "swarm of scarab beatles", "partId": 0}
+{"monster": "457", "part": "plaque of locusts", "partId": 0}
+{"monster": "458", "part": "giant sandworm", "partId": 0}
+{"monster": "459", "part": "oasis monster", "partId": 0}
+{"monster": "460", "part": "blur", "partId": 0}
+{"monster": "461", "part": "swarm of fire ants", "partId": 0}
+{"monster": "462", "part": "giant giant giant centipede", "partId": 0}
+{"monster": "463", "part": "rock scorpion", "partId": 0}
+{"monster": "464", "part": "Lord Spookyraven", "partId": 0}
+{"monster": "465", "part": "cactuary", "partId": 0}
+{"monster": "467", "part": "tomb rat", "partId": 0}
+{"monster": "468", "part": "tomb servant", "partId": 0}
+{"monster": "469", "part": "tomb asp", "partId": 0}
+{"monster": "470", "part": "caveman frat pledge", "partId": 0}
+{"monster": "471", "part": "caveman hippy", "partId": 0}
+{"monster": "472", "part": "cavewomyn hippy", "partId": 0}
+{"monster": "473", "part": "Ed the Undying", "partId": 0}
+{"monster": "474", "part": "sabre-toothed ferret", "partId": 0}
+{"monster": "475", "part": "dirty thieving brigand", "partId": 0}
+{"monster": "476", "part": "black pudding", "partId": 0}
+{"monster": "477", "part": "larval filthworm", "partId": 0}
+{"monster": "478", "part": "filthworm drone", "partId": 0}
+{"monster": "479", "part": "filthworm royal guard", "partId": 0}
+{"monster": "480", "part": "queen filthworm", "partId": 0}
+{"monster": "481", "part": "War Hippy (space) cadet", "partId": 0}
+{"monster": "482", "part": "War Hippy drill sergeant", "partId": 0}
+{"monster": "483", "part": "War Hippy Baker", "partId": 0}
+{"monster": "484", "part": "War Hippy Rigger", "partId": 0}
+{"monster": "485", "part": "War Hippy F.R.O.G.", "partId": 0}
+{"monster": "486", "part": "War Hippy Green Gourmet", "partId": 0}
+{"monster": "487", "part": "War Hippy Elite Rigger", "partId": 0}
+{"monster": "488", "part": "Mobile Armored Sweat Lodge", "partId": 0}
+{"monster": "489", "part": "War Hippy Airborne Commander", "partId": 0}
+{"monster": "490", "part": "War Hippy Homeopath", "partId": 0}
+{"monster": "491", "part": "War Hippy Naturopathic Homeopath", "partId": 0}
+{"monster": "492", "part": "Green Ops Soldier", "partId": 0}
+{"monster": "493", "part": "War Hippy Windtalker", "partId": 0}
+{"monster": "494", "part": "War Hippy Shaman", "partId": 0}
+{"monster": "495", "part": "War Hippy Elder Shaman", "partId": 0}
+{"monster": "496", "part": "War Hippy Elite Fire Spinner", "partId": 0}
+{"monster": "497", "part": "War Frat 500th Infantrygentleman", "partId": 0}
+{"monster": "498", "part": "War Frat 110th Infantryman", "partId": 0}
+{"monster": "499", "part": "War Frat 151st Captain", "partId": 0}
+{"monster": "500", "part": "War Frat Elite 500th Captain", "partId": 0}
+{"monster": "501", "part": "War Frat Elite 110th Captain", "partId": 0}
+{"monster": "502", "part": "War Frat Grill Sergeant", "partId": 0}
+{"monster": "503", "part": "War Frat Senior Grill Sergeant", "partId": 0}
+{"monster": "504", "part": "Heavy Kegtank", "partId": 0}
+{"monster": "505", "part": "War Frat Wartender", "partId": 0}
+{"monster": "506", "part": "War Frat Elite Wartender", "partId": 0}
+{"monster": "507", "part": "Elite Beer Bongadier", "partId": 0}
+{"monster": "508", "part": "Sorority Nurse", "partId": 0}
+{"monster": "509", "part": "Sorority Operator", "partId": 0}
+{"monster": "510", "part": "Naughty Sorority Nurse", "partId": 0}
+{"monster": "511", "part": "Slow Talkin' Elliot", "partId": 0}
+{"monster": "512", "part": "Neil", "partId": 0}
+{"monster": "513", "part": "Zim Merman", "partId": 0}
+{"monster": "514", "part": "C.A.R.N.I.V.O.R.E. Operative", "partId": 0}
+{"monster": "515", "part": "Glass of Orange Juice", "partId": 0}
+{"monster": "516", "part": "Next-generation Frat Boy", "partId": 0}
+{"monster": "517", "part": "Monty Basingstoke-Pratt, IV", "partId": 0}
+{"monster": "518", "part": "Brutus, the toga-clad lout", "partId": 0}
+{"monster": "519", "part": "Danglin' Chad", "partId": 0}
+{"monster": "520", "part": "War Frat Streaker", "partId": 0}
+{"monster": "527", "part": "War Pledge", "partId": 0}
+{"monster": "528", "part": "Frat Warrior drill sergeant", "partId": 0}
+{"monster": "529", "part": "lobsterfrogman", "partId": 0}
+{"monster": "530", "part": "Knob Goblin Embezzler", "partId": 0}
+{"monster": "531", "part": "ferocious bugbear", "partId": 0}
+{"monster": "532", "part": "gelatinous cube", "partId": 0}
+{"monster": "533", "part": "Knob Goblin poseur", "partId": 0}
+{"monster": "534", "part": "ancient insane monk", "partId": 0}
+{"monster": "535", "part": "Box", "partId": 0}
+{"monster": "536", "part": "Muff", "partId": 0}
+{"monster": "537", "part": "Bush", "partId": 0}
+{"monster": "538", "part": "Flange", "partId": 0}
+{"monster": "539", "part": "Beaver", "partId": 0}
+{"monster": "540", "part": "Little Man in the Canoe", "partId": 0}
+{"monster": "541", "part": "Camel's Toe", "partId": 0}
+{"monster": "542", "part": "Honey Pot", "partId": 0}
+{"monster": "543", "part": "Axe Wound", "partId": 0}
+{"monster": "544", "part": "generic duck", "partId": 0}
+{"monster": "545", "part": "The Big Wisniewski", "partId": 0}
+{"monster": "546", "part": "erudite gremlin", "partId": 0}
+{"monster": "547", "part": "erudite gremlin (tool)", "partId": 0}
+{"monster": "548", "part": "batwinged gremlin", "partId": 0}
+{"monster": "549", "part": "batwinged gremlin (tool)", "partId": 0}
+{"monster": "550", "part": "vegetable gremlin", "partId": 0}
+{"monster": "551", "part": "vegetable gremlin (tool)", "partId": 0}
+{"monster": "552", "part": "spider gremlin", "partId": 0}
+{"monster": "553", "part": "spider gremlin (tool)", "partId": 0}
+{"monster": "554", "part": "A.M.C. gremlin", "partId": 0}
+{"monster": "555", "part": "The Man", "partId": 0}
+{"monster": "556", "part": "frozen duck", "partId": 0}
+{"monster": "557", "part": "figure-skating duck", "partId": 0}
+{"monster": "558", "part": "scorched duck", "partId": 0}
+{"monster": "559", "part": "fire-breathing duck", "partId": 0}
+{"monster": "560", "part": "greasy duck", "partId": 0}
+{"monster": "561", "part": "rotund duck", "partId": 0}
+{"monster": "562", "part": "swamp duck", "partId": 0}
+{"monster": "563", "part": "rattlin' duck", "partId": 0}
+{"monster": "564", "part": "vampire duck", "partId": 0}
+{"monster": "565", "part": "zombie duck", "partId": 0}
+{"monster": "566", "part": "drunk duck", "partId": 0}
+{"monster": "567", "part": "mean drunk duck", "partId": 0}
+{"monster": "568", "part": "boaraffe", "partId": 0}
+{"monster": "569", "part": "The Clownlord Beelzebozo", "partId": 0}
+{"monster": "570", "part": "rampaging adding machine", "partId": 0}
+{"monster": "571", "part": "beefy bodyguard bat", "partId": 0}
+{"monster": "572", "part": "Iiti Kitty", "partId": 0}
+{"monster": "573", "part": "black cat", "partId": 0}
+{"monster": "574", "part": "rolling stone", "partId": 0}
+{"monster": "575", "part": "tomb bat", "partId": 0}
+{"monster": "576", "part": "Bailey's Beetle", "partId": 0}
+{"monster": "577", "part": "War Frat Mobile Grill Unit", "partId": 0}
+{"monster": "578", "part": "usher", "partId": 0}
+{"monster": "579", "part": "raven", "partId": 0}
+{"monster": "580", "part": "bellhop", "partId": 0}
+{"monster": "581", "part": "Ourang-Outang", "partId": 0}
+{"monster": "582", "part": "Ancient Mariner", "partId": 0}
+{"monster": "583", "part": "Kubla Khan", "partId": 0}
+{"monster": "584", "part": "toothless mastiff bitch", "partId": 0}
+{"monster": "585", "part": "angry poet", "partId": 0}
+{"monster": "586", "part": "roller-skating Muse", "partId": 0}
+{"monster": "587", "part": "can-can dancer", "partId": 0}
+{"monster": "588", "part": "master of ceremonies", "partId": 0}
+{"monster": "589", "part": "courtesan", "partId": 0}
+{"monster": "590", "part": "voyeuristic artist", "partId": 0}
+{"monster": "591", "part": "sensitive poet-type", "partId": 0}
+{"monster": "592", "part": "X-dimensional horror", "partId": 0}
+{"monster": "593", "part": "swamp beaver warrior", "partId": 0}
+{"monster": "594", "part": "swamp beaver shaman", "partId": 0}
+{"monster": "595", "part": "swamp gator", "partId": 0}
+{"monster": "596", "part": "swamp entity", "partId": 0}
+{"monster": "597", "part": "conservationist hippy", "partId": 0}
+{"monster": "601", "part": "concert pianist", "partId": 0}
+{"monster": "602", "part": "best-selling novelist", "partId": 0}
+{"monster": "603", "part": "malevolent crop circle", "partId": 0}
+{"monster": "604", "part": "Bronze Chef", "partId": 0}
+{"monster": "605", "part": "El Diablo", "partId": 0}
+{"monster": "606", "part": "giant fried egg", "partId": 0}
+{"monster": "607", "part": "possessed pipe-organ", "partId": 0}
+{"monster": "608", "part": "darkness", "partId": 0}
+{"monster": "609", "part": "endangered inflatable white tiger", "partId": 0}
+{"monster": "610", "part": "fancy bath slug", "partId": 0}
+{"monster": "611", "part": "collapsed mineshaft golem", "partId": 0}
+{"monster": "612", "part": "giant bee", "partId": 0}
+{"monster": "613", "part": "groovy pirate", "partId": 0}
+{"monster": "614", "part": "gritty pirate", "partId": 0}
+{"monster": "615", "part": "grassy pirate", "partId": 0}
+{"monster": "616", "part": "grungy pirate", "partId": 0}
+{"monster": "617", "part": "Knott Slanding", "partId": 0}
+{"monster": "618", "part": "tipsy pirate", "partId": 0}
+{"monster": "619", "part": "tetchy pirate", "partId": 0}
+{"monster": "620", "part": "toothy pirate", "partId": 0}
+{"monster": "621", "part": "cleanly pirate", "partId": 0}
+{"monster": "622", "part": "creamy pirate", "partId": 0}
+{"monster": "623", "part": "curmudgeonly pirate", "partId": 0}
+{"monster": "624", "part": "chatty pirate", "partId": 0}
+{"monster": "625", "part": "crusty pirate", "partId": 0}
+{"monster": "626", "part": "clingy pirate (female)", "partId": 0}
+{"monster": "627", "part": "clingy pirate (male)", "partId": 0}
+{"monster": "628", "part": "whiny pirate", "partId": 0}
+{"monster": "629", "part": "witty pirate", "partId": 0}
+{"monster": "630", "part": "wacky pirate", "partId": 0}
+{"monster": "631", "part": "wealthy pirate", "partId": 0}
+{"monster": "632", "part": "warty pirate", "partId": 0}
+{"monster": "633", "part": "gaudy pirate", "partId": 0}
+{"monster": "634", "part": "booty crab", "partId": 0}
+{"monster": "635", "part": "Novia Cad&aacute;ver", "partId": 0}
+{"monster": "636", "part": "Novio Cad&aacute;ver", "partId": 0}
+{"monster": "637", "part": "Padre Cad&aacute;ver", "partId": 0}
+{"monster": "638", "part": "Persona Inocente Cad&aacute;ver", "partId": 0}
+{"monster": "639", "part": "death ray in a pear tree", "partId": 0}
+{"monster": "640", "part": "turtle mech", "partId": 0}
+{"monster": "641", "part": "Swiss hen", "partId": 0}
+{"monster": "642", "part": "killing bird", "partId": 0}
+{"monster": "643", "part": "golden ring", "partId": 0}
+{"monster": "644", "part": "goose a-laying", "partId": 0}
+{"monster": "645", "part": "swarm a-swarming", "partId": 0}
+{"monster": "646", "part": "blade a-spinning", "partId": 0}
+{"monster": "647", "part": "laser lancing", "partId": 0}
+{"monster": "648", "part": "borg a-beeping", "partId": 0}
+{"monster": "649", "part": "strangler strangling", "partId": 0}
+{"monster": "650", "part": "stomper stomping", "partId": 0}
+{"monster": "651", "part": "Normal hobo", "partId": 0}
+{"monster": "652", "part": "infernal seal larva", "partId": 0}
+{"monster": "653", "part": "infernal seal spawn", "partId": 0}
+{"monster": "654", "part": "vengeful turtle spectre", "partId": 0}
+{"monster": "655", "part": "haunted soup tureen", "partId": 0}
+{"monster": "656", "part": "evil spaghetti cultist", "partId": 0}
+{"monster": "657", "part": "evil spaghetti cult priest", "partId": 0}
+{"monster": "658", "part": "slithering hollandaise glob", "partId": 0}
+{"monster": "659", "part": "pernicious puddle of pesto", "partId": 0}
+{"monster": "660", "part": "talking head", "partId": 0}
+{"monster": "661", "part": "psychedelic fur", "partId": 0}
+{"monster": "662", "part": "evil vihuela-playing mariachi", "partId": 0}
+{"monster": "663", "part": "evil trumpet-playing mariachi", "partId": 0}
+{"monster": "664", "part": "menacing construct", "partId": 0}
+{"monster": "665", "part": "bizarre construct", "partId": 0}
+{"monster": "666", "part": "industrious construct", "partId": 0}
+{"monster": "667", "part": "towering construct", "partId": 0}
+{"monster": "668", "part": "lonely construct", "partId": 0}
+{"monster": "669", "part": "hulking construct", "partId": 0}
+{"monster": "670", "part": "menacing construct (translated)", "partId": 0}
+{"monster": "671", "part": "bizarre construct (translated)", "partId": 0}
+{"monster": "672", "part": "industrious construct (translated)", "partId": 0}
+{"monster": "673", "part": "towering construct (translated)", "partId": 0}
+{"monster": "674", "part": "lonely construct (translated)", "partId": 0}
+{"monster": "675", "part": "hulking construct (translated)", "partId": 0}
+{"monster": "679", "part": "sewer gator", "partId": 0}
+{"monster": "680", "part": "menacing thug", "partId": 0}
+{"monster": "681", "part": "giant zombie goldfish", "partId": 0}
+{"monster": "682", "part": "C. H. U. M.", "partId": 0}
+{"monster": "683", "part": "Mob Penguin hitman", "partId": 0}
+{"monster": "684", "part": "hunting seal", "partId": 0}
+{"monster": "685", "part": "turtle trapper", "partId": 0}
+{"monster": "686", "part": "evil spaghetti cult assassin", "partId": 0}
+{"monster": "687", "part": "b&eacute;arnaise zombie", "partId": 0}
+{"monster": "688", "part": "Hodgman, The Hoboverlord", "partId": 0}
+{"monster": "689", "part": "Hot hobo", "partId": 0}
+{"monster": "690", "part": "Cold hobo", "partId": 0}
+{"monster": "691", "part": "Stench hobo", "partId": 0}
+{"monster": "692", "part": "Spooky hobo", "partId": 0}
+{"monster": "693", "part": "Sleaze hobo", "partId": 0}
+{"monster": "694", "part": "Ol' Scratch", "partId": 0}
+{"monster": "695", "part": "Frosty", "partId": 0}
+{"monster": "696", "part": "Oscus", "partId": 0}
+{"monster": "697", "part": "Zombo", "partId": 0}
+{"monster": "698", "part": "Chester", "partId": 0}
+{"monster": "699", "part": "flock of seagulls", "partId": 0}
+{"monster": "700", "part": "mariachi bandolero", "partId": 0}
+{"monster": "701", "part": "Argarggagarg the Dire Hellseal", "partId": 0}
+{"monster": "702", "part": "Safari Jack, Small-Game Hunter", "partId": 0}
+{"monster": "703", "part": "Yakisoba the Executioner", "partId": 0}
+{"monster": "704", "part": "Heimandatz, Nacho Golem", "partId": 0}
+{"monster": "705", "part": "Jocko Homo", "partId": 0}
+{"monster": "706", "part": "The Mariachi With No Name", "partId": 0}
+{"monster": "707", "part": "gang of hobo muggers", "partId": 0}
+{"monster": "708", "part": "weather underground dweller", "partId": 0}
+{"monster": "709", "part": "digital underground dweller", "partId": 0}
+{"monster": "710", "part": "velvet underground dweller", "partId": 0}
+{"monster": "711", "part": "spelunking astronaut", "partId": 0}
+{"monster": "712", "part": "dwarvish gnome", "partId": 0}
+{"monster": "713", "part": "possessed wine rack", "partId": 0}
+{"monster": "714", "part": "skeletal sommelier", "partId": 0}
+{"monster": "715", "part": "C. H. U. M. chieftain", "partId": 0}
+{"monster": "716", "part": "amateur ninja", "partId": 0}
+{"monster": "717", "part": "school of wizardfish", "partId": 0}
+{"monster": "718", "part": "pumped-up bass", "partId": 0}
+{"monster": "719", "part": "funk sole brother", "partId": 0}
+{"monster": "720", "part": "migratory pirate", "partId": 0}
+{"monster": "721", "part": "ambulatory pirate", "partId": 0}
+{"monster": "722", "part": "peripatetic pirate", "partId": 0}
+{"monster": "723", "part": "scimitarfish", "partId": 0}
+{"monster": "724", "part": "bazookafish", "partId": 0}
+{"monster": "725", "part": "clubfish", "partId": 0}
+{"monster": "726", "part": "mutant rattlesnake", "partId": 0}
+{"monster": "727", "part": "mutant saguaro", "partId": 0}
+{"monster": "728", "part": "mutant gila monster", "partId": 0}
+{"monster": "729", "part": "swarm of mutant fire ants", "partId": 0}
+{"monster": "730", "part": "roller skate", "partId": 0}
+{"monster": "731", "part": "ice skate", "partId": 0}
+{"monster": "732", "part": "Skate Board member", "partId": 0}
+{"monster": "733", "part": "urchin urchin", "partId": 0}
+{"monster": "734", "part": "grouper groupie", "partId": 0}
+{"monster": "735", "part": "decent white shark", "partId": 0}
+{"monster": "736", "part": "acoustic electric eel", "partId": 0}
+{"monster": "737", "part": "ganger", "partId": 0}
+{"monster": "738", "part": "octopus gardener", "partId": 0}
+{"monster": "739", "part": "sponge", "partId": 0}
+{"monster": "740", "part": "Neptune flytrap", "partId": 0}
+{"monster": "741", "part": "stranglin' algae", "partId": 0}
+{"monster": "742", "part": "Mer-kin scavenger", "partId": 0}
+{"monster": "743", "part": "cargo crab", "partId": 0}
+{"monster": "744", "part": "drowned sailor", "partId": 0}
+{"monster": "745", "part": "unholy diver", "partId": 0}
+{"monster": "746", "part": "mine crab", "partId": 0}
+{"monster": "747", "part": "mutant gift-wrapping elf", "partId": 0}
+{"monster": "748", "part": "mutant doll-dressing elf", "partId": 0}
+{"monster": "749", "part": "mutant cookie-baking elf", "partId": 0}
+{"monster": "750", "part": "mutant whistle-carving elf", "partId": 0}
+{"monster": "751", "part": "mutant circuit-soldering elf", "partId": 0}
+{"monster": "752", "part": "Mob Penguin enforcer", "partId": 0}
+{"monster": "753", "part": "Mob Penguin goon (2008)", "partId": 0}
+{"monster": "754", "part": "Mob Penguin racketeer", "partId": 0}
+{"monster": "755", "part": "Mob Penguin hitpenguin", "partId": 0}
+{"monster": "756", "part": "Mob Penguin psychopath", "partId": 0}
+{"monster": "757", "part": "pufferfish", "partId": 0}
+{"monster": "758", "part": "magic dragonfish", "partId": 0}
+{"monster": "759", "part": "jamfish", "partId": 0}
+{"monster": "761", "part": "Mer-kin diver", "partId": 0}
+{"monster": "762", "part": "diving belle", "partId": 0}
+{"monster": "763", "part": "giant squid", "partId": 0}
+{"monster": "764", "part": "fisherfish", "partId": 0}
+{"monster": "765", "part": "Mer-kin miner", "partId": 0}
+{"monster": "766", "part": "Anemone combatant", "partId": 0}
+{"monster": "767", "part": "killer clownfish", "partId": 0}
+{"monster": "768", "part": "Mer-kin tippler", "partId": 0}
+{"monster": "769", "part": "nurse shark", "partId": 0}
+{"monster": "770", "part": "lounge lizardfish", "partId": 0}
+{"monster": "771", "part": "Mer-kin raider", "partId": 0}
+{"monster": "772", "part": "Mer-kin burglar", "partId": 0}
+{"monster": "773", "part": "Mer-kin healer", "partId": 0}
+{"monster": "774", "part": "trophyfish", "partId": 0}
+{"monster": "775", "part": "sea cow", "partId": 0}
+{"monster": "776", "part": "sea cowboy", "partId": 0}
+{"monster": "777", "part": "Mer-kin rustler", "partId": 0}
+{"monster": "778", "part": "wild seahorse", "partId": 0}
+{"monster": "779", "part": "hellseal pup", "partId": 0}
+{"monster": "780", "part": "mother hellseal", "partId": 0}
+{"monster": "781", "part": "hellseal guardian", "partId": 0}
+{"monster": "782", "part": "guard turtle", "partId": 0}
+{"monster": "783", "part": "french guard turtle", "partId": 0}
+{"monster": "791", "part": "Slime Tube monster", "partId": 0}
+{"monster": "792", "part": "Mother Slime", "partId": 0}
+{"monster": "793", "part": "Spawn of Wally", "partId": 0}
+{"monster": "794", "part": "broodling seal", "partId": 0}
+{"monster": "795", "part": "Centurion of Sparky", "partId": 0}
+{"monster": "796", "part": "hermetic seal", "partId": 0}
+{"monster": "797", "part": "watertight seal", "partId": 0}
+{"monster": "798", "part": "shadow of Black Bubbles", "partId": 0}
+{"monster": "799", "part": "Servant of Grodstank", "partId": 0}
+{"monster": "800", "part": "heat seal", "partId": 0}
+{"monster": "801", "part": "navy seal", "partId": 0}
+{"monster": "802", "part": "wet seal", "partId": 0}
+{"monster": "803", "part": "booth slime", "partId": 0}
+{"monster": "804", "part": "fan slime", "partId": 0}
+{"monster": "805", "part": "vendor slime", "partId": 0}
+{"monster": "806", "part": "evil spaghetti cult middle-manager", "partId": 0}
+{"monster": "807", "part": "evil spaghetti cult neophyte", "partId": 0}
+{"monster": "808", "part": "evil spaghetti cult technician", "partId": 0}
+{"monster": "809", "part": "hustled spectre", "partId": 0}
+{"monster": "810", "part": "rotten dolphin thief", "partId": 0}
+{"monster": "811", "part": "Cyrus the Virus", "partId": 0}
+{"monster": "812", "part": "violent fungus", "partId": 0}
+{"monster": "813", "part": "hostile amoeba", "partId": 0}
+{"monster": "814", "part": "cluster of angry bacteria", "partId": 0}
+{"monster": "815", "part": "mad flagellate", "partId": 0}
+{"monster": "816", "part": "corrosive algae", "partId": 0}
+{"monster": "817", "part": "giant octopus", "partId": 0}
+{"monster": "818", "part": "giant bird-creature", "partId": 0}
+{"monster": "819", "part": "giant jungle python", "partId": 0}
+{"monster": "820", "part": "giant spider", "partId": 0}
+{"monster": "821", "part": "wumpus", "partId": 0}
+{"monster": "822", "part": "Bangyomaman Warrior", "partId": 0}
+{"monster": "823", "part": "\"Handyman\" Jay Android", "partId": 0}
+{"monster": "824", "part": "liquid metal robot", "partId": 0}
+{"monster": "825", "part": "7-Foot Dwarf Replicant", "partId": 0}
+{"monster": "826", "part": "Space Marine", "partId": 0}
+{"monster": "827", "part": "ancient temple guardian", "partId": 0}
+{"monster": "828", "part": "group of cultists", "partId": 0}
+{"monster": "829", "part": "high priest of Ki'rhuss", "partId": 0}
+{"monster": "830", "part": "ancient guardian statue", "partId": 0}
+{"monster": "831", "part": "tribal goblin", "partId": 0}
+{"monster": "832", "part": "jungle baboon", "partId": 0}
+{"monster": "833", "part": "evil cultist", "partId": 0}
+{"monster": "834", "part": "cyborg policeman", "partId": 0}
+{"monster": "835", "part": "obese tourist", "partId": 0}
+{"monster": "836", "part": "terrifying robot", "partId": 0}
+{"monster": "838", "part": "Mer-kin teacher", "partId": 0}
+{"monster": "839", "part": "Mer-kin punisher", "partId": 0}
+{"monster": "840", "part": "Mer-kin researcher", "partId": 0}
+{"monster": "841", "part": "Mer-kin trainer", "partId": 0}
+{"monster": "842", "part": "Mer-kin balldodger", "partId": 0}
+{"monster": "843", "part": "Mer-kin netdragger", "partId": 0}
+{"monster": "844", "part": "Mer-kin bladeswitcher", "partId": 0}
+{"monster": "846", "part": "rock homunculus", "partId": 0}
+{"monster": "847", "part": "clod hopper", "partId": 0}
+{"monster": "848", "part": "rockfish", "partId": 0}
+{"monster": "849", "part": "Mer-kin poseur", "partId": 0}
+{"monster": "850", "part": "Mer-kin alphabetizer", "partId": 0}
+{"monster": "851", "part": "Mer-kin drifter", "partId": 0}
+{"monster": "852", "part": "Mer-kin monitor", "partId": 0}
+{"monster": "853", "part": "Mer-kin juicer", "partId": 0}
+{"monster": "855", "part": "breakdancing raver", "partId": 0}
+{"monster": "856", "part": "pop-and-lock raver", "partId": 0}
+{"monster": "857", "part": "running man", "partId": 0}
+{"monster": "858", "part": "sleepy mariachi", "partId": 0}
+{"monster": "859", "part": "surprised mariachi", "partId": 0}
+{"monster": "860", "part": "alert mariachi", "partId": 0}
+{"monster": "861", "part": "toilet-papered tree", "partId": 0}
+{"monster": "862", "part": "fur tree", "partId": 0}
+{"monster": "863", "part": "pumpkin tree", "partId": 0}
+{"monster": "864", "part": "deadwood tree", "partId": 0}
+{"monster": "865", "part": "hangman's tree", "partId": 0}
+{"monster": "867", "part": "warehouse worker", "partId": 0}
+{"monster": "868", "part": "evil spaghetti cult zealot", "partId": 0}
+{"monster": "869", "part": "security slime", "partId": 0}
+{"monster": "870", "part": "daft punk", "partId": 0}
+{"monster": "871", "part": "mariachi bruiser", "partId": 0}
+{"monster": "872", "part": "Gorgolok, the Infernal Seal (The Nemesis' Lair)", "partId": 0}
+{"monster": "873", "part": "Stella, the Turtle Poacher (The Nemesis' Lair)", "partId": 0}
+{"monster": "874", "part": "Spaghetti Elemental (The Nemesis' Lair)", "partId": 0}
+{"monster": "875", "part": "Lumpy, the Sinister Sauceblob (The Nemesis' Lair)", "partId": 0}
+{"monster": "876", "part": "Spirit of New Wave (The Nemesis' Lair)", "partId": 0}
+{"monster": "877", "part": "Somerset Lopez, Dread Mariachi (The Nemesis' Lair)", "partId": 0}
+{"monster": "879", "part": "Georgepaul, the Balldodger", "partId": 0}
+{"monster": "880", "part": "Johnringo, the Netdragger", "partId": 0}
+{"monster": "881", "part": "Ringogeorge, the Bladeswitcher", "partId": 0}
+{"monster": "882", "part": "Gorgolok, the Infernal Seal (Volcanic Cave)", "partId": 0}
+{"monster": "883", "part": "Stella, the Turtle Poacher (Volcanic Cave)", "partId": 0}
+{"monster": "884", "part": "Spaghetti Elemental (Volcanic Cave)", "partId": 0}
+{"monster": "885", "part": "Lumpy, the Sinister Sauceblob (Volcanic Cave)", "partId": 0}
+{"monster": "886", "part": "Spirit of New Wave (Volcanic Cave)", "partId": 0}
+{"monster": "887", "part": "Somerset Lopez, Dread Mariachi (Volcanic Cave)", "partId": 0}
+{"monster": "888", "part": "Gorgolok, the Demonic Hellseal", "partId": 0}
+{"monster": "889", "part": "Stella, the Demonic Turtle Poacher", "partId": 0}
+{"monster": "890", "part": "Spaghetti Demon", "partId": 0}
+{"monster": "891", "part": "Lumpy, the Demonic Sauceblob", "partId": 0}
+{"monster": "892", "part": "Demon of New Wave", "partId": 0}
+{"monster": "893", "part": "Somerset Lopez, Demon Mariachi", "partId": 0}
+{"monster": "894", "part": "monkey wrenchin' elf", "partId": 0}
+{"monster": "895", "part": "saboteur elf", "partId": 0}
+{"monster": "896", "part": "provocateur elf", "partId": 0}
+{"monster": "897", "part": "raconteur elf", "partId": 0}
+{"monster": "898", "part": "auteur elf", "partId": 0}
+{"monster": "899", "part": "amateur elf", "partId": 0}
+{"monster": "900", "part": "bolt-cuttin' elf", "partId": 0}
+{"monster": "901", "part": "propaganda-spewin' elf", "partId": 0}
+{"monster": "904", "part": "Mob Penguin Kneecapper", "partId": 0}
+{"monster": "905", "part": "Mob Penguin Arsonist", "partId": 0}
+{"monster": "906", "part": "Mob Penguin Goon (2009)", "partId": 0}
+{"monster": "907", "part": "Mob Penguin Caporegime", "partId": 0}
+{"monster": "908", "part": "Mob Penguin Demolitionist", "partId": 0}
+{"monster": "909", "part": "Mesmerizing Penguin", "partId": 0}
+{"monster": "910", "part": "Undercover Penguin", "partId": 0}
+{"monster": "911", "part": "Black-and-White-Ops Penguin", "partId": 0}
+{"monster": "912", "part": "Cement Cobbler Penguin", "partId": 0}
+{"monster": "914", "part": "menacing lawn gnome", "partId": 0}
+{"monster": "915", "part": "mowing lawn gnome", "partId": 0}
+{"monster": "916", "part": "mounted lawn gnome", "partId": 0}
+{"monster": "917", "part": "The Landscaper", "partId": 0}
+{"monster": "918", "part": "BRICKO ooze", "partId": 0}
+{"monster": "919", "part": "BRICKO bat", "partId": 0}
+{"monster": "920", "part": "BRICKO oyster", "partId": 0}
+{"monster": "921", "part": "BRICKO turtle", "partId": 0}
+{"monster": "922", "part": "BRICKO elephant", "partId": 0}
+{"monster": "923", "part": "BRICKO octopus", "partId": 0}
+{"monster": "924", "part": "BRICKO python", "partId": 0}
+{"monster": "925", "part": "BRICKO vacuum cleaner", "partId": 0}
+{"monster": "926", "part": "BRICKO airship", "partId": 0}
+{"monster": "927", "part": "BRICKO cathedral", "partId": 0}
+{"monster": "928", "part": "BRICKO gargantuchicken", "partId": 0}
+{"monster": "929", "part": "croqueteer", "partId": 0}
+{"monster": "930", "part": "Tiger-lily", "partId": 0}
+{"monster": "931", "part": "wasp in a wig", "partId": 0}
+{"monster": "932", "part": "beelephant", "partId": 0}
+{"monster": "933", "part": "snapdragon", "partId": 0}
+{"monster": "934", "part": "lowercase B", "partId": 0}
+{"monster": "935", "part": "swarm of lowercase As", "partId": 0}
+{"monster": "936", "part": "lowercase H", "partId": 0}
+{"monster": "937", "part": "uppercase Q", "partId": 0}
+{"monster": "938", "part": "lowercase K", "partId": 0}
+{"monster": "939", "part": "Professor Jacking", "partId": 0}
+{"monster": "940", "part": "cruel dust mote", "partId": 0}
+{"monster": "941", "part": "malevolent magnetic field", "partId": 0}
+{"monster": "942", "part": "funk particle", "partId": 0}
+{"monster": "943", "part": "Castle in the Clouds in the Sky", "partId": 0}
+{"monster": "944", "part": "Spookyraven Manor", "partId": 0}
+{"monster": "945", "part": "loose coalition of yetis, snowmen, and goats", "partId": 0}
+{"monster": "946", "part": "Fearsome Wacken", "partId": 0}
+{"monster": "947", "part": "jungle scabie", "partId": 0}
+{"monster": "948", "part": "smooth jazz scabie", "partId": 0}
+{"monster": "949", "part": "The Whole Kingdom", "partId": 0}
+{"monster": "950", "part": "ghost", "partId": 0}
+{"monster": "951", "part": "fleaman", "partId": 0}
+{"monster": "952", "part": "medusa", "partId": 0}
+{"monster": "953", "part": "Vanya's Creature", "partId": 0}
+{"monster": "954", "part": "orcish juvenile delinquent", "partId": 0}
+{"monster": "955", "part": "orcish frat wannaboy", "partId": 0}
+{"monster": "956", "part": "actual orcish frat boy", "partId": 0}
+{"monster": "957", "part": "jailbait orquette", "partId": 0}
+{"monster": "958", "part": "juvenile delinquent orquette", "partId": 0}
+{"monster": "959", "part": "totally trashed orquette", "partId": 0}
+{"monster": "960", "part": "Timmy Tofurkey cast member", "partId": 0}
+{"monster": "961", "part": "Susie Soyburger cast member", "partId": 0}
+{"monster": "962", "part": "Neptune, the Dog that Is a Respected Equal and Not a Pet cast member", "partId": 0}
+{"monster": "963", "part": "Timmy Tofurkey", "partId": 0}
+{"monster": "964", "part": "Susie Soyburger", "partId": 0}
+{"monster": "965", "part": "Neptune, the Dog that Is a Respected Equal and Not a Pet", "partId": 0}
+{"monster": "966", "part": "Essence of Tofu", "partId": 0}
+{"monster": "967", "part": "Essence of Soy", "partId": 0}
+{"monster": "968", "part": "Essence of Interspecies Respect", "partId": 0}
+{"monster": "969", "part": "angry bassist", "partId": 0}
+{"monster": "970", "part": "evil ex-girlfriend", "partId": 0}
+{"monster": "971", "part": "peeved roommate", "partId": 0}
+{"monster": "972", "part": "blue-haired girl", "partId": 0}
+{"monster": "973", "part": "random scenester", "partId": 0}
+{"monster": "974", "part": "deadly venomtrout", "partId": 0}
+{"monster": "975", "part": "water spider", "partId": 0}
+{"monster": "976", "part": "unearthed monstrosity", "partId": 0}
+{"monster": "977", "part": "suckubus", "partId": 0}
+{"monster": "978", "part": "inkubus", "partId": 0}
+{"monster": "979", "part": "Pr Imp", "partId": 0}
+{"monster": "980", "part": "BL Imp", "partId": 0}
+{"monster": "981", "part": "CH Imp", "partId": 0}
+{"monster": "982", "part": "serialbus", "partId": 0}
+{"monster": "983", "part": "Victor the Insult Comic Hellhound", "partId": 0}
+{"monster": "984", "part": "Larry of the Field of Signs", "partId": 0}
+{"monster": "985", "part": "Carbuncle Top", "partId": 0}
+{"monster": "986", "part": "reanimated bat skeleton", "partId": 0}
+{"monster": "987", "part": "reanimated serpent skeleton", "partId": 0}
+{"monster": "988", "part": "reanimated baboon skeleton", "partId": 0}
+{"monster": "989", "part": "reanimated wyrm skeleton", "partId": 0}
+{"monster": "990", "part": "reanimated demon skeleton", "partId": 0}
+{"monster": "991", "part": "reanimated giant spider skeleton", "partId": 0}
+{"monster": "992", "part": "crate", "partId": 0}
+{"monster": "993", "part": "werecougar", "partId": 0}
+{"monster": "994", "part": "plastered frat orc", "partId": 0}
+{"monster": "995", "part": "bunch of drunken rats", "partId": 0}
+{"monster": "996", "part": "drunken rat king", "partId": 0}
+{"monster": "997", "part": "tomb rat king", "partId": 0}
+{"monster": "998", "part": "drunken 7-foot dwarf", "partId": 0}
+{"monster": "999", "part": "skeleton with a mop", "partId": 0}
+{"monster": "1000", "part": "unemployed knob goblin", "partId": 0}
+{"monster": "1001", "part": "skeleton invader", "partId": 0}
+{"monster": "1002", "part": "two skeleton invaders", "partId": 0}
+{"monster": "1003", "part": "three skeleton invaders", "partId": 0}
+{"monster": "1004", "part": "four skeleton invaders", "partId": 0}
+{"monster": "1005", "part": "five skeleton invaders", "partId": 0}
+{"monster": "1006", "part": "ten skeletons", "partId": 0}
+{"monster": "1010", "part": "screambat", "partId": 0}
+{"monster": "1031", "part": "Hobelf", "partId": 0}
+{"monster": "1048", "part": "your butt", "partId": 0}
+{"monster": "1049", "part": "somebody else's butt", "partId": 0}
+{"monster": "1050", "part": "Elf Hobo", "partId": 0}
+{"monster": "1057", "part": "Knob Goblin Elite Guard", "partId": 0}
+{"monster": "1058", "part": "off-duty Knob Goblin Elite Guard", "partId": 0}
+{"monster": "1059", "part": "swarm of Knob lice", "partId": 0}
+{"monster": "1060", "part": "Cobb's Knob oven", "partId": 0}
+{"monster": "1061", "part": "Knob Goblin Harem Guard", "partId": 0}
+{"monster": "1062", "part": "Knob Goblin Madam", "partId": 0}
+{"monster": "1063", "part": "Knob Goblin Accountant", "partId": 0}
+{"monster": "1064", "part": "Knob Goblin MBA", "partId": 0}
+{"monster": "1065", "part": "Knob Goblin Alchemist", "partId": 0}
+{"monster": "1070", "part": "modern zmobie", "partId": 0}
+{"monster": "1071", "part": "dirty old lihc", "partId": 0}
+{"monster": "1072", "part": "swarm of ghuol whelps", "partId": 0}
+{"monster": "1073", "part": "big swarm of ghuol whelps", "partId": 0}
+{"monster": "1074", "part": "giant swarm of ghuol whelps", "partId": 0}
+{"monster": "1075", "part": "mumblebee", "partId": 0}
+{"monster": "1076", "part": "moneybee", "partId": 0}
+{"monster": "1077", "part": "beebee gunners", "partId": 0}
+{"monster": "1078", "part": "buzzerker", "partId": 0}
+{"monster": "1079", "part": "bee swarm", "partId": 0}
+{"monster": "1080", "part": "beebee queue", "partId": 0}
+{"monster": "1081", "part": "bee thoven", "partId": 0}
+{"monster": "1082", "part": "Beebee King", "partId": 0}
+{"monster": "1083", "part": "Queen Bee", "partId": 0}
+{"monster": "1084", "part": "unhinged survivor", "partId": 0}
+{"monster": "1085", "part": "grizzled survivor", "partId": 0}
+{"monster": "1086", "part": "whiny survivor", "partId": 0}
+{"monster": "1087", "part": "unlikely survivor", "partId": 0}
+{"monster": "1088", "part": "overarmed survivor", "partId": 0}
+{"monster": "1089", "part": "primitive survivor", "partId": 0}
+{"monster": "1090", "part": "cat-alien", "partId": 0}
+{"monster": "1091", "part": "dog-alien", "partId": 0}
+{"monster": "1092", "part": "alielf", "partId": 0}
+{"monster": "1093", "part": "dogcat", "partId": 0}
+{"monster": "1094", "part": "hamsterpus", "partId": 0}
+{"monster": "1095", "part": "ferrelf", "partId": 0}
+{"monster": "1096", "part": "alien hamsterpus", "partId": 0}
+{"monster": "1097", "part": "mutated alielf", "partId": 0}
+{"monster": "1098", "part": "mutated alielephant", "partId": 0}
+{"monster": "1099", "part": "antique database server", "partId": 0}
+{"monster": "1100", "part": "Wu Tang the Betrayer", "partId": 0}
+{"monster": "1101", "part": "family of kobolds", "partId": 0}
+{"monster": "1102", "part": "sexy sorority ghost", "partId": 0}
+{"monster": "1103", "part": "sexy sorority skeleton", "partId": 0}
+{"monster": "1104", "part": "sexy sorority vampire", "partId": 0}
+{"monster": "1105", "part": "sexy sorority zombie", "partId": 0}
+{"monster": "1106", "part": "sexy sorority werewolf", "partId": 0}
+{"monster": "1110", "part": "tumbleweed", "partId": 0}
+{"monster": "1111", "part": "lollipede", "partId": 0}
+{"monster": "1112", "part": "lollicat", "partId": 0}
+{"monster": "1113", "part": "lolligator", "partId": 0}
+{"monster": "1114", "part": "lolliphaunt", "partId": 0}
+{"monster": "1115", "part": "lolrus", "partId": 0}
+{"monster": "1116", "part": "fudge weasel", "partId": 0}
+{"monster": "1117", "part": "fudge monkey", "partId": 0}
+{"monster": "1118", "part": "fudge vulture", "partId": 0}
+{"monster": "1119", "part": "fudge oyster", "partId": 0}
+{"monster": "1120", "part": "fudge poodle", "partId": 0}
+{"monster": "1122", "part": "Whimpering Willow", "partId": 0}
+{"monster": "1123", "part": "Suffering Juniper", "partId": 0}
+{"monster": "1124", "part": "Tormented Baobab", "partId": 0}
+{"monster": "1125", "part": "Sorrowful Hickory", "partId": 0}
+{"monster": "1126", "part": "Woeful Magnolia", "partId": 0}
+{"monster": "1127", "part": "The Thorax", "partId": 0}
+{"monster": "1128", "part": "The Bat in the Spats", "partId": 0}
+{"monster": "1129", "part": "Mortimer Strauss", "partId": 0}
+{"monster": "1130", "part": "Bettie Barulio", "partId": 0}
+{"monster": "1131", "part": "Marvin J. Sunny", "partId": 0}
+{"monster": "1132", "part": "Wonderful Winifred Wongle", "partId": 0}
+{"monster": "1133", "part": "Marcus Macurgeon", "partId": 0}
+{"monster": "1134", "part": "The Terrible Pinch", "partId": 0}
+{"monster": "1135", "part": "Thug 1 and Thug 2", "partId": 0}
+{"monster": "1136", "part": "Hugo Von Douchington", "partId": 0}
+{"monster": "1137", "part": "Wacky Zack Flacky", "partId": 0}
+{"monster": "1138", "part": "Dolores D. Smiley", "partId": 0}
+{"monster": "1139", "part": "Vivian Vibrian Vumian Varr", "partId": 0}
+{"monster": "1140", "part": "Brock \"Rocky\" Flox", "partId": 0}
+{"monster": "1141", "part": "The Large-Bellied Snitch", "partId": 0}
+{"monster": "1142", "part": "Mammon the Elephant", "partId": 0}
+{"monster": "1143", "part": "The Thing with No Name", "partId": 0}
+{"monster": "1144", "part": "swarm of fudgewasps", "partId": 0}
+{"monster": "1149", "part": "sleepy 7-Foot Dwarf", "partId": 0}
+{"monster": "1150", "part": "dopey 7-Foot Dwarf", "partId": 0}
+{"monster": "1151", "part": "grumpy 7-Foot Dwarf", "partId": 0}
+{"monster": "1152", "part": "The Luter", "partId": 0}
+{"monster": "1153", "part": "mountain man", "partId": 0}
+{"monster": "1154", "part": "eXtreme cross-country hippy", "partId": 0}
+{"monster": "1155", "part": "eXtreme Orcish snowboarder", "partId": 0}
+{"monster": "1156", "part": "sk8 gnome", "partId": 0}
+{"monster": "1157", "part": "Groar", "partId": 0}
+{"monster": "1158", "part": "The Avatar of Sneaky Pete", "partId": 0}
+{"monster": "1159", "part": "stone temple pirate", "partId": 0}
+{"monster": "1160", "part": "baa-relief sheep", "partId": 0}
+{"monster": "1161", "part": "craven carven raven", "partId": 0}
+{"monster": "1162", "part": "clan of cave bars", "partId": 0}
+{"monster": "1163", "part": "Baa'baa'bu'ran", "partId": 0}
+{"monster": "1164", "part": "four-shadowed mime", "partId": 0}
+{"monster": "1165", "part": "scavenger bugbear", "partId": 0}
+{"monster": "1166", "part": "hypodermic bugbear", "partId": 0}
+{"monster": "1167", "part": "batbugbear", "partId": 0}
+{"monster": "1168", "part": "bugbear scientist", "partId": 0}
+{"monster": "1169", "part": "bugaboo", "partId": 0}
+{"monster": "1170", "part": "Black Ops Bugbear", "partId": 0}
+{"monster": "1171", "part": "Battlesuit Bugbear Type", "partId": 0}
+{"monster": "1172", "part": "ancient unspeakable bugbear", "partId": 0}
+{"monster": "1173", "part": "trendy bugbear chef", "partId": 0}
+{"monster": "1174", "part": "creepy eye-stalk tentacle monster", "partId": 0}
+{"monster": "1175", "part": "grouchy furry monster", "partId": 0}
+{"monster": "1176", "part": "anesthesiologist bugbear", "partId": 0}
+{"monster": "1177", "part": "bugbear robo-surgeon", "partId": 0}
+{"monster": "1178", "part": "spiderbugbear", "partId": 0}
+{"monster": "1179", "part": "bugbear mortician", "partId": 0}
+{"monster": "1180", "part": "bugbear drone", "partId": 0}
+{"monster": "1181", "part": "liquid metal bugbear", "partId": 0}
+{"monster": "1182", "part": "Bugbear Captain", "partId": 0}
+{"monster": "1183", "part": "angry cavebugbear", "partId": 0}
+{"monster": "1184", "part": "N-space Virtual Assistant", "partId": 0}
+{"monster": "1185", "part": "ninja snowman assassin", "partId": 0}
+{"monster": "1186", "part": "Black Crayon Man", "partId": 0}
+{"monster": "1187", "part": "Black Crayon Beast", "partId": 0}
+{"monster": "1188", "part": "Black Crayon Golem", "partId": 0}
+{"monster": "1189", "part": "Black Crayon Undead Thing", "partId": 0}
+{"monster": "1190", "part": "Black Crayon Manloid", "partId": 0}
+{"monster": "1191", "part": "Black Crayon Beetle", "partId": 0}
+{"monster": "1192", "part": "Black Crayon Hippy", "partId": 0}
+{"monster": "1193", "part": "Black Crayon Frat Orc", "partId": 0}
+{"monster": "1194", "part": "Black Crayon Demon", "partId": 0}
+{"monster": "1195", "part": "Black Crayon Shambling Monstrosity", "partId": 0}
+{"monster": "1196", "part": "Black Crayon Fish", "partId": 0}
+{"monster": "1197", "part": "Black Crayon Goblin", "partId": 0}
+{"monster": "1198", "part": "Black Crayon Pirate", "partId": 0}
+{"monster": "1199", "part": "Black Crayon Flower", "partId": 0}
+{"monster": "1200", "part": "Black Crayon Spiraling Shape", "partId": 0}
+{"monster": "1201", "part": "Black Crayon Crimbo Elf", "partId": 0}
+{"monster": "1202", "part": "Black Crayon Mer-kin", "partId": 0}
+{"monster": "1203", "part": "Black Crayon Slime", "partId": 0}
+{"monster": "1204", "part": "Black Crayon Penguin", "partId": 0}
+{"monster": "1205", "part": "Black Crayon Elemental", "partId": 0}
+{"monster": "1206", "part": "Black Crayon Constellation", "partId": 0}
+{"monster": "1207", "part": "Black Crayon Hobo", "partId": 0}
+{"monster": "1210", "part": "blazing bat", "partId": 0}
+{"monster": "1211", "part": "Servant of Lord Flameface", "partId": 0}
+{"monster": "1213", "part": "zombie-huntin' feller", "partId": 0}
+{"monster": "1214", "part": "Norville Rogers", "partId": 0}
+{"monster": "1215", "part": "Peacannon", "partId": 0}
+{"monster": "1216", "part": "Scott the Miner", "partId": 0}
+{"monster": "1217", "part": "Father McGruber", "partId": 0}
+{"monster": "1218", "part": "Herman East, Relivinator", "partId": 0}
+{"monster": "1219", "part": "Angry Space Marine", "partId": 0}
+{"monster": "1220", "part": "Deputy Nick Soames & Earl", "partId": 0}
+{"monster": "1221", "part": "Father Nikolai Ravonovich", "partId": 0}
+{"monster": "1222", "part": "Charity the Zombie Hunter", "partId": 0}
+{"monster": "1223", "part": "Special Agent Wallace Burke Corrigan", "partId": 0}
+{"monster": "1224", "part": "Hank North, Photojournalist", "partId": 0}
+{"monster": "1225", "part": "rag-tag band of survivors", "partId": 0}
+{"monster": "1226", "part": "Wesley J. \"Wes\" Campbell", "partId": 0}
+{"monster": "1227", "part": "The Free Man", "partId": 0}
+{"monster": "1228", "part": "panicking Knott Yeti", "partId": 0}
+{"monster": "1229", "part": "Rene C. Corman (Zombie Slayer)", "partId": 0}
+{"monster": "1230", "part": "smut orc jacker", "partId": 0}
+{"monster": "1231", "part": "smut orc pipelayer", "partId": 0}
+{"monster": "1232", "part": "smut orc nailer", "partId": 0}
+{"monster": "1233", "part": "smut orc screwer", "partId": 0}
+{"monster": "1234", "part": "smut orc pervert", "partId": 0}
+{"monster": "1235", "part": "oil slick", "partId": 0}
+{"monster": "1236", "part": "oil tycoon", "partId": 0}
+{"monster": "1237", "part": "oil baron", "partId": 0}
+{"monster": "1238", "part": "oil cartel", "partId": 0}
+{"monster": "1239", "part": "skulldozer", "partId": 0}
+{"monster": "1240", "part": "Bubblemint Twins", "partId": 0}
+{"monster": "1241", "part": "Big Wheelin' Twins", "partId": 0}
+{"monster": "1242", "part": "Mismatched Twins", "partId": 0}
+{"monster": "1243", "part": "Creepy Ginger Twin", "partId": 0}
+{"monster": "1244", "part": "Troll Twins", "partId": 0}
+{"monster": "1245", "part": "spider (duck?) topiary animal", "partId": 0}
+{"monster": "1246", "part": "bearpig topiary animal", "partId": 0}
+{"monster": "1247", "part": "elephant (meatcar?) topiary animal", "partId": 0}
+{"monster": "1248", "part": "little blob of gray goo", "partId": 0}
+{"monster": "1249", "part": "largish blob of gray goo", "partId": 0}
+{"monster": "1250", "part": "enormous blob of gray goo", "partId": 0}
+{"monster": "1251", "part": "plastic-extruding animelf", "partId": 0}
+{"monster": "1252", "part": "tiny-screwing animelf", "partId": 0}
+{"monster": "1253", "part": "circuit-soldering animelf", "partId": 0}
+{"monster": "1254", "part": "Claybender Sorcerer Ghost", "partId": 0}
+{"monster": "1255", "part": "Dusken Raider Ghost", "partId": 0}
+{"monster": "1256", "part": "Space Tourist Explorer Ghost", "partId": 0}
+{"monster": "1257", "part": "Battlie Knight Ghost", "partId": 0}
+{"monster": "1258", "part": "Whatsian Commando Ghost", "partId": 0}
+{"monster": "1259", "part": "quality control animelf", "partId": 0}
+{"monster": "1260", "part": "toy assembling animelf", "partId": 0}
+{"monster": "1261", "part": "sign-twirling Crimbo elf", "partId": 0}
+{"monster": "1262", "part": "taco-clad Crimbo elf", "partId": 0}
+{"monster": "1263", "part": "tacobuilding elf", "partId": 0}
+{"monster": "1264", "part": "Anger Man", "partId": 0}
+{"monster": "1265", "part": "rage flame", "partId": 0}
+{"monster": "1266", "part": "ticking time bomb", "partId": 0}
+{"monster": "1267", "part": "frustrating knight", "partId": 0}
+{"monster": "1268", "part": "Fear Man", "partId": 0}
+{"monster": "1269", "part": "morbid skull", "partId": 0}
+{"monster": "1270", "part": "animated possessions", "partId": 0}
+{"monster": "1271", "part": "natural spider", "partId": 0}
+{"monster": "1272", "part": "Doubt Man", "partId": 0}
+{"monster": "1273", "part": "work hat", "partId": 0}
+{"monster": "1274", "part": "reproachful heart", "partId": 0}
+{"monster": "1275", "part": "judgmental eye", "partId": 0}
+{"monster": "1276", "part": "Regret Man", "partId": 0}
+{"monster": "1277", "part": "contemplative ghost", "partId": 0}
+{"monster": "1278", "part": "lovesick ghost", "partId": 0}
+{"monster": "1279", "part": "ancient ghost", "partId": 0}
+{"monster": "1280", "part": "spider conspirator", "partId": 0}
+{"monster": "1281", "part": "goblin conspirator", "partId": 0}
+{"monster": "1282", "part": "tin can conspirator", "partId": 0}
+{"monster": "1283", "part": "canned goblin conspirator", "partId": 0}
+{"monster": "1284", "part": "tin spider conspirator", "partId": 0}
+{"monster": "1285", "part": "spider-goblin conspirator", "partId": 0}
+{"monster": "1286", "part": "Fnord the Unspeakable", "partId": 0}
+{"monster": "1287", "part": "bacon snake", "partId": 0}
+{"monster": "1288", "part": "pork butterfly", "partId": 0}
+{"monster": "1289", "part": "groast", "partId": 0}
+{"monster": "1290", "part": "salaminder", "partId": 0}
+{"monster": "1291", "part": "cold cutter", "partId": 0}
+{"monster": "1292", "part": "The Beefhemoth", "partId": 0}
+{"monster": "1293", "part": "Whisk of Misery", "partId": 0}
+{"monster": "1294", "part": "Butterknife of Regret", "partId": 0}
+{"monster": "1295", "part": "Spatula of Despair", "partId": 0}
+{"monster": "1296", "part": "Cookie Cutter of Loneliness", "partId": 0}
+{"monster": "1297", "part": "Creme Brulee Torch of Fury", "partId": 0}
+{"monster": "1298", "part": "carton of Eggs of Confidence", "partId": 0}
+{"monster": "1299", "part": "loaf of Bread of Wonder", "partId": 0}
+{"monster": "1300", "part": "bag of Potatoes of Security", "partId": 0}
+{"monster": "1301", "part": "bundle of Meat of Happiness", "partId": 0}
+{"monster": "1302", "part": "box of Batter Mix of Hope", "partId": 0}
+{"monster": "1303", "part": "roasted duck golem", "partId": 0}
+{"monster": "1304", "part": "lucky cat statue", "partId": 0}
+{"monster": "1305", "part": "grinning pork bun", "partId": 0}
+{"monster": "1306", "part": "triad code wizard", "partId": 0}
+{"monster": "1307", "part": "clean-room daemon", "partId": 0}
+{"monster": "1308", "part": "fabricator gu&agrave;i", "partId": 0}
+{"monster": "1309", "part": "The Sierpinski brothers", "partId": 0}
+{"monster": "1310", "part": "yakuza courier", "partId": 0}
+{"monster": "1311", "part": "yakuza guard", "partId": 0}
+{"monster": "1312", "part": "salaryninja", "partId": 0}
+{"monster": "1313", "part": "security robot", "partId": 0}
+{"monster": "1314", "part": "Chief Electronic Overseer", "partId": 0}
+{"monster": "1315", "part": "desperate gold farmer", "partId": 0}
+{"monster": "1316", "part": "rabid MMO addict", "partId": 0}
+{"monster": "1317", "part": "yakuza thug", "partId": 0}
+{"monster": "1318", "part": "The Server", "partId": 0}
+{"monster": "1319", "part": "White Bone Demon", "partId": 0}
+{"monster": "1320", "part": "fearsome giant squid", "partId": 0}
+{"monster": "1321", "part": "giant man-eating shark", "partId": 0}
+{"monster": "1322", "part": "ferocious roc", "partId": 0}
+{"monster": "1323", "part": "procedurally-generated skeleton", "partId": 0}
+{"monster": "1324", "part": "The Cray-Kin", "partId": 0}
+{"monster": "1325", "part": "Bristled Man-O-War", "partId": 0}
+{"monster": "1326", "part": "Deadly Hydra", "partId": 0}
+{"monster": "1327", "part": "Video Game Minion (weak)", "partId": 0}
+{"monster": "1328", "part": "Video Game Minion (moderate)", "partId": 0}
+{"monster": "1329", "part": "Video Game Minion (strong)", "partId": 0}
+{"monster": "1330", "part": "Video Game Miniboss", "partId": 0}
+{"monster": "1331", "part": "Video Game Boss", "partId": 0}
+{"monster": "1332", "part": "Fitness Giant", "partId": 0}
+{"monster": "1333", "part": "Neckbeard Giant", "partId": 0}
+{"monster": "1334", "part": "Foodie Giant", "partId": 0}
+{"monster": "1335", "part": "Renaissance Giant", "partId": 0}
+{"monster": "1336", "part": "Punk Rock Giant", "partId": 0}
+{"monster": "1337", "part": "Steampunk Giant", "partId": 0}
+{"monster": "1338", "part": "Clancy", "partId": 0}
+{"monster": "1339", "part": "The Avatar of Boris", "partId": 0}
+{"monster": "1341", "part": "huge mosquito", "partId": 0}
+{"monster": "1342", "part": "mega frog", "partId": 0}
+{"monster": "1343", "part": "smell-o-the-wisp", "partId": 0}
+{"monster": "1344", "part": "swamp hag", "partId": 0}
+{"monster": "1345", "part": "bog leech", "partId": 0}
+{"monster": "1346", "part": "bog skeleton", "partId": 0}
+{"monster": "1347", "part": "haunted skullabra", "partId": 0}
+{"monster": "1348", "part": "bogart", "partId": 0}
+{"monster": "1349", "part": "swamp beaver lumberjack", "partId": 0}
+{"monster": "1350", "part": "swamp owl", "partId": 0}
+{"monster": "1351", "part": "mud turtle", "partId": 0}
+{"monster": "1352", "part": "the ghost of Phil Bunion", "partId": 0}
+{"monster": "1353", "part": "swamp skunk", "partId": 0}
+{"monster": "1354", "part": "wastoid", "partId": 0}
+{"monster": "1355", "part": "dweebie", "partId": 0}
+{"monster": "1356", "part": "sporto", "partId": 0}
+{"monster": "1357", "part": "motorhead", "partId": 0}
+{"monster": "1358", "part": "out-of-control bandsaw", "partId": 0}
+{"monster": "1359", "part": "deadly vise", "partId": 0}
+{"monster": "1360", "part": "X-fingered Shop Teacher", "partId": 0}
+{"monster": "1361", "part": "screw golem", "partId": 0}
+{"monster": "1362", "part": "demonic jigsaw", "partId": 0}
+{"monster": "1363", "part": "Bunsen burner and beaker", "partId": 0}
+{"monster": "1364", "part": "dropped base", "partId": 0}
+{"monster": "1365", "part": "sodium golem", "partId": 0}
+{"monster": "1366", "part": "possessed eyewashing station", "partId": 0}
+{"monster": "1367", "part": "rulergheist", "partId": 0}
+{"monster": "1368", "part": "clay golem", "partId": 0}
+{"monster": "1369", "part": "misproportioned portrait", "partId": 0}
+{"monster": "1370", "part": "wire sculpture", "partId": 0}
+{"monster": "1371", "part": "moister oyster", "partId": 0}
+{"monster": "1372", "part": "Mer-kin specter", "partId": 0}
+{"monster": "1373", "part": "eye in the darkness", "partId": 0}
+{"monster": "1374", "part": "school of many", "partId": 0}
+{"monster": "1375", "part": "slithering thing", "partId": 0}
+{"monster": "1376", "part": "Peanut", "partId": 0}
+{"monster": "1377", "part": "Shub-Jigguwatt, Elder God of Violence", "partId": 0}
+{"monster": "1378", "part": "Yog-Urt, Elder Goddess of Hatred", "partId": 0}
+{"monster": "1379", "part": "Dad Sea Monkee", "partId": 0}
+{"monster": "1386", "part": "Falls-From-Sky", "partId": 0}
+{"monster": "1387", "part": "Great Wolf of the Air", "partId": 0}
+{"monster": "1388", "part": "Zombie Homeowners' Association", "partId": 0}
+{"monster": "1389", "part": "Mayor Ghost", "partId": 0}
+{"monster": "1390", "part": "Count Drunkula", "partId": 0}
+{"monster": "1391", "part": "The Unkillable Skeleton", "partId": 0}
+{"monster": "1392", "part": "hot bugbear", "partId": 0}
+{"monster": "1393", "part": "cold bugbear", "partId": 0}
+{"monster": "1394", "part": "spooky bugbear", "partId": 0}
+{"monster": "1395", "part": "stench bugbear", "partId": 0}
+{"monster": "1396", "part": "sleaze bugbear", "partId": 0}
+{"monster": "1397", "part": "hot werewolf", "partId": 0}
+{"monster": "1398", "part": "cold werewolf", "partId": 0}
+{"monster": "1399", "part": "spooky werewolf", "partId": 0}
+{"monster": "1400", "part": "stench werewolf", "partId": 0}
+{"monster": "1401", "part": "sleaze werewolf", "partId": 0}
+{"monster": "1402", "part": "hot zombie", "partId": 0}
+{"monster": "1403", "part": "cold zombie", "partId": 0}
+{"monster": "1404", "part": "spooky zombie", "partId": 0}
+{"monster": "1405", "part": "stench zombie", "partId": 0}
+{"monster": "1406", "part": "sleaze zombie", "partId": 0}
+{"monster": "1407", "part": "hot ghost", "partId": 0}
+{"monster": "1408", "part": "cold ghost", "partId": 0}
+{"monster": "1409", "part": "spooky ghost (Dreadsylvanian)", "partId": 0}
+{"monster": "1410", "part": "stench ghost", "partId": 0}
+{"monster": "1411", "part": "sleaze ghost", "partId": 0}
+{"monster": "1412", "part": "hot vampire", "partId": 0}
+{"monster": "1413", "part": "cold vampire", "partId": 0}
+{"monster": "1414", "part": "spooky vampire (Dreadsylvanian)", "partId": 0}
+{"monster": "1415", "part": "stench vampire", "partId": 0}
+{"monster": "1416", "part": "sleaze vampire", "partId": 0}
+{"monster": "1417", "part": "hot skeleton", "partId": 0}
+{"monster": "1418", "part": "cold skeleton", "partId": 0}
+{"monster": "1419", "part": "spooky skeleton", "partId": 0}
+{"monster": "1420", "part": "stench skeleton", "partId": 0}
+{"monster": "1421", "part": "sleaze skeleton", "partId": 0}
+{"monster": "1422", "part": "QuickBASIC elemental", "partId": 0}
+{"monster": "1423", "part": "Fran&ccedil;ois Verte, Art Teacher", "partId": 0}
+{"monster": "1424", "part": "Mrs. K, the Chemistry Teacher", "partId": 0}
+{"monster": "1425", "part": "Principal Mooney", "partId": 0}
+{"monster": "1426", "part": "dense liana", "partId": 0}
+{"monster": "1427", "part": "pygmy janitor", "partId": 0}
+{"monster": "1428", "part": "pygmy shaman", "partId": 0}
+{"monster": "1429", "part": "pygmy witch surgeon", "partId": 0}
+{"monster": "1430", "part": "pygmy witch accountant", "partId": 0}
+{"monster": "1431", "part": "drunk pygmy", "partId": 0}
+{"monster": "1432", "part": "pygmy bowler", "partId": 0}
+{"monster": "1433", "part": "pygmy witch nurse", "partId": 0}
+{"monster": "1434", "part": "pygmy witch lawyer", "partId": 0}
+{"monster": "1435", "part": "pygmy orderlies", "partId": 0}
+{"monster": "1436", "part": "junksprite sharpener", "partId": 0}
+{"monster": "1437", "part": "junksprite bender", "partId": 0}
+{"monster": "1438", "part": "junksprite melter", "partId": 0}
+{"monster": "1439", "part": "Doctor Oh, the Junksprite Boss", "partId": 0}
+{"monster": "1440", "part": "scout seal", "partId": 0}
+{"monster": "1441", "part": "bulwark bull seal", "partId": 0}
+{"monster": "1442", "part": "official seal", "partId": 0}
+{"monster": "1444", "part": "stiff disco dancer", "partId": 0}
+{"monster": "1445", "part": "awkward disco dancer", "partId": 0}
+{"monster": "1446", "part": "flexible disco dancer", "partId": 0}
+{"monster": "1448", "part": "vandal kid", "partId": 0}
+{"monster": "1449", "part": "kid who is too old to be Trick-or-Treating", "partId": 0}
+{"monster": "1450", "part": "suburban security civilian", "partId": 0}
+{"monster": "1451", "part": "All-Hallow's Steve", "partId": 0}
+{"monster": "1452", "part": "depressing French accordionist", "partId": 0}
+{"monster": "1453", "part": "lively Cajun accordionist", "partId": 0}
+{"monster": "1454", "part": "quirky indie-rock accordionist", "partId": 0}
+{"monster": "1456", "part": "spirit bedbug", "partId": 0}
+{"monster": "1457", "part": "spirit pea", "partId": 0}
+{"monster": "1458", "part": "spirit faucet", "partId": 0}
+{"monster": "1459", "part": "Warbear Foot Soldier", "partId": 0}
+{"monster": "1461", "part": "Possessed Can of Linguine-Os", "partId": 0}
+{"monster": "1462", "part": "Frozen Bag of Tortellini", "partId": 0}
+{"monster": "1463", "part": "Possessed Jar of Alphredo&trade;", "partId": 0}
+{"monster": "1464", "part": "Box of Crafty Dinner", "partId": 0}
+{"monster": "1465", "part": "Possessed Can of Creepy Pasta", "partId": 0}
+{"monster": "1467", "part": "Warbear Officer", "partId": 0}
+{"monster": "1468", "part": "High-Ranking Warbear Officer", "partId": 0}
+{"monster": "1470", "part": "steaming straw house", "partId": 0}
+{"monster": "1471", "part": "frosty straw house", "partId": 0}
+{"monster": "1472", "part": "Dutch Angle straw house", "partId": 0}
+{"monster": "1473", "part": "befouled straw house", "partId": 0}
+{"monster": "1474", "part": "oily straw house", "partId": 0}
+{"monster": "1475", "part": "glowing ash house", "partId": 0}
+{"monster": "1476", "part": "cold ironwood house", "partId": 0}
+{"monster": "1477", "part": "quaking aspen house", "partId": 0}
+{"monster": "1478", "part": "pitch pine house", "partId": 0}
+{"monster": "1479", "part": "slippery elm house", "partId": 0}
+{"monster": "1480", "part": "brick kiln", "partId": 0}
+{"monster": "1481", "part": "brick icehouse", "partId": 0}
+{"monster": "1482", "part": "brick mausoleum", "partId": 0}
+{"monster": "1483", "part": "brick outhouse", "partId": 0}
+{"monster": "1484", "part": "brick (suggestive pause) house", "partId": 0}
+{"monster": "1485", "part": "treadmill", "partId": 0}
+{"monster": "1486", "part": "rack of free weights", "partId": 0}
+{"monster": "1487", "part": "Abcrusher 4000&trade;", "partId": 0}
+{"monster": "1488", "part": "Escalatormaster&trade;", "partId": 0}
+{"monster": "1489", "part": "Legstrong&trade; stationary bicycle", "partId": 0}
+{"monster": "1490", "part": "school of gummi piranhas", "partId": 0}
+{"monster": "1491", "part": "gummi plesiosaur", "partId": 0}
+{"monster": "1492", "part": "lemonhead minnow", "partId": 0}
+{"monster": "1493", "part": "Rock Pop weasel", "partId": 0}
+{"monster": "1494", "part": "chocolate hare", "partId": 0}
+{"monster": "1495", "part": "chocolate-cherry prairie dog", "partId": 0}
+{"monster": "1496", "part": "candied pecan tree", "partId": 0}
+{"monster": "1497", "part": "licorice snake", "partId": 0}
+{"monster": "1498", "part": "tricksy pixie", "partId": 0}
+{"monster": "1499", "part": "fire truck", "partId": 0}
+{"monster": "1500", "part": "ice cream truck", "partId": 0}
+{"monster": "1501", "part": "sewer tanker", "partId": 0}
+{"monster": "1502", "part": "monster hearse", "partId": 0}
+{"monster": "1503", "part": "sketchy van", "partId": 0}
+{"monster": "1504", "part": "Medieval strawman debator", "partId": 0}
+{"monster": "1505", "part": "Medieval leather mug salesman", "partId": 0}
+{"monster": "1506", "part": "Medieval potter", "partId": 0}
+{"monster": "1507", "part": "Medieval dung peddler", "partId": 0}
+{"monster": "1508", "part": "Medieval stucco artisan", "partId": 0}
+{"monster": "1509", "part": "Medieval mug apprentice", "partId": 0}
+{"monster": "1510", "part": "Copperhead Club bartender", "partId": 0}
+{"monster": "1511", "part": "Mob Penguin Capo", "partId": 0}
+{"monster": "1512", "part": "ninja dressed as a waiter", "partId": 0}
+{"monster": "1513", "part": "waiter dressed as a ninja", "partId": 0}
+{"monster": "1514", "part": "Frozen Solid Snake", "partId": 0}
+{"monster": "1515", "part": "The Frattlesnake", "partId": 0}
+{"monster": "1516", "part": "The Snake With Like Ten Heads", "partId": 0}
+{"monster": "1517", "part": "Batsnake", "partId": 0}
+{"monster": "1518", "part": "Burning Snake of Fire", "partId": 0}
+{"monster": "1519", "part": "Snakeleton", "partId": 0}
+{"monster": "1520", "part": "man with the red buttons", "partId": 0}
+{"monster": "1521", "part": "red skeleton", "partId": 0}
+{"monster": "1522", "part": "red butler", "partId": 0}
+{"monster": "1523", "part": "Red Herring", "partId": 0}
+{"monster": "1524", "part": "Red Snapper", "partId": 0}
+{"monster": "1525", "part": "Red Fox", "partId": 0}
+{"monster": "1526", "part": "lynyrd skinner", "partId": 0}
+{"monster": "1527", "part": "fleet woodsman", "partId": 0}
+{"monster": "1528", "part": "Blue Oyster cultist", "partId": 0}
+{"monster": "1529", "part": "eagle", "partId": 0}
+{"monster": "1530", "part": "Jefferson pilot", "partId": 0}
+{"monster": "1531", "part": "Ron \"The Weasel\" Copperhead", "partId": 0}
+{"monster": "1532", "part": "fan dancer", "partId": 0}
+{"monster": "1533", "part": "lynyrd", "partId": 0}
+{"monster": "1534", "part": "The Nuge", "partId": 0}
+{"monster": "1535", "part": "The Avatar of Jarlsberg", "partId": 0}
+{"monster": "1536", "part": "Thinknerd Sorting Robot", "partId": 0}
+{"monster": "1537", "part": "Thinknerd Moving Robot", "partId": 0}
+{"monster": "1538", "part": "Thinknerd Packing Robot", "partId": 0}
+{"monster": "1539", "part": "amok putty", "partId": 0}
+{"monster": "1540", "part": "Wardr&ouml;b nightstand", "partId": 0}
+{"monster": "1541", "part": "animated mahogany nightstand", "partId": 0}
+{"monster": "1542", "part": "animated ornate nightstand", "partId": 0}
+{"monster": "1543", "part": "animated rustic nightstand", "partId": 0}
+{"monster": "1544", "part": "elegant animated nightstand", "partId": 0}
+{"monster": "1545", "part": "cosmetics wraith", "partId": 0}
+{"monster": "1546", "part": "Jacob's adder", "partId": 0}
+{"monster": "1547", "part": "model skeleton", "partId": 0}
+{"monster": "1548", "part": "the gunk", "partId": 0}
+{"monster": "1549", "part": "creepy doll", "partId": 0}
+{"monster": "1550", "part": "possessed toy chest", "partId": 0}
+{"monster": "1551", "part": "spooky music box", "partId": 0}
+{"monster": "1552", "part": "stuffed moose head", "partId": 0}
+{"monster": "1553", "part": "full-length mirror", "partId": 0}
+{"monster": "1554", "part": "ancestral Spookyraven portrait", "partId": 0}
+{"monster": "1555", "part": "sheet ghost", "partId": 0}
+{"monster": "1556", "part": "monstrous boiler", "partId": 0}
+{"monster": "1557", "part": "steam elemental", "partId": 0}
+{"monster": "1558", "part": "coaltergeist", "partId": 0}
+{"monster": "1559", "part": "Bram the Stoker", "partId": 0}
+{"monster": "1560", "part": "plaid ghost", "partId": 0}
+{"monster": "1561", "part": "cabinet of Dr. Limpieza", "partId": 0}
+{"monster": "1562", "part": "possessed laundry press", "partId": 0}
+{"monster": "1563", "part": "mad wino", "partId": 0}
+{"monster": "1564", "part": "ghost of Elizabeth Spookyraven", "partId": 0}
+{"monster": "1565", "part": "Stephen Spookyraven", "partId": 0}
+{"monster": "1566", "part": "Sloppy Seconds Burger", "partId": 0}
+{"monster": "1567", "part": "Sloppy Seconds Cocktail", "partId": 0}
+{"monster": "1568", "part": "Sloppy Seconds Sundae", "partId": 0}
+{"monster": "1569", "part": "Fun-Guy Playmate", "partId": 0}
+{"monster": "1570", "part": "wild girl", "partId": 0}
+{"monster": "1571", "part": "broctopus", "partId": 0}
+{"monster": "1572", "part": "cocktail shrimp", "partId": 0}
+{"monster": "1573", "part": "taco fish", "partId": 0}
+{"monster": "1574", "part": "son of a son of a sailor", "partId": 0}
+{"monster": "1575", "part": "drownedbeat", "partId": 0}
+{"monster": "1576", "part": "black magic woman", "partId": 0}
+{"monster": "1577", "part": "black friar", "partId": 0}
+{"monster": "1578", "part": "pair of burnouts", "partId": 0}
+{"monster": "1579", "part": "biclops", "partId": 0}
+{"monster": "1580", "part": "spider-legged witch's hut", "partId": 0}
+{"monster": "1581", "part": "extremely annoyed witch", "partId": 0}
+{"monster": "1582", "part": "Elp&iacute;zo & Crosybdis", "partId": 0}
+{"monster": "1583", "part": "sticky mummy", "partId": 0}
+{"monster": "1584", "part": "giant mob of baby spiders", "partId": 0}
+{"monster": "1585", "part": "Government agent", "partId": 0}
+{"monster": "1586", "part": "perimeter defense sphere", "partId": 0}
+{"monster": "1587", "part": "illegal alien", "partId": 0}
+{"monster": "1588", "part": "space beast", "partId": 0}
+{"monster": "1590", "part": "white elephant", "partId": 0}
+{"monster": "1591", "part": "pig", "partId": 0}
+{"monster": "1592", "part": "pterodactyl", "partId": 0}
+{"monster": "1593", "part": "sabre-toothed kiwi", "partId": 0}
+{"monster": "1594", "part": "droll", "partId": 0}
+{"monster": "1595", "part": "Adventurer echo", "partId": 0}
+{"monster": "1596", "part": "surprised and annoyed witch", "partId": 0}
+{"monster": "1597", "part": "giant isopod", "partId": 0}
+{"monster": "1598", "part": "gourmet gourami", "partId": 0}
+{"monster": "1599", "part": "freshwater bonefish", "partId": 0}
+{"monster": "1600", "part": "alley catfish", "partId": 0}
+{"monster": "1601", "part": "piranhadon", "partId": 0}
+{"monster": "1602", "part": "storm cow", "partId": 0}
+{"monster": "1603", "part": "aquaconda", "partId": 0}
+{"monster": "1604", "part": "giant tardigrade", "partId": 0}
+{"monster": "1605", "part": "Aquabat", "partId": 0}
+{"monster": "1606", "part": "Aquagoblin", "partId": 0}
+{"monster": "1607", "part": "Auqadargon", "partId": 0}
+{"monster": "1608", "part": "Dr. Aquard", "partId": 0}
+{"monster": "1609", "part": "Lord Soggyraven", "partId": 0}
+{"monster": "1610", "part": "Protector Spurt", "partId": 0}
+{"monster": "1611", "part": "Gurgle", "partId": 0}
+{"monster": "1612", "part": "Big Wisnaqua", "partId": 0}
+{"monster": "1613", "part": "The Aquaman", "partId": 0}
+{"monster": "1614", "part": "The Rain King", "partId": 0}
+{"monster": "1615", "part": "Mob Penguin entrepreneur", "partId": 0}
+{"monster": "1616", "part": "hep cat", "partId": 0}
+{"monster": "1617", "part": "cigarette girl", "partId": 0}
+{"monster": "1618", "part": "Moonshriner", "partId": 0}
+{"monster": "1619", "part": "unstill", "partId": 0}
+{"monster": "1620", "part": "banjoccultist", "partId": 0}
+{"monster": "1621", "part": "Caveman Dan", "partId": 0}
+{"monster": "1622", "part": "giant rubber spider", "partId": 0}
+{"monster": "1623", "part": "Gladiator", "partId": 0}
+{"monster": "1624", "part": "Sadiator", "partId": 0}
+{"monster": "1625", "part": "Madiator", "partId": 0}
+{"monster": "1626", "part": "Radiator", "partId": 0}
+{"monster": "1627", "part": "cheap strix", "partId": 0}
+{"monster": "1628", "part": "hypocritical medicus", "partId": 0}
+{"monster": "1629", "part": "holographic army", "partId": 0}
+{"monster": "1630", "part": "Xiblaxian political prisoner", "partId": 0}
+{"monster": "1631", "part": "They", "partId": 0}
+{"monster": "1632", "part": "one of Doctor Weirdeaux's creations", "partId": 0}
+{"monster": "1633", "part": "government scientist", "partId": 0}
+{"monster": "1634", "part": "lab monkey", "partId": 0}
+{"monster": "1635", "part": "creepy little girl", "partId": 0}
+{"monster": "1636", "part": "super-sized Cola Wars soldier", "partId": 0}
+{"monster": "1637", "part": "Venus mantrap", "partId": 0}
+{"monster": "1638", "part": "bigface", "partId": 0}
+{"monster": "1639", "part": "smoke monster", "partId": 0}
+{"monster": "1640", "part": "Mercenary of Fortune", "partId": 0}
+{"monster": "1641", "part": "T-9000", "partId": 0}
+{"monster": "1642", "part": "damned dirty ape", "partId": 0}
+{"monster": "1643", "part": "jet-ski bandit", "partId": 0}
+{"monster": "1644", "part": "Z-Rex", "partId": 0}
+{"monster": "1645", "part": "superdupervirus", "partId": 0}
+{"monster": "1646", "part": "sentient ATM", "partId": 0}
+{"monster": "1647", "part": "E.V.E., the robot zombie", "partId": 0}
+{"monster": "1648", "part": "exo-suited miner", "partId": 0}
+{"monster": "1649", "part": "semi-autonomous drill unit", "partId": 0}
+{"monster": "1650", "part": "ambulatory robo-minecart", "partId": 0}
+{"monster": "1651", "part": "oddly-proportioned ghost", "partId": 0}
+{"monster": "1652", "part": "large-headed werewolf", "partId": 0}
+{"monster": "1653", "part": "giant pumpkin-head", "partId": 0}
+{"monster": "1655", "part": "Crimbomega", "partId": 0}
+{"monster": "1656", "part": "gamblin' man", "partId": 0}
+{"monster": "1657", "part": "animated spittoon", "partId": 0}
+{"monster": "1658", "part": "outlaw behind an table", "partId": 0}
+{"monster": "1659", "part": "craggy bartender", "partId": 0}
+{"monster": "1660", "part": "tetched prospector", "partId": 0}
+{"monster": "1661", "part": "cowskeleton", "partId": 0}
+{"monster": "1662", "part": "nest of rattlers", "partId": 0}
+{"monster": "1663", "part": "outlaw leader", "partId": 0}
+{"monster": "1664", "part": "Boss Bat?", "partId": 0}
+{"monster": "1665", "part": "new Knob Goblin King", "partId": 0}
+{"monster": "1666", "part": "Donerbagon", "partId": 0}
+{"monster": "1667", "part": "Your winged yeti", "partId": 0}
+{"monster": "1668", "part": "hulking bridge troll", "partId": 0}
+{"monster": "1669", "part": "You the Adventurer", "partId": 0}
+{"monster": "1670", "part": "Cheetahman", "partId": 0}
+{"monster": "1671", "part": "Microwave Magus", "partId": 0}
+{"monster": "1672", "part": "Kung-Fu Hustler", "partId": 0}
+{"monster": "1673", "part": "Tasmanian Dervish", "partId": 0}
+{"monster": "1674", "part": "Macho Man", "partId": 0}
+{"monster": "1675", "part": "Iron Chef", "partId": 0}
+{"monster": "1676", "part": "Entire Shoplifter", "partId": 0}
+{"monster": "1677", "part": "Mr. Loathing", "partId": 0}
+{"monster": "1678", "part": "Accountant-Barbarian", "partId": 0}
+{"monster": "1679", "part": "Metaphysical Gastronomist", "partId": 0}
+{"monster": "1680", "part": "Kleptobrainiac", "partId": 0}
+{"monster": "1681", "part": "The Mastermind", "partId": 0}
+{"monster": "1682", "part": "Savage Beatnik", "partId": 0}
+{"monster": "1683", "part": "Creamweaver", "partId": 0}
+{"monster": "1684", "part": "Smooth Criminal", "partId": 0}
+{"monster": "1685", "part": "Seannery the Conman", "partId": 0}
+{"monster": "1686", "part": "Fire Fighter", "partId": 0}
+{"monster": "1687", "part": "Cereal Arsonist", "partId": 0}
+{"monster": "1688", "part": "Burnglar", "partId": 0}
+{"monster": "1689", "part": "The Lavalier", "partId": 0}
+{"monster": "1690", "part": "Snowbrawler", "partId": 0}
+{"monster": "1691", "part": "Ice Cream Conjurer", "partId": 0}
+{"monster": "1692", "part": "Iceberglar", "partId": 0}
+{"monster": "1693", "part": "Mrs. Freeze", "partId": 0}
+{"monster": "1694", "part": "Granola Barbarian", "partId": 0}
+{"monster": "1695", "part": "Cheese Wizard", "partId": 0}
+{"monster": "1696", "part": "Assassin", "partId": 0}
+{"monster": "1697", "part": "Odorous Humongous", "partId": 0}
+{"monster": "1698", "part": "Ghostpuncher", "partId": 0}
+{"monster": "1699", "part": "Plague Chef", "partId": 0}
+{"monster": "1700", "part": "Batburglar", "partId": 0}
+{"monster": "1701", "part": "Arthur Frankenstein", "partId": 0}
+{"monster": "1702", "part": "Grease Trapper", "partId": 0}
+{"monster": "1703", "part": "Ham Shaman", "partId": 0}
+{"monster": "1704", "part": "Porkpocket", "partId": 0}
+{"monster": "1705", "part": "Leonard", "partId": 0}
+{"monster": "1706", "part": "wall of meat", "partId": 0}
+{"monster": "1707", "part": "wall of skin", "partId": 0}
+{"monster": "1708", "part": "wall of bones", "partId": 0}
+{"monster": "1710", "part": "topiary gopher", "partId": 0}
+{"monster": "1711", "part": "topiary duck", "partId": 0}
+{"monster": "1712", "part": "topiary chihuahua herd", "partId": 0}
+{"monster": "1713", "part": "topiary kiwi", "partId": 0}
+{"monster": "1740", "part": "warehouse guard", "partId": 0}
+{"monster": "1741", "part": "warehouse janitor", "partId": 0}
+{"monster": "1742", "part": "warehouse clerk", "partId": 0}
+{"monster": "1743", "part": "swarm of skulls", "partId": 0}
+{"monster": "1744", "part": "factory-irregular skeleton", "partId": 0}
+{"monster": "1745", "part": "remaindered skeleton", "partId": 0}
+{"monster": "1746", "part": "novelty tropical skeleton", "partId": 0}
+{"monster": "1747", "part": "cr&ecirc;ep", "partId": 0}
+{"monster": "1748", "part": "baguette lady", "partId": 0}
+{"monster": "1749", "part": "dinner troll", "partId": 0}
+{"monster": "1750", "part": "gingerbread murderer", "partId": 0}
+{"monster": "1751", "part": "cooler wino", "partId": 0}
+{"monster": "1752", "part": "sewer snake with a sewer snake in it", "partId": 0}
+{"monster": "1753", "part": "dire pigeon", "partId": 0}
+{"monster": "1754", "part": "malt liquor golem", "partId": 0}
+{"monster": "1755", "part": "the former owner of the Skeleton Store", "partId": 0}
+{"monster": "1756", "part": "Cake Lord", "partId": 0}
+{"monster": "1757", "part": "Lot's Wife", "partId": 0}
+{"monster": "1758", "part": "angry tourist", "partId": 0}
+{"monster": "1759", "part": "horrible tourist family", "partId": 0}
+{"monster": "1760", "part": "garbage tourist", "partId": 0}
+{"monster": "1761", "part": "filthy pirate", "partId": 0}
+{"monster": "1762", "part": "funky pirate", "partId": 0}
+{"monster": "1763", "part": "fishy pirate", "partId": 0}
+{"monster": "1764", "part": "flashy pirate", "partId": 0}
+{"monster": "1765", "part": "toxic beastie", "partId": 0}
+{"monster": "1766", "part": "C<i>bzzt</i>er the Grisly Bear", "partId": 0}
+{"monster": "1767", "part": "Skeezy the Jug Rat", "partId": 0}
+{"monster": "1768", "part": "Gurgle the Turgle", "partId": 0}
+{"monster": "1769", "part": "nasty bear", "partId": 0}
+{"monster": "1770", "part": "Wart Dinsey", "partId": 0}
+{"monster": "1771", "part": "Lovestruck Tropical Honeymooners", "partId": 0}
+{"monster": "1772", "part": "Drunken Tropical Vacationer", "partId": 0}
+{"monster": "1773", "part": "Resort Waiter", "partId": 0}
+{"monster": "1774", "part": "Brick Mulligan, the Bartender", "partId": 0}
+{"monster": "1775", "part": "The Unknown Seal Clubber", "partId": 0}
+{"monster": "1776", "part": "The Unknown Turtle Tamer", "partId": 0}
+{"monster": "1777", "part": "The Unknown Pastamancer", "partId": 0}
+{"monster": "1778", "part": "The Unknown Sauceror", "partId": 0}
+{"monster": "1779", "part": "The Unknown Disco Bandit", "partId": 0}
+{"monster": "1780", "part": "The Unknown Accordion Thief", "partId": 0}
+{"monster": "1781", "part": "The Hermit", "partId": 0}
+{"monster": "1782", "part": "The Emperor", "partId": 0}
+{"monster": "1783", "part": "legal alien", "partId": 0}
+{"monster": "1784", "part": "mine worker (female)", "partId": 0}
+{"monster": "1785", "part": "mine overseer (male)", "partId": 0}
+{"monster": "1786", "part": "mine worker (male)", "partId": 0}
+{"monster": "1787", "part": "mine overseer (female)", "partId": 0}
+{"monster": "1788", "part": "healing crystal golem", "partId": 0}
+{"monster": "1789", "part": "factory worker (female)", "partId": 0}
+{"monster": "1790", "part": "factory overseer (male)", "partId": 0}
+{"monster": "1791", "part": "factory overseer (female)", "partId": 0}
+{"monster": "1792", "part": "factory worker (male)", "partId": 0}
+{"monster": "1793", "part": "lava golem", "partId": 0}
+{"monster": "1794", "part": "SMOOCH private", "partId": 0}
+{"monster": "1795", "part": "SMOOCH sergeant", "partId": 0}
+{"monster": "1796", "part": "SMOOCH general", "partId": 0}
+{"monster": "1797", "part": "lava lamprey", "partId": 0}
+{"monster": "1798", "part": "lavatory", "partId": 0}
+{"monster": "1799", "part": "basaltamander", "partId": 0}
+{"monster": "1800", "part": "angry mushroom guy", "partId": 0}
+{"monster": "1801", "part": "freaked-out mushroom guy", "partId": 0}
+{"monster": "1802", "part": "muscular mushroom guy", "partId": 0}
+{"monster": "1803", "part": "armored mushroom guy", "partId": 0}
+{"monster": "1804", "part": "wizardly mushroom guy", "partId": 0}
+{"monster": "1805", "part": "fiery mushroom guy", "partId": 0}
+{"monster": "1806", "part": "dancing mushroom guy", "partId": 0}
+{"monster": "1807", "part": "wailing mushroom guy", "partId": 0}
+{"monster": "1814", "part": "Mr. Choch", "partId": 0}
+{"monster": "1815", "part": "Mr. Cheeng", "partId": 0}
+{"monster": "1816", "part": "Travoltron", "partId": 0}
+{"monster": "1817", "part": "Geve Smimmons", "partId": 0}
+{"monster": "1818", "part": "Raul Stamley", "partId": 0}
+{"monster": "1819", "part": "Pener Crisp", "partId": 0}
+{"monster": "1820", "part": "Deuce Freshly", "partId": 0}
+{"monster": "1821", "part": "Lavalos", "partId": 0}
+{"monster": "1836", "part": "Falcoer", "partId": 0}
+{"monster": "1840", "part": "The Barrelmech of Diogenes", "partId": 0}
+{"monster": "1841", "part": "Richard X", "partId": 0}
+{"monster": "1842", "part": "Groundling", "partId": 0}
+{"monster": "1843", "part": "Hamlet", "partId": 0}
+{"monster": "1844", "part": "Othello", "partId": 0}
+{"monster": "1845", "part": "Ye Olde Key Grippe", "partId": 0}
+{"monster": "1846", "part": "Understudy", "partId": 0}
+{"monster": "1847", "part": "ghost actor", "partId": 0}
+{"monster": "1848", "part": "VYKEA viking (male)", "partId": 0}
+{"monster": "1849", "part": "VYKEA viking (female)", "partId": 0}
+{"monster": "1850", "part": "ice bartender", "partId": 0}
+{"monster": "1851", "part": "ice porter", "partId": 0}
+{"monster": "1852", "part": "ice concierge", "partId": 0}
+{"monster": "1853", "part": "ice housekeeper", "partId": 0}
+{"monster": "1854", "part": "ice clerk", "partId": 0}
+{"monster": "1855", "part": "Tin of Submardines", "partId": 0}
+{"monster": "1856", "part": "Norwhal", "partId": 0}
+{"monster": "1857", "part": "Arctic Octolus", "partId": 0}
+{"monster": "1858", "part": "X-32-F Combat Training Snowman", "partId": 0}
+{"monster": "1859", "part": "Performer of Actions", "partId": 0}
+{"monster": "1860", "part": "Thinker of Thoughts", "partId": 0}
+{"monster": "1861", "part": "Perceiver of Sensations", "partId": 0}
+{"monster": "1862", "part": "armored Crimbot", "partId": 0}
+{"monster": "1863", "part": "sparking Crimbot", "partId": 0}
+{"monster": "1864", "part": "unstable nuclear Crimbot", "partId": 0}
+{"monster": "1899", "part": "drunk cowpoke", "partId": 0}
+{"monster": "1900", "part": "surly gambler", "partId": 0}
+{"monster": "1901", "part": "wannabe gunslinger", "partId": 0}
+{"monster": "1902", "part": "cow cultist", "partId": 0}
+{"monster": "1903", "part": "hired gun", "partId": 0}
+{"monster": "1904", "part": "camp cook", "partId": 0}
+{"monster": "1905", "part": "skeletal gunslinger", "partId": 0}
+{"monster": "1906", "part": "restless ghost", "partId": 0}
+{"monster": "1907", "part": "buzzard", "partId": 0}
+{"monster": "1908", "part": "mountain lion", "partId": 0}
+{"monster": "1909", "part": "grizzled bear", "partId": 0}
+{"monster": "1910", "part": "diamondback rattler", "partId": 0}
+{"monster": "1911", "part": "coal snake", "partId": 0}
+{"monster": "1912", "part": "frontwinder", "partId": 0}
+{"monster": "1913", "part": "caugr", "partId": 0}
+{"monster": "1914", "part": "pyrobove", "partId": 0}
+{"monster": "1915", "part": "spidercow", "partId": 0}
+{"monster": "1916", "part": "moomy", "partId": 0}
+{"monster": "1917", "part": "Jeff the Fancy Skeleton", "partId": 0}
+{"monster": "1918", "part": "Daisy the Unclean", "partId": 0}
+{"monster": "1919", "part": "Pecos Dave", "partId": 0}
+{"monster": "1920", "part": "Pharaoh Amoon-Ra Cowtep", "partId": 0}
+{"monster": "1921", "part": "Snake-Eyes Glenn", "partId": 0}
+{"monster": "1922", "part": "Former Sheriff Dan Driscoll", "partId": 0}
+{"monster": "1923", "part": "unusual construct", "partId": 0}
+{"monster": "1924", "part": "Clara", "partId": 0}
+{"monster": "1925", "part": "Granny Hackleton", "partId": 0}
+{"monster": "1926", "part": "furious cow", "partId": 0}
+{"monster": "1927", "part": "emaciated rodeo clown", "partId": 0}
+{"monster": "1928", "part": "aggressive grass snake", "partId": 0}
+{"monster": "1929", "part": "furious giant cow", "partId": 0}
+{"monster": "1930", "part": "menacing rodeo clown", "partId": 0}
+{"monster": "1931", "part": "prince snake", "partId": 0}
+{"monster": "1932", "part": "ungulith", "partId": 0}
+{"monster": "1933", "part": "grizzled rodeo clown", "partId": 0}
+{"monster": "1934", "part": "king snake", "partId": 0}
+{"monster": "1935", "part": "Witchess Pawn", "partId": 0}
+{"monster": "1936", "part": "Witchess Knight", "partId": 0}
+{"monster": "1937", "part": "Witchess Ox", "partId": 0}
+{"monster": "1938", "part": "Witchess Rook", "partId": 0}
+{"monster": "1939", "part": "Witchess Queen", "partId": 0}
+{"monster": "1940", "part": "Witchess King", "partId": 0}
+{"monster": "1941", "part": "Witchess Witch", "partId": 0}
+{"monster": "1942", "part": "Witchess Bishop", "partId": 0}
+{"monster": "1943", "part": "Cinco de Mayo reveler", "partId": 0}
+{"monster": "1944", "part": "One Thousand Source Agents", "partId": 0}
+{"monster": "1945", "part": "Source Agent", "partId": 0}
+{"monster": "1946", "part": "the ghost of Oily McBindle", "partId": 0}
+{"monster": "1947", "part": "boneless blobghost", "partId": 0}
+{"monster": "1948", "part": "the ghost of Monsieur Baguelle", "partId": 0}
+{"monster": "1949", "part": "The Headless Horseman", "partId": 0}
+{"monster": "1950", "part": "The Icewoman", "partId": 0}
+{"monster": "1951", "part": "The ghost of Ebenoozer Screege", "partId": 0}
+{"monster": "1952", "part": "The ghost of Lord Montague Spookyraven", "partId": 0}
+{"monster": "1953", "part": "The ghost of Vanillica \"Trashblossom\" Gorton", "partId": 0}
+{"monster": "1954", "part": "The ghost of Sam McGee", "partId": 0}
+{"monster": "1955", "part": "The ghost of Richard Cockingham", "partId": 0}
+{"monster": "1956", "part": "The ghost of Waldo the Carpathian", "partId": 0}
+{"monster": "1957", "part": "Emily Koops, a spooky lime", "partId": 0}
+{"monster": "1958", "part": "The ghost of Jim Unfortunato", "partId": 0}
+{"monster": "1959", "part": "Apathetic Tyrannosaurus", "partId": 0}
+{"monster": "1960", "part": "Assembly Elemental", "partId": 0}
+{"monster": "1961", "part": "Cro-Magnon Gnoll", "partId": 0}
+{"monster": "1962", "part": "Ancient Skeleton with Skin still on it", "partId": 0}
+{"monster": "1963", "part": "Wooly Duck", "partId": 0}
+{"monster": "1964", "part": "Krakrox the Barbarian", "partId": 0}
+{"monster": "1965", "part": "time-spinner prank", "partId": 0}
+{"monster": "1967", "part": "board games elemental", "partId": 0}
+{"monster": "1968", "part": "nerd rapper", "partId": 0}
+{"monster": "1969", "part": "stumbling-drunk congoer (male)", "partId": 0}
+{"monster": "1970", "part": "swimming pool monster", "partId": 0}
+{"monster": "1971", "part": "Arizona bark scorpion", "partId": 0}
+{"monster": "1972", "part": "stumbling-drunk congoer (female)", "partId": 0}
+{"monster": "1973", "part": "Thanksgolem", "partId": 0}
+{"monster": "1974", "part": "Eldritch Tentacle", "partId": 0}
+{"monster": "1975", "part": "gingerbread pigeon", "partId": 0}
+{"monster": "1976", "part": "gingerbread rat", "partId": 0}
+{"monster": "1977", "part": "gingerbread convict", "partId": 0}
+{"monster": "1978", "part": "gingerbread mad dog", "partId": 0}
+{"monster": "1979", "part": "gingerbread lawyer", "partId": 0}
+{"monster": "1980", "part": "gingerbread vagrant", "partId": 0}
+{"monster": "1981", "part": "animal cracker", "partId": 0}
+{"monster": "1982", "part": "gingerbread wino", "partId": 0}
+{"monster": "1983", "part": "gingerbread mugger", "partId": 0}
+{"monster": "1984", "part": "gingerbread welder robot", "partId": 0}
+{"monster": "1985", "part": "gingerbread mutant", "partId": 0}
+{"monster": "1986", "part": "gingerbread gentrifier", "partId": 0}
+{"monster": "1987", "part": "gingerbread finance bro", "partId": 0}
+{"monster": "1988", "part": "gingerbread tech bro", "partId": 0}
+{"monster": "1989", "part": "gingerbread alligator", "partId": 0}
+{"monster": "1990", "part": "gingerbread vigilante", "partId": 0}
+{"monster": "1991", "part": "Judge Fudge", "partId": 0}
+{"monster": "1992", "part": "GNG-3-R", "partId": 0}
+{"monster": "1993", "part": "obsessively imagining your worst phobias", "partId": 0}
+{"monster": "1994", "part": "the realization that everyone you love will die someday", "partId": 0}
+{"monster": "1995", "part": "imagining how your life would be better if you'd made different decisions", "partId": 0}
+{"monster": "1996", "part": "fear of an uncertain future", "partId": 0}
+{"monster": "1997", "part": "that time you screwed everything up like a complete idiot", "partId": 0}
+{"monster": "1998", "part": "the most embarrassing moment in your entire life", "partId": 0}
+{"monster": "1999", "part": "what you totally should have said that one time", "partId": 0}
+{"monster": "2000", "part": "endless winter", "partId": 0}
+{"monster": "2001", "part": "the abstract concept of poverty", "partId": 0}
+{"monster": "2002", "part": "angry viking warriors", "partId": 0}
+{"monster": "2003", "part": "bottle of cheap whiskey", "partId": 0}
+{"monster": "2004", "part": "the Crimborg", "partId": 0}
+{"monster": "2005", "part": "penguin mafioso", "partId": 0}
+{"monster": "2006", "part": "simple hobo", "partId": 0}
+{"monster": "2007", "part": "Your Brain", "partId": 0}
+{"monster": "2008", "part": "The Krampus", "partId": 0}
+{"monster": "2009", "part": "LOV Enforcer", "partId": 0}
+{"monster": "2010", "part": "LOV Engineer", "partId": 0}
+{"monster": "2011", "part": "LOV Equivocator", "partId": 0}
+{"monster": "2012", "part": "Sssshhsssblllrrggghsssssggggrrgglsssshhssslblgl", "partId": 0}
+{"monster": "2013", "part": "hostile plant", "partId": 0}
+{"monster": "2014", "part": "large hostile plant", "partId": 0}
+{"monster": "2015", "part": "exotic hostile plant", "partId": 0}
+{"monster": "2016", "part": "small hostile animal", "partId": 0}
+{"monster": "2017", "part": "large hostile animal", "partId": 0}
+{"monster": "2018", "part": "exotic hostile animal", "partId": 0}
+{"monster": "2019", "part": "Spant drone", "partId": 0}
+{"monster": "2020", "part": "Spant soldier", "partId": 0}
+{"monster": "2021", "part": "Murderbot drone", "partId": 0}
+{"monster": "2022", "part": "Murderbot soldier", "partId": 0}
+{"monster": "2023", "part": "hostile intelligent alien", "partId": 0}
+{"monster": "2024", "part": "Villainous Minion", "partId": 0}
+{"monster": "2025", "part": "Villainous Henchperson", "partId": 0}
+{"monster": "2026", "part": "Villainous Villain", "partId": 0}
+{"monster": "2027", "part": "Blofeld", "partId": 0}
+{"monster": "2028", "part": "\"Blofeld\"", "partId": 0}
+{"monster": "2029", "part": "Genie", "partId": 0}
+{"monster": "2031", "part": "Mob Penguin union rail worker", "partId": 0}
+{"monster": "2032", "part": "amorphous blob", "partId": 0}
+{"monster": "2033", "part": "giant amorphous blob", "partId": 0}
+{"monster": "2034", "part": "Mob Penguin protector", "partId": 0}
+{"monster": "2035", "part": "Mob Penguin steel driver", "partId": 0}
+{"monster": "2036", "part": "Mob Penguin negotiator", "partId": 0}
+{"monster": "2037", "part": "Mob Penguin organizer", "partId": 0}
+{"monster": "2041", "part": "voiceless whisper", "partId": 0}
+{"monster": "2042", "part": "silent scream", "partId": 0}
+{"monster": "2043", "part": "mouthless murmur", "partId": 0}
+{"monster": "2044", "part": "cheerless mime functionary", "partId": 0}
+{"monster": "2045", "part": "cheerless mime scientist", "partId": 0}
+{"monster": "2046", "part": "cheerless mime soldier", "partId": 0}
+{"monster": "2047", "part": "cheerless mime vizier", "partId": 0}
+{"monster": "2048", "part": "cheerless mime executive", "partId": 0}
+{"monster": "2049", "part": "The Silent Nightmare", "partId": 0}
+{"monster": "2060", "part": "fantasy bandit", "partId": 0}
+{"monster": "2061", "part": "fantasy ourk", "partId": 0}
+{"monster": "2062", "part": "fantasy forest faerie", "partId": 0}
+{"monster": "2063", "part": "swamp monster", "partId": 0}
+{"monster": "2064", "part": "cursed villager", "partId": 0}
+{"monster": "2065", "part": "spooky ghost", "partId": 0}
+{"monster": "2066", "part": "tree hugging hippy protestor", "partId": 0}
+{"monster": "2067", "part": "mining grobold", "partId": 0}
+{"monster": "2068", "part": "rubber bat", "partId": 0}
+{"monster": "2069", "part": "quadfaerie", "partId": 0}
+{"monster": "2070", "part": "druid plants", "partId": 0}
+{"monster": "2071", "part": "flock of every birds", "partId": 0}
+{"monster": "2072", "part": "plywood cultists", "partId": 0}
+{"monster": "2073", "part": "barrow wraith?", "partId": 0}
+{"monster": "2074", "part": "regular thief", "partId": 0}
+{"monster": "2075", "part": "swamp troll", "partId": 0}
+{"monster": "2076", "part": "crypt creeper", "partId": 0}
+{"monster": "2077", "part": "\"Phoenix\"", "partId": 0}
+{"monster": "2078", "part": "Sewage Treatment Dragon", "partId": 0}
+{"monster": "2079", "part": "Duke Vampire", "partId": 0}
+{"monster": "2080", "part": "Spider Queen", "partId": 0}
+{"monster": "2081", "part": "Archwizard", "partId": 0}
+{"monster": "2082", "part": "Ley Incursion", "partId": 0}
+{"monster": "2083", "part": "Ghoul King", "partId": 0}
+{"monster": "2084", "part": "Ogre Chieftain", "partId": 0}
+{"monster": "2085", "part": "Ted Schwartz, Master Thief", "partId": 0}
+{"monster": "2086", "part": "tree loving hippy protestor", "partId": 0}
+{"monster": "2087", "part": "Skeleton Lord", "partId": 0}
+{"monster": "2088", "part": "God Lobster", "partId": 0}
+{"monster": "2089", "part": "biker", "partId": 0}
+{"monster": "2090", "part": "\"plain\" girl", "partId": 0}
+{"monster": "2091", "part": "jock", "partId": 0}
+{"monster": "2092", "part": "party girl", "partId": 0}
+{"monster": "2093", "part": "burnout", "partId": 0}
+{"monster": "2094", "part": "angry ghost", "partId": 0}
+{"monster": "2095", "part": "government bureaucrat", "partId": 0}
+{"monster": "2096", "part": "terrible mutant", "partId": 0}
+{"monster": "2097", "part": "slime blob", "partId": 0}
+{"monster": "2098", "part": "annoyed snake", "partId": 0}
+{"monster": "2099", "part": "wild walrus", "partId": 0}
+{"monster": "2100", "part": "herd of wild lemmings", "partId": 0}
+{"monster": "2101", "part": "wild moose", "partId": 0}
+{"monster": "2102", "part": "wild beaver", "partId": 0}
+{"monster": "2103", "part": "wild reindeer", "partId": 0}
+{"monster": "2104", "part": "sausage goblin", "partId": 0}
+{"monster": "2105", "part": "Steve Belmont", "partId": 0}
+{"monster": "2106", "part": "Ricardo Belmont", "partId": 0}
+{"monster": "2107", "part": "Jayden Belmont", "partId": 0}
+{"monster": "2108", "part": "Travis Belmont", "partId": 0}
+{"monster": "2109", "part": "Greg Dagreasy", "partId": 0}
+{"monster": "2110", "part": "Sylvia Belgrande", "partId": 0}
+{"monster": "2111", "part": "Sharona", "partId": 0}
+{"monster": "2112", "part": "Jake Norris", "partId": 0}
+{"monster": "2113", "part": "Chad Alacarte", "partId": 0}
+{"monster": "2114", "part": "%alucard%", "partId": 0}
+{"monster": "2115", "part": "Your Lack of Reflection", "partId": 0}
+{"monster": "2116", "part": "giant crab", "partId": 0}
+{"monster": "2117", "part": "melty army man", "partId": 0}
+{"monster": "2118", "part": "plastic skeleton", "partId": 0}
+{"monster": "2119", "part": "plastic pirate", "partId": 0}
+{"monster": "2120", "part": "translucent monkey", "partId": 0}
+{"monster": "2121", "part": "giant giant crab", "partId": 0}
+{"monster": "2122", "part": "blind snake", "partId": 0}
+{"monster": "2123", "part": "toy dinosaur", "partId": 0}
+{"monster": "2124", "part": "cockroach", "partId": 0}
+{"monster": "2125", "part": "vape ghost", "partId": 0}
+{"monster": "2126", "part": "signal", "partId": 0}
+{"monster": "2127", "part": "tiki idol", "partId": 0}
+{"monster": "2128", "part": "pewter torsohunter", "partId": 0}
+{"monster": "2129", "part": "carnivorous plant", "partId": 0}
+{"monster": "2130", "part": "strong wind", "partId": 0}
+{"monster": "2131", "part": "jungle titan", "partId": 0}
+{"monster": "2132", "part": "pirate radio", "partId": 0}
+{"monster": "2133", "part": "melty freezeface", "partId": 0}
+{"monster": "2134", "part": "Red Roger", "partId": 0}
+{"monster": "2135", "part": "Glass Jack Hummel", "partId": 0}
+{"monster": "2136", "part": "skeleton astronaut", "partId": 0}
+{"monster": "2137", "part": "invader bullet", "partId": 0}
+{"monster": "2138", "part": "the invader", "partId": 0}
+{"monster": "2140", "part": "%monster%", "partId": 0}
+{"monster": "2141", "part": "gingerbread maw", "partId": 0}
+{"monster": "2142", "part": "nutmeg anemone", "partId": 0}
+{"monster": "2143", "part": "icingfish", "partId": 0}
+{"monster": "2144", "part": "Mer-kin baker", "partId": 0}
+{"monster": "2145", "part": "dolphin \"orphan\"", "partId": 0}
+{"monster": "2146", "part": "kelpie (horse form)", "partId": 0}
+{"monster": "2147", "part": "kelpie (lady form)", "partId": 0}
+{"monster": "2148", "part": "Crimbylow", "partId": 0}
+{"monster": "2149", "part": "sea-elf", "partId": 0}
+{"monster": "2150", "part": "peppermint eel", "partId": 0}
+{"monster": "2151", "part": "Yuleviathan", "partId": 0}
+{"monster": "2152", "part": "Dolph Bossin, the Boss Dolphin", "partId": 0}
+{"monster": "2153", "part": "basic lihc", "partId": 0}
+{"monster": "2154", "part": "party skelteon", "partId": 0}
+{"monster": "2155", "part": "musical fruit bat", "partId": 0}
+{"monster": "2156", "part": "magical fruit bat", "partId": 0}
+{"monster": "2162", "part": "drippy tree", "partId": 0}
+{"monster": "2163", "part": "drippy bat", "partId": 0}
+{"monster": "2164", "part": "The Thing in the Basement", "partId": 0}
+{"monster": "2165", "part": "Koopa Paratroopa", "partId": 0}
+{"monster": "2166", "part": "Hammer Brother", "partId": 0}
+{"monster": "2167", "part": "Very Dry Bones", "partId": 0}
+{"monster": "2168", "part": "Birdo", "partId": 0}
+{"monster": "2169", "part": "King Boo", "partId": 0}
+{"monster": "2170", "part": "Kamek", "partId": 0}
+{"monster": "2171", "part": "Angry Sun", "partId": 0}
+{"monster": "2172", "part": "Bowser", "partId": 0}
+{"monster": "2173", "part": "Bowser", "partId": 0}
+{"monster": "2174", "part": "Wa%playername/lowercase%", "partId": 0}
+{"monster": "2175", "part": "piranha plant", "partId": 0}
+{"monster": "2176", "part": "drippy reveler", "partId": 0}
+{"monster": "2177", "part": "grey goo orb", "partId": 0}
+{"monster": "2178", "part": "grey goo torus", "partId": 0}
+{"monster": "2179", "part": "grey goo triangle", "partId": 0}
+{"monster": "2180", "part": "grey goo hexagon", "partId": 0}
+{"monster": "2181", "part": "grey goo square", "partId": 0}
+{"monster": "2182", "part": "grey goo cross", "partId": 0}
+{"monster": "2183", "part": "grey goo heart", "partId": 0}
+{"monster": "2184", "part": "grey goo hourglass", "partId": 0}
+{"monster": "2185", "part": "grey goo octagon", "partId": 0}
+{"monster": "2186", "part": "grey goo squiggle", "partId": 0}
+{"monster": "2187", "part": "grey goo star", "partId": 0}
+{"monster": "2188", "part": "goo clown", "partId": 0}
+{"monster": "2189", "part": "grey gooblin", "partId": 0}
+{"monster": "2190", "part": "grey goo bat", "partId": 0}
+{"monster": "2191", "part": "goo-covered beanstalk segment", "partId": 0}
+{"monster": "2192", "part": "goog", "partId": 0}
+{"monster": "2193", "part": "a massive prism of grey goo", "partId": 0}
+{"monster": "2194", "part": "goo bone", "partId": 0}
+{"monster": "2195", "part": "goo grid", "partId": 0}
+{"monster": "2196", "part": "Burning Daughter", "partId": 0}
+{"monster": "2197", "part": "Herald of Fridgr", "partId": 0}
+{"monster": "2198", "part": "Tentacle of Sssshhsssblllrrggghsssssggggrrgglsssshhssslblgl", "partId": 0}
+{"monster": "2199", "part": "Chosen of Yog-Urt", "partId": 0}
+{"monster": "2200", "part": "Astrologer of Shub-Jigguwatt", "partId": 0}
+{"monster": "2201", "part": "Boss Bot", "partId": 0}
+{"monster": "2202", "part": "Gobot King", "partId": 0}
+{"monster": "2203", "part": "Robonerdagon", "partId": 0}
+{"monster": "2204", "part": "Tobias J. Saibot", "partId": 0}
+{"monster": "2205", "part": "Lord Cyberraven", "partId": 0}
+{"monster": "2206", "part": "Protector S. P. E. C. T. R. E.", "partId": 0}
+{"monster": "2207", "part": "Groarbot", "partId": 0}
+{"monster": "2208", "part": "The Artificial Wisniewski", "partId": 0}
+{"monster": "2209", "part": "The Android", "partId": 0}
+{"monster": "2210", "part": "Nautomatic Sorceress", "partId": 0}
+{"monster": "2211", "part": "Blaze Bat", "partId": 0}
+{"monster": "2212", "part": "fired-up Knob Goblin King", "partId": 0}
+{"monster": "2213", "part": "Burnerdagon", "partId": 0}
+{"monster": "2214", "part": "Dr. Awkward, who is on fire", "partId": 0}
+{"monster": "2215", "part": "Lord Sootyraven", "partId": 0}
+{"monster": "2216", "part": "Protector Spectre (Wildfire)", "partId": 0}
+{"monster": "2217", "part": "Groar, Except Hot", "partId": 0}
+{"monster": "2218", "part": "The Big Ignatowicz", "partId": 0}
+{"monster": "2219", "part": "The Man on Fire", "partId": 0}
+{"monster": "2220", "part": "The Naughty Scorcheress", "partId": 0}
+{"monster": "2221", "part": "gooified elf-thing", "partId": 0}
+{"monster": "2222", "part": "gooified dog-thing", "partId": 0}
+{"monster": "2223", "part": "gooified flower", "partId": 0}
+{"monster": "2224", "part": "gooified tree", "partId": 0}
+{"monster": "2225", "part": "gooified rock slab", "partId": 0}
+{"monster": "2226", "part": "massive goo construct", "partId": 0}
+{"monster": "2227", "part": "void slab", "partId": 0}
+{"monster": "2228", "part": "void spider", "partId": 0}
+{"monster": "2229", "part": "void guy", "partId": 0}
+{"monster": "2230", "part": "kachungasaur", "partId": 0}
+{"monster": "2231", "part": "dilophosaur", "partId": 0}
+{"monster": "2232", "part": "high-altitude pterodactyl", "partId": 0}
+{"monster": "2233", "part": "glass-shelled archelon", "partId": 0}
+{"monster": "2234", "part": "supersonic velociraptor", "partId": 0}
+{"monster": "2235", "part": "spikolodon", "partId": 0}
+{"monster": "2236", "part": "ghostasaurus", "partId": 0}
+{"monster": "2237", "part": "flatusaurus", "partId": 0}
+{"monster": "2238", "part": "primitive chicken", "partId": 0}
+{"monster": "2239", "part": "two-headed pteranodon with a two-headed bat inside it", "partId": 0}
+{"monster": "2240", "part": "goblodocus", "partId": 0}
+{"monster": "2241", "part": "T-Rex who ate the Bonerdagon", "partId": 0}
+{"monster": "2242", "part": "suruasaurus", "partId": 0}
+{"monster": "2243", "part": "herd of well-fed microraptors", "partId": 0}
+{"monster": "2244", "part": "protoceratops spectre", "partId": 0}
+{"monster": "2245", "part": "refrigeradon", "partId": 0}
+{"monster": "2246", "part": "Slackiosaurus", "partId": 0}
+{"monster": "2247", "part": "Oligarcheopteryx", "partId": 0}
+{"monster": "2248", "part": "Naughty Saursaurus", "partId": 0}
+{"monster": "2249", "part": "gator-human hybrid", "partId": 0}
+{"monster": "2250", "part": "gangster's moll", "partId": 0}
+{"monster": "2251", "part": "traveling hobo", "partId": 0}
+{"monster": "2252", "part": "goblin flapper", "partId": 0}
+{"monster": "2253", "part": "undercover prohibition agent", "partId": 0}
+{"monster": "2254", "part": "Brake-Operating Trainbot", "partId": 0}
+{"monster": "2255", "part": "Track-Switching Trainbot", "partId": 0}
+{"monster": "2256", "part": "Ping-Pong-Playing Trainbot", "partId": 0}
+{"monster": "2257", "part": "Drink-Delivery Trainbot", "partId": 0}
+{"monster": "2258", "part": "Luggage-Handling Trainbot", "partId": 0}
+{"monster": "2259", "part": "Ticket-Checking Trainbot", "partId": 0}
+{"monster": "2260", "part": "Table-Waiting Trainbot", "partId": 0}
+{"monster": "2261", "part": "Wine-Pairing Trainbot", "partId": 0}
+{"monster": "2262", "part": "Table-Bussing Trainbot", "partId": 0}
+{"monster": "2263", "part": "Coal-Shoveling Trainbot", "partId": 0}
+{"monster": "2264", "part": "Slag-Processing Trainbot", "partId": 0}
+{"monster": "2265", "part": "Steam-Routing Trainbot", "partId": 0}
+{"monster": "2267", "part": "Moleman", "partId": 0}
+{"monster": "2268", "part": "Met", "partId": 0}
+{"monster": "2269", "part": "Tackle Fire", "partId": 0}
+{"monster": "2270", "part": "Blader", "partId": 0}
+{"monster": "2271", "part": "shadow bat", "partId": 0}
+{"monster": "2272", "part": "shadow cow", "partId": 0}
+{"monster": "2273", "part": "shadow devil", "partId": 0}
+{"monster": "2274", "part": "shadow guy", "partId": 0}
+{"monster": "2275", "part": "shadow hexagon", "partId": 0}
+{"monster": "2276", "part": "shadow orb", "partId": 0}
+{"monster": "2277", "part": "shadow prism", "partId": 0}
+{"monster": "2278", "part": "shadow slab", "partId": 0}
+{"monster": "2279", "part": "shadow snake", "partId": 0}
+{"monster": "2280", "part": "shadow spider", "partId": 0}
+{"monster": "2281", "part": "shadow stalk", "partId": 0}
+{"monster": "2282", "part": "shadow tree", "partId": 0}
+{"monster": "2283", "part": "two-headed shadow bat", "partId": 0}
+{"monster": "2284", "part": "goblin king's shadow", "partId": 0}
+{"monster": "2285", "part": "shadowboner shadowdagon", "partId": 0}
+{"monster": "2286", "part": "W. Odah's Shadow", "partId": 0}
+{"monster": "2287", "part": "shadow Lord Spookyraven", "partId": 0}
+{"monster": "2288", "part": "corruptor shadow", "partId": 0}
+{"monster": "2289", "part": "shadow of Groar", "partId": 0}
+{"monster": "2290", "part": "shadow of the 1960s", "partId": 0}
+{"monster": "2291", "part": "shadow of the 1980s", "partId": 0}
+{"monster": "2292", "part": "General Bruise", "partId": 0}
+{"monster": "2293", "part": "General Bruise (true form)", "partId": 0}
+{"monster": "2294", "part": "Dark Noël", "partId": 0}
+{"monster": "2295", "part": "Dark Noël (true form)", "partId": 0}
+{"monster": "2296", "part": "Terrence Poindexter", "partId": 0}
+{"monster": "2297", "part": "Terrence Poindexter (true form)", "partId": 0}
+{"monster": "2298", "part": "shadow spire", "partId": 0}
+{"monster": "2299", "part": "shadow orrery", "partId": 0}
+{"monster": "2300", "part": "shadow tongue", "partId": 0}
+{"monster": "2301", "part": "shadow scythe", "partId": 0}
+{"monster": "2302", "part": "shadow cauldron", "partId": 0}
+{"monster": "2303", "part": "shadow matrix", "partId": 0}
+{"monster": "2316", "part": "Classic Boss Bat", "partId": 0}
+{"monster": "2317", "part": "Weirdly Scrawny Knob Goblin King", "partId": 0}
+{"monster": "2318", "part": "Orignial Bonerdagon", "partId": 0}
+{"monster": "2319", "part": "Jr. Awkwarj", "partId": 0}
+{"monster": "2320", "part": "Little Lord Spookyraven", "partId": 0}
+{"monster": "2321", "part": "Protector Spectre Candidate", "partId": 0}
+{"monster": "2322", "part": "Flock of Groars?", "partId": 0}
+{"monster": "2323", "part": "The Little Wisniewski", "partId": 0}
+{"monster": "2324", "part": "The Boy", "partId": 0}
+{"monster": "2325", "part": "ncle", "partId": 0}
+{"monster": "2326", "part": "rutabaga bug", "partId": 0}
+{"monster": "2327", "part": "mesquito", "partId": 0}
+{"monster": "2328", "part": "senate fly", "partId": 0}
+{"monster": "2329", "part": "flagellating mantis", "partId": 0}
+{"monster": "2330", "part": "beetle", "partId": 0}
+{"monster": "2331", "part": "terrorantula", "partId": 0}
+{"monster": "2332", "part": "daddy shortlegs", "partId": 0}
+{"monster": "2333", "part": "birdybug", "partId": 0}
+{"monster": "2334", "part": "kilopede", "partId": 0}
+{"monster": "2336", "part": "Tooth Golem", "partId": 0}
+{"monster": "2389", "part": "flaming leaflet", "partId": 0}
+{"monster": "2390", "part": "flaming monstera", "partId": 0}
+{"monster": "2391", "part": "leaviathan", "partId": 0}
+{"monster": "2392", "part": "Elf Guard conscript", "partId": 0}
+{"monster": "2393", "part": "Elf Guard convict", "partId": 0}
+{"monster": "2394", "part": "Elf Guard private", "partId": 0}
+{"monster": "2395", "part": "Crimbuccaneer new recruit", "partId": 0}
+{"monster": "2396", "part": "robot maid", "partId": 0}
+{"monster": "2397", "part": "wardrobe robot", "partId": 0}
+{"monster": "2398", "part": "exercise robot", "partId": 0}
+{"monster": "2399", "part": "Spring Bros. security robot", "partId": 0}
+{"monster": "2400", "part": "automated solenoid press", "partId": 0}
+{"monster": "2401", "part": "janitor robot", "partId": 0}
+{"monster": "2402", "part": "Boltsmann security robot", "partId": 0}
+{"monster": "2403", "part": "automated bearing foundry", "partId": 0}
+{"monster": "2404", "part": "clerical robot", "partId": 0}
+{"monster": "2405", "part": "Crimbuccaneer military school dropout", "partId": 0}
+{"monster": "2406", "part": "Crimbuccaneer navigator", "partId": 0}
+{"monster": "2407", "part": "Crimbuccaneer mudlark", "partId": 0}
+{"monster": "2408", "part": "Crimbuccaneer vice-captain", "partId": 0}
+{"monster": "2409", "part": "Elf Guard strategist", "partId": 0}
+{"monster": "2410", "part": "Elf Guard requisitions officer", "partId": 0}
+{"monster": "2411", "part": "Elf Guard general", "partId": 0}
+{"monster": "2412", "part": "Crimbuccaneer lamplighter", "partId": 0}
+{"monster": "2413", "part": "Crimbuccaneer bombjack", "partId": 0}
+{"monster": "2414", "part": "Crimbuccaneer rigging rigger", "partId": 0}
+{"monster": "2415", "part": "Elf Guard fuel courier", "partId": 0}
+{"monster": "2416", "part": "Elf Guard ordnance packer", "partId": 0}
+{"monster": "2417", "part": "Elf Guard engineer", "partId": 0}
+{"monster": "2418", "part": "Crimbuccaneer barrrback", "partId": 0}
+{"monster": "2419", "part": "Crimbuccaneer grognard", "partId": 0}
+{"monster": "2420", "part": "Crimbuccaneer bar brawler", "partId": 0}
+{"monster": "2421", "part": "Elf Guard sanitation officer", "partId": 0}
+{"monster": "2422", "part": "Elf Guard chemist", "partId": 0}
+{"monster": "2423", "part": "Elf Guard shore leave specialist", "partId": 0}
+{"monster": "2424", "part": "Elf Guard desserter", "partId": 0}
+{"monster": "2425", "part": "Elf Guard provisioner", "partId": 0}
+{"monster": "2426", "part": "Elf Guard steward", "partId": 0}
+{"monster": "2427", "part": "Crimbuccaneer fruit plunderer", "partId": 0}
+{"monster": "2428", "part": "Crimbuccaneer whalehunter", "partId": 0}
+{"monster": "2429", "part": "Crimbuccaneer retiree", "partId": 0}
+{"monster": "2430", "part": "Crimbuccaneer freebooter", "partId": 0}
+{"monster": "2431", "part": "Crimbuccaneer scrimshander", "partId": 0}
+{"monster": "2432", "part": "Crimbuccaneer carpenter", "partId": 0}
+{"monster": "2433", "part": "Elf Guard arctic seal", "partId": 0}
+{"monster": "2434", "part": "Elf Guard armorer", "partId": 0}
+{"monster": "2435", "part": "Elf Guard Red and White Beret", "partId": 0}
+{"monster": "2436", "part": "Crimbuccaneer privateer", "partId": 0}
+{"monster": "2437", "part": "Boss Beast", "partId": 0}
+{"monster": "2438", "part": "Knob Goblin Beast", "partId": 0}
+{"monster": "2439", "part": "Curséd Bonerdagon", "partId": 0}
+{"monster": "2440", "part": "Were-Dr. Awkwarder, ew", "partId": 0}
+{"monster": "2441", "part": "Lord Beastlyraven", "partId": 0}
+{"monster": "2442", "part": "Protector Beast", "partId": 0}
+{"monster": "2443", "part": "Just Groar", "partId": 0}
+{"monster": "2444", "part": "The Beast Wisniewski", "partId": 0}
+{"monster": "2445", "part": "The Beastman", "partId": 0}
+{"monster": "2446", "part": "The Naughty Wolferess", "partId": 0}
+{"monster": "2447", "part": "ewe", "partId": 0}
+{"monster": "2448", "part": "messenger RNA", "partId": 0}
+{"monster": "2449", "part": "flailing flagellate", "partId": 0}
+{"monster": "2450", "part": "proto-protozoa", "partId": 0}
+{"monster": "2451", "part": "herd of archaea", "partId": 0}
+{"monster": "2452", "part": "yeast gang", "partId": 0}
+{"monster": "2453", "part": "Embering Hulk", "partId": 0}
+{"monster": "2454", "part": "redhat hacker", "partId": 0}
+{"monster": "2455", "part": "bluehat hacker", "partId": 0}
+{"monster": "2456", "part": "greenhat hacker", "partId": 0}
+{"monster": "2457", "part": "purplehat hacker", "partId": 0}
+{"monster": "2458", "part": "greyhat hacker", "partId": 0}
+{"monster": "2459", "part": "firewall", "partId": 0}
+{"monster": "2460", "part": "ICE barrier", "partId": 0}
+{"monster": "2461", "part": "corruption quarantine", "partId": 0}
+{"monster": "2462", "part": "parental controls", "partId": 0}
+{"monster": "2463", "part": "null container", "partId": 0}
+{"monster": "2464", "part": "Easter Island Bunny", "partId": 0}
+{"monster": "2465", "part": "St. Patrick", "partId": 0}
+{"monster": "2466", "part": "Colonel Brando", "partId": 0}
+{"monster": "2467", "part": "Jedediah", "partId": 0}
+{"monster": "2468", "part": "Boiling Cloud", "partId": 0}
+{"monster": "2469", "part": "\"Santa Claus\"", "partId": 0}
+{"monster": "2470", "part": "zombie process", "partId": 0}
+{"monster": "2471", "part": "botfly", "partId": 0}
+{"monster": "2472", "part": "network worm", "partId": 0}
+{"monster": "2473", "part": "ICE man", "partId": 0}
+{"monster": "2474", "part": "rat (remote access trojan)", "partId": 0}
+{"monster": "2475", "part": "feral bunny", "partId": 0}
+{"monster": "2476", "part": "chocolate chicken", "partId": 0}
+{"monster": "2477", "part": "moai", "partId": 0}
+{"monster": "2478", "part": "giant snake", "partId": 0}
+{"monster": "2479", "part": "giant potato", "partId": 0}
+{"monster": "2480", "part": "giant potato snake", "partId": 0}
+{"monster": "2482", "part": "spectre of war", "partId": 0}
+{"monster": "2483", "part": "Brandonian loyalist", "partId": 0}
+{"monster": "2484", "part": "Section 11", "partId": 0}
+{"monster": "2485", "part": "gravy slime", "partId": 0}
+{"monster": "2486", "part": "pumpkin spice wraith", "partId": 0}
+{"monster": "2487", "part": "possessed can of cream of mushroom soup", "partId": 0}
+{"monster": "2488", "part": "possessed can of green beans", "partId": 0}
+{"monster": "2489", "part": "magically-animated snowman", "partId": 0}
+{"monster": "2490", "part": "Christmas treant", "partId": 0}
+{"monster": "2491", "part": "self-driving sleigh", "partId": 0}
+{"monster": "2492", "part": "some underbrush", "partId": 0}
+{"monster": "2493", "part": "Axis infantry skeleton", "partId": 0}
+{"monster": "2494", "part": "Axis artillery skeleton", "partId": 0}
+{"monster": "2495", "part": "Axis grenadier skeleton", "partId": 0}
+{"monster": "2496", "part": "Axis officer skeleton", "partId": 0}
+{"monster": "2497", "part": "time cop", "partId": 0}
+{"monster": "2498", "part": "Nautical Seaceress", "partId": 0}
+{"monster": "2499", "part": "some fish", "partId": 0}
+{"monster": "2500", "part": "tiny charred skeleton", "partId": 0}
+{"monster": "2501", "part": "pillar of charred skulls", "partId": 0}
+{"monster": "2502", "part": "fire-breathing charred skull", "partId": 0}
+{"monster": "2503", "part": "sneaky smoldering skeleton", "partId": 0}
+{"monster": "2504", "part": "stout smoldering skeleton", "partId": 0}
+{"monster": "2505", "part": "sorcerous smoldering skeleton", "partId": 0}
+{"monster": "2506", "part": "half-buried singed skeleton", "partId": 0}
+{"monster": "2507", "part": "winged singed skeleton", "partId": 0}
+{"monster": "2508", "part": "venomous singed skeleton", "partId": 0}
+{"monster": "2509", "part": "smoldering skeletal monstrosity", "partId": 0}
+{"monster": "2510", "part": "The Unquiet Bones of Claus", "partId": 0}
+{"monster": "2511", "part": "beef bodyguard bat", "partId": 0}
+{"monster": "2512", "part": "Basted Boss Bat", "partId": 0}
+{"monster": "2513", "part": "Gabogooblin King", "partId": 0}
+{"monster": "2514", "part": "The Maety Bonerdagon", "partId": 0}
+{"monster": "2515", "part": "Feeble Dr. Awkward, El Beef", "partId": 0}
+{"monster": "2516", "part": "Lard Spookyraven", "partId": 0}
+{"monster": "2517", "part": "Protector Speck-ter", "partId": 0}
+{"monster": "2518", "part": "Groarst", "partId": 0}
+{"monster": "2519", "part": "The Big Mac Wisniewski", "partId": 0}
+{"monster": "2520", "part": "The Manwich", "partId": 0}
+{"monster": "2521", "part": "Naughty Sorceress, all sausage", "partId": 0}
+{"monster": "2531", "part": "neckbearded wizard", "partId": 0}
+{"monster": "2532", "part": "performative peasant", "partId": 0}
+{"monster": "2533", "part": "knight in lightweight armor", "partId": 0}
+{"monster": "2534", "part": "soused tosspot", "partId": 0}
+{"monster": "2535", "part": "visiting space soldier", "partId": 0}
+{"monster": "2536", "part": "Open Mic Knight", "partId": 0}
+{"monster": "2537", "part": "Poker Knight", "partId": 0}
+{"monster": "2538", "part": "Wedding Knight", "partId": 0}
+{"monster": "2539", "part": "Scarlet Sorceress", "partId": 0}
+{"monster": "2540", "part": "Sapphire Sorceress", "partId": 0}

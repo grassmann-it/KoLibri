@@ -1,0 +1,164 @@
+{"name": "A Relaxing Hot Tub", "effect": "loc", "stat": "[HP]", "delta": "[HP]"}
+{"name": "ancient Magi-Wipes", "effect": "item", "stat": "50", "delta": "60"}
+{"name": "ancient pills", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "ancient turtle shell powder", "effect": "item", "stat": "80", "delta": "100"}
+{"name": "April Shower", "effect": "loc", "stat": "0", "delta": "0"}
+{"name": "aspirin", "effect": "item", "stat": "101", "delta": "101"}
+{"name": "bag of pygmy blood", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "banana spritzer", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (AAA)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (AA)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (D)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (9-Volt)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (lantern)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "battery (car)", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "beer-scented teddy bear", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "black cherry soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Blatantly Canadian", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "blue paisley oyster egg", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "blue pixel potion", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "blue polka-dot oyster egg", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "blue potion", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "blue striped oyster egg", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "bottle of Monsieur Bubble", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "bottle of Vangoghbitussin", "effect": "item", "stat": "100", "delta": "100"}
+{"name": "bubblegum heart", "effect": "item", "stat": "80", "delta": "100"}
+{"name": "Camp Scout pup tent", "effect": "item", "stat": "1000", "delta": "1000"}
+{"name": "Campground", "effect": "loc", "stat": "1", "delta": "1"}
+{"name": "Free rests", "effect": "loc", "stat": "1", "delta": "1"}
+{"name": "can of CRIMBCOLA", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Cannelloni Cocoon", "effect": "skill", "stat": "1000", "delta": "1000"}
+{"name": "carbonated soy milk", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "carbonated water lily", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "cartoon heart", "effect": "item", "stat": "40", "delta": "60"}
+{"name": "cast", "effect": "item", "stat": "15", "delta": "20"}
+{"name": "Cherry Cloaca Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Cloaca-Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Cloaca Cola Polar", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "comfy pillow", "effect": "item", "stat": "20", "delta": "30"}
+{"name": "Comfy Sofa", "effect": "loc", "stat": "[L*5-1]", "delta": "[L*5+1]"}
+{"name": "cotton bandages", "effect": "item", "stat": "40", "delta": "80"}
+{"name": "cotton candy bale", "effect": "item", "stat": "41", "delta": "82"}
+{"name": "cotton candy cone", "effect": "item", "stat": "26", "delta": "52"}
+{"name": "cotton candy pillow", "effect": "item", "stat": "34", "delta": "68"}
+{"name": "cotton candy pinch", "effect": "item", "stat": "7", "delta": "15"}
+{"name": "cotton candy plug", "effect": "item", "stat": "19", "delta": "38"}
+{"name": "cotton candy skoshe", "effect": "item", "stat": "15", "delta": "30"}
+{"name": "cotton candy smidgen", "effect": "item", "stat": "11", "delta": "23"}
+{"name": "creepy ginger ale", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "CSA all-purpose soap", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "cup of hickory chicory", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "delicious shimmering moth", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "deluxe mushroom", "effect": "item", "stat": "30", "delta": "30"}
+{"name": "Devour Minions", "effect": "skill", "stat": "[max(floor(HP*0.5),20)]", "delta": "[max(floor(HP*0.5),20)]"}
+{"name": "Diet Cloaca Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Disco Nap", "effect": "skill", "stat": "[20*(1+skill(Adventurer of Leisure))]", "delta": "[20*(1+skill(Adventurer of Leisure))]"}
+{"name": "Doc Galaktik's Ailment Ointment", "effect": "item", "stat": "35", "delta": "45"}
+{"name": "Doc Galaktik's Homeopathic Elixir", "effect": "item", "stat": "18", "delta": "20"}
+{"name": "Doc Galaktik's Invigorating Tonic", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Doc Galaktik's Pungent Unguent", "effect": "item", "stat": "3", "delta": "5"}
+{"name": "Doc Galaktik's Restorative Balm", "effect": "item", "stat": "13", "delta": "15"}
+{"name": "dueling turtle", "effect": "item", "stat": "10", "delta": "20"}
+{"name": "Dyspepsi-Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "elven magi-pack", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "elven medi-pack", "effect": "item", "stat": "80", "delta": "100"}
+{"name": "eternal car battery", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "extra-strength red potion", "effect": "item", "stat": "190", "delta": "210"}
+{"name": "fancy blue potion", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "filthy poultice", "effect": "item", "stat": "80", "delta": "120"}
+{"name": "forest tears", "effect": "item", "stat": "5", "delta": "10"}
+{"name": "furry pill", "effect": "item", "stat": "40", "delta": "50"}
+{"name": "gauze garter", "effect": "item", "stat": "80", "delta": "120"}
+{"name": "Gelatinous Reconstruction", "effect": "skill", "stat": "12", "delta": "15"}
+{"name": "generic healing potion", "effect": "item", "stat": "[floor(L*4.05)]", "delta": "[floor(L*4.95)]"}
+{"name": "generic mana potion", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "generic restorative potion", "effect": "item", "stat": "[floor(L*4.05)]", "delta": "[floor(L*4.95)]"}
+{"name": "gold star", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "goodberry", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "green pixel potion", "effect": "item", "stat": "40", "delta": "60"}
+{"name": "grogpagne", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Gulp Latte", "effect": "skill", "stat": "[HP/2]", "delta": "[HP/2]"}
+{"name": "heart of dark chocolate", "effect": "item", "stat": "40", "delta": "50"}
+{"name": "Hibernate", "effect": "skill", "stat": "[HP]", "delta": "[HP]"}
+{"name": "high-pressure seltzer bottle", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "holy spring water", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "honey-dipped locust", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Knob Goblin seltzer", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Knob Goblin superseltzer", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Lasagna Bandages", "effect": "skill", "stat": "10", "delta": "30"}
+{"name": "Laugh It Off", "effect": "skill", "stat": "1", "delta": "2"}
+{"name": "linen bandages", "effect": "item", "stat": "20", "delta": "40"}
+{"name": "magical mystery juice", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "magical sausage", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "magnolia blossom", "effect": "item", "stat": "15", "delta": "30"}
+{"name": "Marquis de Poivre soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Medicinal Herb's medicinal herbs", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "Mer-kin fitbrine", "effect": "item", "stat": "300", "delta": "400"}
+{"name": "Monstar energy beverage", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Mountain Stream Code Black Alert", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Mountain Stream soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "myrrh-soaked, chocolate-covered bacon bath ball", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "mushroom", "effect": "item", "stat": "10", "delta": "10"}
+{"name": "Nardz energy beverage", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "natural fennel soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "New Cloaca-Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Notes from the Elfpocalypse, Chapter I", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Notes from the Elfpocalypse, Chapter II", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Notes from the Elfpocalypse, Chapter III", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Notes from the Elfpocalypse, Chapter IV", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Notes from the Elfpocalypse, Chapter V", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Notes from the Elfpocalypse, Chapter VI", "effect": "item", "stat": "30", "delta": "40"}
+{"name": "Nunnery (Frat Warrior)", "effect": "loc", "stat": "1000", "delta": "1000"}
+{"name": "Nunnery (War Hippy)", "effect": "loc", "stat": "1000", "delta": "1000"}
+{"name": "Okee-Dokee soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Oscus's neverending soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "palm-frond fan", "effect": "item", "stat": "35", "delta": "45"}
+{"name": "personal massager", "effect": "item", "stat": "[8*min(1,effect(Beaten Up))]", "delta": "[10*min(1,effect(Beaten Up))]"}
+{"name": "phonics down", "effect": "item", "stat": "46", "delta": "50"}
+{"name": "pixel energy tank", "effect": "item", "stat": "1000", "delta": "1000"}
+{"name": "pixel orb", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "pixellated candy heart", "effect": "item", "stat": "4", "delta": "5"}
+{"name": "plaid bandage", "effect": "item", "stat": "120", "delta": "150"}
+{"name": "Platinum Yendorian Express Card", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "plump juicy grub", "effect": "item", "stat": "[90*min(1,effect(form of...bird!))]", "delta": "[100*min(1,effect(form of...bird!))]"}
+{"name": "Pok&euml;mann band-aid", "effect": "item", "stat": "100", "delta": "100"}
+{"name": "potion of healing", "effect": "item", "stat": "14", "delta": "16"}
+{"name": "psychokinetic energy blob", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "really thick bandage", "effect": "item", "stat": "100", "delta": "120"}
+{"name": "red paisley oyster egg", "effect": "item", "stat": "30", "delta": "35"}
+{"name": "red pixel potion", "effect": "item", "stat": "100", "delta": "120"}
+{"name": "red polka-dot oyster egg", "effect": "item", "stat": "30", "delta": "35"}
+{"name": "red potion", "effect": "item", "stat": "90", "delta": "110"}
+{"name": "red striped oyster egg", "effect": "item", "stat": "30", "delta": "35"}
+{"name": "Regular Cloaca Cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "sacramental wine", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "sanctified cola", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "scented massage oil", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "scroll of drastic healing", "effect": "item", "stat": "100000", "delta": "100000"}
+{"name": "sea gel", "effect": "item", "stat": "500", "delta": "500"}
+{"name": "sew-on bandage", "effect": "item", "stat": "300", "delta": "300"}
+{"name": "sewing kit", "effect": "item", "stat": "1000", "delta": "1000"}
+{"name": "Shake it off", "effect": "skill", "stat": "[HP]", "delta": "[HP]"}
+{"name": "silk bandages", "effect": "item", "stat": "80", "delta": "160"}
+{"name": "soda water", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Soul Food", "effect": "skill", "stat": "0", "delta": "0"}
+{"name": "sparking robo-battery", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "spirit beer", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Spirit Vacation", "effect": "skill", "stat": "[HP]", "delta": "[HP]"}
+{"name": "sugar shard", "effect": "item", "stat": "10", "delta": "20"}
+{"name": "super deluxe mushroom", "effect": "item", "stat": "100", "delta": "100"}
+{"name": "Texas tea", "effect": "item", "stat": "30", "delta": "30"}
+{"name": "tiny house", "effect": "item", "stat": "20", "delta": "24"}
+{"name": "Tongue of the Walrus", "effect": "skill", "stat": "30", "delta": "40"}
+{"name": "tonic water", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "tube of herbal ointment", "effect": "item", "stat": "14", "delta": "16"}
+{"name": "ultracoagulator", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "unrefined Mountain Stream syrup", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "warm El Vibrato drone", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "wasabi marble soda", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "waterlogged scroll of healing", "effect": "item", "stat": "250", "delta": "250"}
+{"name": "whimpering willow bark", "effect": "item", "stat": "[min(floor((HP-CURHP)/2),floor(HP/4))]", "delta": "[min(floor((HP-CURHP)/2),floor(HP/4))]"}
+{"name": "Wint-O-Fresh mint", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Wolfman Nardz", "effect": "item", "stat": "0", "delta": "0"}
+{"name": "Yeg's Motel sewing kit", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
+{"name": "your own black heart", "effect": "item", "stat": "[HP]", "delta": "[HP]"}
