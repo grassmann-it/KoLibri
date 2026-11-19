@@ -21,6 +21,7 @@ internal static partial class KolibriCli
             "internet-shop" or "internetshop" => DailyInternetShopAsync(args[1..]),
             "bacon" or "bacons" => DailyBaconAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
+            "daily-go" or "go" => DailyGoAsync(args[1..]),
             _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
         };
     }
@@ -159,6 +160,10 @@ internal static partial class KolibriCli
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
+        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--mallbot-leaves N] [--main-meat N]");
+        Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
+        Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
+        Console.WriteLine("           [--already-claimed NAME] [--output PATH]");
     }
 
     private static AdventureExecutionGateway CreateAdventureGateway(AccountRole role, string? approvalToken)
@@ -176,6 +181,129 @@ internal static partial class KolibriCli
             .GetAwaiter()
             .GetResult();
         return session.Gateway;
+    }
+
+    private static int DailyGoAsync(string[] args)
+    {
+        var roles = ResolveRoles(args);
+        if (roles.Count == 0)
+            throw new ArgumentException("daily-go braucht mindestens eine Rolle (main, mallbot, all).");
+
+        var defaultSnapshot = new DailyRoutineSnapshot
+        {
+            CampfireLeaves = ReadInt(args, "--leaves", 0),
+            CampfireReserve = ReadInt(args, "--campfire-reserve", 3),
+            DayShortnerPrice = long.TryParse(GetOption(args, "--shortner-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sp) ? Math.Max(0, sp) : long.MaxValue,
+            MainMeat = long.TryParse(GetOption(args, "--main-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mm) ? Math.Max(0, mm) : 0,
+            HermitPermits = ReadInt(args, "--permits", 0),
+            Clovers = ReadInt(args, "--clovers", 0),
+            AdventureReserveValue = long.TryParse(GetOption(args, "--adventure-value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var adv) ? Math.Max(0, adv) : 0,
+            CloverFloorValue = long.TryParse(GetOption(args, "--clover-floor"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cf) ? Math.Max(0, cf) : 0,
+            ExpectedCloverSaleValue = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cs) ? Math.Max(0, cs) : 0,
+            WishBuyQuantity = ReadInt(args, "--wish-buy", 0),
+            WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
+            AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
+            OwnedMachines = ReadInt(args, "--owned-machines", 0),
+            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
+            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
+            MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
+            ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
+            ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),
+            PilotBagQuantity = ReadInt(args, "--pilot-bags", 40),
+            MallbotMeatReserve = long.TryParse(GetOption(args, "--mallbot-reserve"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mr) ? Math.Max(0, mr) : 1_000_000
+        };
+
+        // Per-role overrides: --main-leaves / --mallbot-leaves, --main-meat / --mallbot-meat etc.
+        var overrides = roles.Select(role =>
+        {
+            var snapshot = defaultSnapshot;
+            var prefix = role == AccountRole.Main ? "main" : "mallbot";
+            var leavesOverride = ReadInt(args, $"--{prefix}-leaves", -1);
+            var meatOverride = long.TryParse(GetOption(args, $"--{prefix}-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var m) ? m : -1L;
+            var permitsOverride = ReadInt(args, $"--{prefix}-permits", -1);
+            var bagPriceOverride = long.TryParse(GetOption(args, $"--{prefix}-bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? bp : -1L;
+            if (leavesOverride >= 0) snapshot = snapshot with { CampfireLeaves = leavesOverride };
+            if (meatOverride >= 0) snapshot = role == AccountRole.Main
+                ? snapshot with { MainMeat = meatOverride }
+                : snapshot with { MallbotMeat = meatOverride };
+            if (permitsOverride >= 0) snapshot = snapshot with { HermitPermits = permitsOverride };
+            if (bagPriceOverride >= 0) snapshot = role == AccountRole.Main
+                ? snapshot with { ForeignBribeBagPrice = bagPriceOverride }
+                : snapshot with { ForeignBribeBagPrice = bagPriceOverride };
+            return new RoleOverride(role, snapshot);
+        }).ToArray();
+
+        var token = GetOption(args, "--approval-token");
+        var orchestrator = new DailyOrchestrator(
+            gatewayFactory: role => CreateAdventureGateway(role, token),
+            approvalToken: token);
+        var plan = orchestrator.BuildPlan(overrides, defaultSnapshot);
+
+        DailyOrchestrationResult? execution = null;
+        if (HasFlag(args, "--execute"))
+            execution = orchestrator.ExecuteAsync(plan, failFast: HasFlag(args, "--fail-fast"))
+                .GetAwaiter().GetResult();
+
+        WriteJson(new
+        {
+            command = "daily-go",
+            readOnly = execution is null,
+            previewOnly = execution is null,
+            executed = execution is not null,
+            plan.GeneratedAt,
+            plan.TotalApprovableSteps,
+            roles = plan.Plans.Select(p => new
+            {
+                role = p.Role.ToString(),
+                approvableSteps = p.Preview.ApprovableSteps,
+                verdict = p.Preview.Verdict,
+                advisories = p.Preview.Advisories
+            }).ToArray(),
+            execution = execution is null ? null : new
+            {
+                succeededRoleCount = execution.SucceededRoleCount,
+                failedRoleCount = execution.FailedRoleCount,
+                perRole = execution.Results.Select(r => new
+                {
+                    role = r.Plan.Role.ToString(),
+                    executed = r.Execution.Executed,
+                    steps = r.Execution.Steps.Select(s => new
+                    {
+                        s.StepKind, s.Location, status = s.Status.ToString(),
+                        s.StopReason, s.RequestId, s.Message
+                    }).ToArray()
+                }).ToArray()
+            }
+        });
+
+        var outputPath = GetOption(args, "--output");
+        if (!string.IsNullOrWhiteSpace(outputPath))
+        {
+            var full = Path.GetFullPath(outputPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllText(full, JsonSerializer.Serialize(new
+            {
+                generatedAt = plan.GeneratedAt,
+                totalApprovableSteps = plan.TotalApprovableSteps,
+                roles = plan.Plans.Select(p => new
+                {
+                    role = p.Role.ToString(),
+                    verdict = p.Preview.Verdict,
+                    approvableSteps = p.Preview.ApprovableSteps
+                }).ToArray(),
+                execution
+            }, JsonOptions));
+            Console.Error.WriteLine($"daily-go report written to {full}");
+        }
+        return 0;
+    }
+
+    private static List<AccountRole> ResolveRoles(string[] args)
+    {
+        var requested = (GetOption(args, "--role") ?? "main").Trim().ToLowerInvariant();
+        if (requested is "all" or "both")
+            return new() { AccountRole.Main, AccountRole.Mallbot };
+        return new() { ParseRole(requested) };
     }
 
     private static int DailyRoutineAsync(string[] args)
