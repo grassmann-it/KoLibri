@@ -57,27 +57,28 @@ public partial class KolibriMcpServer
     private Task<object?> DailyHermitAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var permits = NullableIntProperty(arguments, "permits") ?? 0;
-        var clovers = NullableIntProperty(arguments, "clovers") ?? 0;
-        var advValue = NullableIntProperty(arguments, "adventureValue") ?? 0;
-        var floor = NullableIntProperty(arguments, "cloverFloor") ?? 0;
-        var reserve = NullableIntProperty(arguments, "reserve") ?? 0;
-
-        string verdict;
-        if (permits == 0) verdict = "NoHermitPermits";
-        else if (clovers == 0) verdict = "NoClovers";
-        else if (advValue <= reserve) verdict = "KeepCloverReserve";
-        else if (floor <= 0 || advValue > floor) verdict = "UseClover";
-        else verdict = "KeepCloverReserve";
-
+        var snapshot = new HermitSnapshot
+        {
+            Permits = NullableIntProperty(arguments, "permits") ?? 0,
+            Clovers = NullableIntProperty(arguments, "clovers") ?? 0,
+            WishesAvailable = NullableIntProperty(arguments, "wishes") ?? 0,
+            ReserveAdventureValue = NullableLongProperty(arguments, "adventureValue") ?? 0,
+            MinimumCloverSaleValue = NullableLongProperty(arguments, "cloverFloor") ?? 0,
+            ExpectedCloverSaleValue = NullableLongProperty(arguments, "cloverSale") ?? 0,
+            WishBuyQuantity = NullableIntProperty(arguments, "wishBuy") ?? 0,
+            WishUnitPrice = NullableLongProperty(arguments, "wishPrice") ?? 0
+        };
+        var plan = new HermitPlanner().Plan(snapshot);
         return Task.FromResult<object?>(new
         {
             readOnly = true,
             previewOnly = true,
-            verdict,
-            rationale = $"permits={permits}, clovers={clovers}, adventureValue={advValue}, cloverFloor={floor}, reserve={reserve}.",
-            permits,
-            clovers
+            verdict = plan.Verdict,
+            shouldUseClover = plan.ShouldUseClover,
+            shouldBuyWishes = plan.ShouldBuyWishes,
+            rationale = plan.Rationale,
+            steps = plan.Steps,
+            snapshot = plan.Snapshot
         });
     }
 
@@ -95,8 +96,11 @@ public partial class KolibriMcpServer
         => Schema("{\"type\":\"object\",\"properties\":{"
             + "\"permits\":{\"type\":\"integer\",\"minimum\":0},"
             + "\"clovers\":{\"type\":\"integer\",\"minimum\":0},"
+            + "\"wishes\":{\"type\":\"integer\",\"minimum\":0},"
             + "\"adventureValue\":{\"type\":\"integer\",\"minimum\":0},"
             + "\"cloverFloor\":{\"type\":\"integer\",\"minimum\":0},"
-            + "\"reserve\":{\"type\":\"integer\",\"minimum\":0}"
+            + "\"cloverSale\":{\"type\":\"integer\",\"minimum\":0},"
+            + "\"wishBuy\":{\"type\":\"integer\",\"minimum\":0},"
+            + "\"wishPrice\":{\"type\":\"integer\",\"minimum\":0}"
             + "},\"additionalProperties\":false}");
 }

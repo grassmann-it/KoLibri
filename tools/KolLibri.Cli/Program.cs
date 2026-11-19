@@ -852,6 +852,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
         Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
         Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
+        Console.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
         Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");

@@ -52,28 +52,38 @@ internal static partial class KolibriCli
     {
         var permits = Math.Max(0, ReadInt(args, "--permits", 3));
         var clovers = Math.Max(0, ReadInt(args, "--clovers", 0));
-        var usefulAdventureValue = Math.Max(0, ReadInt(args, "--adventure-value", 0));
-        var cloverFloorValue = Math.Max(0, ReadInt(args, "--clover-floor", 0));
-        var reserve = Math.Max(0, ReadInt(args, "--reserve", 0));
+        var wishes = Math.Max(0, ReadInt(args, "--wishes", 0));
+        var reserveAdventureValue = long.TryParse(GetOption(args, "--adventure-value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var adv) ? Math.Max(0, adv) : 0;
+        var cloverFloor = long.TryParse(GetOption(args, "--clover-floor"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var floor) ? Math.Max(0, floor) : 0;
+        var expectedClover = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sale) ? Math.Max(0, sale) : 0;
+        var wishBuy = Math.Max(0, ReadInt(args, "--wish-buy", 0));
+        var wishPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var price) ? Math.Max(0, price) : 0;
 
-        string verdict;
-        if (permits == 0) verdict = "NoHermitPermits";
-        else if (clovers == 0) verdict = "NoClovers";
-        else if (usefulAdventureValue <= reserve) verdict = "KeepCloverReserve";
-        else if (cloverFloorValue <= 0 || usefulAdventureValue > cloverFloorValue) verdict = "UseClover";
-        else verdict = "KeepCloverReserve";
+        var planner = new HermitPlanner();
+        var plan = planner.Plan(new HermitSnapshot
+        {
+            Permits = permits,
+            Clovers = clovers,
+            WishesAvailable = wishes,
+            ReserveAdventureValue = reserveAdventureValue,
+            MinimumCloverSaleValue = cloverFloor,
+            ExpectedCloverSaleValue = expectedClover,
+            WishBuyQuantity = wishBuy,
+            WishUnitPrice = wishPrice
+        });
 
-        var rationale = $"permits={permits}, clovers={clovers}, adventureValue={usefulAdventureValue}, cloverFloor={cloverFloorValue}, reserve={reserve}.";
         WriteJson(new
         {
             command = "daily hermit",
             readOnly = true,
             previewOnly = true,
-            verdict,
-            rationale,
-            permits,
-            clovers,
-            note = "Hermit purchases stay preview-only. Future bridge will route through the bounded choice chain."
+            plan.Verdict,
+            plan.ShouldUseClover,
+            plan.ShouldBuyWishes,
+            plan.Rationale,
+            plan.Steps,
+            plan.Snapshot,
+            note = "Preview only; no choice.php POST is sent."
         });
         return 0;
     }
