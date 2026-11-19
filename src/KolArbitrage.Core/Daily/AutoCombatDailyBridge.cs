@@ -162,12 +162,12 @@ public sealed class AutoCombatDailyBridge
 
     /// <summary>
     /// Live execution path. Takes a pre-built plan and routes each choice step
-    /// through a fresh bounded adventure run with the supplied approval token.
-    /// Each choice is its own short-lived run: <c>StartAsync</c> posts to the
-    /// choice URL, then <c>ExecutePendingAsync</c> follows up if KoL answers
-    /// with a follow-up choice. Item-only steps (spade, bacon-machine) are
-    /// surfaced in the result for the operator to handle through dedicated
-    /// write paths; the bounded runner cannot buy from the mall today.
+    /// through the best matching executor. Free-pull choices (campfire leaf,
+    /// internet-shop pulls, bacon machine, hermit clover, hermit wish) hit a
+    /// direct <see cref="FreePullDispatcher"/>; everything else falls back to
+    /// the bounded adventure runner with an allowlist keyed on the choice id.
+    /// Item-only steps (spade, bacon-machine as item) are surfaced in the
+    /// result for the operator to handle through dedicated write paths.
     ///
     /// When <paramref name="audit"/> is supplied the bridge writes a
     /// hash-chained audit row per choice step, plus one wrap-up row when
@@ -177,6 +177,8 @@ public sealed class AutoCombatDailyBridge
     public async Task<BridgeExecutionResult> ExecuteAsync(
         IReadOnlyList<AdventureStepSpec> steps,
         AdventureExecutionGateway gateway,
+        FreePullDispatcher? freePullDispatcher = null,
+        AccountCredentials? freePullCredentials = null,
         AdventureActionAllowlist? extraAllowlist = null,
         TimeProvider? clock = null,
         BoundedChoiceChainOptions? options = null,
@@ -212,51 +214,60 @@ public sealed class AutoCombatDailyBridge
         }
         var allowlist = extraAllowlist ?? new AdventureActionAllowlist();
         foreach (var cs in choiceSteps)
-            // The bounded runner keys allowlist on AdventureId; for free-pull
-            // choices the "adventure id" *is* the choice id, and the option
-            // id is passed verbatim. This is the same shortcut the existing
-            // DailyRoutineExecutor uses.
             allowlist = allowlist.AddChoiceOption(cs.ChoiceId, cs.ChoiceId, cs.OptionId);
         var executedCount = 0;
+        string? lastFreePullSnippet = null;
         foreach (var cs in choiceSteps)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var runId = $"bridge-{cs.ChoiceId}-{Guid.NewGuid():N}";
-            var request = new AdventureRunRequest
-            {
-                RunId = runId,
-                // Choice pages don't have an AdventureId. We re-use the
-                // choice id so the bounded runner can still key its lookup.
-                AdventureId = cs.ChoiceId
-            };
-            string outcome = "aborted";
+            var whichChoice = FreePullDispatcher.WhichChoiceFor(cs.ChoiceId);
+            var canFreePull = freePullDispatcher is not null
+                && freePullCredentials is not null
+                && whichChoice > 0;
+            string outcome;
+            string requestId;
             try
             {
-                // Step 1: hit the choice URL via the gateway's StartAsync.
-                var started = await gateway.StartAsync(request, allowlist, cancellationToken).ConfigureAwait(false);
-                // Step 2: pick up follow-up choices if KoL presented one.
-                var runner = new BoundedChoiceChainRunner(gateway, clock ?? TimeProvider.System);
-                var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
-                await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
-                if (started.Status != AdventureExecutionStatus.Aborted)
+                if (canFreePull)
                 {
-                    executedCount++;
-                    outcome = "submitted";
+                    var option = int.TryParse(cs.OptionId, out var parsed) ? parsed : 1;
+                    var result = await freePullDispatcher!.PullAsync(
+                        freePullCredentials!, whichChoice, option, cancellationToken).ConfigureAwait(false);
+                    requestId = result.RequestId;
+                    outcome = result.Accepted ? "submitted" : $"http-{result.StatusCode}";
+                    if (result.Accepted) executedCount++;
+                    lastFreePullSnippet = result.BodySnippet;
+                }
+                else
+                {
+                    var runId = $"bridge-{cs.ChoiceId}-{Guid.NewGuid():N}";
+                    var request = new AdventureRunRequest
+                    {
+                        RunId = runId,
+                        AdventureId = cs.ChoiceId
+                    };
+                    var started = await gateway.StartAsync(request, allowlist, cancellationToken).ConfigureAwait(false);
+                    var runner = new BoundedChoiceChainRunner(gateway, clock ?? TimeProvider.System);
+                    var settings = (options ?? new BoundedChoiceChainOptions()).Normalize();
+                    await runner.RunAsync(runId, allowlist, settings, cancellationToken).ConfigureAwait(false);
+                    requestId = runId;
+                    outcome = started.Status != AdventureExecutionStatus.Aborted ? "submitted" : "aborted";
+                    if (started.Status != AdventureExecutionStatus.Aborted) executedCount++;
                 }
             }
             catch (OperationCanceledException)
             {
-                outcome = "cancelled";
                 throw;
             }
             catch (Exception ex)
             {
                 outcome = "exception";
+                requestId = Guid.NewGuid().ToString("N");
                 if (audit is not null)
                 {
                     await audit.AppendAsync(new AuditEvent(
                         AuditEventPhase.Verify, opId, source,
-                        requestId: runId,
+                        requestId: requestId,
                         action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}",
                         status: outcome,
                         message: ex.Message,
@@ -268,10 +279,22 @@ public sealed class AutoCombatDailyBridge
             {
                 await audit.AppendAsync(new AuditEvent(
                     AuditEventPhase.Commit, opId, source,
-                    requestId: runId,
+                    requestId: requestId,
                     action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}",
                     status: outcome,
-                    message: $"Posted choice {cs.ChoiceId}:{cs.OptionId} via bounded runner.",
+                    message: $"Posted choice {cs.ChoiceId}:{cs.OptionId} ({outcome}).",
+                    accountId: accountId), cancellationToken).ConfigureAwait(false);
+            }
+            // Echo the body's first 200 chars into the audit when something
+            // went wrong so the operator can see why KoL rejected the pull.
+            if (outcome.StartsWith("http-") && audit is not null && lastFreePullSnippet is not null)
+            {
+                await audit.AppendAsync(new AuditEvent(
+                    AuditEventPhase.Verify, opId, source,
+                    requestId: requestId,
+                    action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}.diagnostic",
+                    status: outcome,
+                    message: lastFreePullSnippet,
                     accountId: accountId), cancellationToken).ConfigureAwait(false);
             }
         }

@@ -62,6 +62,8 @@ public sealed class DailyOrchestrator
     private readonly TimeProvider _clock;
     private readonly Func<AccountRole, IAccountDailyStateReader>? _stateReaderFactory;
     private readonly Func<AccountRole, BaconSnapshot>? _baconSnapshotFactory;
+    private readonly Func<AccountRole, FreePullDispatcher>? _freePullFactory;
+    private readonly Func<AccountRole, AccountCredentials?>? _credentialsFactory;
 
     public DailyOrchestrator(
         Func<AccountRole, AdventureExecutionGateway> gatewayFactory,
@@ -82,11 +84,15 @@ public sealed class DailyOrchestrator
         string? approvalToken,
         Func<AccountRole, IAccountDailyStateReader> stateReaderFactory,
         Func<AccountRole, BaconSnapshot>? baconSnapshotFactory = null,
+        Func<AccountRole, FreePullDispatcher>? freePullFactory = null,
+        Func<AccountRole, AccountCredentials?>? credentialsFactory = null,
         TimeProvider? clock = null)
         : this(gatewayFactory, approvalToken, clock)
     {
         _stateReaderFactory = stateReaderFactory ?? throw new ArgumentNullException(nameof(stateReaderFactory));
         _baconSnapshotFactory = baconSnapshotFactory;
+        _freePullFactory = freePullFactory;
+        _credentialsFactory = credentialsFactory;
     }
 
     public bool CanExecute => !string.IsNullOrWhiteSpace(_approvalToken);
@@ -208,7 +214,10 @@ public sealed class DailyOrchestrator
                 });
             }
             var gateway = _gatewayFactory(plan.Role);
+            var freePull = _freePullFactory?.Invoke(plan.Role);
+            var creds = _credentialsFactory?.Invoke(plan.Role);
             var result = await bridge.ExecuteAsync(planned.Steps, gateway,
+                freePullDispatcher: freePull, freePullCredentials: creds,
                 audit: audit, accountId: plan.Role.ToString(),
                 options: options, cancellationToken: cancellationToken).ConfigureAwait(false);
             // Convert to the legacy DailyRoutineExecutionResult shape so the

@@ -218,7 +218,9 @@ internal static partial class KolibriCli
             ? new DailyOrchestrator(
                 gatewayFactory: role => CreateAdventureGateway(role, token),
                 approvalToken: token,
-                stateReaderFactory: _ => new OfflineAccountDailyStateReader())
+                stateReaderFactory: _ => new OfflineAccountDailyStateReader(),
+                freePullFactory: role => CreateFreePullDispatcher(role),
+                credentialsFactory: role => TryGetCredentials(role))
             : new DailyOrchestrator(
                 gatewayFactory: role => CreateAdventureGateway(role, token),
                 approvalToken: token);
@@ -498,6 +500,29 @@ internal static partial class KolibriCli
                 Inventory = new KoLInventorySnapshot(Array.Empty<KoLInventoryItem>(), DateTimeOffset.UtcNow),
                 ObservedAt = DateTimeOffset.UtcNow
             });
+        }
+    }
+
+    private static FreePullDispatcher? CreateFreePullDispatcher(AccountRole role)
+    {
+        // The free-pull dispatcher needs a logged-in HttpClient. We reuse
+        // the same authenticated client as the adventure gateway so the
+        // cookie travels with both request paths.
+        var http = ReadAuthenticatedHttpAsync(role).GetAwaiter().GetResult();
+        return new FreePullDispatcher(http, FreePullDispatcher.DefaultBaseUri);
+    }
+
+    private static AccountCredentials? TryGetCredentials(AccountRole role)
+    {
+        try
+        {
+            var manager = AccountSessionManager.CreateDefault();
+            manager.InitializeAsync().GetAwaiter().GetResult();
+            return manager.GetSessionAsync(role).GetAwaiter().GetResult()?.Credentials;
+        }
+        catch
+        {
+            return null;
         }
     }
 

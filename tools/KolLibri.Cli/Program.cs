@@ -49,6 +49,7 @@ internal static partial class KolibriCli
                 "adventure-plan" => await AdventurePlanAsync(args[1..]),
                 "adventure" => await AdventureCommandAsync(args[1..]),
                 "daily" => await DailyCommandAsync(args[1..]),
+                "daily-audit" => await DailyAuditCommandAsync(args[1..]),
                 "combat" => await CombatCommandAsync(args[1..]),
                 "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),
                 "categorize" => await CategorizeAsync(args[1..]),
@@ -224,6 +225,75 @@ internal static partial class KolibriCli
             role = role.ToString(),
             ok = true,
             loggedInAt = login.LoggedInAt
+        });
+        return 0;
+    }
+
+    private static async Task<int> DailyAuditCommandAsync(string[] args)
+    {
+        // Usage:
+        //   kolibri daily-audit [path] [--tail N] [--verify] [--role X]
+        var path = args.Length > 0 && !args[0].StartsWith('-')
+            ? args[0]
+            : KolArbitrage.Core.Daily.BridgeAuditLog.DefaultPath();
+        var tail = int.TryParse(GetOption(args, "--tail"), out var t) ? t : 0;
+        var verify = args.Any(a => string.Equals(a, "--verify", StringComparison.OrdinalIgnoreCase));
+        var roleFilter = GetOption(args, "--role");
+        var accountFilter = GetOption(args, "--account");
+
+        await using var log = new KolArbitrage.Core.Daily.BridgeAuditLog(path);
+        var rows = log.ReadSealedEvents();
+        if (verify)
+        {
+            var breakInfo = log.VerifyChain();
+            if (breakInfo is null)
+            {
+                WriteJson(new { command = "daily-audit", path, state = "verified", rowCount = rows.Count });
+                return 0;
+            }
+            WriteJson(new
+            {
+                command = "daily-audit",
+                path,
+                state = "broken",
+                breakIndex = breakInfo.Index,
+                brokenAction = breakInfo.BrokenRow.AuditEvent.Action,
+                expectedHash = breakInfo.ExpectedHash,
+                actualHash = breakInfo.BrokenRow.Hash
+            });
+            return 1;
+        }
+        IEnumerable<KolArbitrage.Core.Integration.SealedAuditEvent> filtered = rows;
+        if (!string.IsNullOrWhiteSpace(roleFilter))
+        {
+            // legacy `role` filter maps Main/Mallbot to accountId values; we
+            // treat either as a substring match so the operator can grep.
+            filtered = filtered.Where(r =>
+                r.AuditEvent.AccountId?.Contains(roleFilter, StringComparison.OrdinalIgnoreCase) == true);
+        }
+        if (!string.IsNullOrWhiteSpace(accountFilter))
+        {
+            filtered = filtered.Where(r =>
+                r.AuditEvent.AccountId?.Contains(accountFilter, StringComparison.OrdinalIgnoreCase) == true);
+        }
+        var ordered = filtered.ToArray();
+        if (tail > 0) ordered = ordered.TakeLast(tail).ToArray();
+        WriteJson(new
+        {
+            command = "daily-audit",
+            path,
+            rowCount = ordered.Length,
+            rows = ordered.Select(r => new
+            {
+                occurredAt = r.AuditEvent.OccurredAt,
+                phase = r.AuditEvent.Phase.ToString(),
+                accountId = r.AuditEvent.AccountId,
+                action = r.AuditEvent.Action,
+                status = r.AuditEvent.Status,
+                requestId = r.AuditEvent.RequestId,
+                message = r.AuditEvent.Message,
+                hash = r.Hash
+            })
         });
         return 0;
     }

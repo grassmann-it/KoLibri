@@ -286,6 +286,7 @@ public partial class KolibriMcpServer
         if (_executionBridge is not null) RegisterAdventureExecutionTools();
         RegisterDailyPlannerTools();
         RegisterLoginTools();
+        RegisterDailyAuditTool();
         if (_executionBridge is not null) RegisterDailyPlanExecutionTools();
 
         // Friendly command-shaped aliases are accepted by tools/call while the

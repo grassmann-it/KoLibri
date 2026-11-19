@@ -78,4 +78,26 @@ public sealed class BridgeAuditLogTests : IDisposable
         Assert.EndsWith("bridge-audit.jsonl", path);
         Assert.Contains("KoLibri", path);
     }
+
+    [Fact]
+    public async Task Resuming_run_continues_the_chain_with_non_null_prevHash()
+    {
+        await using (var first = new BridgeAuditLog(_tempPath))
+        {
+            await first.AppendAsync(new AuditEvent(
+                AuditEventPhase.Commit, "op1", "test",
+                requestId: "r1", action: "first", status: "ok"));
+        }
+        await using (var second = new BridgeAuditLog(_tempPath))
+        {
+            await second.AppendAsync(new AuditEvent(
+                AuditEventPhase.Commit, "op2", "test",
+                requestId: "r2", action: "second", status: "ok"));
+        }
+        var rows = new BridgeAuditLog(_tempPath).ReadSealedEvents();
+        Assert.Equal(2, rows.Count);
+        Assert.NotNull(rows[1].PrevHash);
+        Assert.Equal(rows[0].Hash, rows[1].PrevHash);
+        Assert.Null(new BridgeAuditLog(_tempPath).VerifyChain());
+    }
 }

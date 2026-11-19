@@ -36,6 +36,14 @@ public sealed class BridgeAuditLog : IDisposable, IAsyncDisposable
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Audit path is required.", nameof(path));
         _path = path;
+        // Resume from the previous chain when the file already exists, so
+        // a follow-up run continues the hash chain instead of starting
+        // over with a null prevHash.
+        if (File.Exists(_path))
+        {
+            var rows = ReadSealedEvents();
+            if (rows.Count > 0) _previousHash = rows[^1].Hash;
+        }
     }
 
     public string FilePath => _path;
