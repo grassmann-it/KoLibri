@@ -5,19 +5,6 @@ using KolArbitrage.Core.Integration;
 namespace KolLibri.Mcp;
 
 /// <summary>
-/// Host-supplied factory that produces an <see cref="AdventureExecutionGateway"/>
-/// for a given role. Hosts that have not configured a live transport receive
-/// <c>null</c>, which keeps MCP servers read-only by default.
-/// </summary>
-public interface IAdventureExecutionGatewayFactory
-{
-    ValueTask<AdventureExecutionGateway?> CreateAsync(
-        AccountRole role,
-        string approvalToken,
-        CancellationToken cancellationToken);
-}
-
-/// <summary>
 /// Result returned by the bounded execution bridge. The MCP layer serializes
 /// the inner <see cref="BoundedAdventureRunResult"/> / <see cref="BoundedChoiceChainResult"/>
 /// alongside a couple of meta fields so callers can correlate with the audit
@@ -29,44 +16,6 @@ public sealed record AdventureExecutionBridgeResult(
     IReadOnlyList<object> Steps,
     string? AuditPath,
     string? RequestId);
-
-/// <summary>
-/// Approval token + hook glue. The factory already verified the supplied token
-/// matches the host-bound one before the gateway was created, so the per-step
-/// hook simply re-approves. The transport request carries the original token
-/// for audit logging.
-/// </summary>
-internal sealed class TokenAdventureApprovalHook : IAdventureApprovalHook
-{
-    private readonly string _expected;
-
-    public TokenAdventureApprovalHook(string expected)
-        => _expected = expected ?? throw new ArgumentNullException(nameof(expected));
-
-    public ValueTask<AdventureApprovalDecision> ApproveAsync(
-        AdventureApprovalContext context,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(AdventureApprovalDecision.Allow(_expected));
-    }
-}
-
-internal sealed class KnownEncounterVerificationHook : IAdventureVerificationHook
-{
-    public ValueTask<AdventureVerificationResult> VerifyAsync(
-        AdventureVerificationContext context,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var known = context.Observation.Kind is not AdventureEncounterKind.Unknown
-                    && context.Response.Accepted != false;
-        return known
-            ? ValueTask.FromResult(AdventureVerificationResult.Success())
-            : ValueTask.FromResult(AdventureVerificationResult.Failed(
-                "The live response was not a known, accepted adventure encounter."));
-    }
-}
 
 /// <summary>
 /// Shared bridge that turns an MCP tool call into a bounded runner invocation.
@@ -180,45 +129,6 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
             }).Cast<object>().ToArray(),
             AuditPath: "<memory>",
             RequestId: steps.Count == 0 ? null : steps[^1].RequestId);
-}
-
-/// <summary>
-/// Convenience adapter that builds an <see cref="AdventureExecutionGateway"/>
-/// from an already-running transport + checkpoint store. Hosts wire the actual
-/// HTTP client; the bridge simply wires approval + verification hooks.
-/// </summary>
-public sealed class TransportAdventureExecutionGatewayFactory : IAdventureExecutionGatewayFactory
-{
-    private readonly IAdventureTransport _transport;
-    private readonly IAdventureRunCheckpointStore _checkpointStore;
-    private readonly string? _expectedToken;
-
-    public TransportAdventureExecutionGatewayFactory(
-        IAdventureTransport transport,
-        IAdventureRunCheckpointStore checkpointStore,
-        string? expectedToken = null)
-    {
-        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        _checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
-        _expectedToken = expectedToken;
-    }
-
-    public ValueTask<AdventureExecutionGateway?> CreateAsync(
-        AccountRole role,
-        string approvalToken,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_expectedToken is not null
-            && !string.Equals(approvalToken, _expectedToken, StringComparison.Ordinal))
-            return ValueTask.FromResult<AdventureExecutionGateway?>(null);
-        var gateway = new AdventureExecutionGateway(
-            _transport,
-            _checkpointStore,
-            approval: new TokenAdventureApprovalHook(approvalToken),
-            verification: new KnownEncounterVerificationHook());
-        return ValueTask.FromResult<AdventureExecutionGateway?>(gateway);
-    }
 }
 
 /// <summary>
