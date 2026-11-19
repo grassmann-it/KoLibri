@@ -5,7 +5,9 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
 using KolArbitrage.Core.Accounts;
+using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Analytics;
+using KolArbitrage.Core.Data;
 using KolArbitrage.Core.Integration;
 
 namespace KoLibri.Desktop;
@@ -54,6 +56,19 @@ public partial class MainWindow : Window
     private AccountRole _selectedRole = AccountRole.Mallbot;
     private readonly AccountSessionManager _accounts = AccountSessionManager.CreateDefault();
     private readonly KoLLoginClient _loginClient = new();
+    private EncounterBrowserPane? _encounterBrowser;
+    private ListBox? _encounterLocationsGrid;
+    private ListBox? _encounterMonstersGrid;
+    private ListBox? _encounterActionsGrid;
+    private TextBox? _encounterFilterBox;
+    private TextBox? _encounterTokenBox;
+    private Button? _encounterStartButton;
+    private Button? _encounterSubmitButton;
+    private Button? _encounterEndButton;
+    private Button? _encounterSaveTokenButton;
+    private Button? _encounterLoadTokenButton;
+    private TextBlock? _encounterStatusText;
+    private TextBlock? _encounterStepLogText;
 
     public MainWindow()
     {
@@ -78,6 +93,19 @@ public partial class MainWindow : Window
         _mallPanel = this.FindControl<Border>("MallPanel");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
         _combatPanel = this.FindControl<Border>("CombatPanel");
+        _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
+        _encounterMonstersGrid = this.FindControl<ListBox>("EncounterMonstersGrid");
+        _encounterActionsGrid = this.FindControl<ListBox>("EncounterActionsGrid");
+        _encounterFilterBox = this.FindControl<TextBox>("EncounterFilterBox");
+        _encounterTokenBox = this.FindControl<TextBox>("EncounterTokenBox");
+        _encounterStartButton = this.FindControl<Button>("EncounterStartButton");
+        _encounterSubmitButton = this.FindControl<Button>("EncounterSubmitButton");
+        _encounterEndButton = this.FindControl<Button>("EncounterEndButton");
+        _encounterSaveTokenButton = this.FindControl<Button>("EncounterSaveTokenButton");
+        _encounterLoadTokenButton = this.FindControl<Button>("EncounterLoadTokenButton");
+        _encounterStatusText = this.FindControl<TextBlock>("EncounterStatusText");
+        _encounterStepLogText = this.FindControl<TextBlock>("EncounterStepLogText");
+        WireEncounterBrowser();
         _mallRoleLabel = this.FindControl<TextBlock>("MallRoleLabel");
         _mallSummary = this.FindControl<TextBlock>("MallSummary");
         _mallRows = this.FindControl<TextBlock>("MallRows");
@@ -752,4 +780,183 @@ public partial class MainWindow : Window
             status.Foreground = ThemeBrush(key, Brushes.Gray);
         }
     }
+
+    private void WireEncounterBrowser()
+    {
+        var catalogDir = Path.Combine(
+            AppContext.BaseDirectory,
+            "external", "kolmafia-data");
+        if (!Directory.Exists(catalogDir))
+            return;
+
+        _encounterBrowser = new EncounterBrowserPane(
+            _selectedRole,
+            gatewayFactory: _ => CreateManualGateway(),
+            setStatus: msg => UpdateEncounterStatus(msg),
+            resolveChoices: locationId => ResolveEncounterChoices(locationId),
+            monstersFor: locationId => ResolveMonstersForLocation(locationId));
+        try
+        {
+            _encounterBrowser.Initialise(catalogDir);
+        }
+        catch (Exception exception)
+        {
+            UpdateEncounterStatus($"Catalog konnte nicht geladen werden: {exception.Message}");
+            return;
+        }
+
+        if (_encounterLocationsGrid is not null && _encounterBrowser.Browser is not null)
+        {
+            _encounterLocationsGrid.ItemsSource = _encounterBrowser.Browser.Locations;
+            _encounterMonstersGrid!.ItemsSource = _encounterBrowser.Browser.Monsters;
+            _encounterActionsGrid!.ItemsSource = _encounterBrowser.Browser.Actions;
+        }
+
+        if (_encounterFilterBox is not null)
+        {
+            _encounterFilterBox.TextChanged += (_, _) =>
+            {
+                if (_encounterBrowser?.Browser is { } browser)
+                    browser.FilterText = _encounterFilterBox.Text ?? string.Empty;
+            };
+        }
+
+        if (_encounterLocationsGrid is not null)
+        {
+            _encounterLocationsGrid.SelectionChanged += (_, _) =>
+            {
+                if (_encounterBrowser?.Browser is { } browser
+                    && _encounterLocationsGrid.SelectedItem is EncounterBrowserLocationRow row)
+                {
+                    browser.SelectedLocation = row;
+                    RefreshEncounterStepLog();
+                }
+            };
+            _encounterLocationsGrid.DoubleTapped += async (_, _) =>
+            {
+                if (_encounterLocationsGrid.SelectedItem is EncounterBrowserLocationRow row)
+                    await _encounterBrowser.StartAdventureAsync(row).ConfigureAwait(false);
+                RefreshEncounterStepLog();
+            };
+        }
+
+        if (_encounterMonstersGrid is not null)
+        {
+            _encounterMonstersGrid.SelectionChanged += (_, _) =>
+            {
+                if (_encounterBrowser?.Browser is { } browser
+                    && _encounterMonstersGrid.SelectedItem is EncounterBrowserMonsterRow monster)
+                {
+                    browser.SelectedMonster = monster;
+                }
+            };
+        }
+
+        if (_encounterActionsGrid is not null)
+        {
+            _encounterActionsGrid.DoubleTapped += async (_, _) =>
+            {
+                if (_encounterActionsGrid.SelectedItem is EncounterBrowserActionRow row)
+                    await _encounterBrowser.SubmitStepAsync(row).ConfigureAwait(false);
+                RefreshEncounterStepLog();
+            };
+        }
+
+        if (_encounterStartButton is not null)
+            _encounterStartButton.Click += async (_, _) =>
+            {
+                if (_encounterLocationsGrid?.SelectedItem is EncounterBrowserLocationRow row)
+                    await _encounterBrowser.StartAdventureAsync(row).ConfigureAwait(false);
+                RefreshEncounterStepLog();
+            };
+
+        if (_encounterSubmitButton is not null)
+            _encounterSubmitButton.Click += async (_, _) =>
+            {
+                if (_encounterActionsGrid?.SelectedItem is EncounterBrowserActionRow row)
+                    await _encounterBrowser.SubmitStepAsync(row).ConfigureAwait(false);
+                RefreshEncounterStepLog();
+            };
+
+        if (_encounterEndButton is not null)
+            _encounterEndButton.Click += (_, _) =>
+            {
+                _encounterBrowser.EndSession();
+                RefreshEncounterStepLog();
+            };
+
+        if (_encounterSaveTokenButton is not null)
+            _encounterSaveTokenButton.Click += async (_, _) =>
+            {
+                var token = _encounterTokenBox?.Text ?? string.Empty;
+                if (_encounterBrowser is null || string.IsNullOrWhiteSpace(token))
+                {
+                    UpdateEncounterStatus("Approval-Token ist erforderlich.");
+                    return;
+                }
+                _encounterBrowser.ApplyApprovalToken(token);
+                try
+                {
+                    await _encounterBrowser.PersistTokenAsync("manual-browser");
+                }
+                catch (Exception exception)
+                {
+                    UpdateEncounterStatus($"Token konnte nicht gespeichert werden: {exception.Message}");
+                }
+            };
+
+        if (_encounterLoadTokenButton is not null)
+            _encounterLoadTokenButton.Click += async (_, _) =>
+            {
+                try { await _encounterBrowser.LoadStoredTokenAsync(); }
+                catch (Exception exception)
+                {
+                    UpdateEncounterStatus($"Token konnte nicht geladen werden: {exception.Message}");
+                }
+                if (_encounterTokenBox is not null && _encounterBrowser?.Session is { } session)
+                    _encounterTokenBox.Text = session.ApprovalToken;
+            };
+
+        // Auto-load on first display if a token is already stored.
+        _ = _encounterBrowser.LoadStoredTokenAsync();
+    }
+
+    private KolArbitrage.Core.Adventure.AdventureExecutionGateway CreateManualGateway()
+    {
+        // The gateway is consumed by the manual driver; the in-memory store is
+        // enough for the catalog browsing surface. Live POSTs only happen when
+        // a real approval token is applied via ApplyApprovalToken.
+        return new KolArbitrage.Core.Adventure.AdventureExecutionGateway(
+            new AdventureExecutionFixtureTransport(),
+            new InMemoryAdventureRunCheckpointStore());
+    }
+
+    private void UpdateEncounterStatus(string message)
+    {
+        if (_encounterStatusText is null) return;
+        _encounterStatusText.Text = $"{DateTime.Now:HH:mm:ss} · {message}";
+    }
+
+    private void RefreshEncounterStepLog()
+    {
+        if (_encounterStepLogText is null || _encounterBrowser?.Session is not { } session) return;
+        var lines = session.StepLog.Take(10).Select(entry =>
+            $"{entry.At:HH:mm:ss} {entry.Kind} {entry.Status} {entry.StopReason}");
+        _encounterStepLogText.Text = string.Join("\n", lines);
+    }
+
+    private static IEnumerable<string> ResolveEncounterChoices(string locationId)
+        => locationId == "skeleton-of-crimbos-past"
+            ? new[] { "1003:1", "1003:2" }
+            : Array.Empty<string>();
+
+    private static IReadOnlyList<MafiaMonsterRecord> ResolveMonstersForLocation(string locationId)
+        => locationId switch
+        {
+            "skeleton-of-crimbos-past" => new MafiaDataLoader()
+                .Load(Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"))
+                .Monsters.Where(m => m.Id.Contains("skeleton", StringComparison.OrdinalIgnoreCase))
+                .ToArray(),
+            _ => Array.Empty<MafiaMonsterRecord>()
+        };
 }

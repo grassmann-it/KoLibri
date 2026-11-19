@@ -15,7 +15,7 @@ namespace KoLibri.Desktop;
 /// </summary>
 public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 {
-    private readonly AdventureManualDriver _driver;
+    private AdventureManualDriver _driver;
     private readonly ApprovalTokenStore _tokenStore;
     private readonly AccountRole _role;
     private AdventureActionAllowlist _allowlist = AdventureActionAllowlist.Empty;
@@ -156,6 +156,16 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         RunId = null;
         LastMessage = "Session ended. Audit trail retained in the journal.";
         OnPropertyChanged(nameof(IsSessionActive));
+    }
+
+    /// <summary>
+    /// Swap the underlying driver so the next submit uses a fresh gateway
+    /// (typically after the operator entered a new approval token).
+    /// </summary>
+    public void ReplaceDriver(AdventureManualDriver driver)
+    {
+        ArgumentNullException.ThrowIfNull(driver);
+        _driver = driver;
     }
 
     private void AppendLog(string kind, ManualStepOutcome outcome)

@@ -478,6 +478,53 @@
             </Grid>
             <Border Classes="panel-subtle">
               <StackPanel Spacing="6">
+                <TextBlock Text="Manuelle Adventure-Browser" Classes="h3" />
+                <TextBlock Text="Catalog aus KoLmafia-Daten. Doppelklick startet das Adventure, Doppelklick auf eine Action sendet den nächsten Step. Token bleibt im ApprovalTokenStore gespeichert."
+                           Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                <Grid ColumnDefinitions="*,2*" ColumnSpacing="12">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Approval-Token" Classes="muted" />
+                    <TextBox x:Name="EncounterTokenBox" Watermark="opaque token" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Button x:Name="EncounterSaveTokenButton" Content="Speichern" Classes="secondary" />
+                      <Button x:Name="EncounterLoadTokenButton" Content="Aus Store laden" Classes="secondary" />
+                    </StackPanel>
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="Filter (Location)" Classes="muted" />
+                    <TextBox x:Name="EncounterFilterBox" Watermark="z. B. skeleton" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Button x:Name="EncounterStartButton" Content="Start" Classes="primary" />
+                      <Button x:Name="EncounterSubmitButton" Content="Step senden" Classes="secondary" />
+                      <Button x:Name="EncounterEndButton" Content="Beenden" Classes="secondary" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" MinHeight="240">
+                  <DockPanel>
+                    <TextBlock Text="Locations" Classes="muted" DockPanel.Dock="Top" />
+                    <ListBox x:Name="EncounterLocationsGrid" />
+                  </DockPanel>
+                  <DockPanel Grid.Column="1">
+                    <TextBlock Text="Monsters" Classes="muted" DockPanel.Dock="Top" />
+                    <ListBox x:Name="EncounterMonstersGrid" />
+                  </DockPanel>
+                  <DockPanel Grid.Column="2">
+                    <TextBlock Text="Actions" Classes="muted" DockPanel.Dock="Top" />
+                    <ListBox x:Name="EncounterActionsGrid" />
+                  </DockPanel>
+                </Grid>
+                <Border Classes="panel-subtle" Padding="10">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Status / Step-Log" Classes="muted" />
+                    <TextBlock x:Name="EncounterStatusText" Text="(noch keine Adventure-Sitzung)" Classes="body" TextWrapping="Wrap" />
+                    <TextBlock x:Name="EncounterStepLogText" Classes="body" TextWrapping="Wrap" FontFamily="monospace" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+            <Border Classes="panel-subtle">
+              <StackPanel Spacing="6">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Text="Tagesplan" Classes="body" />
                   <Border Grid.Column="1" Classes="badge info">
