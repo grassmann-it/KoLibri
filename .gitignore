@@ -9,3 +9,5 @@
 /.kolibri/
 **/.secret-key
 /reports/live-*.json
+external/kolmafia/
+scripts/__pycache__/
