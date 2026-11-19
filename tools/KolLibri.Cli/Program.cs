@@ -33,7 +33,7 @@ internal static partial class KolibriCli
         {
             return args[0].ToLowerInvariant() switch
             {
-                "login" => await LoginAsync(args[1..]),
+                "login" => await LoginDispatchAsync(args[1..]),
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
@@ -74,6 +74,21 @@ internal static partial class KolibriCli
         }
     }
 
+    private static async Task<int> LoginDispatchAsync(string[] args)
+    {
+        if (args.Length > 0)
+        {
+            var head = args[0].ToLowerInvariant();
+            if (head is "status" or "--status")
+                return await LoginStatusAsync(args[1..]);
+            if (head is "clear" or "--clear")
+                return await LoginClearAsync(args[1..]);
+            if (head is "refresh" or "--refresh")
+                return await LoginRefreshAsync(args[1..]);
+        }
+        return await LoginAsync(args);
+    }
+
     private static async Task<int> LoginAsync(string[] args)
     {
         var roleValue = GetOption(args, "--role")
@@ -103,6 +118,121 @@ internal static partial class KolibriCli
         await accounts.SetCredentialsAsync(role, login.Credentials);
         WriteJson(new { ok = true, role = role.ToString(), username, rememberPassword, loggedInAt = login.LoggedInAt });
         return 0;
+    }
+
+    private static async Task<int> LoginStatusAsync(string[] args)
+    {
+        var accounts = AccountSessionManager.CreateDefault();
+        await accounts.InitializeAsync();
+        var profiles = await accounts.GetAccountsAsync();
+        var rows = new List<object>();
+        foreach (var role in Enum.GetValues<AccountRole>())
+        {
+            var profile = profiles.FirstOrDefault(p => p.Role == role);
+            var session = await accounts.GetSessionAsync(role, includeExpired: true);
+            var expired = session?.IsExpired() ?? false;
+            var hasCookie = !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader);
+            rows.Add(new
+            {
+                role = role.ToString(),
+                profileId = profile?.Id,
+                displayName = profile?.DisplayName,
+                enabled = profile?.Enabled ?? false,
+                hasCookie,
+                expired,
+                loggedInAt = session?.Credentials.ExpiresAt,
+                endpoint = session?.Profile.Endpoint?.ToString()
+            });
+        }
+        WriteJson(new
+        {
+            command = "login status",
+            accounts = rows
+        });
+        return 0;
+    }
+
+    private static async Task<int> LoginClearAsync(string[] args)
+    {
+        var roleValue = GetOption(args, "--role");
+        var roles = ResolveLoginRoles(roleValue);
+        var accounts = AccountSessionManager.CreateDefault();
+        await accounts.InitializeAsync();
+        foreach (var role in roles)
+        {
+            var profile = await accounts.GetProfileAsync(role);
+            if (profile is null)
+            {
+                Console.Error.WriteLine($"login clear: no profile for {role}.");
+                continue;
+            }
+            // Removing credentials by overwriting with an empty password
+            // clears the cookie, then we keep the profile so the operator
+            // does not have to re-add it on next login.
+            try
+            {
+                await accounts.SetCredentialsAsync(role, new AccountCredentials
+                {
+                    Password = string.Empty,
+                    CookieHeader = string.Empty,
+                    ExpiresAt = DateTimeOffset.MinValue
+                });
+            }
+            catch (AccountConfigurationException)
+            {
+                // No profile configured: silently skip.
+            }
+            Console.Error.WriteLine($"login clear: cleared credentials for {role} (profile '{profile.Id}' retained).");
+        }
+        WriteJson(new { command = "login clear", roles = roles.Select(r => r.ToString()).ToArray() });
+        return 0;
+    }
+
+    private static async Task<int> LoginRefreshAsync(string[] args)
+    {
+        var roleValue = GetOption(args, "--role") ?? "main";
+        var role = ParseRole(roleValue);
+        var username = GetOption(args, "--username");
+        var password = GetOption(args, "--password");
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        {
+            // Fall back to interactive prompt when neither flag was supplied.
+            if (!Console.IsInputRedirected)
+            {
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    Console.Error.Write($"login refresh {role} Benutzername: ");
+                    username = Console.ReadLine()?.Trim();
+                }
+                if (string.IsNullOrEmpty(password))
+                {
+                    password = await ReadPasswordAsync();
+                }
+            }
+        }
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            throw new ArgumentException("login refresh braucht --username und --password.");
+
+        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword: true);
+        var accounts = AccountSessionManager.CreateDefault();
+        await accounts.InitializeAsync();
+        await accounts.SetCredentialsAsync(role, login.Credentials);
+        WriteJson(new
+        {
+            command = "login refresh",
+            role = role.ToString(),
+            ok = true,
+            loggedInAt = login.LoggedInAt
+        });
+        return 0;
+    }
+
+    private static List<AccountRole> ResolveLoginRoles(string? roleValue)
+    {
+        var value = (roleValue ?? "all").Trim().ToLowerInvariant();
+        if (value is "all" or "both")
+            return new() { AccountRole.Main, AccountRole.Mallbot };
+        return new() { ParseRole(value) };
     }
 
     private static async Task<int> StatusAsync(string[] args)
@@ -869,8 +999,11 @@ internal static partial class KolibriCli
     private static void PrintHelp()
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
-        Console.WriteLine("  login main|mallbot                         fragt Benutzername/Passwort interaktiv ab");
-        Console.WriteLine("  login --role main|mallbot --username NAME [--no-remember-password]");
+        Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
+        Console.WriteLine("  login status [--role main|mallbot|all]       zeigt gespeicherte Sessions + Cookies");
+        Console.WriteLine("  login clear --role main|mallbot|all          löscht gespeicherte Credentials");
+        Console.WriteLine("  login refresh --role main|mallbot --username NAME --password PWD");
+        Console.WriteLine("  login refresh --role main|mallbot             (interaktive Eingabe)");
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  shop --role mallbot [--refresh]");
