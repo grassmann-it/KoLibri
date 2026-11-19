@@ -20,6 +20,7 @@ public sealed record KoLStatusSnapshot(
     public int MaximumMp { get; init; }
     public IReadOnlyCollection<string> Effects { get; init; } = Array.Empty<string>();
     public string? FamiliarId { get; init; }
+    public string? ClassId { get; init; }
     public IReadOnlyDictionary<string, string> Equipment { get; init; }
         = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 }
@@ -222,6 +223,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             CurrentMp = IntValue(root, "currentmp", "current_mp", "mp", "mana"),
             MaximumMp = IntValue(root, "maximummp", "maximum_mp", "maxmp", "max_mp", "maxmana"),
             FamiliarId = StringValue(root, "familiarid", "familiar_id", "familiar"),
+            ClassId = StringValue(root, "classid", "class_id", "class"),
             Effects = StringCollection(root, "effects", "active_effects"),
             Equipment = StringMap(root, "equipment", "equipped")
         };
