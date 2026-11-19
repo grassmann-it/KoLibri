@@ -15,6 +15,17 @@ namespace KolArbitrage.Core.Daily;
 /// </summary>
 public sealed class FreePullDispatcher
 {
+    /// <summary>Campfire leaf burn — advances the day by one leaf.</summary>
+    public const int ChoiceCampfire = 1106;
+    /// <summary>Day Shortener — 222 leaves craft one extra day.</summary>
+    public const int ChoiceDayShortner = 1110;
+    /// <summary>Hermit: open an 11-leaf clover.</summary>
+    public const int ChoiceClover = 1100;
+    /// <summary>Hermit: buy a wish.</summary>
+    public const int ChoiceHermitWish = 1107;
+    /// <summary>Number of inflammable leaves one Day Shortener costs.</summary>
+    public const int DayShortenerLeafCost = 222;
+
     private readonly HttpClient _http;
     private readonly Uri _baseUri;
 
@@ -41,15 +52,112 @@ public sealed class FreePullDispatcher
         if (option <= 0)
             throw new ArgumentOutOfRangeException(nameof(option));
 
-        // KoL's daily claims are NOT adventure choices. choice.php only
-        // works while an adventure is running ("Whoops! You're not actually
-        // in an adventure right now." otherwise). The daily pulls live on
-        // their own pages:
-        //   * Internet shop free pull → inventory.php?which=4
-        //   * Campfire leaf burn      → campfire.php?action=burn
-        //   * Hermit clover           → hermit.php?action=clover
-        // We dispatch on the numeric choice id and use the matching page.
         var (path, form) = ResolveTarget(whichChoice, option);
+        return await PostAsync(credentials, path, form, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Burns <paramref name="leaves"/> inflammable leaves at the
+    /// campfire to advance the day. The campground's "Pile of Burning Leaves"
+    /// has to be visited first — only then does KoL accept the
+    /// <c>choice.php?whichchoice=1510</c> submission. KoLmafia does the same
+    /// (BurningLeavesRequest.visit() before the creation request).</summary>
+    public async Task<FreePullResult> BurnLeavesAsync(
+        AccountCredentials credentials,
+        int leaves,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (leaves <= 0)
+            throw new ArgumentOutOfRangeException(nameof(leaves));
+        // KoL's burning-leaves choice burns exactly the number of leaves we
+        // ask for, and it happily takes the whole pile. One leaf advances
+        // one day; only the Day Shortener takes a bigger batch (222).
+        if (leaves != DayShortenerLeafCost && leaves != 1)
+            throw new ArgumentOutOfRangeException(nameof(leaves),
+                "KoL burns either one leaf (one day) or 222 leaves (one Day Shortener).");
+        var page = await VisitBurningLeavesAsync(credentials, cancellationToken).ConfigureAwait(false);
+        if (page is not null && page.Leaves > 0 && leaves > page.Leaves)
+            throw new InvalidOperationException(
+                $"Cannot burn {leaves} leaves; the pile only holds {page.Leaves}.");
+        var form = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["whichchoice"] = "1510",
+            ["option"] = "1",
+            ["leaves"] = leaves.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        // Carry the page's own hidden fields (CSRF-style tokens KoL puts on
+        // the form) so the submission is accepted.
+        if (page is not null)
+        {
+            foreach (var field in page.Fields)
+                form[field.Key] = field.Value;
+            form["whichchoice"] = "1510";
+            form["option"] = "1";
+            form["leaves"] = leaves.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        return await PostAsync(credentials, "choice.php", form, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Visits the campground's Pile of Burning Leaves and parses the
+    /// page. KoL only accepts the burning-leaves choice while the operator is
+    /// standing at the pile, so this GET has to happen before the
+    /// submission (KoLmafia's BurningLeavesRequest.visit() does the same).</summary>
+    public async Task<BurningLeavesPage?> VisitBurningLeavesAsync(
+        AccountCredentials credentials,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
+            throw new InvalidOperationException(
+                "Visiting the burning leaves requires a logged-in account.");
+        var uri = new Uri(_baseUri, "campground.php?preaction=leaves");
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Add("Cookie", credentials.CookieHeader);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        // KoL answers with a redirect to the choice page. The client is
+        // configured not to follow redirects (so cookies never leak
+        // cross-host), so we follow the location ourselves.
+        if (!response.IsSuccessStatusCode && response.Headers.Location is { } location)
+        {
+            var target = new Uri(uri, location);
+            using var follow = new HttpRequestMessage(HttpMethod.Get, target);
+            follow.Headers.Add("Cookie", credentials.CookieHeader);
+            using var followed = await _http.SendAsync(follow, cancellationToken).ConfigureAwait(false);
+            body = await followed.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        return BurningLeavesPage.Parse(body);
+    }
+
+    /// <summary>Diagnostic helper: returns the raw burning-leaves page so the
+    /// operator (or a test) can inspect the form KoL renders.</summary>
+    public async Task<string> ReadBurningLeavesPageAsync(
+        AccountCredentials credentials,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        var uri = new Uri(_baseUri, "campground.php?preaction=leaves");
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Add("Cookie", credentials.CookieHeader);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Crafts one Day Shortener. It costs
+    /// <see cref="DayShortenerLeafCost"/> inflammable leaves and grants one
+    /// extra day without burning a leaf.</summary>
+    public async Task<FreePullResult> CraftDayShortenerAsync(
+        AccountCredentials credentials,
+        CancellationToken cancellationToken = default)
+        => await BurnLeavesAsync(credentials, DayShortenerLeafCost, cancellationToken)
+            .ConfigureAwait(false);
+
+    private async Task<FreePullResult> PostAsync(
+        AccountCredentials credentials,
+        string path,
+        Dictionary<string, string> form,
+        CancellationToken cancellationToken)
+    {
         var uri = new Uri(_baseUri, path);
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
@@ -74,9 +182,10 @@ public sealed class FreePullDispatcher
         if (string.IsNullOrWhiteSpace(body)) return "(empty body)";
         var markers = new[]
         {
-            "You acquire", "You don't have enough", "not allowed to visit",
-            "he sends you packing", "doesn't have that item", "Hermit Permit required",
-            "left in stock", "You lose", "You gain", "You get"
+            "You acquire", "You don't have enough", "not enough meat",
+            "not allowed to visit", "he sends you packing", "doesn't have that item",
+            "Hermit Permit required", "left in stock", "You lose", "You gain", "You get",
+            "You burn", "burned", "leaves", "flames", "Pile of Burning Leaves"
         };
         foreach (var marker in markers)
         {
@@ -110,45 +219,35 @@ public sealed class FreePullDispatcher
     /// <summary>Maps a KoL numeric choice id onto the page that actually
     /// performs the daily claim, plus the form fields that page expects.
     /// The pages and field names mirror KoLmafia's request classes:
-    /// HermitRequest uses hermit.php?action=trade with whichitem/quantity,
-    /// StorageRequest uses storage.php?action=pull with whichitem1/howmany1.</summary>
+    /// BurningLeavesRequest posts choice.php with whichchoice=1510 plus a
+    /// `leaves` count, HermitRequest posts hermit.php?action=trade with
+    /// whichitem/quantity.</summary>
     private static (string Path, Dictionary<string, string> Form) ResolveTarget(
         int whichChoice, int option)
     {
         var form = new Dictionary<string, string>(StringComparer.Ordinal);
         switch (whichChoice)
         {
-            case 1119:
-                // Lucky Surprise Egg / Internet Bacon live in the storage
-                // (free pulls). KoLmafia pulls them with
-                // storage.php?action=pull&whichitem1=<id>&howmany1=1.
-                // option 1 → Lucky Surprise Egg (995), option 2 → the
-                // Internet Bacon free pull.
-                form["action"] = "pull";
-                form["ajax"] = "1";
-                form["whichitem1"] = (option == 2
-                    ? ItemIds.InternetBacon
-                    : ItemIds.LuckySurpriseEgg).ToString(
+            case ChoiceCampfire:
+                // Campfire: burn leaves to advance the day. KoLmafia's
+                // BurningLeavesRequest posts choice.php with
+                // whichchoice=1510, option=1 and the leaf count. Burning a
+                // single leaf advances one day; 222 leaves craft a Day
+                // Shortener instead.
+                form["whichchoice"] = "1510";
+                form["option"] = "1";
+                form["leaves"] = option.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
-                form["howmany1"] = "1";
-                return ("storage.php", form);
-            case 1118:
-                // Infinite Bacon Machine — same storage pull mechanism.
-                form["action"] = "pull";
-                form["ajax"] = "1";
-                form["whichitem1"] = ItemIds.BaconMachine.ToString(
+                return ("choice.php", form);
+            case ChoiceDayShortner:
+                // 222 inflammable leaves craft one Day Shortener, which
+                // grants an extra day without burning a leaf.
+                form["whichchoice"] = "1510";
+                form["option"] = "1";
+                form["leaves"] = DayShortenerLeafCost.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
-                form["howmany1"] = "1";
-                return ("storage.php", form);
-            case 1106:
-                // Campfire: burn one leaf to advance the day. The leaves
-                // live in the Getaway Campsite, so the request targets
-                // place.php?whichplace=campaway with the campfire action.
-                form["whichplace"] = "campaway";
-                form["action"] = "campaway_campfire";
-                form["quantity"] = "1";
-                return ("place.php", form);
-            case 1100:
+                return ("choice.php", form);
+            case ChoiceClover:
                 // Hermit: trade one worthless item for an 11-leaf clover.
                 // The Hermit charges one worthless item per clover and
                 // needs a Hermit Permit for the trade itself. autopermit=on
@@ -161,7 +260,7 @@ public sealed class FreePullDispatcher
                     System.Globalization.CultureInfo.InvariantCulture);
                 form["autopermit"] = "on";
                 return ("hermit.php?autopermit=on", form);
-            case 1107:
+            case ChoiceHermitWish:
                 // Hermit: buy a wish (a sealed circlet).
                 form["action"] = "trade";
                 form["whichitem"] = ItemIds.ElevenLeafClover.ToString(
@@ -170,7 +269,6 @@ public sealed class FreePullDispatcher
                 form["autopermit"] = "on";
                 return ("hermit.php?autopermit=on", form);
             default:
-
                 form["whichchoice"] = whichChoice.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
                 form["option"] = option.ToString(
@@ -254,22 +352,10 @@ public sealed class FreePullDispatcher
         if (string.IsNullOrWhiteSpace(choiceId)) return 0;
         return choiceId.ToLowerInvariant() switch
         {
-            // 1106 = burning leaves (campfire). We accept the legacy
-            // choice-day-shortner id as a synonym.
-            "choice-campfire" => 1106,
-            "choice-day-shortner" => 1106,
-            // 1100 = Hermit: open an 11-leaf clover.
-            "choice-clover" => 1100,
-            // 1119 = Daily free pull from the Internet shop (Lucky
-            // Surprise Egg). Same choice id is also the way to claim the
-            // daily Internet Bacon — KoL hands the operator a different
-            // reward depending on the time of day.
-            "choice-lucky-surprise-egg" => 1119,
-            "choice-internet-bacon" => 1119,
-            // 1118 = Infinite Bacon Machine daily claim.
-            "choice-bacon-machine" => 1118,
-            // 1107 = Hermit: wish for an item.
-            "choice-hermit-wish" => 1107,
+            "choice-campfire" => ChoiceCampfire,
+            "choice-day-shortner" => ChoiceDayShortner,
+            "choice-clover" => ChoiceClover,
+            "choice-hermit-wish" => ChoiceHermitWish,
             _ => 0
         };
     }

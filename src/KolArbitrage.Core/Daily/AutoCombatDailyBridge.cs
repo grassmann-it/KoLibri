@@ -79,21 +79,27 @@ public sealed class AutoCombatDailyBridge
 
         // 1. Campfire: burn a leaf only if the reserve is healthy AND the day is useful.
         //    Day Shortner: only when the leaf reserve would drop below the floor.
+        //    The Day Shortener is crafted from 222 inflammable leaves, so it
+        //    only makes sense when that many leaves are on hand.
         var leafAvailable = snapshot.CampfireLeaves > snapshot.CampfireReserve;
         var dayUseful = snapshot.MainMeat > 0; // we already got meat; day is useful by default.
-        if (leafAvailable && dayUseful)
+        if (snapshot.CampfireLeaves > snapshot.CampfireReserve
+            && snapshot.MainMeat > 0)
         {
+            // Exactly one leaf — KoL's burning-leaves choice burns the
+            // number of leaves we ask for and would happily take the whole
+            // pile.
             steps.Add(new ChoiceStepSpec("choice-campfire", "1"));
         }
-        if (snapshot.DayShortnerPrice < long.MaxValue
-            && snapshot.DayShortnerPrice > 0
-            && snapshot.MainMeat - snapshot.DayShortnerPrice >= 200_000
+        if (snapshot.CampfireLeaves >= FreePullDispatcher.DayShortenerLeafCost
             && (!leafAvailable || !dayUseful))
         {
-            // The daily shortner is worth buying only when the leaf reserve
-            // is too thin to burn. The bridge never auto-buys a shortner when
-            // there is already a healthy leaf reserve.
-            steps.Add(new ChoiceStepSpec("choice-day-shortner", "1"));
+            // The leaf reserve is too thin to burn but we still hold enough
+            // leaves to craft a Day Shortener, which buys the day without
+            // spending the reserve.
+            steps.Add(new ChoiceStepSpec("choice-day-shortner",
+                FreePullDispatcher.DayShortenerLeafCost.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture)));
         }
 
         // 2. Hermit: open a clover only when the expected sale beats the reserve value.
@@ -139,22 +145,7 @@ public sealed class AutoCombatDailyBridge
             steps.Add(new ChoiceStepSpec("choice-hermit-wish", "1"));
         }
 
-        // 3. Internet-shop free pulls: skip anything already claimed.
-        var alreadyClaimed = new HashSet<string>(
-            snapshot.AlreadyPulledItemIds, StringComparer.OrdinalIgnoreCase);
-        foreach (var pull in InternetShopCatalog.DefaultPulls)
-        {
-            if (alreadyClaimed.Contains(pull.DisplayName)) continue;
-            // The Lucky Surprise Egg and the Internet Bacon share the
-            // storage-pull mechanism but pull different item ids, so the
-            // option id distinguishes them (1 = egg, 2 = bacon).
-            var optionId = pull.DisplayName.Contains("Internet Bacon", StringComparison.OrdinalIgnoreCase)
-                ? "2"
-                : pull.OptionId;
-            steps.Add(new ChoiceStepSpec(pull.ChoiceId, optionId));
-        }
-
-        // 4. Archaeologist + no spade: buy one from the mall. The bridge
+        // 3. Archaeologist + no spade: buy one from the mall. The bridge
         //    intentionally emits a synthetic "buy-spade" step so the
         //    bounded runner can pick it up. The actual mall purchase needs
         //    a separate write path that lives outside this read-only
@@ -166,16 +157,20 @@ public sealed class AutoCombatDailyBridge
                 Round: null));
         }
 
-        // 5. Bacons: when the spread beats the minimum profit and the budget
-        //    fits, emit a buy step. The bridge reads a separate BaconSnapshot
-        //    (the bacon planner already owns its own thresholds).
+        // 4. Bacons: the Infinite Bacon Machine (9025) turns leaves into BACON
+        //    (8763) every day. When the machine is missing we buy it once;
+        //    when the BACON spread beats the minimum profit we buy BACON on
+        //    the mall. The bridge reads a separate BaconSnapshot (the bacon
+        //    planner already owns its own thresholds).
         if (bacon is not null
             && bacon.MallPricePerMachine > 0
             && bacon.PricegunMedianSellPrice > 0
             && bacon.PricegunMedianSellPrice - bacon.MallPricePerMachine >= bacon.MinimumProfitPerUnit
             && bacon.AvailableMeat - bacon.MallPricePerMachine * Math.Max(1, bacon.MaximumBuyQuantity) >= 200_000)
         {
-            steps.Add(new ItemStepSpec("bacon-machine", Quantity: bacon.MaximumBuyQuantity,
+            // The machine itself (one-off) — the BACON buy is handled by the
+            // BaconArbitrageExecutor which knows the live mall listing.
+            steps.Add(new ItemStepSpec("bacon-machine", Quantity: 1,
                 MonsterId: null, Round: null));
         }
 
@@ -312,8 +307,20 @@ public sealed class AutoCombatDailyBridge
                 if (canFreePull)
                 {
                     var option = int.TryParse(cs.OptionId, out var parsed) ? parsed : 1;
-                    var result = await freePullDispatcher!.PullAsync(
-                        freePullCredentials!, whichChoice, option, cancellationToken).ConfigureAwait(false);
+                    FreePullResult result;
+                    if (cs.ChoiceId == "choice-campfire" || cs.ChoiceId == "choice-day-shortner")
+                    {
+                        // The burning-leaves choice only works right after
+                        // visiting the campground's pile, so the dispatcher
+                        // handles the visit and the submission together.
+                        result = await freePullDispatcher!.BurnLeavesAsync(
+                            freePullCredentials!, option, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        result = await freePullDispatcher!.PullAsync(
+                            freePullCredentials!, whichChoice, option, cancellationToken).ConfigureAwait(false);
+                    }
                     requestId = result.RequestId;
                     outcome = result.Accepted ? "submitted" : $"http-{result.StatusCode}";
                     if (result.Accepted) executedCount++;

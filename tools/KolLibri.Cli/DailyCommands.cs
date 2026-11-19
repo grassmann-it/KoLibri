@@ -25,6 +25,7 @@ internal static partial class KolibriCli
             "routine" => DailyRoutineAsync(args[1..]),
             "daily-go" or "go" => DailyGoAsync(args[1..]),
             "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
+            "breakfast" => await DailyBreakfastAsync(args[1..]),
             _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
         };
     }
@@ -426,6 +427,87 @@ internal static partial class KolibriCli
             }, JsonOptions));
             Console.Error.WriteLine($"daily routine report written to {full}");
         }
+        return 0;
+    }
+
+    private static async Task<int> DailyBreakfastAsync(string[] args)
+    {
+        // "Breakfast" reads the live accounts, derives the daily numbers
+        // itself and runs the routine. The operator passes no inventory
+        // flags — everything comes from KoL.
+        var roles = ResolveRoles(args);
+        if (roles.Count == 0)
+            throw new ArgumentException(
+                "breakfast braucht mindestens eine Rolle (main, mallbot, all).");
+        var token = GetOption(args, "--approval-token");
+        var execute = HasFlag(args, "--execute");
+        var baseline = BuildDailySnapshot(args);
+
+        var perRole = new List<object>();
+        var bridge = new AutoCombatDailyBridge();
+        BridgeAuditLog? audit = execute && !string.IsNullOrWhiteSpace(token)
+            ? new BridgeAuditLog(BridgeAuditLog.DefaultPath())
+            : null;
+        try
+        {
+            foreach (var role in roles)
+            {
+                var client = await ReadClientAsync(role);
+                var builder = new LiveDailySnapshotBuilder(client.Api);
+                var live = await builder.BuildAsync(baseline);
+                var plan = bridge.Plan(live.State, live.Snapshot);
+                AutoCombatDailyBridge.BridgeExecutionResult? execution = null;
+                if (execute && !string.IsNullOrWhiteSpace(token))
+                {
+                    var gateway = CreateAdventureGateway(role, token);
+                    execution = await bridge.ExecuteAsync(
+                        plan.Steps, gateway,
+                        freePullDispatcher: CreateFreePullDispatcher(role),
+                        freePullCredentials: TryGetCredentials(role),
+                        audit: audit, accountId: role.ToString());
+                }
+                perRole.Add(new
+                {
+                    role = role.ToString(),
+                    live = new
+                    {
+                        live.Meat,
+                        live.Adventures,
+                        live.Level,
+                        live.ClassId,
+                        live.Leaves,
+                        live.Clovers,
+                        live.Permits,
+                        live.WorthlessItems,
+                        live.Bacon,
+                        live.BaconMachines
+                    },
+                    steps = plan.Steps.Select(s => new
+                    {
+                        kind = s.GetType().Name,
+                        choiceId = s is ChoiceStepSpec cs ? cs.ChoiceId : null,
+                        optionId = s is ChoiceStepSpec cs2 ? cs2.OptionId : null,
+                        itemId = s is ItemStepSpec is2 ? is2.ItemId : null,
+                        quantity = s is ItemStepSpec is3 ? is3.Quantity : (int?)null
+                    }),
+                    allowlist = plan.AllowlistedChoiceIds,
+                    executed = execution?.Executed ?? false,
+                    auditPath = execution?.AuditPath
+                });
+            }
+        }
+        finally
+        {
+            audit?.Dispose();
+        }
+
+        WriteJson(new
+        {
+            command = "daily breakfast",
+            readOnly = !execute,
+            executed = execute && !string.IsNullOrWhiteSpace(token),
+            roles = perRole
+        });
         return 0;
     }
 

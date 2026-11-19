@@ -88,8 +88,13 @@ public sealed class AutoCombatDailyBridgeTests
     }
 
     [Fact]
-    public void Internet_shop_pulls_skip_already_claimed_items()
+    public void Bridge_does_not_emit_invented_free_pull_choices()
     {
+        // KoL has no "choice-lucky-surprise-egg" / "choice-internet-bacon" /
+        // "choice-bacon-machine" choices — those were guesses. The Lucky
+        // Surprise Egg (995), the Infinite BACON machine (9025) and BACON
+        // (8763) are ordinary mall items now, so the bridge must not try to
+        // claim them through a choice.
         var bridge = new AutoCombatDailyBridge();
         var steps = bridge.BuildSteps(
             State(null),
@@ -97,8 +102,24 @@ public sealed class AutoCombatDailyBridgeTests
             {
                 AlreadyPulledItemIds = new[] { "Lucky Surprise Egg", "Internet Bacon" }
             });
-        Assert.Contains(steps, s => s is ChoiceStepSpec c && c.ChoiceId == "choice-bacon-machine");
-        Assert.DoesNotContain(steps, s => s is ChoiceStepSpec c && c.ChoiceId == "choice-lucky-surprise-egg");
+        Assert.DoesNotContain(steps, s => s is ChoiceStepSpec c
+            && (c.ChoiceId == "choice-lucky-surprise-egg"
+                || c.ChoiceId == "choice-internet-bacon"
+                || c.ChoiceId == "choice-bacon-machine"));
+    }
+
+    [Fact]
+    public void Campfire_burn_asks_for_exactly_one_leaf()
+    {
+        // KoL's burning-leaves choice burns exactly the number of leaves we
+        // ask for and would happily take the whole pile.
+        var bridge = new AutoCombatDailyBridge();
+        var steps = bridge.BuildSteps(
+            State(null),
+            new DailyRoutineSnapshot { CampfireLeaves = 37_191, CampfireReserve = 3, MainMeat = 500_000 });
+        var campfire = Assert.Single(steps.OfType<ChoiceStepSpec>()
+            .Where(c => c.ChoiceId == "choice-campfire"));
+        Assert.Equal("1", campfire.OptionId);
     }
 
     [Fact]
