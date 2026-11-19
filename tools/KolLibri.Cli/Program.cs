@@ -34,6 +34,7 @@ internal static partial class KolibriCli
             return args[0].ToLowerInvariant() switch
             {
                 "login" => await LoginDispatchAsync(args[1..]),
+                "token" => await TokenDispatchAsync(args[1..]),
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
@@ -227,6 +228,58 @@ internal static partial class KolibriCli
         return 0;
     }
 
+    private static async Task<int> TokenDispatchAsync(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "show";
+        var store = new KolArbitrage.Core.Security.ApprovalTokenStore(
+            KolArbitrage.Core.Security.ApprovalTokenStore.DefaultRoot());
+        switch (sub)
+        {
+            case "mint":
+            case "new":
+            {
+                var label = GetOption(args[1..], "--label");
+                var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var record = new KolArbitrage.Core.Security.ApprovalToken(
+                    Token: token,
+                    CreatedAt: DateTimeOffset.UtcNow,
+                    Label: label ?? "kolibri-cli");
+                await store.SaveAsync(record);
+                WriteJson(new
+                {
+                    command = "token mint",
+                    path = store.FilePath,
+                    token,
+                    record.CreatedAt,
+                    record.Label
+                });
+                return 0;
+            }
+            case "show":
+            {
+                var token = await store.LoadAsync();
+                if (token is null)
+                {
+                    WriteJson(new { command = "token show", state = "missing", path = store.FilePath });
+                    return 1;
+                }
+                WriteJson(new
+                {
+                    command = "token show",
+                    state = "present",
+                    path = store.FilePath,
+                    token = token.Token,
+                    token.CreatedAt,
+                    token.Label
+                });
+                return 0;
+            }
+            default:
+                Console.Error.WriteLine("token: subcommand muss mint oder show sein.");
+                return 2;
+        }
+    }
+
     private static List<AccountRole> ResolveLoginRoles(string? roleValue)
     {
         var value = (roleValue ?? "all").Trim().ToLowerInvariant();
@@ -245,7 +298,36 @@ internal static partial class KolibriCli
 
     private static async Task<int> InventoryAsync(string[] args)
     {
-        var client = await ReadClientAsync(ParseRole(GetOption(args, "--role") ?? "main"));
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var client = await ReadClientAsync(role);
+        if (HasFlag(args, "--probe"))
+        {
+            using var http = await ReadAuthenticatedHttpAsync(role);
+            foreach (var path in new[] {
+                "api.php?what=inventory",
+                "api.php?what=inventory&for=KoLibri",
+                "inventory.php",
+                "inventory.php?which=1",
+                "inventory.php?which=2",
+                "inventory.php?which=3",
+                "api.php?what=inv_easy"
+            })
+            {
+                try
+                {
+                    var r = await http.GetAsync(path);
+                    var body = await r.Content.ReadAsStringAsync();
+                    Console.Error.WriteLine($"--- {path} [{r.StatusCode}] len={body.Length} ---");
+                    if (body.Length > 0)
+                        Console.Error.WriteLine(body.Substring(0, Math.Min(600, body.Length)));
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"{path}: {ex.Message}");
+                }
+            }
+            return 0;
+        }
         var inventory = await client.Api.FetchInventoryAsync(forceRefresh: HasFlag(args, "--refresh"));
         WriteJson(inventory);
         return 0;
@@ -884,7 +966,34 @@ internal static partial class KolibriCli
     private static async Task<(KoLAccountReadClient Api, KoLMallReadClient Mall)> ReadClientAsync(AccountRole role)
     {
         var http = await ReadAuthenticatedHttpAsync(role);
-        return (new KoLAccountReadClient(http), new KoLMallReadClient(http));
+        // Build an item-id → display-name resolver from the bundled Mafia
+        // vendor data so inventory snapshots show "Seal Tooth" instead of "44".
+        var resolver = BuildItemNameResolver();
+        return (new KoLAccountReadClient(http, itemNameResolver: resolver),
+                new KoLMallReadClient(http));
+    }
+
+    private static Func<string, string?>? BuildItemNameResolver()
+    {
+        try
+        {
+            var loader = new KolArbitrage.Core.Data.MafiaDataLoader();
+            var path = Path.Combine(
+                AppContext.BaseDirectory, "kolmafia-data");
+            if (!Directory.Exists(path))
+                path = Path.Combine(Directory.GetCurrentDirectory(), "external", "kolmafia-data");
+            if (!Directory.Exists(path)) return null;
+            var catalog = loader.Load(path);
+            var dict = catalog.Items
+                .Where(i => !string.IsNullOrWhiteSpace(i.Id) && !string.IsNullOrWhiteSpace(i.Name))
+                .GroupBy(i => i.Id!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().Name!, StringComparer.OrdinalIgnoreCase);
+            return id => dict.TryGetValue(id, out var n) ? n : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static async Task<HttpClient> ReadAuthenticatedHttpAsync(AccountRole role)
@@ -1004,6 +1113,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  login clear --role main|mallbot|all          löscht gespeicherte Credentials");
         Console.WriteLine("  login refresh --role main|mallbot --username NAME --password PWD");
         Console.WriteLine("  login refresh --role main|mallbot             (interaktive Eingabe)");
+        Console.WriteLine("  token mint [--label TXT]                       erzeugt einen Approval-Token");
+        Console.WriteLine("  token show                                      zeigt den aktuellen Token");
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  shop --role mallbot [--refresh]");

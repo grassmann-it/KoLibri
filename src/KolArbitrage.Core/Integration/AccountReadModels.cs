@@ -83,13 +83,15 @@ public sealed class KoLAccountReadClient : IAccountReadClient
     private DateTimeOffset? _lastRequest;
     private KoLStatusSnapshot? _status;
     private KoLInventorySnapshot? _inventory;
+    private readonly Func<string, string?>? _itemNameResolver;
 
     public KoLAccountReadClient(
         HttpClient httpClient,
         Uri? baseUri = null,
         AccountReadPolicy? policy = null,
         TimeProvider? clock = null,
-        KoLSecurityPolicy? securityPolicy = null)
+        KoLSecurityPolicy? securityPolicy = null,
+        Func<string, string?>? itemNameResolver = null)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _baseUri = baseUri ?? new Uri("https://www.kingdomofloathing.com/", UriKind.Absolute);
@@ -100,6 +102,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         _security = _policy.Security;
         _security.EnsureAllowed(_baseUri, "KoL account base");
         _clock = clock ?? TimeProvider.System;
+        _itemNameResolver = itemNameResolver;
     }
 
     public async Task<KoLStatusSnapshot> FetchStatusAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -229,7 +232,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         };
     }
 
-    private static KoLInventorySnapshot ParseInventory(JsonDocument document, DateTimeOffset fetchedAt)
+    private KoLInventorySnapshot ParseInventory(JsonDocument document, DateTimeOffset fetchedAt)
     {
         var root = document.RootElement;
         if (root.TryGetProperty("inventory", out var nested)) root = nested;
@@ -257,6 +260,22 @@ public sealed class KoLAccountReadClient : IAccountReadClient
                     StringValue(entry, "itemid", "id") ?? string.Empty,
                     StringValue(entry, "name", "itemname") ?? "Unknown item",
                     quantity));
+            }
+        }
+        // KoL's Mafia-mode payload (api.php?what=inventory&for=KoLibri) returns a
+        // flat object whose keys are KoL numeric item ids and whose values are
+        // stringified quantities:  {"1":"8","44":"655"}. The legacy object and
+        // array branches above handle non-Mafia payloads; this one handles the
+        // Mafia mode by trusting the property name as the item id.
+        if (items.Count == 0 && root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Value.ValueKind != JsonValueKind.String) continue;
+                if (!int.TryParse(property.Value.GetString(), out var quantity) || quantity <= 0)
+                    continue;
+                var name = _itemNameResolver?.Invoke(property.Name) ?? property.Name;
+                items.Add(new KoLInventoryItem(property.Name, name, quantity));
             }
         }
         return new KoLInventorySnapshot(items.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToArray(), fetchedAt);
