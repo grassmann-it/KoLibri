@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using KolArbitrage.Core.Daily;
 
 internal static partial class KolibriCli
@@ -17,6 +18,7 @@ internal static partial class KolibriCli
             "hermit" => DailyHermitAsync(args[1..]),
             "internet-shop" or "internetshop" => DailyInternetShopAsync(args[1..]),
             "bacon" or "bacons" => DailyBaconAsync(args[1..]),
+            "routine" => DailyRoutineAsync(args[1..]),
             _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
         };
     }
@@ -150,5 +152,104 @@ internal static partial class KolibriCli
         Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
         Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
         Console.WriteLine("               [--min-profit N] [--max-qty N]");
+        Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
+        Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
+        Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
+        Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
+        Console.WriteLine("                 [--output PATH]");
+    }
+
+    private static int DailyRoutineAsync(string[] args)
+    {
+        var snapshot = new DailyRoutineSnapshot
+        {
+            CampfireLeaves = ReadInt(args, "--leaves", 0),
+            CampfireReserve = ReadInt(args, "--campfire-reserve", 3),
+            DayShortnerPrice = long.TryParse(GetOption(args, "--shortner-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sp) ? Math.Max(0, sp) : long.MaxValue,
+            MainMeat = long.TryParse(GetOption(args, "--main-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mm) ? Math.Max(0, mm) : 0,
+            HermitPermits = ReadInt(args, "--permits", 0),
+            Clovers = ReadInt(args, "--clovers", 0),
+            AdventureReserveValue = long.TryParse(GetOption(args, "--adventure-value"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var adv) ? Math.Max(0, adv) : 0,
+            CloverFloorValue = long.TryParse(GetOption(args, "--clover-floor"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cf) ? Math.Max(0, cf) : 0,
+            ExpectedCloverSaleValue = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cs) ? Math.Max(0, cs) : 0,
+            WishBuyQuantity = ReadInt(args, "--wish-buy", 0),
+            WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
+            AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
+            OwnedMachines = ReadInt(args, "--owned-machines", 0),
+            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
+            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
+            MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
+            ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
+            ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),
+            PilotBagQuantity = ReadInt(args, "--pilot-bags", 40),
+            MallbotMeatReserve = long.TryParse(GetOption(args, "--mallbot-reserve"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mr) ? Math.Max(0, mr) : 1_000_000
+        };
+
+        var report = new DailyRoutineRunner().Run(snapshot);
+        WriteJson(new
+        {
+            command = "daily routine",
+            readOnly = true,
+            previewOnly = true,
+            report.GeneratedAt,
+            report.Verdict,
+            report.Counts,
+            report.ApprovableSteps,
+            report.Advisories,
+            subPlans = new
+            {
+                campfire = new
+                {
+                    report.Campfire.Verdict,
+                    report.Campfire.ShouldBurn,
+                    report.Campfire.ShouldBuyDayShortner,
+                    report.Campfire.Rationale,
+                    report.Campfire.Steps
+                },
+                hermit = new
+                {
+                    report.Hermit.Verdict,
+                    report.Hermit.ShouldUseClover,
+                    report.Hermit.ShouldBuyWishes,
+                    report.Hermit.Rationale,
+                    report.Hermit.Steps
+                },
+                internetShop = new
+                {
+                    report.InternetShop.Verdict,
+                    report.InternetShop.Rationale,
+                    report.InternetShop.Steps,
+                    report.InternetShop.Skipped
+                },
+                bacon = new
+                {
+                    report.Bacon.ShouldBuy,
+                    report.Bacon.Verdict,
+                    report.Bacon.SuggestedQuantity,
+                    report.Bacon.ExpectedProfitPerUnit,
+                    report.Bacon.Rationale
+                },
+                foreignBribes = report.ForeignBribes
+            },
+            note = "Preview only; nothing was sent. Use the bounded-runner bridge to commit each step after --execute --approval-token."
+        });
+
+        var outputPath = GetOption(args, "--output");
+        if (!string.IsNullOrWhiteSpace(outputPath))
+        {
+            var full = Path.GetFullPath(outputPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllText(full, JsonSerializer.Serialize(new
+            {
+                generatedAt = report.GeneratedAt,
+                verdict = report.Verdict,
+                counts = report.Counts,
+                approvableSteps = report.ApprovableSteps,
+                advisories = report.Advisories,
+                snapshot
+            }, JsonOptions));
+            Console.Error.WriteLine($"daily routine report written to {full}");
+        }
+        return 0;
     }
 }
