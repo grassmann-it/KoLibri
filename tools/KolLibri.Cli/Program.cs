@@ -45,6 +45,7 @@ internal static partial class KolibriCli
                 "workflow-plan" => await WorkflowPlanAsync(args[1..]),
                 "adventure-plan" => await AdventurePlanAsync(args[1..]),
                 "adventure" => await AdventureCommandAsync(args[1..]),
+                "daily" => await DailyCommandAsync(args[1..]),
                 "combat" => await CombatCommandAsync(args[1..]),
                 "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),
                 "categorize" => await CategorizeAsync(args[1..]),
@@ -849,6 +850,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
         Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
+        Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
+        Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
         Console.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
         Console.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
         Console.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");
