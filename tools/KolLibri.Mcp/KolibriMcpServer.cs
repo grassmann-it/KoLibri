@@ -284,6 +284,8 @@ public partial class KolibriMcpServer
         Register("kol_preview_transfer", "Validate a proposed cross-account transfer and return a review object only.", TransferSchema(), TransferPreviewAsync);
         RegisterAdventurePreviewTools();
         if (_executionBridge is not null) RegisterAdventureExecutionTools();
+        RegisterDailyPlannerTools();
+        if (_executionBridge is not null) RegisterDailyPlanExecutionTools();
 
         // Friendly command-shaped aliases are accepted by tools/call while the
         // advertised list stays the fixed, documented `kol_*` surface.
