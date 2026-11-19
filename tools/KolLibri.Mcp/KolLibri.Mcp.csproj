@@ -8,6 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
-    <ProjectReference Include="../../src/LibKolibri/LibKolibri.csproj" />
+    <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </ItemGroup>
 </Project>

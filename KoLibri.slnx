@@ -1,7 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
-    <Project Path="src/LibKolibri/LibKolibri.csproj" />
+    <Project Path="src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/KolArbitrage.Core.Tests/KolArbitrage.Core.Tests.csproj" />

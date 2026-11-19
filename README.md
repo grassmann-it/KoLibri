@@ -1,25 +1,103 @@
 # KoLibri
 
-KoLibri is a drop-in .NET 8 connector for **Kingdom of Loathing**. It
-bundles the full KoLmafia data snapshot, account reads, mall/pricing
-lookups, the bounded adventure runner, the hash-chain audit ledger, the
-daily planners and the KoLmafia catalog loader so other tools can plug in
-without re-implementing the KoL plumbing.
+**KoLmafia's automation, minus the clicking.**
 
-The repository is split into:
+KoLibri is a .NET 8 toolset for [Kingdom of Loathing](https://www.kingdomofloathing.com/).
+It covers the same ground as [KoLmafia](https://github.com/kolmafia/kolmafia) —
+the complete data snapshot, account reads, mall pricing, crafting,
+adventures and the daily routines — but it leans on automation instead of
+manual clicks: you tell it *what* should happen, it works out the *how*,
+shows you the plan and asks for approval before it touches anything.
 
-| Project | Role |
+```
+dotnet run --project tools/KolLibri.Cli -- daily breakfast --role all --execute --approval-token $TOK
+```
+
+That single command reads both accounts, works out the day's numbers
+from the live data, plans the routine and runs it.
+
+## What is in here
+
+| Project | Role | Package |
+|---|---|---|
+| `src/KolArbitrage.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
+| `src/LibKolibri` | The public API façade over the core | [`KoLibri.LibKolibri`](https://github.com/grassmann-it/LibKolibri) |
+| `tools/KolLibri.Cli` | Command line front-end | — |
+| `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
+| `KoLibri.Desktop` | Avalonia desktop client | — |
+| `external/kolmafia-data` | The KoLmafia data dump as JSON Lines | — |
+
+The split follows one question: *what gets reused?* Everything that
+several tools would need — the connector, the planners, the arbitators —
+lives in the core. The façade is deliberately thin. The apps are the
+operator-facing part.
+
+## Features
+
+### Daily routines
+
+| Routine | What it does |
 |---|---|
-| `src/LibKolibri` | Public KoL connector (NuGet: `KoLibri.LibKolibri`) |
-| `src/KolArbitrage.Core` | Domain layer: bounded runner, daily planners, audit, token store, data records (NuGet: `KoLibri.Core`) |
-| `tools/KolLibri.Cli` | Local CLI front-end |
-| `tools/KolLibri.Mcp` | MCP/JSON-RPC bridge for agents |
-| `KoLibri.Desktop` | Avalonia desktop UI with a manual adventure browser |
-| `external/kolmafia-data/` | Bundled JSON Lines snapshot of the KoLmafia data dumps |
-| `scripts/import-kolmafia-data.py` | One-shot converter for upstream KoLmafia updates |
-| `tests/ConsumerSmoke` | External-consumer smoke test that consumes the built NuGet packages |
+| **Campfire** | Burns one inflammable leaf to advance the day, or crafts a Day Shortener (222 leaves) when the reserve runs thin. |
+| **Hermit** | Trades worthless items for permits (`autopermit=on`), then opens 11-leaf clovers — as many as the daily stock allows, capped at three. |
+| **Internet shop** | Claims the daily free pulls, skipping whatever was already taken. |
+| **Foreign bribes** | Buys bribe bags on the mall when the spread justifies it. |
+| **Bacon arbitrage** | Buys the Infinite BACON machine once and then BACON while the spread against the resale median is positive. |
+| **Clover restock** | Buys cheap 11-leaf clovers so the main account stays stocked for the hermit trade. |
 
-## Library usage
+Every routine is split in two: a **planner** that is a pure function over
+a snapshot, and an **executor** that submits. The planner never touches
+the network, so the operator can see exactly what would happen before
+anything is sent.
+
+### Adventures
+
+- A **manual adventure browser**: locations → encounter → monster →
+  skill/item, with a token-gated live path.
+- A **bounded runner** that submits only allowlisted actions, stops after
+  a bounded number of choices and never replays a request.
+- An **auto-combat adapter** that turns a strategy into typed step specs,
+  so a manual run and an automated one share the same contract.
+
+### Mall and pricing
+
+- Mall search, own-store reads, pricegun history.
+- A price provider that plugs into the pricing engine.
+- An executor that buys from another player's store: it reads the store
+  password hash out of the store page and submits the purchase with the
+  exact listing price, because KoL rejects a purchase whose price moved.
+
+### Multi-account
+
+Main and Mallbot are first-class roles with their own sessions, their
+own meat pools and their own daily shop limits. `daily-go --role all`
+runs both, in parallel, with one hash-chained audit trail across the
+whole run.
+
+### Data
+
+The complete KoLmafia data dump, bundled and typed:
+
+| Records | Count |
+|---|---|
+| Items | 12 103 |
+| Modifiers | 13 375 |
+| Effects | 3 015 |
+| Concoctions | 2 238 |
+| Monster parts | 2 214 |
+| Monsters | 2 366 |
+| Skills | 1 657 |
+| Restores | 164 |
+| Adventures | 601 |
+| Zones | 148 |
+
+```bash
+python3 scripts/import-kolmafia-data.py   # refresh from a KoLmafia checkout
+```
+
+## Install
+
+The library:
 
 ```xml
 <PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
@@ -27,35 +105,117 @@ The repository is split into:
 
 ```csharp
 using LibKolibri;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Security;
+using KolArbitrage.Core.Integration;
 
-var runtime = new LibKolibriRuntime();
-// configure account sessions, then expose the runtime to your tool
+var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
+runtime.TryGet<IAccountReadClient>(AccountRole.Main, out var account);
+
+var status = await account.FetchStatusAsync();
+Console.WriteLine($"{status.PlayerName}: {status.Meat} meat");
 ```
 
-## Status
-
-- Daily planners (campfire leaves, hermit permits/clovers, daily internet
-  shop, Infinite Bacon Machine arbitrage) — preview only by default.
-- Bounded adventure runner with allowlist enforcement and audit chain.
-- 33 k records of KoLmafia data bundled as JSON Lines (items, monsters,
-  skills, effects, zones, adventures, modifiers, concoctions, monster parts,
-  restores).
-- Approval-token gate with path-filtered persistence in the user's
-  local app data folder.
-- MCP bridge exposing read-only planning tools and the bounded-runner
-  live path (gated by an approval token).
-
-## Quick start (local CLI)
+The CLI and the MCP server build from source:
 
 ```bash
-dotnet run --project tools/KolLibri.Cli -- daily routine \
-  --leaves 7 --main-meat 1500000 --permits 3 --clovers 1 \
-  --mallbot-meat 12000000 --bag-price 8500000 --bag-stock 5 \
-  --output reports/$(date +%F)-routine.json
+dotnet build KoLibri.slnx
+dotnet run --project tools/KolLibri.Cli -- --help
 ```
+
+## CLI
+
+```bash
+# Account sessions
+kolibri login status
+kolibri login refresh --role main          # interactive, password not echoed
+kolibri login clear --role all
+
+# Approval token
+kolibri token mint
+
+# Live reads
+kolibri status --role main --refresh
+kolibri inventory --role main --refresh
+kolibri shop --role mallbot --refresh
+kolibri pricegun --item 10881 --refresh
+
+# Daily routine — the morning run
+kolibri daily breakfast --role all                 # preview
+kolibri daily breakfast --role all \
+  --execute --approval-token "$TOK"                 # live
+
+# Individual routines
+kolibri daily campfire --leaves 37191 --meat 128310
+kolibri daily hermit --permits 2 --clovers 3 --clover-sale 30000
+kolibri daily internet-shop
+kolibri daily bacon --mall-price 480000 --median 620000
+
+# Audit trail
+kolibri daily-audit --tail 20
+kolibri daily-audit --verify
+```
+
+## MCP
+
+The MCP server exposes the same capabilities to agent hosts. Read-only
+tools are always available; the live ones require an approval token.
+
+| Tool | What it does |
+|---|---|
+| `kol_run_daily_bridge` | Plans the daily routine from the live accounts |
+| `kol_daily_audit` | Reads the hash-chained audit log |
+| `kol_daily_campfire_plan` / `kol_daily_hermit_plan` / `kol_daily_routine` | The planners, read-only |
+| `kol_login_status` / `kol_login_clear` / `kol_login_refresh` | Session management |
+| `kol_adventure_run_execute` / `kol_choice_chain_execute` | The bounded live paths |
+| `kol_preview_purchase` / `kol_preview_transfer` | Validates a proposal without acting |
+
+## Safety model
+
+This tool acts on a game account that holds real value, so the guardrails
+are structural rather than advisory.
+
+1. **Reads are free, writes are gated.** Every mutating path needs an
+   approval token. A tool without one simply cannot write.
+2. **Credentials never appear in code.** Sessions live encrypted in the
+   user's local app-data folder. The library reads them at runtime and
+   keeps them inside the authenticated HTTP clients.
+3. **Every write is auditable.** Actions land in an append-only journal
+   where each row carries the SHA-256 hash of the row before it.
+   `kolibri daily-audit --verify` reports the first tampered row.
+4. **Bounded runs.** The runner stops after a configured number of
+   choices or a configured duration, and never replays a request.
+5. **Price discipline.** A purchase is submitted with the price the
+   listing showed. If the price moved, KoL rejects it — KoLibri does not
+   silently raise the bid.
+
+## Limitations
+
+Honest about what does not work yet:
+
+- **Leaves cannot be bought.** The inflammable leaf only comes from the
+  campfire, so a leaf shortage cannot be fixed by shopping.
+- **Free pulls need a clan store.** The Lucky Surprise Egg and the
+  Infinite BACON machine are claimed from the storage, which requires the
+  clan store password.
+- **The transfer path is separate.** Restocking the main account from
+  the mallbot goes through its own preview/approval/commit flow rather
+  than through the daily routine.
+- **The combat preview is an estimate.** Until the effect and modifier
+  tracker is complete, the auto-combat preview does not account for every
+  conditional buff.
+- **The daily shop limit is per account.** Running both accounts buys
+  twice as much, but KoL's limit applies to each account separately.
+
+## Development
+
+```bash
+dotnet build KoLibri.slnx
+dotnet test tests/KolArbitrage.Core.Tests/KolArbitrage.Core.Tests.csproj
+dotnet pack src/KolArbitrage.Core/KolArbitrage.Core.csproj -c Release
+```
+
+The `src/LibKolibri` submodule points at
+[grassmann-it/LibKolibri](https://github.com/grassmann-it/LibKolibri).
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see [LICENSE](LICENSE).
