@@ -35,7 +35,7 @@
                   Classes="menu-item"
                   Content="Guts"
                   Tag="Guts"
-                  Click="OverviewClick"
+                  Click="GutsClick"
                   AutomationProperties.Name="Open guts" />
           <Button x:Name="NavInventory"
                   Classes="menu-item"
@@ -49,12 +49,12 @@
                   Tag="Daily"
                   Click="DailyClick"
                   AutomationProperties.Name="Open the daily routine" />
-          <Button x:Name="NavPricing"
+          <Button x:Name="NavArbitrage"
                   Classes="menu-item"
-                  Content="Pricing"
-                  Tag="Pricing Engine"
-                  Click="PricingClick"
-                  AutomationProperties.Name="Open pricing engine" />
+                  Content="Arbitrage"
+                  Tag="Arbitrage"
+                  Click="ArbitrageClick"
+                  AutomationProperties.Name="Open arbitrage" />
           <Button x:Name="NavMall"
                   Classes="menu-item"
                   Content="Mall"
@@ -117,6 +117,114 @@
                        FontSize="14"
                        Margin="0,6,0,0" />
           </StackPanel>
+        </StackPanel>
+
+        <StackPanel x:Name="GutsPanel" Spacing="16" IsVisible="False">
+
+          <Border Classes="card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Guts" Classes="h2" />
+              <TextBlock x:Name="GutsSummaryText"
+                         Text="—"
+                         Classes="muted"
+                         FontSize="13" />
+            </StackPanel>
+          </Border>
+
+          <ItemsControl x:Name="GutsAccountCards">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:GutsAccountCard">
+                <Border Classes="card" Width="280" Margin="0,0,12,12">
+                  <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" FontSize="15" />
+                      <TextBlock Text="{Binding Role}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding MeatText}" Classes="kpi" FontSize="20" />
+                    <TextBlock Text="{Binding AdventuresText}" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding InventoryText}" Classes="muted" FontSize="12" />
+                    <TextBlock Text="{Binding FreshnessText}" Classes="muted" FontSize="11" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,*">
+              <StackPanel Grid.Row="0" Margin="14,12,14,8">
+                <TextBlock Text="Own store" Classes="muted" FontSize="11" FontWeight="SemiBold" />
+                <TextBlock x:Name="StoreSummaryText" Text="—" Classes="muted" FontSize="12" />
+              </StackPanel>
+              <ListBox x:Name="StoreRows"
+                       Grid.Row="1"
+                       AutomationProperties.Name="Own store listings">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:LiveShopRow">
+                    <Grid ColumnDefinitions="2*,Auto,Auto" ColumnSpacing="12" Margin="0,3">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding ItemName}" />
+                        <TextBlock Text="{Binding ItemId}" Classes="muted" FontSize="11" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding PriceText}" />
+                      <TextBlock Grid.Column="2" Text="{Binding QuantityText}" Classes="muted" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+        </StackPanel>
+
+        <StackPanel x:Name="ArbitragePanel" Spacing="16" IsVisible="False">
+
+          <Border Classes="card">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Arbitrage" Classes="h2" />
+              <TextBlock x:Name="ArbitrageSummaryText"
+                         Text="—"
+                         Classes="muted"
+                         FontSize="13" />
+              <TextBlock Text="Live mall listings against the pricegun median. Buying stays behind the approval token."
+                         Classes="muted"
+                         FontSize="12"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Grid.Row="0"
+                    ColumnDefinitions="2*,Auto,Auto,Auto"
+                    Margin="14,12,14,8">
+                <TextBlock Grid.Column="0" Text="Item" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="1" Text="Cheapest" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="2" Text="Spread" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="3" Text="Margin" Classes="muted" FontSize="11" />
+              </Grid>
+              <ListBox x:Name="ArbitrageRows"
+                       Grid.Row="1"
+                       AutomationProperties.Name="Arbitrage candidates">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:LiveArbitrageRow">
+                    <Grid ColumnDefinitions="2*,Auto,Auto,Auto" ColumnSpacing="12" Margin="0,3">
+                      <TextBlock Grid.Column="0" Text="{Binding ItemName}" />
+                      <TextBlock Grid.Column="1" Text="{Binding CheapestPrice}" />
+                      <TextBlock Grid.Column="2" Text="{Binding SpreadText}" />
+                      <TextBlock Grid.Column="3" Text="{Binding MarginText}" Classes="muted" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
         </StackPanel>
 
         <StackPanel x:Name="DailyPanel" Spacing="16" IsVisible="False">

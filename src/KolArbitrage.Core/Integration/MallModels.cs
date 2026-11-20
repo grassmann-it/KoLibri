@@ -93,8 +93,15 @@ public sealed class KoLMallReadClient : IMallReadClient
     private static readonly Regex ListingRow = new(
         "<tr[^>]*class=[\\\"'](?:graybelow|grayabove)[\\\"'][^>]*id=[\\\"']stock_(?<store>\\d+)_(?<item>\\d+)[\\\"'][^>]*>(?<row>.*?)</tr>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    /// <summary>KoL marks the searched item with an anchor of the shape
+    /// <c>results_&lt;numeric id&gt;</c> and a row with the matching
+    /// <c>item_&lt;numeric id&gt;</c>. Those ids tell us which listing rows
+    /// belong to the searched item.</summary>
+    private static readonly Regex SearchedItemAnchor = new(
+        "<a name=[\\\"']results_(?<item>\\d+)[\\\"']",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex MeatPrice = new("<td[^>]*class=[\\\"']small price[\\\"'][^>]*>.*?>(?<price>\\d[\\d,]*)\\s*(?:&nbsp;)?Meat", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
-    private static readonly Regex Quantity = new("<td[^>]*class=[\\\"']small stock[\\\"'][^>]*>(?<quantity>\\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex Quantity = new("<td[^>]*class=[\\\"']small stock[\\\"'][^>]*>(?<quantity>[\\d,]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex StoreName = new("<td[^>]*class=[\\\"']small store[\\\"'][^>]*>.*?<b>(?<name>.*?)</b>", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex SellerId = new(
         "(?:showplayer\\.php\\?who=|(?:seller|owner)(?:id)?=|whichplayer=)(?<seller>\\d+)",
@@ -352,22 +359,44 @@ public sealed class KoLMallReadClient : IMallReadClient
         finally { _requestGate.Release(); }
     }
 
+    /// <summary>The numeric ids of the item the search actually matched.
+    /// Empty when the page carries no search-result anchors.</summary>
+    private static HashSet<string> SearchedItemIds(string html)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match match in SearchedItemAnchor.Matches(html))
+            ids.Add(match.Groups["item"].Value);
+        return ids;
+    }
+
     private IReadOnlyList<MallListing> ParseListings(string itemId, string html, Uri source, DateTimeOffset? observedAt = null)
     {
         var result = new List<MallListing>();
+        // The search term can be a name ("11-leaf clover") or a numeric id.
+        // KoL marks the rows of the searched item with an id of the shape
+        // item_<numeric id>; the advertisement rows use a different shape.
+        // Collect the ids of the searched item first, then keep only the
+        // listing rows that belong to one of them.
+        var searchedItemIds = SearchedItemIds(html);
         foreach (Match match in ListingRow.Matches(html))
         {
             // A Mall search can contain recommendation/advertising rows for
             // other items. Never let one of those rows enter a snapshot for
             // the requested item.
             var listedItemId = match.Groups["item"].Value;
-            if (!string.Equals(listedItemId, itemId, StringComparison.Ordinal))
+            if (searchedItemIds.Count > 0 && !searchedItemIds.Contains(listedItemId))
+                continue;
+            if (searchedItemIds.Count == 0
+                && !string.Equals(listedItemId, itemId, StringComparison.Ordinal))
                 continue;
             var block = match.Groups["row"].Value;
             var priceMatch = MeatPrice.Match(block);
             if (!priceMatch.Success || !long.TryParse(priceMatch.Groups["price"].Value.Replace(",", ""), out var price)) continue;
             var qty = Quantity.Match(block);
-            var quantity = qty.Success && int.TryParse(qty.Groups["quantity"].Value, out var q) ? Math.Max(1, q) : 1;
+            var quantity = qty.Success
+                && int.TryParse(qty.Groups["quantity"].Value.Replace(",", ""), out var q)
+                ? Math.Max(1, q)
+                : 1;
             var store = StoreName.Match(block);
             var storeName = store.Success ? WebUtility.HtmlDecode(store.Groups["name"].Value).Trim() : null;
             var sellerIdMatch = SellerId.Match(block);

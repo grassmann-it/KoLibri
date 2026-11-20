@@ -32,13 +32,27 @@ public sealed record DesktopInventoryCategory
     public required Func<DesktopInventoryItem, bool> Matches { get; init; }
 }
 
-/// <summary>The live inventory of one account.</summary>
+/// <summary>The live status and inventory of one account.</summary>
 public sealed record DesktopInventorySnapshot
 {
     public required AccountRole Role { get; init; }
     public required IReadOnlyList<DesktopInventoryItem> Items { get; init; }
     public required DateTimeOffset ObservedAt { get; init; }
     public bool IsStale { get; init; }
+}
+
+/// <summary>The live mall listings for one searched item.</summary>
+public sealed record MallSearchResult
+{
+    public required string ItemName { get; init; }
+    public required IReadOnlyList<MallListing> Listings { get; init; }
+    public bool IsStale { get; init; }
+
+    /// <summary>The cheapest listing, or null when nothing is listed.</summary>
+    public MallListing? Cheapest => Listings
+        .Where(l => l.Price > 0)
+        .OrderBy(l => l.Price)
+        .FirstOrDefault();
 }
 
 /// <summary>
@@ -171,6 +185,96 @@ public sealed class DesktopLiveDataProvider
         if (client is null) return null;
         var builder = new LiveDailySnapshotBuilder(client);
         return await builder.BuildAsync(baseline, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The live mall listings for a set of items. The result maps the search
+    /// term onto its listings so the arbitrage table can show the spread
+    /// between the cheapest listing and the median resale price.
+    /// </summary>
+    public async Task<IReadOnlyList<MallSearchResult>> LoadMallListingsAsync(
+        AccountRole role,
+        IEnumerable<string> itemNames,
+        CancellationToken cancellationToken = default)
+    {
+        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false);
+        if (mall is null) return Array.Empty<MallSearchResult>();
+        var results = new List<MallSearchResult>();
+        foreach (var name in itemNames)
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            try
+            {
+                var snapshot = await mall.SearchAsync(name, cancellationToken: cancellationToken).ConfigureAwait(false);
+                results.Add(new MallSearchResult
+                {
+                    ItemName = name,
+                    Listings = snapshot.Listings,
+                    IsStale = snapshot.IsStale
+                });
+            }
+            catch
+            {
+                // One failing search must not take the whole table down.
+                results.Add(new MallSearchResult
+                {
+                    ItemName = name,
+                    Listings = Array.Empty<MallListing>(),
+                    IsStale = true
+                });
+            }
+        }
+        return results;
+    }
+
+    /// <summary>Reads the own store listings of the account.</summary>
+    public async Task<IReadOnlyList<OwnShopListing>> LoadOwnShopAsync(
+        AccountRole role,
+        CancellationToken cancellationToken = default)
+    {
+        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false);
+        if (mall is null) return Array.Empty<OwnShopListing>();
+        try
+        {
+            return await mall.FetchOwnShopAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return Array.Empty<OwnShopListing>();
+        }
+    }
+
+    /// <summary>
+    /// The median resale price of an item, taken from pricegun. The item id
+    /// is the KoL numeric id — the mall search works on names, pricegun on
+    /// ids, so the caller has to map between them.
+    /// </summary>
+    public async Task<long?> LoadMedianPriceAsync(
+        string itemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(itemId)) return null;
+        try
+        {
+            using var http = new HttpClient();
+            var pricegun = new PricegunReadClient(http);
+            var snapshot = await pricegun
+                .FetchAsync(itemId, forceRefresh: false, cancellationToken)
+                .ConfigureAwait(false);
+            if (snapshot.Sales.Count == 0) return null;
+            var prices = snapshot.Sales
+                .Select(sale => (decimal)sale.UnitPrice)
+                .OrderBy(price => price)
+                .ToArray();
+            var median = prices.Length % 2 == 1
+                ? prices[prices.Length / 2]
+                : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
+            return (long)median;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<IAccountReadClient?> CreateReadClientAsync(

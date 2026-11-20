@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     private Button? _navOverview;
     private Button? _navInventory;
     private Button? _navDaily;
-    private Button? _navPricing;
+    private Button? _navArbitrage;
     private Button? _navMall;
     private Button? _navAdventure;
     private Button? _navCombat;
@@ -81,6 +81,16 @@ public partial class MainWindow : Window
     private StackPanel? _inventoryDetailPanel;
     private InventoryViewModel _inventory = new();
     private DailyBriefingViewModel _daily = new();
+    private LiveGutsViewModel _guts = new();
+    private LiveArbitrageViewModel _arbitrage = new();
+    private StackPanel? _gutsPanel;
+    private StackPanel? _arbitragePanel;
+    private ItemsControl? _gutsAccountCards;
+    private TextBlock? _gutsSummaryText;
+    private TextBlock? _storeSummaryText;
+    private ListBox? _storeRows;
+    private ListBox? _arbitrageRows;
+    private TextBlock? _arbitrageSummaryText;
     private StackPanel? _dailyPanel;
     private ListBox? _dailyRows;
     private TextBlock? _dailySnapshotText;
@@ -100,7 +110,22 @@ public partial class MainWindow : Window
         _inventoryList = this.FindControl<ListBox>("InventoryList");
         _inventoryCategoryStrip = this.FindControl<StackPanel>("InventoryCategoryStrip");
         _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
+        _navOverview = this.FindControl<Button>("NavOverview");
+        _navInventory = this.FindControl<Button>("NavInventory");
+        _navDaily = this.FindControl<Button>("NavDaily");
+        _navArbitrage = this.FindControl<Button>("NavArbitrage");
+        _navMall = this.FindControl<Button>("NavMall");
+        _navAdventure = this.FindControl<Button>("NavAdventure");
+        _navCombat = this.FindControl<Button>("NavCombat");
         _dailyPanel = this.FindControl<StackPanel>("DailyPanel");
+        _gutsPanel = this.FindControl<StackPanel>("GutsPanel");
+        _arbitragePanel = this.FindControl<StackPanel>("ArbitragePanel");
+        _gutsAccountCards = this.FindControl<ItemsControl>("GutsAccountCards");
+        _gutsSummaryText = this.FindControl<TextBlock>("GutsSummaryText");
+        _storeSummaryText = this.FindControl<TextBlock>("StoreSummaryText");
+        _storeRows = this.FindControl<ListBox>("StoreRows");
+        _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
+        _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
         _dailyRows = this.FindControl<ListBox>("DailyRows");
         _dailySnapshotText = this.FindControl<TextBlock>("DailySnapshotText");
         _dailySummaryText = this.FindControl<TextBlock>("DailySummaryText");
@@ -264,7 +289,7 @@ public partial class MainWindow : Window
             (_navOverview, "Guts"),
             (_navInventory, "Inventory"),
             (_navDaily, "Daily"),
-            (_navPricing, "Pricing Engine"),
+            (_navArbitrage, "Arbitrage"),
             (_navMall, "Mall & Shop"),
             (_navAdventure, "Adventure"),
             (_navCombat, "Combat")
@@ -278,6 +303,30 @@ public partial class MainWindow : Window
         }
     }
     private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Guts");
+
+    /// <summary>Opens the guts: the live account cards and the own store.</summary>
+    private async void GutsClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Guts");
+        await RunBusyOperationAsync("Guts laden", cancellationToken =>
+            _guts.LoadAsync(cancellationToken: cancellationToken));
+        if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
+        if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
+        if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
+        if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
+    }
+
+    /// <summary>Opens the arbitrage table: live mall listings against the
+    /// pricegun median.</summary>
+    private async void ArbitrageClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Arbitrage");
+        await RunBusyOperationAsync("Arbitrage laden", cancellationToken =>
+            _arbitrage.LoadAsync(cancellationToken: cancellationToken));
+        if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
+        if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+    }
+
     private void PricingClick(object? sender, RoutedEventArgs e) => Navigate("Pricing Engine");
     private async void MallClick(object? sender, RoutedEventArgs e)
     {
@@ -314,6 +363,20 @@ public partial class MainWindow : Window
     {
         switch (_activeSection)
         {
+            case "Guts":
+                await RunBusyOperationAsync("Loading guts", cancellationToken =>
+                    _guts.LoadAsync(forceRefresh: true, cancellationToken));
+                if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
+                if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
+                if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
+                if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
+                break;
+            case "Arbitrage":
+                await RunBusyOperationAsync("Loading arbitrage", cancellationToken =>
+                    _arbitrage.LoadAsync(forceRefresh: true, cancellationToken));
+                if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
+                if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+                break;
             case "Inventory":
                 await RunBusyOperationAsync("Loading inventory", cancellationToken =>
                     _inventory.LoadAsync(forceRefresh: true, cancellationToken));
@@ -669,6 +732,7 @@ public partial class MainWindow : Window
         var isOverview = string.Equals(section, "Guts", StringComparison.Ordinal);
         var isInventory = string.Equals(section, "Inventory", StringComparison.Ordinal);
         var isDaily = string.Equals(section, "Daily", StringComparison.Ordinal);
+        var isArbitrage = string.Equals(section, "Arbitrage", StringComparison.Ordinal);
         var isAccounts = string.Equals(section, "Accounts & Transfer", StringComparison.Ordinal);
         var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
         var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
@@ -676,11 +740,15 @@ public partial class MainWindow : Window
         var (title, description) = DescribeSection(section);
 
         if (_overviewPanel is not null)
-            _overviewPanel.IsVisible = isOverview;
+            _overviewPanel.IsVisible = false;
+        if (_gutsPanel is not null)
+            _gutsPanel.IsVisible = isOverview;
         if (_inventoryPanel is not null)
             _inventoryPanel.IsVisible = isInventory;
         if (_dailyPanel is not null)
             _dailyPanel.IsVisible = isDaily;
+        if (_arbitragePanel is not null)
+            _arbitragePanel.IsVisible = isArbitrage;
         if (_accountsPanel is not null)
             _accountsPanel.IsVisible = isAccounts;
         if (_mallPanel is not null)
@@ -690,9 +758,10 @@ public partial class MainWindow : Window
         if (_combatPanel is not null)
             _combatPanel.IsVisible = isCombat;
         if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isDaily && !isAccounts && !isMall && !isAdventure && !isCombat;
+            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isDaily && !isArbitrage
+                && !isAccounts && !isMall && !isAdventure && !isCombat;
         if (_shellPageTitle is not null)
-            _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
+            _shellPageTitle.Text = isOverview ? "Good morning" : title;
         if (_shellPageDescription is not null)
             _shellPageDescription.Text = isOverview
                 ? "Your arbitrage overview for today."
@@ -722,6 +791,7 @@ public partial class MainWindow : Window
         {
             "Inventory" => ("Inventory", "Live inventory with search, categories and item detail."),
             "Daily" => ("Daily", "What the bot does today — campfire, hermit, free pulls and arbitrage."),
+            "Arbitrage" => ("Arbitrage", "Live mall listings against the pricegun median."),
             "Pricing Engine" => ("Pricing Engine", "Price sources, references and buy candidates are checked here as a read-only preview."),
             "Mall & Shop" => ("Mall & Shop", "Own listings and market prices are loaded read-only for the selected account."),
             "Accounts & Transfer" => ("Accounts & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
@@ -765,8 +835,8 @@ public partial class MainWindow : Window
         var catalog = TryLoadCatalog();
         if (catalog is not null)
         {
-            var withCatalog = new InventoryViewModel(catalog: catalog);
-            _inventory = withCatalog;
+            _inventory = new InventoryViewModel(catalog: catalog);
+            _arbitrage = new LiveArbitrageViewModel(catalog: catalog);
         }
         if (_inventoryList is not null)
         {
