@@ -77,14 +77,26 @@ public sealed class DesktopLiveDataProvider
             };
         }
         var inventory = await client.FetchInventoryAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        // The catalog has ~12 000 items and the inventory ~1 400; a linear
+        // lookup per row would be millions of comparisons. Index it once.
+        var index = catalog is null
+            ? null
+            : catalog.Items
+                .Where(i => !string.IsNullOrWhiteSpace(i.Id))
+                .GroupBy(i => i.Id!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var items = inventory.Items.Select(item =>
         {
-            var record = catalog?.Items.FirstOrDefault(i =>
-                string.Equals(i.Id, item.ItemId, StringComparison.OrdinalIgnoreCase));
+            var record = index is not null && index.TryGetValue(item.ItemId, out var found)
+                ? found
+                : null;
             return new DesktopInventoryItem
             {
                 ItemId = item.ItemId,
-                Name = item.Name,
+                // KoL's inventory API only returns ids and counts. The
+                // catalog carries the real name, so prefer it and fall back
+                // to what the response gave us.
+                Name = string.IsNullOrWhiteSpace(record?.Name) ? item.Name : record!.Name,
                 Quantity = item.Quantity,
                 ImageUrl = record?.Image,
                 AccessFlags = record?.AccessFlags ?? Array.Empty<string>(),
@@ -143,6 +155,22 @@ public sealed class DesktopLiveDataProvider
         if (record.PrimaryUse is { Count: > 0 }) uses.AddRange(record.PrimaryUse);
         if (record.SecondaryUse is { Count: > 0 }) uses.AddRange(record.SecondaryUse);
         return uses;
+    }
+
+    /// <summary>Reads the live status and inventory and derives the daily
+    /// snapshot from them — the same numbers the CLI's `daily breakfast`
+    /// uses.</summary>
+    public async Task<LiveDailySnapshot?> LoadDailySnapshotAsync(
+        AccountRole role,
+        DailyRoutineSnapshot baseline,
+        bool forceRefresh = false,
+        KoLmafiaCatalog? catalog = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await CreateReadClientAsync(role, cancellationToken).ConfigureAwait(false);
+        if (client is null) return null;
+        var builder = new LiveDailySnapshotBuilder(client);
+        return await builder.BuildAsync(baseline, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IAccountReadClient?> CreateReadClientAsync(

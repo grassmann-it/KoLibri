@@ -78,35 +78,35 @@ public class ShellViewModel : DesktopViewModel
         Pages = new ReadOnlyCollection<ShellPage>(Enum.GetValues<ShellPage>());
         PageContracts = new ReadOnlyCollection<ShellPageContract>(new[]
         {
-            new ShellPageContract(ShellPage.Cockpit, "Cockpit", "Account- und Inventar-Snapshot für Main und Mallbot.", "Cockpit öffnen"),
-            new ShellPageContract(ShellPage.Inventory, "Inventar", "Live-Inventar mit Suche, Kategorien und Item-Detail.", "Inventar öffnen"),
-            new ShellPageContract(ShellPage.Arbitrage, "Arbitrage", "Preisquellen und Kaufkandidaten als read-only Vorschau.", "Arbitrage öffnen"),
-            new ShellPageContract(ShellPage.Shop, "Shop", "Eigene Listings und Reprice-Vorschauen.", "Shop öffnen"),
-            new ShellPageContract(ShellPage.Approvals, "Approvals", "Approval-Inbox und Verifikationsstatus.", "Approvals öffnen"),
-            new ShellPageContract(ShellPage.Operations, "Operations", "Audit- und Operations-Ledger.", "Operations öffnen"),
-            new ShellPageContract(ShellPage.Adventure, "Adventure", "Tagesplan, Encounter und sichere Resume-Aktionen.", "Adventure öffnen"),
-            new ShellPageContract(ShellPage.Combat, "Combat", "Manuelle Einzelaktion und AutoCombat-Policy-Vorschau.", "Combat öffnen")
+            new ShellPageContract(ShellPage.Cockpit, "Cockpit", "Account and inventory snapshot for Main and Mallbot.", "Open cockpit"),
+            new ShellPageContract(ShellPage.Inventory, "Inventory", "Live inventory with search, categories and item detail.", "Open inventory"),
+            new ShellPageContract(ShellPage.Arbitrage, "Arbitrage", "Price sources and buy candidates as a read-only preview.", "Open arbitrage"),
+            new ShellPageContract(ShellPage.Shop, "Shop", "Own listings and reprice previews.", "Open shop"),
+            new ShellPageContract(ShellPage.Approvals, "Approvals", "Approval inbox and verification status.", "Open approvals"),
+            new ShellPageContract(ShellPage.Operations, "Operations", "Audit and operations ledger.", "Open operations"),
+            new ShellPageContract(ShellPage.Adventure, "Adventure", "Daily plan, encounter and safe resume actions.", "Open adventure"),
+            new ShellPageContract(ShellPage.Combat, "Combat", "Manual single action and auto-combat policy preview.", "Open combat")
         });
         Shortcuts = new ReadOnlyCollection<ShellShortcutContract>(new[]
         {
-            new ShellShortcutContract("navigation.overview", "Übersicht", "Ctrl+1", ShellPage.Cockpit),
-            new ShellShortcutContract("navigation.inventory", "Inventar", "Ctrl+2", ShellPage.Inventory),
+            new ShellShortcutContract("navigation.overview", "Guts", "Ctrl+1", ShellPage.Cockpit),
+            new ShellShortcutContract("navigation.inventory", "Inventory", "Ctrl+2", ShellPage.Inventory),
             new ShellShortcutContract("navigation.arbitrage", "Arbitrage", "Ctrl+3", ShellPage.Arbitrage),
             new ShellShortcutContract("navigation.shop", "Shop", "Ctrl+4", ShellPage.Shop),
             new ShellShortcutContract("navigation.adventure", "Adventure", "Ctrl+5", ShellPage.Adventure),
             new ShellShortcutContract("navigation.combat", "Combat", "Ctrl+6", ShellPage.Combat),
-            new ShellShortcutContract("shell.refresh", "Daten aktualisieren", "F5", ShellPage.Cockpit),
-            new ShellShortcutContract("shell.shortcut-help", "Tastaturhilfe", "F1", ShellPage.Cockpit),
-            new ShellShortcutContract("shell.stop", "Lauf stoppen", "Escape", ShellPage.Adventure)
+            new ShellShortcutContract("shell.refresh", "Refresh data", "F5", ShellPage.Cockpit),
+            new ShellShortcutContract("shell.shortcut-help", "Keyboard help", "F1", ShellPage.Cockpit),
+            new ShellShortcutContract("shell.stop", "Stop run", "Escape", ShellPage.Adventure)
         });
         ContextActions = new ReadOnlyCollection<ShellContextActionContract>(new[]
         {
-            new ShellContextActionContract("adventure.inspect", "Encounter inspizieren", ShellPage.Adventure),
-            new ShellContextActionContract("adventure.refresh", "Encounter aktualisieren", ShellPage.Adventure),
-            new ShellContextActionContract("combat.manual-preview", "Manuelle Kampfaktion vorschauen", ShellPage.Combat),
-            new ShellContextActionContract("combat.stop", "Kampf stoppen", ShellPage.Combat),
-            new ShellContextActionContract("shop.price-detail", "Detailpreis laden", ShellPage.Shop),
-            new ShellContextActionContract("shop.reprice-preview", "Reprice-Vorschau erstellen", ShellPage.Shop)
+            new ShellContextActionContract("adventure.inspect", "Inspect encounter", ShellPage.Adventure),
+            new ShellContextActionContract("adventure.refresh", "Refresh encounter", ShellPage.Adventure),
+            new ShellContextActionContract("combat.manual-preview", "Preview manual combat action", ShellPage.Combat),
+            new ShellContextActionContract("combat.stop", "Stop combat", ShellPage.Combat),
+            new ShellContextActionContract("shop.price-detail", "Load detail price", ShellPage.Shop),
+            new ShellContextActionContract("shop.reprice-preview", "Create reprice preview", ShellPage.Shop)
         });
     }
 
@@ -138,7 +138,7 @@ public class ShellViewModel : DesktopViewModel
     public string CurrentPageText => CurrentPage switch
     {
         ShellPage.Cockpit => "Cockpit",
-        ShellPage.Inventory => "Inventar",
+        ShellPage.Inventory => "Inventory",
         ShellPage.Arbitrage => "Arbitrage",
         ShellPage.Shop => "Shop",
         ShellPage.Approvals => "Approvals",
@@ -175,7 +175,7 @@ public class ShellViewModel : DesktopViewModel
         {
             var stale = new ObservableCollection<string>();
             if (Cockpit.IsStale) stale.Add("Cockpit");
-            if (Inventory.IsStale) stale.Add("Inventar");
+            if (Inventory.IsStale) stale.Add("Inventory");
             if (Arbitrage.IsStale) stale.Add("Arbitrage");
             if (Shop.IsStale) stale.Add("Shop");
             if (Approvals.IsStale) stale.Add("Approvals");
@@ -189,7 +189,7 @@ public class ShellViewModel : DesktopViewModel
     public void Navigate(ShellPage page)
     {
         CurrentPage = page;
-        StatusMessage = $"{CurrentPageText} geöffnet.";
+        StatusMessage = $"{CurrentPageText} opened.";
         OnPropertyChanged(nameof(CurrentPageText));
     }
 

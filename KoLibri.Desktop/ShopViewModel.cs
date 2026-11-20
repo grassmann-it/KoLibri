@@ -16,7 +16,7 @@ public sealed record ShopListingProjection
     public bool IsStale { get; init; }
 
     public string PriceText => $"{Price:N0} Meat";
-    public string QuantityText => Quantity == 1 ? "1 Stück" : $"{Quantity:N0} Stück";
+    public string QuantityText => Quantity == 1 ? "1 pc" : $"{Quantity:N0} pcs";
     public string FreshnessText => IsStale ? "stale" : "fresh";
 
     public static ShopListingProjection From(OwnShopListing listing, bool stale)

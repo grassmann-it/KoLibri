@@ -112,8 +112,8 @@ public sealed class InventoryViewModel : DesktopViewModel
     public int TotalCount => _allItems.Count;
 
     public string SummaryText => Items.Count == 0
-        ? "Keine Einträge."
-        : $"{Items.Count} von {TotalCount} Einträgen";
+        ? "No entries."
+        : $"{Items.Count} of {TotalCount} entries";
 
     /// <summary>Replaces the item set and re-applies the filter. The live
     /// loader calls this; tests use it to drive the view model without a
@@ -191,7 +191,7 @@ public sealed class InventoryViewModel : DesktopViewModel
             new DesktopInventoryCategory
             {
                 Id = InventoryFilterCategory.ConsumableId,
-                Label = "Konsumierbar",
+                Label = "Consumable",
                 Matches = item => HasFlag(item, "q")
             },
             new DesktopInventoryCategory
@@ -203,19 +203,19 @@ public sealed class InventoryViewModel : DesktopViewModel
             new DesktopInventoryCategory
             {
                 Id = InventoryFilterCategory.TransferableId,
-                Label = "Übertragbar",
+                Label = "Transferable",
                 Matches = item => HasFlag(item, "t")
             },
             new DesktopInventoryCategory
             {
                 Id = InventoryFilterCategory.DiscardableId,
-                Label = "Wegwerf",
+                Label = "Discardable",
                 Matches = item => HasFlag(item, "d")
             },
             new DesktopInventoryCategory
             {
                 Id = InventoryFilterCategory.UncategorizedId,
-                Label = "Sonstige",
+                Label = "Other",
                 Matches = item => item.AccessFlags.Count == 0
             }
         };

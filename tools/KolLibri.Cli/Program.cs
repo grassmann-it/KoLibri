@@ -1056,7 +1056,7 @@ internal static partial class KolibriCli
     {
         var http = await ReadAuthenticatedHttpAsync(role);
         // Build an item-id → display-name resolver from the bundled Mafia
-        // vendor data so inventory snapshots show "Seal Tooth" instead of "44".
+        // vendor data so inventory snapshots show "seal tooth" instead of "44".
         var resolver = BuildItemNameResolver();
         return (new KoLAccountReadClient(http, itemNameResolver: resolver),
                 new KoLMallReadClient(http));

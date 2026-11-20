@@ -14,4 +14,12 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.11" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The KoLmafia catalog travels with the app so the inventory browser
+         and the encounter browser work from any working directory. -->
+    <Content Include="..\external\kolmafia-data\**\*">
+      <Link>external\kolmafia-data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

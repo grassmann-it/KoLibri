@@ -12,239 +12,193 @@
         KeyDown="WindowKeyDown"
         AutomationProperties.Name="KoLibri Arbitrage Console">
   <Grid x:Name="ShellRoot"
-        RowDefinitions="Auto,*"
-        ColumnDefinitions="Auto,*,Auto"
+        RowDefinitions="Auto,*,Auto"
+        ColumnDefinitions="*"
         Background="{DynamicResource CanvasBrush}">
-    <Border x:Name="Sidebar"
-            Grid.Column="0"
-            Grid.RowSpan="2"
-            Width="260"
-            Classes="shell-sidebar"
-            BorderThickness="0,0,1,0"
-            Padding="18,24">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Spacing="3">
-          <TextBlock Text="KoLibri"
-                     FontSize="24"
-                     FontWeight="Bold"
-                     Foreground="{DynamicResource InkBrush}" />
-          <TextBlock Text="Shop-Arbitrage Console"
-                     Classes="muted"
-                     FontSize="12"
-                     Margin="0,0,0,18" />
-          <Border Classes="badge info" HorizontalAlignment="Left">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBlock Text="✣" Classes="badge-text info" AutomationProperties.Name="Theme" />
-              <TextBlock x:Name="SidebarThemeLabel"
-                         Text="Stickman Standard"
-                         Classes="badge-text info" />
-            </StackPanel>
-          </Border>
-        </StackPanel>
 
-        <StackPanel DockPanel.Dock="Bottom" Spacing="9" Margin="0,20,0,0">
-          <Border Classes="badge warning" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="3">
-              <TextBlock Text="Konten" Classes="badge-text warning" />
-              <TextBlock Text="Main · Mallbot"
-                         Classes="badge-text"
-                         FontWeight="Normal" />
-            </StackPanel>
-          </Border>
-          <Button x:Name="ThemeToggleButton"
-                  Classes="secondary"
-                  Content="☾  Ops Dark öffnen"
-                  Click="ThemeToggleClick"
-                  AutomationProperties.Name="Theme wechseln" />
-          <TextBlock Text="v0.1 · lokale Vorschau"
-                     FontSize="11"
-                     Classes="muted" />
-        </StackPanel>
-
-        <StackPanel Spacing="2" Margin="0,22,0,0">
-          <TextBlock Text="ARBEITSBEREICHE"
-                     FontSize="11"
-                     FontWeight="SemiBold"
-                     Classes="muted"
-                     Margin="12,0,0,8" />
-          <Button x:Name="NavOverview"
-                  Classes="nav-item active"
-                  Content="⌂   Übersicht"
-                  Tag="Übersicht"
-                  Click="OverviewClick"
-                  AutomationProperties.Name="Übersicht öffnen" />
-          <Button x:Name="NavInventory"
-                  Classes="nav-item"
-                  Content="☰   Inventar"
-                  Tag="Inventar"
-                  Click="InventoryClick"
-                  AutomationProperties.Name="Inventar öffnen" />
-          <Button x:Name="NavPricing"
-                  Classes="nav-item"
-                  Content="◎   Pricing Engine"
-                  Tag="Pricing Engine"
-                  Click="PricingClick"
-                  AutomationProperties.Name="Pricing Engine öffnen" />
-          <Button x:Name="NavMall"
-                  Classes="nav-item"
-                  Content="▦   Mall &amp; Shop"
-                  Tag="Mall &amp; Shop"
-                  Click="MallClick"
-                  AutomationProperties.Name="Mall und Shop öffnen" />
-          <Button x:Name="NavAccounts"
-                  Classes="nav-item"
-                  Content="♙   Konten &amp; Transfer"
-                  Tag="Konten &amp; Transfer"
-                  Click="AccountsClick"
-                  AutomationProperties.Name="Konten und Transfer öffnen" />
-          <Button x:Name="NavAdventure"
-                  Classes="nav-item"
-                  Content="⚔   Adventure"
-                  Tag="Adventure"
-                  Click="AdventureClick"
-                  AutomationProperties.Name="Adventure öffnen" />
-          <Button x:Name="NavCombat"
-                  Classes="nav-item"
-                  Content="⚔   Combat"
-                  Tag="Combat"
-                  Click="CombatClick"
-                  AutomationProperties.Name="Combat öffnen" />
-          <Button x:Name="NavSettings"
-                  Classes="nav-item"
-                  Content="⚙   Einstellungen"
-                  Tag="Einstellungen"
-                  Click="SettingsClick"
-                  AutomationProperties.Name="Einstellungen öffnen" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <Border x:Name="CompactNavigation"
-            Grid.Column="1"
+    <!-- KoLmafia-style menu bar: the sections live in a row at the top,
+         the way a KoL player expects them. -->
+    <Border x:Name="MenuBar"
             Grid.Row="0"
-            IsVisible="False"
             Classes="shell-header"
             BorderThickness="0,0,0,1"
-            Padding="14,10">
-      <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                    VerticalScrollBarVisibility="Disabled">
-        <StackPanel Orientation="Horizontal" Spacing="7">
+            Padding="14,8">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="18">
+        <StackPanel Orientation="Horizontal" Spacing="2">
           <TextBlock Text="KoLibri"
+                     FontSize="17"
                      FontWeight="Bold"
-                     FontSize="18"
-                     VerticalAlignment="Center"
                      Foreground="{DynamicResource InkBrush}"
-                     Margin="0,0,8,0" />
-          <Button x:Name="CompactNavOverview"
-                  Classes="nav-item active"
-                  Content="⌂ Übersicht"
-                  Tag="Übersicht"
+                     VerticalAlignment="Center"
+                     Margin="0,0,16,0" />
+          <Button x:Name="NavOverview"
+                  Classes="menu-item"
+                  Content="Guts"
+                  Tag="Guts"
                   Click="OverviewClick"
-                  AutomationProperties.Name="Übersicht öffnen" />
-          <Button x:Name="CompactNavPricing"
-                  Classes="nav-item"
-                  Content="◎ Pricing"
+                  AutomationProperties.Name="Open guts" />
+          <Button x:Name="NavInventory"
+                  Classes="menu-item"
+                  Content="Inventory"
+                  Tag="Inventory"
+                  Click="InventoryClick"
+                  AutomationProperties.Name="Open inventory" />
+          <Button x:Name="NavDaily"
+                  Classes="menu-item"
+                  Content="Daily"
+                  Tag="Daily"
+                  Click="DailyClick"
+                  AutomationProperties.Name="Open the daily routine" />
+          <Button x:Name="NavPricing"
+                  Classes="menu-item"
+                  Content="Pricing"
                   Tag="Pricing Engine"
                   Click="PricingClick"
-                  AutomationProperties.Name="Pricing Engine öffnen" />
-          <Button x:Name="CompactNavMall"
-                  Classes="nav-item"
-                  Content="▦ Mall"
+                  AutomationProperties.Name="Open pricing engine" />
+          <Button x:Name="NavMall"
+                  Classes="menu-item"
+                  Content="Mall"
                   Tag="Mall &amp; Shop"
                   Click="MallClick"
-                  AutomationProperties.Name="Mall und Shop öffnen" />
-          <Button x:Name="CompactNavAccounts"
-                  Classes="nav-item"
-                  Content="♙ Konten"
-                  Tag="Konten &amp; Transfer"
-                  Click="AccountsClick"
-                  AutomationProperties.Name="Konten und Transfer öffnen" />
-          <Button x:Name="CompactNavAdventure"
-                  Classes="nav-item"
-                  Content="⚔ Adventure"
+                  AutomationProperties.Name="Open mall and shop" />
+          <Button x:Name="NavAdventure"
+                  Classes="menu-item"
+                  Content="Adventures"
                   Tag="Adventure"
                   Click="AdventureClick"
-                  AutomationProperties.Name="Adventure öffnen" />
-          <Button x:Name="CompactNavCombat"
-                  Classes="nav-item"
-                  Content="⚔ Combat"
+                  AutomationProperties.Name="Open adventures" />
+          <Button x:Name="NavCombat"
+                  Classes="menu-item"
+                  Content="Combat"
                   Tag="Combat"
                   Click="CombatClick"
-                  AutomationProperties.Name="Combat öffnen" />
-          <Button x:Name="CompactNavSettings"
-                  Classes="nav-item"
-                  Content="⚙ Mehr"
-                  Tag="Einstellungen"
-                  Click="SettingsClick"
-                  AutomationProperties.Name="Weitere Einstellungen öffnen" />
-          <Button x:Name="CompactThemeToggleButton"
+                  AutomationProperties.Name="Open combat" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" />
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="Account" Classes="muted" FontSize="10" />
+            <ComboBox x:Name="AccountRoleSelector"
+                      Width="112"
+                      SelectedIndex="1"
+                      SelectionChanged="AccountRoleSelectionChanged"
+                      AutomationProperties.Name="Select the active account">
+              <ComboBoxItem Content="Main" />
+              <ComboBoxItem Content="Mallbot" />
+            </ComboBox>
+          </StackPanel>
+          <Button x:Name="GlobalRefreshButton"
                   Classes="secondary"
-                  Content="☾ Ops Dark"
+                  Content="⟳"
+                  Click="RefreshClick"
+                  AutomationProperties.Name="Daten aktualisieren" />
+          <Button x:Name="ThemeToggleButton"
+                  Classes="secondary"
+                  Content="☾"
                   Click="ThemeToggleClick"
                   AutomationProperties.Name="Theme wechseln" />
         </StackPanel>
-      </ScrollViewer>
+      </Grid>
     </Border>
 
-    <ScrollViewer Grid.Column="1"
-                  Grid.Row="1"
+    <ScrollViewer Grid.Row="1"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ContentRoot"
                   Margin="{DynamicResource ComfortableContentMargin}"
                   Spacing="24">
         <StackPanel x:Name="ShellHeader" Spacing="0">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
-            <StackPanel>
-              <TextBlock x:Name="ShellPageTitle" Text="Guten Morgen" Classes="h1" />
-              <TextBlock x:Name="ShellPageDescription" Text="Dein Arbitrage-Überblick für heute."
+          <StackPanel>
+            <TextBlock x:Name="ShellPageTitle" Text="Good morning" Classes="h1" />
+            <TextBlock x:Name="ShellPageDescription" Text="Your arbitrage overview for today."
+                       Classes="muted"
+                       FontSize="14"
+                       Margin="0,6,0,0" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel x:Name="DailyPanel" Spacing="16" IsVisible="False">
+
+          <Border Classes="card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Daily briefing" Classes="h2" />
+              <TextBlock x:Name="DailySnapshotText"
+                         Text="—"
                          Classes="muted"
-                         FontSize="14"
-                         Margin="0,6,0,0" />
+                         FontSize="13" />
+              <TextBlock x:Name="DailySummaryText"
+                         Text="—"
+                         Classes="muted"
+                         FontSize="12" />
             </StackPanel>
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        VerticalAlignment="Center">
-              <Border Classes="badge success">
-                <TextBlock Text="● Read-only"
-                           Classes="badge-text success"
-                           AutomationProperties.Name="Read-only Modus" />
-              </Border>
-              <Border Classes="badge info">
-                <TextBlock Text="⌁ Cache vor 4 Min."
-                           Classes="badge-text info"
-                           AutomationProperties.Name="Cache vor vier Minuten aktualisiert" />
-              </Border>
-              <StackPanel Spacing="2" VerticalAlignment="Center">
-                <TextBlock Text="Konto" Classes="muted" FontSize="10" />
-                <ComboBox x:Name="AccountRoleSelector"
-                          Width="112"
-                          SelectedIndex="1"
-                          SelectionChanged="AccountRoleSelectionChanged"
-                          AutomationProperties.Name="Aktives Konto auswählen">
-                  <ComboBoxItem Content="Main" />
-                  <ComboBoxItem Content="Mallbot" />
-                </ComboBox>
+          </Border>
+
+          <Border Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Grid.Row="0"
+                    ColumnDefinitions="140,2*,3*,110"
+                    Margin="14,12,14,8">
+                <TextBlock Grid.Column="0" Text="Area" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="1" Text="Action" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="2" Text="Details" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="3" Text="Status" Classes="muted" FontSize="11" />
+              </Grid>
+              <ListBox x:Name="DailyRows"
+                       Grid.Row="1"
+                       SelectionChanged="DailySelectionChanged"
+                       AutomationProperties.Name="Tagesplan">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:DailyBriefingRow">
+                    <Grid ColumnDefinitions="140,2*,3*,110" ColumnSpacing="10" Margin="0,3">
+                      <TextBlock Grid.Column="0" Text="{Binding Surface}" FontWeight="SemiBold" />
+                      <TextBlock Grid.Column="1" Text="{Binding Description}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="muted" />
+                      <TextBlock Grid.Column="3" Text="{Binding State}" Classes="muted" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <Border Classes="card">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Execution" Classes="muted" FontSize="11" FontWeight="SemiBold" />
+              <TextBlock Text="Live-Aktionen brauchen einen Approval-Token. Der Token liegt in ~/.local/share/KoLibri/approval-token.json und wird nie im Fenster angezeigt."
+                         Classes="muted"
+                         FontSize="12"
+                         TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox x:Name="DailyTokenBox"
+                         Width="280"
+                         PasswordChar="•"
+                         Watermark="Approval-Token (optional)"
+                         AutomationProperties.Name="Approval token for the daily routine" />
+                <Button x:Name="DailyRunButton"
+                        Classes="primary"
+                        Content="▶  Run the daily routine"
+                        Click="DailyRunClick"
+                        AutomationProperties.Name="Run the daily routine" />
               </StackPanel>
-              <Button x:Name="GlobalRefreshButton"
-                      Classes="primary"
-                      Content="⟳  Daten aktualisieren"
-                      Click="RefreshClick"
-                      AutomationProperties.Name="Daten aktualisieren" />
+              <TextBlock x:Name="DailyStatusText"
+                         Text="Nothing executed yet."
+                         Classes="muted"
+                         FontSize="12"
+                         TextWrapping="Wrap" />
             </StackPanel>
-          </Grid>
+          </Border>
 
         </StackPanel>
 
         <StackPanel x:Name="InventoryPanel" Spacing="16" IsVisible="False">
-
           <Border Classes="card">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
               <StackPanel Spacing="8">
-                <TextBlock Text="Inventar" Classes="h2" />
+                <TextBlock Text="Inventory" Classes="h2" />
                 <TextBlock x:Name="InventorySummaryText"
-                           Text="Keine Einträge."
+                           Text="No entries."
                            Classes="muted"
                            FontSize="13" />
               </StackPanel>
@@ -263,13 +217,9 @@
             </Grid>
           </Border>
 
-          <ItemsControl x:Name="InventoryCategoryStrip">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-          </ItemsControl>
+          <Border Classes="card" Padding="8,6">
+            <StackPanel x:Name="InventoryCategoryStrip" Orientation="Horizontal" Spacing="4" />
+          </Border>
 
           <Grid ColumnDefinitions="2*,3*" ColumnSpacing="14" MinHeight="420">
 
@@ -307,7 +257,7 @@
 
             <Border Grid.Column="1" Classes="card">
               <StackPanel x:Name="InventoryDetailPanel" Spacing="10">
-                <TextBlock Text="Kein Item gewählt" Classes="muted" />
+                <TextBlock Text="No item selected" Classes="muted" />
               </StackPanel>
             </Border>
 
@@ -323,7 +273,7 @@
                 <TextBlock Text="Knucklebones heute" Classes="muted" />
                 <TextBlock Text="42 / 100" Classes="kpi" Foreground="{DynamicResource AdventureBrush}" />
                 <ProgressBar Value="42" Maximum="100" Height="7" />
-                <TextBlock Text="Nächster Lauf: in 18 Min."
+                <TextBlock Text="Next run: in 18 min."
                            Classes="muted"
                            FontSize="12" />
               </StackPanel>
@@ -344,10 +294,10 @@
               <StackPanel Spacing="8">
                 <TextBlock Text="Kaufkandidaten" Classes="muted" />
                 <TextBlock Text="7" Classes="kpi" Foreground="{DynamicResource MeatBrush}" />
-                <TextBlock Text="über 20 % erwartete Marge"
+                <TextBlock Text="over 20 % expected margin"
                            Classes="muted"
                            FontSize="12" />
-                <TextBlock Text="3 benötigen Detailpreis"
+                <TextBlock Text="3 need a detail price"
                            Classes="muted"
                            FontSize="12" />
               </StackPanel>
@@ -419,7 +369,7 @@
 
         <Border x:Name="PageStatePanel" Classes="card" IsVisible="False">
           <StackPanel Spacing="10">
-            <TextBlock x:Name="PageStateTitle" Text="Bereich" Classes="h2" />
+            <TextBlock x:Name="PageStateTitle" Text="Area" Classes="h2" />
             <TextBlock x:Name="PageStateDescription"
                        Classes="muted"
                        TextWrapping="Wrap" />
@@ -440,7 +390,7 @@
           <StackPanel Spacing="14">
             <StackPanel Spacing="3">
               <TextBlock Text="Konten verbinden" Classes="h2" />
-              <TextBlock Text="KoLibri meldet beide Rollen direkt bei KoL an. Benutzername und Session-Cookies werden verschlüsselt gespeichert; das Passwort ist optional verschlüsselt speicherbar."
+              <TextBlock Text="KoLibri logs both roles in at KoL directly. User name and session cookies are stored encrypted; the password can be stored encrypted as well."
                          Classes="muted"
                          TextWrapping="Wrap"
                          FontSize="12" />
@@ -451,7 +401,7 @@
                   <TextBlock Text="Main" Classes="h2" FontSize="16" />
                   <TextBox x:Name="MainUsername" Watermark="Benutzername" AutomationProperties.Name="Main Benutzername" />
                   <TextBox x:Name="MainPassword" Watermark="Passwort" PasswordChar="●" AutomationProperties.Name="Main Passwort" />
-                  <CheckBox x:Name="MainRememberPassword" Content="Passwort verschlüsselt speichern" />
+                  <CheckBox x:Name="MainRememberPassword" Content="Store the password encrypted" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock x:Name="MainAccountStatus"
                                Text="Noch nicht gespeichert"
@@ -471,7 +421,7 @@
                   <TextBlock Text="Mallbot" Classes="h2" FontSize="16" />
                   <TextBox x:Name="MallbotUsername" Watermark="Benutzername" AutomationProperties.Name="Mallbot Benutzername" />
                   <TextBox x:Name="MallbotPassword" Watermark="Passwort" PasswordChar="●" AutomationProperties.Name="Mallbot Passwort" />
-                  <CheckBox x:Name="MallbotRememberPassword" Content="Passwort verschlüsselt speichern" />
+                  <CheckBox x:Name="MallbotRememberPassword" Content="Store the password encrypted" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock x:Name="MallbotAccountStatus"
                                Text="Noch nicht gespeichert"
@@ -501,7 +451,7 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
               <StackPanel Spacing="3">
                 <TextBlock Text="Mall &amp; eigener Shop" Classes="h2" />
-                <TextBlock Text="Read-only-Übersicht mit Cache; es werden keine Listings verändert."
+                <TextBlock Text="Read-only overview with cache; no listing is changed."
                            Classes="muted"
                            TextWrapping="Wrap"
                            FontSize="12" />
@@ -534,7 +484,7 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
               <StackPanel Spacing="3">
                 <TextBlock Text="Adventure &amp; Farm" Classes="h2" />
-                <TextBlock Text="Frischer Status-/Inventar-Read und bounded Tagesplan; Ausführung bleibt separat freigabepflichtig."
+                <TextBlock Text="Fresh status and inventory read plus the bounded daily plan; execution stays separately gated."
                            Classes="muted" TextWrapping="Wrap" FontSize="12" />
               </StackPanel>
               <Button Grid.Column="1" Content="⟳  Plan aktualisieren"
@@ -544,7 +494,7 @@
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
               <Border Classes="panel-subtle">
                 <StackPanel Spacing="4">
-                  <TextBlock Text="Konto" Classes="muted" />
+                  <TextBlock Text="Account" Classes="muted" />
                   <TextBlock x:Name="AdventureAccountLabel" Text="Mallbot" Classes="body" />
                 </StackPanel>
               </Border>
@@ -564,7 +514,7 @@
             <Border Classes="panel-subtle">
               <StackPanel Spacing="6">
                 <TextBlock Text="Manuelle Adventure-Browser" Classes="h3" />
-                <TextBlock Text="Catalog aus KoLmafia-Daten. Doppelklick startet das Adventure, Doppelklick auf eine Action sendet den nächsten Step. Token bleibt im ApprovalTokenStore gespeichert."
+                <TextBlock Text="Catalog from the KoLmafia data. A double click starts the adventure, a double click on an action sends the next step. The token stays in the ApprovalTokenStore."
                            Classes="muted" TextWrapping="Wrap" FontSize="12" />
                 <Grid ColumnDefinitions="*,2*" ColumnSpacing="12">
                   <StackPanel Spacing="6">
@@ -602,7 +552,7 @@
                 <Border Classes="panel-subtle" Padding="10">
                   <StackPanel Spacing="4">
                     <TextBlock Text="Status / Step-Log" Classes="muted" />
-                    <TextBlock x:Name="EncounterStatusText" Text="(noch keine Adventure-Sitzung)" Classes="body" TextWrapping="Wrap" />
+                    <TextBlock x:Name="EncounterStatusText" Text="(no adventure session yet)" Classes="body" TextWrapping="Wrap" />
                     <TextBlock x:Name="EncounterStepLogText" Classes="body" TextWrapping="Wrap" FontFamily="monospace" />
                   </StackPanel>
                 </Border>
@@ -662,7 +612,7 @@
             </Grid>
             <Border Classes="panel-subtle">
               <StackPanel Spacing="6">
-                <TextBlock Text="Nächste Aktion" Classes="body" />
+                <TextBlock Text="Next action" Classes="body" />
                 <TextBlock x:Name="CombatPreviewSummary"
                            Text="Noch keine Combat-Observation geladen."
                            Classes="muted" TextWrapping="Wrap" />
@@ -673,73 +623,37 @@
           </StackPanel>
         </Border>
 
-        <Border x:Name="StatusBar" Classes="panel-subtle" IsVisible="False">
-          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-            <Border Classes="badge info">
-              <TextBlock Text="● Status" Classes="badge-text info" />
-            </Border>
-            <TextBlock x:Name="StatusText"
-                       Grid.Column="1"
-                       Classes="body"
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap" />
-            <ProgressBar x:Name="BusyIndicator"
-                         Grid.Column="2"
-                         Width="100"
-                         Height="6"
-                         IsIndeterminate="True"
-                         IsVisible="False"
-                         AutomationProperties.Name="Aktualisierung läuft" />
-            <Button x:Name="CancelRefreshButton"
-                    Grid.Column="3"
-                    Classes="secondary"
-                    Content="Abbrechen"
-                    IsVisible="False"
-                    Click="CancelRefreshClick"
-                    AutomationProperties.Name="Aktualisierung abbrechen" />
-          </Grid>
-        </Border>
       </StackPanel>
     </ScrollViewer>
 
-    <Border x:Name="ContextRail"
-            Grid.Column="2"
-            Grid.RowSpan="2"
-            Width="300"
-            IsVisible="False"
-            Classes="shell-sidebar context-rail"
-            BorderThickness="1,0,0,0"
-            Padding="18,24">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Spacing="4">
-          <TextBlock Text="KONTEXT" Classes="muted" FontSize="11" FontWeight="SemiBold" />
-          <TextBlock x:Name="ContextRailTitle" Text="Übersicht" Classes="h2" FontSize="20" />
-          <TextBlock x:Name="ContextRailKind" Text="Arbeitsbereich" Classes="muted" FontSize="12" />
-        </StackPanel>
-        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,20,0,0">
-          <Button x:Name="ContextPreviewButton"
-                  Content="Vorschau öffnen"
-                  Classes="primary"
-                  Click="ContextPreviewClick"
-                  AutomationProperties.Name="Kontextvorschau öffnen" />
-          <Button x:Name="ContextRefreshButton"
-                  Content="Kontext aktualisieren"
-                  Classes="secondary"
-                  Click="ContextRefreshClick"
-                  AutomationProperties.Name="Kontext aktualisieren" />
-          <TextBlock Text="Mutierende Aktionen bleiben hinter Preview → Approval → Commit." Classes="muted" FontSize="11" TextWrapping="Wrap" />
-        </StackPanel>
-        <Border Classes="panel-subtle" Margin="0,22,0,0">
-          <StackPanel Spacing="8">
-            <TextBlock Text="Auswahl" Classes="body" />
-            <TextBlock x:Name="ContextRailDetails"
-                       Text="Wähle eine Mall-Zeile, ein Encounter oder eine Combat-Aktion aus, um Details und sichere Vorschauen zu sehen."
-                       Classes="muted"
-                       TextWrapping="Wrap"
-                       FontSize="12" />
-          </StackPanel>
-        </Border>
-      </DockPanel>
+    <Border x:Name="StatusBar"
+            Grid.Row="2"
+            Classes="shell-header"
+            BorderThickness="0,1,0,0"
+            Padding="14,6">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock x:Name="StatusText"
+                   Grid.Column="0"
+                   Classes="body"
+                   VerticalAlignment="Center"
+                   TextWrapping="Wrap" />
+        <ProgressBar x:Name="BusyIndicator"
+                     Grid.Column="1"
+                     Width="100"
+                     Height="6"
+                     HorizontalAlignment="Left"
+                     IsIndeterminate="True"
+                     IsVisible="False"
+                     AutomationProperties.Name="Refreshing" />
+        <Button x:Name="CancelRefreshButton"
+                Grid.Column="2"
+                Classes="secondary"
+                Content="Abbrechen"
+                IsVisible="False"
+                Click="CancelRefreshClick"
+                AutomationProperties.Name="Aktualisierung abbrechen" />
+      </Grid>
     </Border>
+
   </Grid>
 </Window>

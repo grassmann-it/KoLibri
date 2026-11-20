@@ -137,6 +137,6 @@ public sealed class InventoryViewModelTests
             Item("2", "mango"),
             Item("3", "zebra"));
         viewModel.SearchText = "a";
-        Assert.Contains("von 3", viewModel.SummaryText);
+        Assert.Contains("of 3", viewModel.SummaryText);
     }
 }

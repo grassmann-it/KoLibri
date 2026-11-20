@@ -6,6 +6,8 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using KolArbitrage.Core.Accounts;
 using KolArbitrage.Core.Adventure;
+using KolArbitrage.Core.Daily;
+using KolArbitrage.Core.Integration;
 using KolArbitrage.Core.Analytics;
 using KolArbitrage.Core.Data;
 using KolArbitrage.Core.Integration;
@@ -14,17 +16,19 @@ namespace KoLibri.Desktop;
 
 public partial class MainWindow : Window
 {
-    private Border? _sidebar;
-    private Border? _contextRail;
-    private Border? _compactNavigation;
     private StackPanel? _contentRoot;
     private StackPanel? _overviewPanel;
     private Button? _themeToggleButton;
-    private Button? _compactThemeToggleButton;
-    private TextBlock? _sidebarThemeLabel;
     private bool _isOpsDark;
     private TextBlock? _statusText;
     private Border? _statusBar;
+    private Button? _navOverview;
+    private Button? _navInventory;
+    private Button? _navDaily;
+    private Button? _navPricing;
+    private Button? _navMall;
+    private Button? _navAdventure;
+    private Button? _navCombat;
     private TextBlock? _shellPageTitle;
     private TextBlock? _shellPageDescription;
     private Border? _pageStatePanel;
@@ -44,15 +48,12 @@ public partial class MainWindow : Window
     private TextBlock? _adventurePlanSummary;
     private TextBlock? _adventurePlanAdvisories;
     private TextBlock? _combatPreviewSummary;
-    private TextBlock? _contextRailTitle;
-    private TextBlock? _contextRailKind;
-    private TextBlock? _contextRailDetails;
     private ComboBox? _accountRoleSelector;
     private Button? _globalRefreshButton;
     private ProgressBar? _busyIndicator;
     private Button? _cancelRefreshButton;
     private CancellationTokenSource? _refreshCancellation;
-    private string _activeSection = "Übersicht";
+    private string _activeSection = "Guts";
     private AccountRole _selectedRole = AccountRole.Mallbot;
     private readonly AccountSessionManager _accounts = AccountSessionManager.CreateDefault();
     private readonly KoLLoginClient _loginClient = new();
@@ -76,16 +77,20 @@ public partial class MainWindow : Window
     private TextBlock? _inventorySummaryText;
     private TextBlock? _inventoryLoadedText;
     private ListBox? _inventoryList;
-    private ItemsControl? _inventoryCategoryStrip;
+    private StackPanel? _inventoryCategoryStrip;
     private StackPanel? _inventoryDetailPanel;
     private InventoryViewModel _inventory = new();
+    private DailyBriefingViewModel _daily = new();
+    private StackPanel? _dailyPanel;
+    private ListBox? _dailyRows;
+    private TextBlock? _dailySnapshotText;
+    private TextBlock? _dailySummaryText;
+    private TextBlock? _dailyStatusText;
+    private TextBox? _dailyTokenBox;
 
     public MainWindow()
     {
         InitializeComponent();
-        _sidebar = this.FindControl<Border>("Sidebar");
-        _contextRail = this.FindControl<Border>("ContextRail");
-        _compactNavigation = this.FindControl<Border>("CompactNavigation");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
         _overviewPanel = this.FindControl<StackPanel>("OverviewPanel");
         _inventoryPanel = this.FindControl<StackPanel>("InventoryPanel");
@@ -93,12 +98,16 @@ public partial class MainWindow : Window
         _inventorySummaryText = this.FindControl<TextBlock>("InventorySummaryText");
         _inventoryLoadedText = this.FindControl<TextBlock>("InventoryLoadedText");
         _inventoryList = this.FindControl<ListBox>("InventoryList");
-        _inventoryCategoryStrip = this.FindControl<ItemsControl>("InventoryCategoryStrip");
+        _inventoryCategoryStrip = this.FindControl<StackPanel>("InventoryCategoryStrip");
         _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
+        _dailyPanel = this.FindControl<StackPanel>("DailyPanel");
+        _dailyRows = this.FindControl<ListBox>("DailyRows");
+        _dailySnapshotText = this.FindControl<TextBlock>("DailySnapshotText");
+        _dailySummaryText = this.FindControl<TextBlock>("DailySummaryText");
+        _dailyStatusText = this.FindControl<TextBlock>("DailyStatusText");
+        _dailyTokenBox = this.FindControl<TextBox>("DailyTokenBox");
         WireInventoryBrowser();
         _themeToggleButton = this.FindControl<Button>("ThemeToggleButton");
-        _compactThemeToggleButton = this.FindControl<Button>("CompactThemeToggleButton");
-        _sidebarThemeLabel = this.FindControl<TextBlock>("SidebarThemeLabel");
         _statusText = this.FindControl<TextBlock>("StatusText");
         _statusBar = this.FindControl<Border>("StatusBar");
         _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
@@ -133,9 +142,6 @@ public partial class MainWindow : Window
         _adventurePlanSummary = this.FindControl<TextBlock>("AdventurePlanSummary");
         _adventurePlanAdvisories = this.FindControl<TextBlock>("AdventurePlanAdvisories");
         _combatPreviewSummary = this.FindControl<TextBlock>("CombatPreviewSummary");
-        _contextRailTitle = this.FindControl<TextBlock>("ContextRailTitle");
-        _contextRailKind = this.FindControl<TextBlock>("ContextRailKind");
-        _contextRailDetails = this.FindControl<TextBlock>("ContextRailDetails");
         _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
@@ -193,13 +199,13 @@ public partial class MainWindow : Window
     {
         var section = key switch
         {
-            Key.D1 or Key.NumPad1 => "Übersicht",
+            Key.D1 or Key.NumPad1 => "Guts",
             Key.D2 or Key.NumPad2 => "Pricing Engine",
             Key.D3 or Key.NumPad3 => "Mall & Shop",
             Key.D4 or Key.NumPad4 => "Adventure",
             Key.D5 or Key.NumPad5 => "Combat",
-            Key.D6 or Key.NumPad6 => "Konten & Transfer",
-            Key.D7 or Key.NumPad7 => "Einstellungen",
+            Key.D6 or Key.NumPad6 => "Accounts & Transfer",
+            Key.D7 or Key.NumPad7 => "Settings",
             _ => null
         };
         if (section is null)
@@ -211,9 +217,7 @@ public partial class MainWindow : Window
 
     private void ShowShortcutHelp()
     {
-        SetStatus("Tastatur: Ctrl+1..7 Bereiche · F5 Aktualisieren · Shift+F10 Kontextvorschau · Ctrl+Esc Abbrechen · F1 Hilfe.");
-        if (_contextRailDetails is not null)
-            _contextRailDetails.Text = "Ctrl+1..7 wechseln den Bereich. F5 aktualisiert. Shift+F10 öffnet die sichere Kontextvorschau. Ctrl+Esc bricht laufende lokale Reads ab.";
+        SetStatus("Keyboard: Ctrl+1..7 sections · F5 refresh · Shift+F10 context preview · Ctrl+Esc cancel · F1 help.");
     }
 
     private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -221,17 +225,9 @@ public partial class MainWindow : Window
 
     private void UpdateResponsiveLayout(double width)
     {
-        // Keep the desktop rail when there is room for it. At smaller widths
-        // the same commands move into a horizontally scrollable top rail;
-        // no navigation state or handler changes between the two shells.
+        // The menu bar stays in one row; only the content margin shrinks on
+        // narrow windows so the item list keeps as much width as possible.
         var compact = width > 0 && width < 1080;
-        var showContextRail = width >= 1320;
-        if (_sidebar is not null)
-            _sidebar.IsVisible = !compact;
-        if (_contextRail is not null)
-            _contextRail.IsVisible = !compact && showContextRail;
-        if (_compactNavigation is not null)
-            _compactNavigation.IsVisible = compact;
         if (_contentRoot is not null)
             _contentRoot.Margin = compact ? new Thickness(20, 20) : new Thickness(34, 30);
     }
@@ -243,16 +239,10 @@ public partial class MainWindow : Window
             Application.Current.RequestedThemeVariant = _isOpsDark ? ThemeVariant.Dark : ThemeVariant.Light;
 
         var themeName = _isOpsDark ? "Ops Dark" : "Stickman Standard";
-        var buttonText = _isOpsDark ? "☀  Stickman Standard öffnen" : "☾  Ops Dark öffnen";
-        var compactButtonText = _isOpsDark ? "☀ Stickman" : "☾ Ops Dark";
+        var buttonText = _isOpsDark ? "☀" : "☾";
         if (_themeToggleButton is not null)
             _themeToggleButton.Content = buttonText;
-        if (_compactThemeToggleButton is not null)
-            _compactThemeToggleButton.Content = compactButtonText;
-        if (_sidebarThemeLabel is not null)
-            _sidebarThemeLabel.Text = themeName;
-        RefreshAccountStatusBrushes();
-        SetStatus($"Theme „{themeName}“ aktiviert.");
+        SetStatus($"Theme “{themeName}” activated.");
     }
 
     private void Navigate(string section)
@@ -260,94 +250,105 @@ public partial class MainWindow : Window
         _activeSection = section;
         SetActiveNavigation(section);
         UpdatePageState(section);
-        UpdateContextRail(section);
-        SetStatus($"Bereich „{section}“ ausgewählt.");
+        SetStatus($"Section “{section}” selected.");
     }
 
-    private void UpdateContextRail(string section)
+    /// <summary>
+    /// Marks the menu entry of the current section. KoLmafia highlights the
+    /// open tab, and the menu bar is the tab strip here.
+    /// </summary>
+    private void SetActiveNavigation(string section)
     {
-        if (_contextRailTitle is not null)
-            _contextRailTitle.Text = section;
-        if (_contextRailKind is not null)
-            _contextRailKind.Text = section switch
-            {
-                "Mall & Shop" => "Shopzeile / Preisvergleich",
-                "Adventure" => "Encounter / Tagesplan",
-                "Combat" => "Fight-Observation / Policy",
-                "Konten & Transfer" => "Konto / Rollenstatus",
-                _ => "Arbeitsbereich"
-            };
-        if (_contextRailDetails is not null)
-            _contextRailDetails.Text = section switch
-            {
-                "Mall & Shop" => "Wähle ein Listing für Detailpreis, historische Spanne und Reprice-Vorschau.",
-                "Adventure" => "Wähle ein Encounter für Status, Allowlist und bounded Preview.",
-                "Combat" => "Wähle eine legale Action für manuelle oder AutoCombat-Preview.",
-                _ => "Wähle ein Objekt, um sichere Kontextaktionen zu sehen."
-            };
+        var entries = new (Button? Button, string Section)[]
+        {
+            (_navOverview, "Guts"),
+            (_navInventory, "Inventory"),
+            (_navDaily, "Daily"),
+            (_navPricing, "Pricing Engine"),
+            (_navMall, "Mall & Shop"),
+            (_navAdventure, "Adventure"),
+            (_navCombat, "Combat")
+        };
+        foreach (var (button, tag) in entries)
+        {
+            if (button is null) continue;
+            var active = string.Equals(section, tag, StringComparison.Ordinal);
+            if (active) button.Classes.Add("active");
+            else button.Classes.Remove("active");
+        }
     }
-
-    private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Übersicht");
+    private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Guts");
     private void PricingClick(object? sender, RoutedEventArgs e) => Navigate("Pricing Engine");
     private async void MallClick(object? sender, RoutedEventArgs e)
     {
         Navigate("Mall & Shop");
-        await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(false, cancellationToken));
+        await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(false, cancellationToken));
     }
     private async void AccountsClick(object? sender, RoutedEventArgs e)
     {
-        Navigate("Konten & Transfer");
-        await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
+        Navigate("Accounts & Transfer");
+        await RunBusyOperationAsync("Loading accounts", LoadSavedAccountsAsync);
     }
     private async void AdventureClick(object? sender, RoutedEventArgs e)
     {
         Navigate("Adventure");
-        await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(false, cancellationToken));
+        await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(false, cancellationToken));
     }
     private void CombatClick(object? sender, RoutedEventArgs e)
     {
         Navigate("Combat");
         if (_combatPreviewSummary is not null)
-            _combatPreviewSummary.Text = "Keine Observation geladen. Preview bleibt blockiert, bis Monster, Runde und legale Actions frisch gelesen wurden.";
+            _combatPreviewSummary.Text = "No observation loaded. The preview stays blocked until monster, round and legal actions were read fresh.";
     }
-    private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Einstellungen");
+    private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Settings");
     private void ContextPreviewClick(object? sender, RoutedEventArgs e)
     {
-        SetStatus($"Kontextvorschau für „{_activeSection}“ geöffnet. Es wurde keine KoL-Aktion gesendet.");
-        if (_contextRailDetails is not null)
-            _contextRailDetails.Text = "Preview erzeugt: aktuelle Daten und erlaubte nächste Schritte werden angezeigt; Commit bleibt separat freizugeben.";
+        SetStatus($"Context preview for “{_activeSection}” opened. No KoL action was sent.");
     }
 
     private void ContextRefreshClick(object? sender, RoutedEventArgs e)
     {
-        SetStatus($"Kontext „{_activeSection}“ markiert. Aktualisierung läuft über den Bereichs-Refresh.");
-        if (_contextRailDetails is not null)
-            _contextRailDetails.Text = "Der Bereichs-Refresh lädt den gemeinsamen Cache. Das Kontextpanel bleibt read-only.";
+        SetStatus($"Context “{_activeSection}” marked. The refresh runs through the section refresh.");
     }
     private async void RefreshClick(object? sender, RoutedEventArgs e)
     {
         switch (_activeSection)
         {
-            case "Mall & Shop":
-                await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(true, cancellationToken));
+            case "Inventory":
+                await RunBusyOperationAsync("Loading inventory", cancellationToken =>
+                    _inventory.LoadAsync(forceRefresh: true, cancellationToken));
+                if (_inventoryList is not null) _inventoryList.ItemsSource = _inventory.Items;
+                if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+                if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+                RenderInventoryDetail();
                 break;
-            case "Konten & Transfer":
-                await RunBusyOperationAsync("Konten laden", LoadSavedAccountsAsync);
+            case "Daily":
+                await RunBusyOperationAsync("Loading daily plan", cancellationToken =>
+                    _daily.LoadAsync(forceRefresh: true, cancellationToken));
+                if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
+                if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
+                if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
+                break;
+            case "Mall & Shop":
+                await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(true, cancellationToken));
+                break;
+            case "Accounts & Transfer":
+                await RunBusyOperationAsync("Loading accounts", LoadSavedAccountsAsync);
                 break;
             case "Adventure":
-                await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
+                await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
                 break;
             default:
-                await RunBusyOperationAsync("Aktualisierung", RefreshCurrentPageStateAsync);
+                await RunBusyOperationAsync("Refreshing", RefreshCurrentPageStateAsync);
                 break;
         }
     }
 
     private async void RefreshMallClick(object? sender, RoutedEventArgs e)
-        => await RunBusyOperationAsync("Mall-Aktualisierung", cancellationToken => RefreshMallAsync(true, cancellationToken));
+        => await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(true, cancellationToken));
 
     private async void RefreshAdventureClick(object? sender, RoutedEventArgs e)
-        => await RunBusyOperationAsync("Adventure-Plan laden", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
+        => await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
 
     private void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -358,12 +359,12 @@ public partial class MainWindow : Window
         if (_activeSection == "Mall & Shop")
         {
             if (_mallSummary is not null)
-                _mallSummary.Text = $"Konto „{_selectedRole}“ ausgewählt. Mall-Daten neu laden.";
+                _mallSummary.Text = $"Account “{_selectedRole}” selected. Reload the mall data.";
             if (_mallRows is not null)
                 _mallRows.Text = string.Empty;
         }
 
-        SetStatus($"Konto „{_selectedRole}“ ausgewählt. Read-only-Abfragen verwenden dieses Konto.");
+        SetStatus($"Account “{_selectedRole}” selected. Read-only queries use this account.");
     }
 
     private async Task RefreshCurrentPageStateAsync(CancellationToken cancellationToken)
@@ -373,9 +374,9 @@ public partial class MainWindow : Window
         // turn even when a page has no query service yet.
         await Task.Yield();
         cancellationToken.ThrowIfCancellationRequested();
-        UpdatePageStateStatus(_activeSection, "Keine externe Datenquelle für diesen Bereich geladen.");
-        SetStatus(_activeSection == "Übersicht"
-            ? "Übersicht aktualisiert. Read-only-Kennzahlen warten auf einen verbundenen Query-Service."
+        UpdatePageStateStatus(_activeSection, "No external data source loaded for this section.");
+        SetStatus(_activeSection == "Guts"
+            ? "Overview refreshed. Read-only metrics wait for a connected query service."
             : $"{_activeSection}: Noch keine Daten geladen.");
     }
 
@@ -385,13 +386,13 @@ public partial class MainWindow : Window
     {
         if (_refreshCancellation is not null)
         {
-            SetStatus("Eine Aktualisierung läuft bereits. Abbrechen oder warten, bevor eine neue gestartet wird.");
+            SetStatus("A refresh is already running. Cancel it or wait before starting another.");
             return;
         }
 
         using var cancellation = new CancellationTokenSource();
         _refreshCancellation = cancellation;
-        SetBusy(true, $"{operation} läuft …");
+        SetBusy(true, $"{operation} running …");
         try
         {
             // Yield once so the disabled refresh button, progress indicator,
@@ -429,7 +430,7 @@ public partial class MainWindow : Window
         if (_globalRefreshButton is not null)
         {
             _globalRefreshButton.IsEnabled = !busy;
-            _globalRefreshButton.Content = busy ? "⟳  Aktualisierung läuft …" : "⟳  Daten aktualisieren";
+            _globalRefreshButton.Content = busy ? "⟳  Refreshing …" : "⟳  Daten aktualisieren";
         }
         if (_busyIndicator is not null)
             _busyIndicator.IsVisible = busy;
@@ -451,9 +452,9 @@ public partial class MainWindow : Window
             var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken);
             if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
             {
-                _mallSummary.Text = $"Bitte zuerst {role} über Konten anmelden.";
+                _mallSummary.Text = $"Log {role} in through Accounts first.";
                 _mallRows.Text = string.Empty;
-                UpdatePageStateStatus("Mall & Shop", $"Kein gültiger {role}-Login vorhanden.");
+                UpdatePageStateStatus("Mall & Shop", $"No valid {role} login on file.");
                 SetStatus($"Mall konnte nicht geladen werden: {role} ist nicht angemeldet.");
                 return;
             }
@@ -490,7 +491,7 @@ public partial class MainWindow : Window
                 : string.Join(Environment.NewLine, analyses.Select(x =>
                     $"{x.DisplayName}   {x.CurrentPrice:N0} Meat   {string.Join(", ", x.Categories)}   → {x.SuggestedAction}"));
             UpdatePageStateStatus("Mall & Shop", $"{listings.Count} Listings von {role} geladen.");
-            SetStatus("Mall- und Shopdaten aktualisiert. Preisänderungen bleiben deaktiviert.");
+            SetStatus("Mall and shop data refreshed. Price changes stay disabled.");
         }
         catch (OperationCanceledException)
         {
@@ -500,7 +501,7 @@ public partial class MainWindow : Window
         {
             _mallSummary.Text = "Mall-Aktualisierung fehlgeschlagen.";
             _mallRows.Text = exception.Message;
-            UpdatePageStateStatus("Mall & Shop", "Abruf fehlgeschlagen; vorhandene Daten bleiben unverändert.");
+            UpdatePageStateStatus("Mall & Shop", "The query failed; the existing data stays unchanged.");
             SetStatus("Mall konnte nicht aktualisiert werden: " + exception.Message);
         }
     }
@@ -518,9 +519,9 @@ public partial class MainWindow : Window
         {
             _adventureTurnsLabel.Text = "—";
             _adventureKnucklebonesLabel.Text = "— / 100";
-            _adventurePlanSummary.Text = $"Bitte zuerst {role} über Konten anmelden.";
-            _adventurePlanAdvisories.Text = "Kein Session-Snapshot verfügbar.";
-            UpdatePageStateStatus("Adventure", $"Kein gültiger {role}-Login vorhanden.");
+            _adventurePlanSummary.Text = $"Log {role} in through Accounts first.";
+            _adventurePlanAdvisories.Text = "No session snapshot available.";
+            UpdatePageStateStatus("Adventure", $"No valid {role} login on file.");
             return;
         }
 
@@ -546,7 +547,7 @@ public partial class MainWindow : Window
         var plan = new KolArbitrage.Core.Adventure.DailyAdventurePlanner().Plan(state);
         _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} Schritt(e), prognostiziert {plan.ProjectedKnucklebones:N1} Knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
-            ? "Keine Warnungen. Jede Ausführung bleibt Approval-/Verify-gebunden."
+            ? "No warnings. Every execution stays bound to approval and verification."
             : string.Join(Environment.NewLine, plan.Advisories);
         UpdatePageStateStatus("Adventure", $"Status und Inventar von {role} geladen; Preview only.");
         SetStatus("Adventure-Plan aktualisiert. Keine Adventure- oder Kampfaktion wurde gesendet.");
@@ -559,8 +560,8 @@ public partial class MainWindow : Window
             await _accounts.InitializeAsync(cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Main, cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Mallbot, cancellationToken);
-            UpdatePageStateStatus("Konten & Transfer", "Gespeicherte Rollen und Sessions geprüft.");
-            SetStatus("Konten geladen. Passwörter bleiben geschützt und werden nicht angezeigt.");
+            UpdatePageStateStatus("Accounts & Transfer", "Stored roles and sessions checked.");
+            SetStatus("Accounts loaded. Passwords stay protected and are not shown.");
         }
         catch (OperationCanceledException)
         {
@@ -593,7 +594,7 @@ public partial class MainWindow : Window
         // have one from an older version, but it must not be exposed in the UI
         // or used implicitly for a new login.
         passwordBox.Text = string.Empty;
-        status.Text = "Gespeichert (Session noch nicht geprüft)";
+        status.Text = "Stored (session not checked yet)";
         status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
     }
 
@@ -635,13 +636,13 @@ public partial class MainWindow : Window
             // stale session for a different character.
             await _accounts.ClearCredentialsAsync(role);
 
-            status.Text = "Login läuft …";
+            status.Text = "Logging in …";
             status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
             var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
             await _accounts.SetCredentialsAsync(role, login.Credentials);
-            status.Text = "Verbunden und verschlüsselt gespeichert";
+            status.Text = "Connected and stored encrypted";
             status.Foreground = ThemeBrush("SuccessBrush", Brushes.LightGreen);
-            SetStatus($"{role} ist bei KoL angemeldet. Read-only-Daten können jetzt geladen werden.");
+            SetStatus($"{role} is logged in at KoL. Read-only data can be loaded now.");
         }
         catch (KoLLoginException exception)
         {
@@ -665,9 +666,10 @@ public partial class MainWindow : Window
 
     private void UpdatePageState(string section)
     {
-        var isOverview = string.Equals(section, "Übersicht", StringComparison.Ordinal);
-        var isInventory = string.Equals(section, "Inventar", StringComparison.Ordinal);
-        var isAccounts = string.Equals(section, "Konten & Transfer", StringComparison.Ordinal);
+        var isOverview = string.Equals(section, "Guts", StringComparison.Ordinal);
+        var isInventory = string.Equals(section, "Inventory", StringComparison.Ordinal);
+        var isDaily = string.Equals(section, "Daily", StringComparison.Ordinal);
+        var isAccounts = string.Equals(section, "Accounts & Transfer", StringComparison.Ordinal);
         var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
         var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
         var isCombat = string.Equals(section, "Combat", StringComparison.Ordinal);
@@ -677,6 +679,8 @@ public partial class MainWindow : Window
             _overviewPanel.IsVisible = isOverview;
         if (_inventoryPanel is not null)
             _inventoryPanel.IsVisible = isInventory;
+        if (_dailyPanel is not null)
+            _dailyPanel.IsVisible = isDaily;
         if (_accountsPanel is not null)
             _accountsPanel.IsVisible = isAccounts;
         if (_mallPanel is not null)
@@ -686,12 +690,12 @@ public partial class MainWindow : Window
         if (_combatPanel is not null)
             _combatPanel.IsVisible = isCombat;
         if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isAccounts && !isMall && !isAdventure && !isCombat;
+            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isDaily && !isAccounts && !isMall && !isAdventure && !isCombat;
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
         if (_shellPageDescription is not null)
             _shellPageDescription.Text = isOverview
-                ? "Dein Arbitrage-Überblick für heute."
+                ? "Your arbitrage overview for today."
                 : description;
         if (_pageStateTitle is not null)
             _pageStateTitle.Text = title;
@@ -701,9 +705,9 @@ public partial class MainWindow : Window
             _mallRoleLabel.Text = $"Konto: {_selectedRole}";
         if (_pageStateStatus is not null && !isOverview)
             _pageStateStatus.Text = isAccounts
-                ? "Noch keine Kontenprüfung ausgeführt."
+                ? "No account check has run yet."
                 : isMall
-                    ? $"Noch keine Mall-Daten für {_selectedRole} geladen."
+                    ? $"No mall data loaded for {_selectedRole} yet."
                     : "Noch keine Daten geladen.";
     }
 
@@ -716,13 +720,14 @@ public partial class MainWindow : Window
     private static (string Title, string Description) DescribeSection(string section)
         => section switch
         {
-            "Inventar" => ("Inventar", "Live-Inventar mit Suche, Kategorien und Item-Detail."),
-            "Pricing Engine" => ("Pricing Engine", "Preisquellen, Referenzen und Kaufkandidaten werden hier als read-only Vorschau geprüft."),
-            "Mall & Shop" => ("Mall & Shop", "Eigene Listings und Marktpreise werden für das ausgewählte Konto read-only geladen."),
-            "Konten & Transfer" => ("Konten & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
-            "Adventure" => ("Adventure", "Tagesziele und Farm-vs-Buy-Pläne erscheinen hier, sobald ein Query-Service verbunden ist."),
+            "Inventory" => ("Inventory", "Live inventory with search, categories and item detail."),
+            "Daily" => ("Daily", "What the bot does today — campfire, hermit, free pulls and arbitrage."),
+            "Pricing Engine" => ("Pricing Engine", "Price sources, references and buy candidates are checked here as a read-only preview."),
+            "Mall & Shop" => ("Mall & Shop", "Own listings and market prices are loaded read-only for the selected account."),
+            "Accounts & Transfer" => ("Accounts & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
+            "Adventure" => ("Adventure", "Daily goals and farm-vs-buy plans appear here once a query service is connected."),
             "Combat" => ("Combat", "Manuelle und deklarative AutoCombat-Entscheidungen bleiben an frische Fight-Observations und Approval gebunden."),
-            "Einstellungen" => ("Einstellungen", "Shell-, Cache- und Sicherheitsoptionen werden hier verwaltet."),
+            "Settings" => ("Settings", "Shell-, Cache- und Sicherheitsoptionen werden hier verwaltet."),
             _ => (section, "Dieser Bereich hat noch keine geladenen Daten.")
         };
 
@@ -745,64 +750,8 @@ public partial class MainWindow : Window
         if (_statusBar is not null)
             _statusBar.IsVisible = true;
     }
-
-    private void SetActiveNavigation(string section)
-    {
-        var buttons = new[]
-        {
-            this.FindControl<Button>("NavOverview"),
-            this.FindControl<Button>("NavPricing"),
-            this.FindControl<Button>("NavMall"),
-            this.FindControl<Button>("NavAccounts"),
-            this.FindControl<Button>("NavAdventure"),
-            this.FindControl<Button>("NavCombat"),
-            this.FindControl<Button>("NavSettings"),
-            this.FindControl<Button>("CompactNavOverview"),
-            this.FindControl<Button>("CompactNavPricing"),
-            this.FindControl<Button>("CompactNavMall"),
-            this.FindControl<Button>("CompactNavAccounts"),
-            this.FindControl<Button>("CompactNavAdventure"),
-            this.FindControl<Button>("CompactNavCombat"),
-            this.FindControl<Button>("CompactNavSettings")
-        };
-
-        foreach (var button in buttons)
-        {
-            if (button is null)
-                continue;
-            if (string.Equals(button.Tag?.ToString(), section, StringComparison.Ordinal))
-                button.Classes.Add("active");
-            else
-                button.Classes.Remove("active");
-        }
-    }
-
     private IBrush ThemeBrush(string key, IBrush fallback)
         => this.FindResource(key) as IBrush ?? fallback;
-
-    private void RefreshAccountStatusBrushes()
-    {
-        var statuses = new[]
-        {
-            this.FindControl<TextBlock>("MainAccountStatus"),
-            this.FindControl<TextBlock>("MallbotAccountStatus")
-        };
-        foreach (var status in statuses)
-        {
-            if (status is null)
-                continue;
-            var text = status.Text ?? string.Empty;
-            var key = text.Contains("fehl", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("erforderlich", StringComparison.OrdinalIgnoreCase)
-                || text.Contains("fehlgeschlagen", StringComparison.OrdinalIgnoreCase)
-                ? "ErrorBrush"
-                : text.Contains("Verbunden", StringComparison.OrdinalIgnoreCase)
-                    ? "SuccessBrush"
-                    : "WarningBrush";
-            status.Foreground = ThemeBrush(key, Brushes.Gray);
-        }
-    }
-
     /// <summary>
     /// Wires the inventory browser: the list, the search box, the category
     /// strip and the detail pane all read from one view model so the
@@ -825,7 +774,28 @@ public partial class MainWindow : Window
         }
         if (_inventoryCategoryStrip is not null)
         {
-            _inventoryCategoryStrip.ItemsSource = _inventory.Categories;
+            // KoLmafia shows the categories as a row of tabs above the item
+            // list. Each one is a button that switches the filter.
+            _inventoryCategoryStrip.Children.Clear();
+            foreach (var category in _inventory.Categories)
+            {
+                var captured = category;
+                var button = new Button
+                {
+                    Content = category.Label,
+                    Classes = { "menu-item" },
+                    Padding = new Avalonia.Thickness(10, 5),
+                    FontSize = 12
+                };
+                button.Click += (_, _) =>
+                {
+                    _inventory.SelectedCategory = captured;
+                    foreach (var child in _inventoryCategoryStrip.Children.OfType<Button>())
+                        child.Classes.Remove("active");
+                    button.Classes.Add("active");
+                };
+                _inventoryCategoryStrip.Children.Add(button);
+            }
         }
         _inventory.PropertyChanged += (_, args) =>
         {
@@ -854,7 +824,7 @@ public partial class MainWindow : Window
         {
             _inventoryDetailPanel.Children.Add(new TextBlock
             {
-                Text = "Kein Item gewählt",
+                Text = "No item selected",
                 Classes = { "muted" }
             });
             return;
@@ -866,7 +836,7 @@ public partial class MainWindow : Window
         });
         _inventoryDetailPanel.Children.Add(new TextBlock
         {
-            Text = $"ID {detail.ItemId} · {detail.Quantity} Stück",
+            Text = $"ID {detail.ItemId} · {detail.Quantity} pcs",
             Classes = { "muted" },
             FontSize = 12
         });
@@ -897,14 +867,102 @@ public partial class MainWindow : Window
 
     private async void InventoryClick(object? sender, RoutedEventArgs e)
     {
-        Navigate("Inventar");
-        await RunBusyOperationAsync("Inventar laden", cancellationToken =>
+        Navigate("Inventory");
+        await RunBusyOperationAsync("Loading inventory", cancellationToken =>
             _inventory.LoadAsync(cancellationToken: cancellationToken));
         if (_inventoryList is not null)
             _inventoryList.ItemsSource = _inventory.Items;
         if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
         if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
         RenderInventoryDetail();
+    }
+
+    /// <summary>Opens the morning briefing: the live numbers and the plan
+    /// the bot would run today.</summary>
+    private async void DailyClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Daily");
+        await RunBusyOperationAsync("Loading daily plan", cancellationToken =>
+            _daily.LoadAsync(cancellationToken: cancellationToken));
+        if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
+        if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
+        if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
+    }
+
+    private void DailySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_dailyRows?.SelectedItem is not DailyBriefingRow row) return;
+        if (_dailyStatusText is not null)
+            _dailyStatusText.Text = $"{row.Surface}: {row.Description} — {row.Detail}";
+    }
+
+    /// <summary>Runs the daily routine with the approval token from the
+    /// window. Without a token nothing is submitted — the bridge refuses
+    /// to write without one.</summary>
+    private async void DailyRunClick(object? sender, RoutedEventArgs e)
+    {
+        var token = _dailyTokenBox?.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            if (_dailyStatusText is not null)
+                _dailyStatusText.Text = "No approval token — nothing was sent.";
+            return;
+        }
+        await RunBusyOperationAsync("Daily routine", async cancellationToken =>
+        {
+            var account = await _accounts
+                .GetSessionAsync(_selectedRole, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            if (account is null)
+            {
+                if (_dailyStatusText is not null)
+                    _dailyStatusText.Text = "No session for the selected account.";
+                return;
+            }
+            var ok = await RunDailyRoutineAsync(account, token, cancellationToken).ConfigureAwait(false);
+            if (_dailyStatusText is not null)
+                _dailyStatusText.Text = ok
+                    ? "Daily routine executed. Details are in the audit log."
+                    : "The daily routine could not be completed.";
+        });
+    }
+
+    /// <summary>Runs the daily routine for the selected account through the
+    /// same bridge the CLI uses.</summary>
+    private async Task<bool> RunDailyRoutineAsync(
+        AccountSession account, string approvalToken, CancellationToken cancellationToken)
+    {
+        var http = KoLLoginClient.CreateAuthenticatedClient(
+            account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
+        var readClient = new KoLAccountReadClient(http);
+        var live = await new LiveDailySnapshotBuilder(readClient)
+            .BuildAsync(new KolArbitrage.Core.Daily.DailyRoutineSnapshot(), cancellationToken)
+            .ConfigureAwait(false);
+        var bridge = new KolArbitrage.Core.Daily.AutoCombatDailyBridge();
+        var plan = bridge.Plan(live.State, live.Snapshot);
+        // The approval hook is where the token gate lives: the gateway only
+        // posts when the operator's token matches.
+        var approval = new DelegateAdventureApprovalHook((_, _) =>
+            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
+        var verification = new DelegateAdventureVerificationHook((context, _) =>
+            ValueTask.FromResult(context.Response.Accepted != false
+                ? AdventureVerificationResult.Success()
+                : AdventureVerificationResult.Failed("Die Live-Antwort wurde von KoL abgelehnt.")));
+        var session = await KoLAdventureSessionFactory.CreateAsync(
+            _selectedRole, approval, verification, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        var dispatcher = new KolArbitrage.Core.Daily.FreePullDispatcher(
+            http, KolArbitrage.Core.Daily.FreePullDispatcher.DefaultBaseUri);
+        using var audit = new KolArbitrage.Core.Daily.BridgeAuditLog(
+            KolArbitrage.Core.Daily.BridgeAuditLog.DefaultPath());
+        var result = await bridge.ExecuteAsync(
+            plan.Steps, session.Gateway,
+            freePullDispatcher: dispatcher,
+            freePullCredentials: account.Credentials,
+            audit: audit,
+            accountId: _selectedRole.ToString(),
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return result.Executed;
     }
 
     private static KolArbitrage.Core.Data.KoLmafiaCatalog? TryLoadCatalog()
