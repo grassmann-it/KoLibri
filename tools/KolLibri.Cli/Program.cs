@@ -49,6 +49,7 @@ internal static partial class KolibriCli
                 "adventure-plan" => await AdventurePlanAsync(args[1..]),
                 "adventure" => await AdventureCommandAsync(args[1..]),
                 "daily" => await DailyCommandAsync(args[1..]),
+                "market-scan" or "market" => await MarketScanCommands.RunAsync(args[1..], JsonOptions),
                 "daily-audit" => await DailyAuditCommandAsync(args[1..]),
                 "combat" => await CombatCommandAsync(args[1..]),
                 "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),

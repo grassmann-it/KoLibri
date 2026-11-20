@@ -77,6 +77,12 @@ public sealed class MallBuyClient
         return null;
     }
 
+    /// <summary>
+    /// KoL's answer to a purchase that broke a daily limit. The message
+    /// names the limit, so the caller can skip the listing for today.
+    /// </summary>
+    public const string DailyLimitRefusal = "You may only buy";
+
     /// <summary>Buys <paramref name="quantity"/> units of an item from a
     /// store at an agreed price. The caller must have read the listing
     /// first — the price has to match the listing exactly.</summary>
@@ -104,9 +110,13 @@ public sealed class MallBuyClient
         var form = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["whichstore"] = storeId.ToString(CultureInfo.InvariantCulture),
-            ["buying"] = "1",
-            ["ajax"] = "1",
-            // KoL encodes the agreed price in the item field: whichitem=2272.246
+            ["buying"] = "Yep.",
+            // KoL encodes the agreed price in the item field: the item id, a
+            // dot, and the price in meat as a whole number. The radio
+            // button for a clover at 25.000 meat reads whichitem=10881.25000
+            // and for a troll doll at 12.345.678 meat whichitem=5433.12345678.
+            // Sending a scaled price makes KoL answer "This store doesn't
+            // have that item at that price".
             ["whichitem"] = itemId.ToString(CultureInfo.InvariantCulture)
                 + "." + unitPrice.ToString(CultureInfo.InvariantCulture),
             ["quantity"] = quantity.ToString(CultureInfo.InvariantCulture),
