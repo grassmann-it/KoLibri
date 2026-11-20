@@ -18,6 +18,7 @@ internal static class MarketScanCommands
         CancellationToken cancellationToken = default)
     {
         var execute = args.Contains("--execute", StringComparer.OrdinalIgnoreCase);
+        var sell = args.Contains("--sell", StringComparer.OrdinalIgnoreCase);
         var roleValue = GetOption(args, "--role") ?? "mallbot";
         var role = Enum.TryParse<AccountRole>(roleValue, ignoreCase: true, out var parsed)
             ? parsed
@@ -127,12 +128,59 @@ internal static class MarketScanCommands
             }
         }
 
+        // The sell side: the bought items go back on the market at the
+        // price they fetch again — that is what turns the purchase into
+        // an arbitrage instead of a pile of items.
+        if (sell)
+        {
+            var lister = new StoreLister(http);
+            var storeItems = await lister
+                .ReadItemsAsync(session.Credentials, cancellationToken)
+                .ConfigureAwait(false);
+            var ownListings = await lister
+                .ReadOwnListingsAsync(session.Credentials, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var sellRule in BuyPlanner.DefaultRules)
+            {
+                var held = storeItems.FirstOrDefault(x => x.ItemId == sellRule.ItemId);
+                var listed = ownListings.FirstOrDefault(x => x.ItemId == sellRule.ItemId);
+                if (listed is not null)
+                {
+                    // The item is already on the market. KoL only lists the
+                    // items that are not yet listed, so an existing
+                    // listing is left alone — it is already at a price.
+                    Console.Error.WriteLine(
+                        $"  {sellRule.ItemName} is already listed at {listed.Price:N0} "
+                        + $"({listed.DailyLimit}/day)");
+                    continue;
+                }
+                if (held is null || held.InStock <= 0)
+                {
+                    Console.Error.WriteLine(
+                        $"  nothing to sell: no {sellRule.ItemName} in the store");
+                    continue;
+                }
+                var result = await lister.ListAsync(
+                    session.Credentials,
+                    sellRule.ItemId,
+                    sellRule.ResalePrice,
+                    held.InStock,
+                    3,
+                    cancellationToken).ConfigureAwait(false);
+                Console.Error.WriteLine(
+                    $"  {(result.Accepted ? "listed" : "not listed")} {held.InStock} x "
+                    + $"{sellRule.ItemName} for {sellRule.ResalePrice:N0}: "
+                    + FirstLine(result.Message));
+            }
+        }
+
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             command = "market-scan",
             role = role.ToString(),
             meat,
             executed = execute,
+            sold = sell,
             items = results
         }, jsonOptions));
         return 0;
