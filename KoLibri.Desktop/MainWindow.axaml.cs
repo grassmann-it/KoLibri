@@ -108,6 +108,8 @@ public partial class MainWindow : Window
     private ListBox? _storeRows;
     private ListBox? _arbitrageRows;
     private TextBlock? _arbitrageSummaryText;
+    private ListBox? _arbitrageRules;
+    private TextBlock? _arbitragePlanText;
     private StackPanel? _dailyPanel;
     private ListBox? _dailyRows;
     private TextBlock? _dailySnapshotText;
@@ -143,6 +145,8 @@ public partial class MainWindow : Window
         _storeRows = this.FindControl<ListBox>("StoreRows");
         _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
         _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
+        _arbitrageRules = this.FindControl<ListBox>("ArbitrageRules");
+        _arbitragePlanText = this.FindControl<TextBlock>("ArbitragePlanText");
         _mallSection = this.FindControl<StackPanel>("MallSection");
         _combatSection = this.FindControl<StackPanel>("CombatSection");
         _mallListingRows = this.FindControl<ListBox>("MallListingRows");
@@ -357,6 +361,8 @@ public partial class MainWindow : Window
             _arbitrage.LoadAsync(cancellationToken: cancellationToken));
         if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
         if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+        if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;
+        if (_arbitragePlanText is not null) _arbitragePlanText.Text = _arbitrage.PlanText;
     }
 
     private void PricingClick(object? sender, RoutedEventArgs e) => Navigate("Pricing Engine");
@@ -500,6 +506,8 @@ public partial class MainWindow : Window
                     _arbitrage.LoadAsync(forceRefresh: true, cancellationToken));
                 if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
                 if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+                if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;
+                if (_arbitragePlanText is not null) _arbitragePlanText.Text = _arbitrage.PlanText;
                 break;
             case "Inventory":
                 await RunBusyOperationAsync("Loading inventory", cancellationToken =>

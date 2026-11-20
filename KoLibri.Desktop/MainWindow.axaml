@@ -225,6 +225,41 @@
             </Grid>
           </Border>
 
+          <Border Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,Auto,*">
+              <Grid Grid.Row="0"
+                    ColumnDefinitions="2*,Auto,Auto,Auto,Auto"
+                    Margin="14,12,14,8">
+                <TextBlock Grid.Column="0" Text="Buy rule" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="1" Text="Buy under" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="2" Text="Fetches again" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="3" Text="Listings" Classes="muted" FontSize="11" />
+                <TextBlock Grid.Column="4" Text="Expected" Classes="muted" FontSize="11" />
+              </Grid>
+              <TextBlock Grid.Row="1"
+                         x:Name="ArbitragePlanText"
+                         Text="—"
+                         Classes="muted"
+                         FontSize="12"
+                         Margin="14,0,14,8" />
+              <ListBox x:Name="ArbitrageRules"
+                       Grid.Row="2"
+                       AutomationProperties.Name="Buy rules">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:BuyRuleRow">
+                    <Grid ColumnDefinitions="2*,Auto,Auto,Auto,Auto" ColumnSpacing="12" Margin="0,3">
+                      <TextBlock Grid.Column="0" Text="{Binding ItemName}" />
+                      <TextBlock Grid.Column="1" Text="{Binding CeilingText}" />
+                      <TextBlock Grid.Column="2" Text="{Binding ResalePrice}" />
+                      <TextBlock Grid.Column="3" Text="{Binding CandidateCount}" />
+                      <TextBlock Grid.Column="4" Text="{Binding ProfitText}" Classes="muted" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
         </StackPanel>
 
         <StackPanel x:Name="DailyPanel" Spacing="16" IsVisible="False">
