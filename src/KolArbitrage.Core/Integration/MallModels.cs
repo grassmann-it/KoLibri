@@ -263,7 +263,11 @@ public sealed class KoLMallReadClient : IMallReadClient
         _security.EnsureAllowed(uri);
         try
         {
-            var html = await GetStringAsync(uri, CancellationToken.None).ConfigureAwait(false);
+            // KoL redirects managestore.php to backoffice.php — the store
+            // management lives there now. The client does not follow
+            // redirects (so cookies cannot leak cross-host), so we follow the
+            // location ourselves.
+            var html = await GetStringFollowingRedirectAsync(uri, CancellationToken.None).ConfigureAwait(false);
             var parsed = ParseOwnShop(html);
             lock (_cacheGate)
             {
@@ -298,8 +302,47 @@ public sealed class KoLMallReadClient : IMallReadClient
         else _inflight.TryRemove(itemId.Trim(), out _);
     }
 
-    private async Task<string> GetStringAsync(Uri uri, CancellationToken cancellationToken)
+    /// <summary>
+    /// Reads a page and follows KoL's own redirect when it sends us to
+    /// another page of the same host. KoL moved the store management from
+    /// managestore.php to backoffice.php and answers the old URL with a
+    /// redirect; the client never follows redirects on its own.
+    /// </summary>
+    private async Task<string> GetStringFollowingRedirectAsync(
+        Uri uri, CancellationToken cancellationToken)
     {
+        await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_lastRequest is { } last)
+            {
+                var wait = _policy.MinimumRequestInterval - (_clock.GetUtcNow() - last);
+                if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
+            }
+            using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            _security.EnsureResponseUri(uri, response.RequestMessage?.RequestUri);
+            if (response.Headers.Location is { } location && !response.IsSuccessStatusCode)
+            {
+                _security.ResolveRedirect(uri, location.ToString());
+                var target = new Uri(uri, location);
+                using var follow = await _http.GetAsync(target, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                _security.EnsureResponseUri(target, follow.RequestMessage?.RequestUri);
+                follow.EnsureSuccessStatusCode();
+                var followBody = await follow.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                KoLHtmlResponseClassifier.EnsureContent(followBody, target);
+                _lastRequest = _clock.GetUtcNow();
+                return followBody;
+            }
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            KoLHtmlResponseClassifier.EnsureContent(body, uri);
+            _lastRequest = _clock.GetUtcNow();
+            return body;
+        }
+        finally { _requestGate.Release(); }
+    }
+
+    private async Task<string> GetStringAsync(Uri uri, CancellationToken cancellationToken)    {
         await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {

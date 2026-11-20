@@ -83,6 +83,20 @@ public partial class MainWindow : Window
     private DailyBriefingViewModel _daily = new();
     private LiveGutsViewModel _guts = new();
     private LiveArbitrageViewModel _arbitrage = new();
+    private LiveMallViewModel _mall = new();
+    private AutoCombatViewModel _autoCombat = new();
+    private StackPanel? _mallSection;
+    private StackPanel? _combatSection;
+    private ListBox? _mallListingRows;
+    private TextBlock? _mallSummaryText;
+    private ListBox? _combatTargetList;
+    private ComboBox? _combatSkillPicker;
+    private ComboBox? _combatItemPicker;
+    private ListBox? _combatSkillList;
+    private ListBox? _combatItemList;
+    private NumericUpDown? _combatAbortHp;
+    private NumericUpDown? _combatMaxRounds;
+    private TextBlock? _combatPreviewText;
     private StackPanel? _gutsPanel;
     private StackPanel? _arbitragePanel;
     private ItemsControl? _gutsAccountCards;
@@ -126,6 +140,18 @@ public partial class MainWindow : Window
         _storeRows = this.FindControl<ListBox>("StoreRows");
         _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
         _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
+        _mallSection = this.FindControl<StackPanel>("MallSection");
+        _combatSection = this.FindControl<StackPanel>("CombatSection");
+        _mallListingRows = this.FindControl<ListBox>("MallListingRows");
+        _mallSummaryText = this.FindControl<TextBlock>("MallSummaryText");
+        _combatTargetList = this.FindControl<ListBox>("CombatTargetList");
+        _combatSkillPicker = this.FindControl<ComboBox>("CombatSkillPicker");
+        _combatItemPicker = this.FindControl<ComboBox>("CombatItemPicker");
+        _combatSkillList = this.FindControl<ListBox>("CombatSkillList");
+        _combatItemList = this.FindControl<ListBox>("CombatItemList");
+        _combatAbortHp = this.FindControl<NumericUpDown>("CombatAbortHp");
+        _combatMaxRounds = this.FindControl<NumericUpDown>("CombatMaxRounds");
+        _combatPreviewText = this.FindControl<TextBlock>("CombatPreviewText");
         _dailyRows = this.FindControl<ListBox>("DailyRows");
         _dailySnapshotText = this.FindControl<TextBlock>("DailySnapshotText");
         _dailySummaryText = this.FindControl<TextBlock>("DailySummaryText");
@@ -331,7 +357,10 @@ public partial class MainWindow : Window
     private async void MallClick(object? sender, RoutedEventArgs e)
     {
         Navigate("Mall & Shop");
-        await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(false, cancellationToken));
+        await RunBusyOperationAsync("Loading mall", cancellationToken =>
+            _mall.LoadAsync(cancellationToken: cancellationToken));
+        if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
+        if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
     }
     private async void AccountsClick(object? sender, RoutedEventArgs e)
     {
@@ -347,7 +376,70 @@ public partial class MainWindow : Window
     {
         Navigate("Combat");
         if (_combatPreviewSummary is not null)
-            _combatPreviewSummary.Text = "No observation loaded. The preview stays blocked until monster, round and legal actions were read fresh.";
+            _combatPreviewSummary.Text = "Keine Observation geladen. Preview bleibt blockiert, bis Monster, Runde und legale Actions frisch gelesen wurden.";
+    }
+
+    /// <summary>Opens the auto-combat configurator with the catalog
+    /// targets, skills and items.</summary>
+    private async void AutoCombatClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Combat");
+        await RunBusyOperationAsync("Loading combat catalog", _autoCombat.LoadAsync);
+        if (_combatTargetList is not null) _combatTargetList.ItemsSource = _autoCombat.Targets;
+        if (_combatSkillPicker is not null)
+        {
+            _combatSkillPicker.ItemsSource = _autoCombat.Skills;
+            _combatSkillPicker.ItemTemplate = BuildOptionTemplate();
+        }
+        if (_combatItemPicker is not null)
+        {
+            _combatItemPicker.ItemsSource = _autoCombat.Items;
+            _combatItemPicker.ItemTemplate = BuildOptionTemplate();
+        }
+        if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
+        if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
+        if (_combatAbortHp is not null) _combatAbortHp.Value = _autoCombat.AbortHpPercent;
+        if (_combatMaxRounds is not null) _combatMaxRounds.Value = _autoCombat.MaxRounds;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    private static Avalonia.Controls.Templates.IDataTemplate BuildOptionTemplate()
+        => new Avalonia.Controls.Templates.FuncDataTemplate<CombatOption>((option, _) =>
+            new TextBlock { Text = option?.Name ?? string.Empty, Margin = new Avalonia.Thickness(4, 2) });
+
+    private void CombatTargetChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_combatTargetList?.SelectedItem is CombatTarget target)
+            _autoCombat.SelectedTarget = target;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    private void CombatSkillPicked(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_combatSkillPicker?.SelectedItem is CombatOption skill)
+            _autoCombat.SelectedSkill = skill;
+        if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    private void CombatItemPicked(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_combatItemPicker?.SelectedItem is CombatOption item)
+            _autoCombat.SelectedItem = item;
+        if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    private void CombatAbortChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (e.NewValue is { } value) _autoCombat.AbortHpPercent = (int)value;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    private void CombatRoundsChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (e.NewValue is { } value) _autoCombat.MaxRounds = (int)value;
+        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
     }
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Settings");
     private void ContextPreviewClick(object? sender, RoutedEventArgs e)
@@ -393,7 +485,17 @@ public partial class MainWindow : Window
                 if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
                 break;
             case "Mall & Shop":
-                await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(true, cancellationToken));
+                await RunBusyOperationAsync("Loading mall", cancellationToken =>
+                    _mall.LoadAsync(forceRefresh: true, cancellationToken));
+                if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
+                if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
+                break;
+            case "Combat":
+                await RunBusyOperationAsync("Loading combat catalog", _autoCombat.LoadAsync);
+                if (_combatTargetList is not null) _combatTargetList.ItemsSource = _autoCombat.Targets;
+                if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
+                if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
+                if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
                 break;
             case "Accounts & Transfer":
                 await RunBusyOperationAsync("Loading accounts", LoadSavedAccountsAsync);
@@ -595,8 +697,8 @@ public partial class MainWindow : Window
         var status = await account.FetchStatusAsync(forceRefresh, cancellationToken);
         var inventory = await account.FetchInventoryAsync(forceRefresh, cancellationToken);
         var knucklebones = inventory.Items
-            .Where(item => item.ItemId.Contains("knucklebone", StringComparison.OrdinalIgnoreCase)
-                || item.Name.Contains("knucklebone", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Name.Contains("knucklebone", StringComparison.OrdinalIgnoreCase)
+                || item.ItemId.Contains("knucklebone", StringComparison.OrdinalIgnoreCase))
             .Sum(item => item.Quantity);
         _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
@@ -608,12 +710,12 @@ public partial class MainWindow : Window
             SkeletonOfCrimbosPastAvailable = true
         };
         var plan = new KolArbitrage.Core.Adventure.DailyAdventurePlanner().Plan(state);
-        _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} Schritt(e), prognostiziert {plan.ProjectedKnucklebones:N1} Knucklebones.";
+        _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} step(s), projected {plan.ProjectedKnucklebones:N1} knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
             ? "No warnings. Every execution stays bound to approval and verification."
             : string.Join(Environment.NewLine, plan.Advisories);
-        UpdatePageStateStatus("Adventure", $"Status und Inventar von {role} geladen; Preview only.");
-        SetStatus("Adventure-Plan aktualisiert. Keine Adventure- oder Kampfaktion wurde gesendet.");
+        UpdatePageStateStatus("Adventure", $"Status and inventory for {role} loaded; preview only.");
+        SetStatus("Adventure plan refreshed. No adventure or combat action was sent.");
     }
 
     private async Task LoadSavedAccountsAsync(CancellationToken cancellationToken = default)
@@ -752,11 +854,15 @@ public partial class MainWindow : Window
         if (_accountsPanel is not null)
             _accountsPanel.IsVisible = isAccounts;
         if (_mallPanel is not null)
-            _mallPanel.IsVisible = isMall;
+            _mallPanel.IsVisible = false;
+        if (_mallSection is not null)
+            _mallSection.IsVisible = isMall;
+        if (_combatPanel is not null)
+            _combatPanel.IsVisible = false;
+        if (_combatSection is not null)
+            _combatSection.IsVisible = isCombat;
         if (_adventurePanel is not null)
             _adventurePanel.IsVisible = isAdventure;
-        if (_combatPanel is not null)
-            _combatPanel.IsVisible = isCombat;
         if (_pageStatePanel is not null)
             _pageStatePanel.IsVisible = !isOverview && !isInventory && !isDaily && !isArbitrage
                 && !isAccounts && !isMall && !isAdventure && !isCombat;
@@ -837,6 +943,8 @@ public partial class MainWindow : Window
         {
             _inventory = new InventoryViewModel(catalog: catalog);
             _arbitrage = new LiveArbitrageViewModel(catalog: catalog);
+            _mall = new LiveMallViewModel(catalog: catalog);
+            _autoCombat = new AutoCombatViewModel(catalog);
         }
         if (_inventoryList is not null)
         {
