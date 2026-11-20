@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:KoLibri.Desktop"
         x:Class="KoLibri.Desktop.MainWindow"
         Title="KoLibri — Arbitrage Console"
         Width="1200"
@@ -72,6 +73,12 @@
                   Tag="Übersicht"
                   Click="OverviewClick"
                   AutomationProperties.Name="Übersicht öffnen" />
+          <Button x:Name="NavInventory"
+                  Classes="nav-item"
+                  Content="☰   Inventar"
+                  Tag="Inventar"
+                  Click="InventoryClick"
+                  AutomationProperties.Name="Inventar öffnen" />
           <Button x:Name="NavPricing"
                   Classes="nav-item"
                   Content="◎   Pricing Engine"
@@ -226,6 +233,84 @@
                       Click="RefreshClick"
                       AutomationProperties.Name="Daten aktualisieren" />
             </StackPanel>
+          </Grid>
+
+        </StackPanel>
+
+        <StackPanel x:Name="InventoryPanel" Spacing="16" IsVisible="False">
+
+          <Border Classes="card">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <StackPanel Spacing="8">
+                <TextBlock Text="Inventar" Classes="h2" />
+                <TextBlock x:Name="InventorySummaryText"
+                           Text="Keine Einträge."
+                           Classes="muted"
+                           FontSize="13" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                <TextBox x:Name="InventorySearchBox"
+                         Width="240"
+                         Watermark="Suchen (Name oder ID) …"
+                         TextChanged="InventorySearchChanged"
+                         AutomationProperties.Name="Inventar durchsuchen" />
+                <TextBlock x:Name="InventoryLoadedText"
+                           Text="—"
+                           Classes="muted"
+                           FontSize="11"
+                           HorizontalAlignment="Right" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <ItemsControl x:Name="InventoryCategoryStrip">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+
+          <Grid ColumnDefinitions="2*,3*" ColumnSpacing="14" MinHeight="420">
+
+            <Border Classes="card" Padding="0">
+              <Grid RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0"
+                           Text="Items"
+                           Classes="muted"
+                           Margin="14,12,14,8" />
+                <ListBox x:Name="InventoryList"
+                         Grid.Row="1"
+                         SelectionChanged="InventorySelectionChanged"
+                         AutomationProperties.Name="Inventar-Liste">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:DesktopInventoryItem">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding Name}"
+                                     VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding ItemId}"
+                                     Classes="muted"
+                                     FontSize="11"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Quantity}"
+                                   Classes="muted"
+                                   VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Classes="card">
+              <StackPanel x:Name="InventoryDetailPanel" Spacing="10">
+                <TextBlock Text="Kein Item gewählt" Classes="muted" />
+              </StackPanel>
+            </Border>
+
           </Grid>
 
         </StackPanel>

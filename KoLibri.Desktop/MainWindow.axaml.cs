@@ -70,6 +70,16 @@ public partial class MainWindow : Window
     private TextBlock? _encounterStatusText;
     private TextBlock? _encounterStepLogText;
 
+    // Inventory browser.
+    private StackPanel? _inventoryPanel;
+    private TextBox? _inventorySearchBox;
+    private TextBlock? _inventorySummaryText;
+    private TextBlock? _inventoryLoadedText;
+    private ListBox? _inventoryList;
+    private ItemsControl? _inventoryCategoryStrip;
+    private StackPanel? _inventoryDetailPanel;
+    private InventoryViewModel _inventory = new();
+
     public MainWindow()
     {
         InitializeComponent();
@@ -78,6 +88,14 @@ public partial class MainWindow : Window
         _compactNavigation = this.FindControl<Border>("CompactNavigation");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
         _overviewPanel = this.FindControl<StackPanel>("OverviewPanel");
+        _inventoryPanel = this.FindControl<StackPanel>("InventoryPanel");
+        _inventorySearchBox = this.FindControl<TextBox>("InventorySearchBox");
+        _inventorySummaryText = this.FindControl<TextBlock>("InventorySummaryText");
+        _inventoryLoadedText = this.FindControl<TextBlock>("InventoryLoadedText");
+        _inventoryList = this.FindControl<ListBox>("InventoryList");
+        _inventoryCategoryStrip = this.FindControl<ItemsControl>("InventoryCategoryStrip");
+        _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
+        WireInventoryBrowser();
         _themeToggleButton = this.FindControl<Button>("ThemeToggleButton");
         _compactThemeToggleButton = this.FindControl<Button>("CompactThemeToggleButton");
         _sidebarThemeLabel = this.FindControl<TextBlock>("SidebarThemeLabel");
@@ -648,6 +666,7 @@ public partial class MainWindow : Window
     private void UpdatePageState(string section)
     {
         var isOverview = string.Equals(section, "Übersicht", StringComparison.Ordinal);
+        var isInventory = string.Equals(section, "Inventar", StringComparison.Ordinal);
         var isAccounts = string.Equals(section, "Konten & Transfer", StringComparison.Ordinal);
         var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
         var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
@@ -656,6 +675,8 @@ public partial class MainWindow : Window
 
         if (_overviewPanel is not null)
             _overviewPanel.IsVisible = isOverview;
+        if (_inventoryPanel is not null)
+            _inventoryPanel.IsVisible = isInventory;
         if (_accountsPanel is not null)
             _accountsPanel.IsVisible = isAccounts;
         if (_mallPanel is not null)
@@ -665,7 +686,7 @@ public partial class MainWindow : Window
         if (_combatPanel is not null)
             _combatPanel.IsVisible = isCombat;
         if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isAccounts && !isMall && !isAdventure && !isCombat;
+            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isAccounts && !isMall && !isAdventure && !isCombat;
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = isOverview ? "Guten Morgen" : title;
         if (_shellPageDescription is not null)
@@ -695,6 +716,7 @@ public partial class MainWindow : Window
     private static (string Title, string Description) DescribeSection(string section)
         => section switch
         {
+            "Inventar" => ("Inventar", "Live-Inventar mit Suche, Kategorien und Item-Detail."),
             "Pricing Engine" => ("Pricing Engine", "Preisquellen, Referenzen und Kaufkandidaten werden hier als read-only Vorschau geprüft."),
             "Mall & Shop" => ("Mall & Shop", "Eigene Listings und Marktpreise werden für das ausgewählte Konto read-only geladen."),
             "Konten & Transfer" => ("Konten & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
@@ -779,6 +801,132 @@ public partial class MainWindow : Window
                     : "WarningBrush";
             status.Foreground = ThemeBrush(key, Brushes.Gray);
         }
+    }
+
+    /// <summary>
+    /// Wires the inventory browser: the list, the search box, the category
+    /// strip and the detail pane all read from one view model so the
+    /// filtering logic stays testable and out of the view.
+    /// </summary>
+    private void WireInventoryBrowser()
+    {
+        // The catalog gives the item rows their uses, access flags and image.
+        // It is optional: without it the inventory still lists, it just has
+        // no detail data.
+        var catalog = TryLoadCatalog();
+        if (catalog is not null)
+        {
+            var withCatalog = new InventoryViewModel(catalog: catalog);
+            _inventory = withCatalog;
+        }
+        if (_inventoryList is not null)
+        {
+            _inventoryList.ItemsSource = _inventory.Items;
+        }
+        if (_inventoryCategoryStrip is not null)
+        {
+            _inventoryCategoryStrip.ItemsSource = _inventory.Categories;
+        }
+        _inventory.PropertyChanged += (_, args) =>
+        {
+            switch (args.PropertyName)
+            {
+                case nameof(InventoryViewModel.SummaryText):
+                    if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+                    break;
+                case nameof(InventoryViewModel.LoadedAtText):
+                    if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+                    break;
+                case nameof(InventoryViewModel.Detail):
+                    RenderInventoryDetail();
+                    break;
+            }
+        };
+        if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+    }
+
+    private void RenderInventoryDetail()
+    {
+        if (_inventoryDetailPanel is null) return;
+        _inventoryDetailPanel.Children.Clear();
+        var detail = _inventory.Detail;
+        if (detail is null)
+        {
+            _inventoryDetailPanel.Children.Add(new TextBlock
+            {
+                Text = "Kein Item gewählt",
+                Classes = { "muted" }
+            });
+            return;
+        }
+        _inventoryDetailPanel.Children.Add(new TextBlock
+        {
+            Text = detail.Name,
+            Classes = { "h3" }
+        });
+        _inventoryDetailPanel.Children.Add(new TextBlock
+        {
+            Text = $"ID {detail.ItemId} · {detail.Quantity} Stück",
+            Classes = { "muted" },
+            FontSize = 12
+        });
+        _inventoryDetailPanel.Children.Add(new TextBlock
+        {
+            Text = $"Verwendung: {detail.UsesText}",
+            FontSize = 12,
+            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+        });
+        _inventoryDetailPanel.Children.Add(new TextBlock
+        {
+            Text = $"Billigster Mall-Preis: {detail.MallPriceText}",
+            FontSize = 12
+        });
+    }
+
+    private void InventorySearchChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_inventorySearchBox is null) return;
+        _inventory.SearchText = _inventorySearchBox.Text ?? string.Empty;
+    }
+
+    private void InventorySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_inventoryList?.SelectedItem is DesktopInventoryItem item)
+            _inventory.SelectedItem = item;
+    }
+
+    private async void InventoryClick(object? sender, RoutedEventArgs e)
+    {
+        Navigate("Inventar");
+        await RunBusyOperationAsync("Inventar laden", cancellationToken =>
+            _inventory.LoadAsync(cancellationToken: cancellationToken));
+        if (_inventoryList is not null)
+            _inventoryList.ItemsSource = _inventory.Items;
+        if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+        if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+        RenderInventoryDetail();
+    }
+
+    private static KolArbitrage.Core.Data.KoLmafiaCatalog? TryLoadCatalog()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"),
+            Path.Combine(Directory.GetCurrentDirectory(), "external", "kolmafia-data")
+        };
+        foreach (var candidate in candidates)
+        {
+            if (!Directory.Exists(candidate)) continue;
+            try
+            {
+                return new KolArbitrage.Core.Data.MafiaDataLoader().Load(candidate);
+            }
+            catch
+            {
+                // A broken catalog must not take the window down.
+            }
+        }
+        return null;
     }
 
     private void WireEncounterBrowser()

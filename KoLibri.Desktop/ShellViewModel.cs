@@ -5,6 +5,7 @@ namespace KoLibri.Desktop;
 public enum ShellPage
 {
     Cockpit,
+    Inventory,
     Arbitrage,
     Shop,
     Approvals,
@@ -58,6 +59,7 @@ public class ShellViewModel : DesktopViewModel
 
     public ShellViewModel(
         CockpitViewModel? cockpit = null,
+        InventoryViewModel? inventory = null,
         ArbitrageViewModel? arbitrage = null,
         ShopViewModel? shop = null,
         ApprovalViewModel? approvals = null,
@@ -66,6 +68,7 @@ public class ShellViewModel : DesktopViewModel
         CombatViewModel? combat = null)
     {
         Cockpit = cockpit ?? new CockpitViewModel();
+        Inventory = inventory ?? new InventoryViewModel();
         Arbitrage = arbitrage ?? new ArbitrageViewModel();
         Shop = shop ?? new ShopViewModel();
         Approvals = approvals ?? new ApprovalViewModel();
@@ -76,6 +79,7 @@ public class ShellViewModel : DesktopViewModel
         PageContracts = new ReadOnlyCollection<ShellPageContract>(new[]
         {
             new ShellPageContract(ShellPage.Cockpit, "Cockpit", "Account- und Inventar-Snapshot für Main und Mallbot.", "Cockpit öffnen"),
+            new ShellPageContract(ShellPage.Inventory, "Inventar", "Live-Inventar mit Suche, Kategorien und Item-Detail.", "Inventar öffnen"),
             new ShellPageContract(ShellPage.Arbitrage, "Arbitrage", "Preisquellen und Kaufkandidaten als read-only Vorschau.", "Arbitrage öffnen"),
             new ShellPageContract(ShellPage.Shop, "Shop", "Eigene Listings und Reprice-Vorschauen.", "Shop öffnen"),
             new ShellPageContract(ShellPage.Approvals, "Approvals", "Approval-Inbox und Verifikationsstatus.", "Approvals öffnen"),
@@ -86,10 +90,11 @@ public class ShellViewModel : DesktopViewModel
         Shortcuts = new ReadOnlyCollection<ShellShortcutContract>(new[]
         {
             new ShellShortcutContract("navigation.overview", "Übersicht", "Ctrl+1", ShellPage.Cockpit),
-            new ShellShortcutContract("navigation.arbitrage", "Arbitrage", "Ctrl+2", ShellPage.Arbitrage),
-            new ShellShortcutContract("navigation.shop", "Shop", "Ctrl+3", ShellPage.Shop),
-            new ShellShortcutContract("navigation.adventure", "Adventure", "Ctrl+4", ShellPage.Adventure),
-            new ShellShortcutContract("navigation.combat", "Combat", "Ctrl+5", ShellPage.Combat),
+            new ShellShortcutContract("navigation.inventory", "Inventar", "Ctrl+2", ShellPage.Inventory),
+            new ShellShortcutContract("navigation.arbitrage", "Arbitrage", "Ctrl+3", ShellPage.Arbitrage),
+            new ShellShortcutContract("navigation.shop", "Shop", "Ctrl+4", ShellPage.Shop),
+            new ShellShortcutContract("navigation.adventure", "Adventure", "Ctrl+5", ShellPage.Adventure),
+            new ShellShortcutContract("navigation.combat", "Combat", "Ctrl+6", ShellPage.Combat),
             new ShellShortcutContract("shell.refresh", "Daten aktualisieren", "F5", ShellPage.Cockpit),
             new ShellShortcutContract("shell.shortcut-help", "Tastaturhilfe", "F1", ShellPage.Cockpit),
             new ShellShortcutContract("shell.stop", "Lauf stoppen", "Escape", ShellPage.Adventure)
@@ -106,6 +111,7 @@ public class ShellViewModel : DesktopViewModel
     }
 
     public CockpitViewModel Cockpit { get; }
+    public InventoryViewModel Inventory { get; }
     public ArbitrageViewModel Arbitrage { get; }
     public ShopViewModel Shop { get; }
     public ApprovalViewModel Approvals { get; }
@@ -132,6 +138,7 @@ public class ShellViewModel : DesktopViewModel
     public string CurrentPageText => CurrentPage switch
     {
         ShellPage.Cockpit => "Cockpit",
+        ShellPage.Inventory => "Inventar",
         ShellPage.Arbitrage => "Arbitrage",
         ShellPage.Shop => "Shop",
         ShellPage.Approvals => "Approvals",
@@ -151,15 +158,15 @@ public class ShellViewModel : DesktopViewModel
     }
 
     public bool IsAnyLoading =>
-        Cockpit.IsLoading || Arbitrage.IsLoading || Shop.IsLoading || Approvals.IsLoading || Operations.IsLoading
+        Cockpit.IsLoading || Inventory.IsLoading || Arbitrage.IsLoading || Shop.IsLoading || Approvals.IsLoading || Operations.IsLoading
         || Adventure.IsLoading || Combat.IsLoading;
 
     public bool HasStaleData =>
-        Cockpit.IsStale || Arbitrage.IsStale || Shop.IsStale || Approvals.IsStale || Operations.IsStale
+        Cockpit.IsStale || Inventory.IsStale || Arbitrage.IsStale || Shop.IsStale || Approvals.IsStale || Operations.IsStale
         || Adventure.IsStaleData || Combat.IsStaleData;
 
     public bool HasErrors =>
-        Cockpit.HasError || Arbitrage.HasError || Shop.HasError || Approvals.HasError || Operations.HasError
+        Cockpit.HasError || Inventory.HasError || Arbitrage.HasError || Shop.HasError || Approvals.HasError || Operations.HasError
         || Adventure.HasError || Combat.HasError;
 
     public ObservableCollection<string> StaleSources
@@ -168,6 +175,7 @@ public class ShellViewModel : DesktopViewModel
         {
             var stale = new ObservableCollection<string>();
             if (Cockpit.IsStale) stale.Add("Cockpit");
+            if (Inventory.IsStale) stale.Add("Inventar");
             if (Arbitrage.IsStale) stale.Add("Arbitrage");
             if (Shop.IsStale) stale.Add("Shop");
             if (Approvals.IsStale) stale.Add("Approvals");
@@ -210,10 +218,11 @@ public class ShellViewModel : DesktopViewModel
     {
         await Task.WhenAll(
             Cockpit.LoadAsync(cancellationToken),
+            Inventory.LoadAsync(cancellationToken: cancellationToken),
             Arbitrage.LoadAsync(cancellationToken: cancellationToken),
             Shop.LoadAsync(cancellationToken),
             Approvals.LoadAsync(cancellationToken),
-            Operations.LoadAsync(cancellationToken: cancellationToken),
+            Operations.LoadAsync(cancellationToken),
             Adventure.LoadAsync(cancellationToken),
             Combat.LoadAsync(cancellationToken)).ConfigureAwait(false);
 
@@ -223,6 +232,7 @@ public class ShellViewModel : DesktopViewModel
             HasErrors = HasErrors,
             IsEmpty = !IsAnyLoading
                 && Cockpit.LoadState == DesktopLoadState.Empty
+                && Inventory.LoadState == DesktopLoadState.Empty
                 && Arbitrage.LoadState == DesktopLoadState.Empty
                 && Shop.LoadState == DesktopLoadState.Empty
                 && Approvals.LoadState == DesktopLoadState.Empty
@@ -247,9 +257,9 @@ public class ShellViewModel : DesktopViewModel
 
 public sealed class ShellState : ShellViewModel
 {
-    public ShellState(CockpitViewModel? cockpit = null, ArbitrageViewModel? arbitrage = null,
-        ShopViewModel? shop = null, ApprovalViewModel? approvals = null,
-        OperationsViewModel? operations = null, AdventureViewModel? adventure = null,
-        CombatViewModel? combat = null)
-        : base(cockpit, arbitrage, shop, approvals, operations, adventure, combat) { }
+    public ShellState(CockpitViewModel? cockpit = null, InventoryViewModel? inventory = null,
+        ArbitrageViewModel? arbitrage = null, ShopViewModel? shop = null,
+        ApprovalViewModel? approvals = null, OperationsViewModel? operations = null,
+        AdventureViewModel? adventure = null, CombatViewModel? combat = null)
+        : base(cockpit, inventory, arbitrage, shop, approvals, operations, adventure, combat) { }
 }
