@@ -845,6 +845,35 @@
                            Classes="body"
                            TextWrapping="Wrap" />
               </Border>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Encounter" Classes="muted" FontSize="11" />
+                  <TextBox x:Name="CombatEncounterBox"
+                           Watermark="Encounter id, e.g. 1003"
+                           AutomationProperties.Name="Encounter to fight in" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="Approval token" Classes="muted" FontSize="11" />
+                  <TextBox x:Name="CombatTokenBox"
+                           Width="240"
+                           PasswordChar="•"
+                           Watermark="token"
+                           AutomationProperties.Name="Approval token for the fight" />
+                </StackPanel>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="CombatRunButton"
+                        Classes="primary"
+                        Content="▶  Fight on all accounts"
+                        Click="CombatRunClick"
+                        AutomationProperties.Name="Start the fight on every selected account" />
+                <TextBlock x:Name="CombatRunStatusText"
+                           Text="No fight has run yet."
+                           Classes="muted"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+              </StackPanel>
             </StackPanel>
           </Border>
 

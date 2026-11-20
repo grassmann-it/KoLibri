@@ -225,4 +225,177 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     {
         if (SelectedItems.Remove(item)) OnPropertyChanged(nameof(PreviewText));
     }
+
+    /// <summary>
+    /// Builds the deterministic policy from the current selection. The
+    /// skills come first in the order the operator picked them, the items
+    /// follow, and attacking is the fallback.
+    /// </summary>
+    public KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicy()
+        => BuildPolicyCore(
+            SelectedSkills.Select(s => s.Id).ToArray(),
+            SelectedItems.Select(i => i.Id).ToArray());
+
+    /// <summary>The accounts the operator wants to fight on.</summary>
+    public ObservableCollection<AccountRole> Roles { get; } = new()
+    {
+        AccountRole.Main,
+        AccountRole.Mallbot
+    };
+
+    /// <summary>
+    /// The policy builder lives here rather than in the core so the
+    /// desktop does not depend on the core's internal assembly layout for
+    /// something this small.
+    /// </summary>
+    private static KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicyCore(
+        IReadOnlyList<string> skillIds,
+        IReadOnlyList<string> itemIds)
+    {
+        var rules = new List<KolArbitrage.Core.Adventure.AutoCombatRule>();
+        foreach (var skill in skillIds.Where(s => !string.IsNullOrWhiteSpace(s)))
+        {
+            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            {
+                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
+                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                {
+                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Skill,
+                    Id = skill.Trim(),
+                    Quantity = 1
+                },
+                MaxUses = 1
+            });
+        }
+        foreach (var item in itemIds.Where(i => !string.IsNullOrWhiteSpace(i)))
+        {
+            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            {
+                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
+                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                {
+                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Item,
+                    Id = item.Trim(),
+                    Quantity = 1
+                },
+                MaxUses = 1
+            });
+        }
+        return new KolArbitrage.Core.Adventure.AutoCombatPolicy
+        {
+            Rules = rules.ToArray(),
+            DefaultAction = new KolArbitrage.Core.Adventure.AutoCombatAction
+            {
+                Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Attack,
+                Quantity = 1
+            }
+        };
+    }
+
+    /// <summary>
+    /// Runs the fight on every selected account. Each account gets its own
+    /// gateway and its own run; one account failing never stops the
+    /// others.
+    /// </summary>
+    public async Task<IReadOnlyList<CombatRunOutcome>> RunAsync(
+        string encounterId,
+        string? adventureId,
+        string? approvalToken,
+        CancellationToken cancellationToken = default)
+    {
+        var outcomes = new List<CombatRunOutcome>();
+        if (!HasConfiguration)
+        {
+            outcomes.Add(new CombatRunOutcome
+            {
+                Role = AccountRole.Main,
+                Outcome = "not-configured",
+                Rationale = "Pick a target and at least one skill first."
+            });
+            return outcomes;
+        }
+        if (string.IsNullOrWhiteSpace(approvalToken))
+        {
+            outcomes.Add(new CombatRunOutcome
+            {
+                Role = AccountRole.Main,
+                Outcome = "no-token",
+                Rationale = "Live fights need an approval token."
+            });
+            return outcomes;
+        }
+        var policy = BuildPolicy();
+        foreach (var role in Roles)
+        {
+            try
+            {
+                var gateway = await CreateCombatGatewayAsync(role, approvalToken, cancellationToken)
+                    .ConfigureAwait(false);
+                var runner = new KolArbitrage.Core.Daily.AutoCombatRunner(gateway);
+                var result = await runner.RunAsync(
+                    policy,
+                    combatId: encounterId,
+                    adventureId: adventureId,
+                    accountId: role.ToString(),
+                    maxRounds: MaxRounds,
+                    abortBelowHpPercent: AbortHpPercent,
+                    approvalToken: approvalToken,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                outcomes.Add(new CombatRunOutcome
+                {
+                    Role = role,
+                    Outcome = result.Outcome,
+                    Rationale = result.Rationale,
+                    Rounds = result.Rounds,
+                    RoundLog = result.RoundLog
+                });
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                outcomes.Add(new CombatRunOutcome
+                {
+                    Role = role,
+                    Outcome = "failed",
+                    Rationale = exception.Message
+                });
+            }
+        }
+        return outcomes;
+    }
+
+    private static async Task<KolArbitrage.Core.Adventure.ManualCombatGateway>
+        CreateCombatGatewayAsync(AccountRole role, string approvalToken, CancellationToken cancellationToken)
+    {
+        var accounts = AccountSessionManager.CreateDefault();
+        await accounts.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var session = await accounts.GetSessionAsync(role, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
+            throw new InvalidOperationException($"No valid session for {role}.");
+        var http = KolArbitrage.Core.Accounts.KoLLoginClient.CreateAuthenticatedClient(
+            session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
+        var transport = new KolArbitrage.Core.Adventure.LiveManualCombatTransport(http);
+        var approval = new KolArbitrage.Core.Adventure.DelegateManualCombatApprovalHook(
+            (context, _) => ValueTask.FromResult(
+                KolArbitrage.Core.Adventure.ManualCombatApprovalDecision.Allow(approvalToken)));
+        return new KolArbitrage.Core.Adventure.ManualCombatGateway(
+            transport,
+            policy: null,
+            approval: approval);
+    }
+}
+
+/// <summary>What one account's fight did.</summary>
+public sealed record CombatRunOutcome
+{
+    public required AccountRole Role { get; init; }
+    public required string Outcome { get; init; }
+    public required string Rationale { get; init; }
+    public int Rounds { get; init; }
+    public IReadOnlyList<KolArbitrage.Core.Daily.AutoCombatRound> RoundLog { get; init; }
+        = Array.Empty<KolArbitrage.Core.Daily.AutoCombatRound>();
 }

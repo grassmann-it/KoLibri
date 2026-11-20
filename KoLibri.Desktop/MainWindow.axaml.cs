@@ -97,6 +97,9 @@ public partial class MainWindow : Window
     private NumericUpDown? _combatAbortHp;
     private NumericUpDown? _combatMaxRounds;
     private TextBlock? _combatPreviewText;
+    private TextBox? _combatEncounterBox;
+    private TextBox? _combatTokenBox;
+    private TextBlock? _combatRunStatusText;
     private StackPanel? _gutsPanel;
     private StackPanel? _arbitragePanel;
     private ItemsControl? _gutsAccountCards;
@@ -152,6 +155,9 @@ public partial class MainWindow : Window
         _combatAbortHp = this.FindControl<NumericUpDown>("CombatAbortHp");
         _combatMaxRounds = this.FindControl<NumericUpDown>("CombatMaxRounds");
         _combatPreviewText = this.FindControl<TextBlock>("CombatPreviewText");
+        _combatEncounterBox = this.FindControl<TextBox>("CombatEncounterBox");
+        _combatTokenBox = this.FindControl<TextBox>("CombatTokenBox");
+        _combatRunStatusText = this.FindControl<TextBlock>("CombatRunStatusText");
         _dailyRows = this.FindControl<ListBox>("DailyRows");
         _dailySnapshotText = this.FindControl<TextBlock>("DailySnapshotText");
         _dailySummaryText = this.FindControl<TextBlock>("DailySummaryText");
@@ -440,6 +446,32 @@ public partial class MainWindow : Window
     {
         if (e.NewValue is { } value) _autoCombat.MaxRounds = (int)value;
         if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
+    }
+
+    /// <summary>Runs the configured fight on every selected account.</summary>
+    private async void CombatRunClick(object? sender, RoutedEventArgs e)
+    {
+        var encounter = _combatEncounterBox?.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(encounter))
+        {
+            if (_combatRunStatusText is not null)
+                _combatRunStatusText.Text = "Enter the encounter to fight in.";
+            return;
+        }
+        var token = _combatTokenBox?.Text?.Trim();
+        if (_combatRunStatusText is not null)
+            _combatRunStatusText.Text = "Fighting…";
+        await RunBusyOperationAsync("Fighting", async cancellationToken =>
+        {
+            var outcomes = await _autoCombat
+                .RunAsync(encounter, null, token, cancellationToken)
+                .ConfigureAwait(false);
+            if (_combatRunStatusText is null) return;
+            _combatRunStatusText.Text = string.Join(
+                Environment.NewLine,
+                outcomes.Select(outcome =>
+                    $"{outcome.Role}: {outcome.Outcome} — {outcome.Rationale}"));
+        });
     }
     private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Settings");
     private void ContextPreviewClick(object? sender, RoutedEventArgs e)
