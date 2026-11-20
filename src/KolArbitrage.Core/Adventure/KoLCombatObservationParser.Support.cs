@@ -62,6 +62,24 @@ public partial class KoLCombatObservationParser
         return CombatActionKind.Unknown;
     }
 
+    /// <summary>
+    /// KoL writes form attributes without quotes: <c>&lt;form name=attack
+    /// action=fight.php method=post&gt;</c>. The attribute reader has to
+    /// cope with that, otherwise the action kind stays unknown and the
+    /// fight page offers no attack.
+    /// </summary>
+    internal static string? ReadUnquotedAttribute(string tag, string attribute)
+    {
+        var pattern = new Regex(
+            $@"(?:^|\s){Regex.Escape(attribute)}\s*=\s*(?:""(?<q>[^""]*)""|'(?<s>[^']*)'|(?<u>[^\s>]+))",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var match = pattern.Match(tag);
+        if (!match.Success) return null;
+        if (match.Groups["q"].Success) return match.Groups["q"].Value;
+        if (match.Groups["s"].Success) return match.Groups["s"].Value;
+        return match.Groups["u"].Value;
+    }
+
     private static string? ValidActionId(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

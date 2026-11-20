@@ -362,6 +362,21 @@ public partial class KoLCombatObservationParser : ICombatObservationParser
                 if (query.Success)
                     actionValue = query.Groups["action"].Value;
             }
+            // KoL writes the form attributes without quotes, so the
+            // attribute reader may have missed the name.
+            if (actionValue is null)
+            {
+                actionValue = ReadUnquotedAttribute(form.Groups["attrs"].Value, "name");
+                if (actionValue is not null
+                    && !actionValue.Contains("action", StringComparison.OrdinalIgnoreCase)
+                    && !actionValue.Contains("skill", StringComparison.OrdinalIgnoreCase)
+                    && !actionValue.Contains("item", StringComparison.OrdinalIgnoreCase)
+                    && !actionValue.Contains("run", StringComparison.OrdinalIgnoreCase))
+                {
+                    // The name is not an action kind — keep looking.
+                    actionValue = null;
+                }
+            }
 
             var skillOptions = SelectOptions(body, bodyTags, "whichskill");
             var itemOptions = SelectOptions(body, bodyTags, "whichitem");

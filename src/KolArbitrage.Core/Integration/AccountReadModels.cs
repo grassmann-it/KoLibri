@@ -264,16 +264,25 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         }
         // KoL's Mafia-mode payload (api.php?what=inventory&for=KoLibri) returns a
         // flat object whose keys are KoL numeric item ids and whose values are
-        // stringified quantities:  {"1":"8","44":"655"}. The legacy object and
-        // array branches above handle non-Mafia payloads; this one handles the
-        // Mafia mode by trusting the property name as the item id.
+        // the quantities. The values are mixed: KoL writes most of them as
+        // numbers and some of them as strings — {"163":139,"44":"655"}.
+        // A reader that only accepts the string form drops half the
+        // inventory, so both forms are read.
         if (items.Count == 0 && root.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in root.EnumerateObject())
             {
-                if (property.Value.ValueKind != JsonValueKind.String) continue;
-                if (!int.TryParse(property.Value.GetString(), out var quantity) || quantity <= 0)
-                    continue;
+                var quantity = 0;
+                if (property.Value.ValueKind == JsonValueKind.String)
+                {
+                    if (!int.TryParse(property.Value.GetString(), out quantity)) continue;
+                }
+                else if (property.Value.ValueKind == JsonValueKind.Number)
+                {
+                    if (!int.TryParse(property.Value.GetRawText(), out quantity)) continue;
+                }
+                else continue;
+                if (quantity <= 0) continue;
                 var name = _itemNameResolver?.Invoke(property.Name) ?? property.Name;
                 items.Add(new KoLInventoryItem(property.Name, name, quantity));
             }
