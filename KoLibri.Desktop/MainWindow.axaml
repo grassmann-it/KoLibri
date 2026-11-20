@@ -202,6 +202,7 @@
             <Grid RowDefinitions="Auto,*">
               <Grid Grid.Row="0"
                     ColumnDefinitions="2*,Auto,Auto,Auto"
+                    ColumnSpacing="12"
                     Margin="14,12,14,8">
                 <TextBlock Grid.Column="0" Text="Item" Classes="muted" FontSize="11" />
                 <TextBlock Grid.Column="1" Text="Cheapest" Classes="muted" FontSize="11" />
@@ -229,6 +230,7 @@
             <Grid RowDefinitions="Auto,Auto,*">
               <Grid Grid.Row="0"
                     ColumnDefinitions="2*,Auto,Auto,Auto,Auto"
+                    ColumnSpacing="12"
                     Margin="14,12,14,8">
                 <TextBlock Grid.Column="0" Text="Buy rule" Classes="muted" FontSize="11" />
                 <TextBlock Grid.Column="1" Text="Buy under" Classes="muted" FontSize="11" />

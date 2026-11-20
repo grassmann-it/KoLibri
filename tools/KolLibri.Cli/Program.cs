@@ -123,6 +123,35 @@ internal static partial class KolibriCli
         return 0;
     }
 
+    /// <summary>
+    /// Asks KoL whether the session still works. The answer comes back as
+    /// a redirect to the login page when the session was dropped.
+    /// </summary>
+    private static async Task<bool> SessionStillWorksAsync(AccountCredentials credentials)
+    {
+        try
+        {
+            using var http = KoLLoginClient.CreateAuthenticatedClient(
+                credentials,
+                new Uri("https://www.kingdomofloathing.com/"));
+            var response = await http.GetAsync(
+                new Uri("https://www.kingdomofloathing.com/api.php?what=status&for=KoLibri"));
+            if (!response.IsSuccessStatusCode) return false;
+            var location = response.Headers.Location?.ToString() ?? string.Empty;
+            if (location.Contains("login.php", StringComparison.OrdinalIgnoreCase)) return false;
+            var body = await response.Content.ReadAsStringAsync();
+            return body.Contains("playerid", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
+    }
+
     private static async Task<int> LoginStatusAsync(string[] args)
     {
         var accounts = AccountSessionManager.CreateDefault();
@@ -135,6 +164,15 @@ internal static partial class KolibriCli
             var session = await accounts.GetSessionAsync(role, includeExpired: true);
             var expired = session?.IsExpired() ?? false;
             var hasCookie = !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader);
+            // The stored expiry only says when the cookie runs out. KoL
+            // drops a session earlier — when the password is changed or
+            // the account is signed out elsewhere — so the session is
+            // asked whether it still works.
+            var rejected = false;
+            if (hasCookie && !expired)
+            {
+                rejected = !await SessionStillWorksAsync(session!.Credentials).ConfigureAwait(false);
+            }
             rows.Add(new
             {
                 role = role.ToString(),
@@ -143,6 +181,8 @@ internal static partial class KolibriCli
                 enabled = profile?.Enabled ?? false,
                 hasCookie,
                 expired,
+                rejectedByServer = rejected,
+                usable = hasCookie && !expired && !rejected,
                 loggedInAt = session?.Credentials.ExpiresAt,
                 endpoint = session?.Profile.Endpoint?.ToString()
             });

@@ -121,6 +121,47 @@ dotnet build KoLibri.slnx
 dotnet run --project tools/KolLibri.Cli -- --help
 ```
 
+## Desktop
+
+The desktop client is the operator's console: it reads both accounts
+live, shows the inventory with the KoLmafia catalog, the daily briefing,
+the market scan with the buy rules, the mall and the combat panel.
+
+```bash
+dotnet run --project KoLibri.Desktop
+```
+
+It needs a session for each account — the panels stay empty without one:
+
+```bash
+kolibri login refresh --role main
+kolibri login refresh --role mallbot
+```
+
+`kolibri login status` tells whether a session still works. It asks KoL,
+not just the stored cookie: a session that KoL dropped says
+`rejectedByServer: true`, and `usable: false`. The stored expiry only
+covers the cookie's lifetime — KoL ends a session earlier when the
+password changes or the account is signed out somewhere else.
+
+The panels:
+
+| Panel | What it shows |
+|---|---|
+| **Guts** | Meat, adventures, items and level of both accounts |
+| **Inventory** | The live inventory with the catalog's flags, uses and images |
+| **Daily** | The day's briefing from the live accounts |
+| **Arbitrage** | Mall listings against the pricegun median, plus the buy rules |
+| **Mall** | Own store and the market |
+| **Adventures** | Locations, encounters and the bounded runner |
+| **Combat** | The auto-combat policy and the fight log |
+
+Everything that spends meat is behind the approval token:
+
+```bash
+kolibri token mint
+```
+
 ## CLI
 
 ```bash

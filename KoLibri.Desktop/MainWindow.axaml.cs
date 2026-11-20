@@ -213,6 +213,7 @@ public partial class MainWindow : Window
         SizeChanged += WindowSizeChanged;
         UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         Opened += (_, _) => UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
+        Opened += async (_, _) => await ReportSessionStateAsync().ConfigureAwait(true);
         _ = LoadSavedAccountsAsync();
     }
 
@@ -350,6 +351,85 @@ public partial class MainWindow : Window
         if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
         if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
         if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
+    }
+
+    /// <summary>
+    /// Tells the operator which accounts are usable. An empty panel is
+    /// easy to mistake for a broken tool; a session that KoL dropped is
+    /// not a bug, and the operator needs to know it.
+    /// </summary>
+    private async Task ReportSessionStateAsync()
+    {
+        try
+        {
+            await _accounts.InitializeAsync().ConfigureAwait(true);
+            var usable = new List<string>();
+            var broken = new List<string>();
+            foreach (var role in Enum.GetValues<AccountRole>())
+            {
+                var session = await _accounts
+                    .GetSessionAsync(role, includeExpired: true)
+                    .ConfigureAwait(true);
+                if (session is null)
+                {
+                    broken.Add($"{role} (no session)");
+                    continue;
+                }
+                if (session.IsExpired())
+                {
+                    broken.Add($"{role} (cookie expired)");
+                    continue;
+                }
+                if (!await SessionStillWorksAsync(session.Credentials).ConfigureAwait(true))
+                {
+                    broken.Add($"{role} (KoL dropped the session)");
+                    continue;
+                }
+                usable.Add(role.ToString());
+            }
+
+            if (broken.Count == 0)
+            {
+                SetStatus($"Sessions ok: {string.Join(", ", usable)}.");
+                return;
+            }
+            SetStatus(
+                $"No live data for {string.Join(", ", broken)}. "
+                + $"Log in: kolibri login refresh --role <main|mallbot>");
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"The session state could not be read: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Asks KoL whether the session still works. The answer comes back as
+    /// a redirect to the login page when the session was dropped.
+    /// </summary>
+    private static async Task<bool> SessionStillWorksAsync(AccountCredentials credentials)
+    {
+        try
+        {
+            using var http = KoLLoginClient.CreateAuthenticatedClient(
+                credentials,
+                new Uri("https://www.kingdomofloathing.com/"));
+            var response = await http.GetAsync(
+                new Uri("https://www.kingdomofloathing.com/api.php?what=status&for=KoLibri"));
+            if (!response.IsSuccessStatusCode) return false;
+            var location = response.Headers.Location?.ToString() ?? string.Empty;
+            if (location.Contains("login.php", StringComparison.OrdinalIgnoreCase)) return false;
+            var body = await response.Content.ReadAsStringAsync();
+            return body.Contains("playerid", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Opens the arbitrage table: live mall listings against the
