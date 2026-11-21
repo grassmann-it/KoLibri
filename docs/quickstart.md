@@ -8,7 +8,7 @@ limits you approve.
 
 **Download (no .NET needed).** Take the archive for your system from the GitHub releases page
 (`win-x64`, `linux-x64`, `osx-arm64`, `osx-x64`) and unpack it. It contains `kolibri` (CLI), `kolibri-mcp`
-(MCP server) and `KoLibri` (desktop, early alpha) plus the data folder next to them. Keep the `external` folder
+(MCP server) and `kolibri-desktop` (desktop, early alpha) plus the data folder next to them. Keep the `external` folder
 beside the programs. On macOS the programs are not signed yet: allow them once under
 System Settings, Privacy & Security. On Windows SmartScreen may warn for the same reason.
 

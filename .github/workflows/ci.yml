@@ -31,6 +31,7 @@ jobs:
     name: package ${{ matrix.rid }}
     needs: build-test
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -50,10 +51,20 @@ jobs:
         run: scripts/package.sh ${{ matrix.rid }}
       - name: Run the packaged CLI and MCP server
         shell: bash
+        timeout-minutes: 4
         run: |
           d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
-          "$d/kolibri" --help | head -3
-          "$d/kolibri-mcp" --port 8799 & pid=$!
+          ls "$d"
+          # The desktop app must not share a name with the CLI: Windows and macOS ignore letter case.
+          ls "$d" | grep -q '^kolibri-desktop' 
+          "$d/kolibri" --help < /dev/null | head -3
+          # Detach the server from the step's output, otherwise Windows and macOS runners wait for it forever.
+          "$d/kolibri-mcp" --port 8799 > mcp.log 2>&1 < /dev/null &
+          pid=$!
           sleep 5
-          curl -fsS http://127.0.0.1:8799/.well-known/oauth-protected-resource
-          kill $pid
+          code=0
+          curl -fsS http://127.0.0.1:8799/.well-known/oauth-protected-resource || code=$?
+          kill $pid 2>/dev/null || true
+          taskkill //F //IM kolibri-mcp.exe 2>/dev/null || true
+          cat mcp.log
+          exit $code
