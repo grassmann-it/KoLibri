@@ -39,6 +39,7 @@ public sealed class MafiaDataLoader
         var monsterParts = LoadFlexible(directory, "monsterparts.jsonl", diag);
         var restores = LoadFlexible(directory, "restores.jsonl", diag);
 
+        var familiars = LoadFlexible(directory, "familiars.jsonl", diag);
         diagnostics = diag;
         return new KoLmafiaCatalog(
             monsters.Select(MapMonster).Where(m => m is not null).Cast<MafiaMonsterRecord>().ToArray(),
@@ -52,7 +53,13 @@ public sealed class MafiaDataLoader
             monsterParts.Select(MapMonsterPart).Where(p => p is not null).Cast<MafiaMonsterPartRecord>().ToArray(),
             restores.Select(MapRestore).Where(r => r is not null).Cast<MafiaRestoreRecord>().ToArray(),
             DateTimeOffset.UtcNow,
-            Path.GetFullPath(directory));
+            Path.GetFullPath(directory))
+        {
+            FamiliarSpecies = familiars.Select(row => (Id: GetString(row, "id"), Name: GetString(row, "name")))
+                .Where(row => row.Id is not null && row.Name is not null)
+                .GroupBy(row => row.Id!, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().Name!, StringComparer.Ordinal)
+        };
     }
 
     /// <summary>Resolve the default data directory under the user's local app data.</summary>
@@ -278,12 +285,13 @@ public sealed class MafiaDataLoader
         if (name is null) return null;
         return new MafiaAdventureRecord
         {
-            Id = GetString(row, "url") ?? name.ToLowerInvariant().Replace(' ', '-'),
+            Id = GetString(row, "id") ?? GetString(row, "url") ?? name.ToLowerInvariant().Replace(' ', '-'),
             Name = name,
             Snarfblat = GetInt(row, "sniff") ?? 0,
             Zone = GetString(row, "zone") ?? string.Empty,
             TurnCost = 1,
             Requirements = Array.Empty<string>(),
+            MonsterNames = GetStringList(row, "monsters"),
             SniffProperty = GetString(row, "sniffProperty") ?? string.Empty,
             Type = GetString(row, "type") ?? string.Empty,
             Desc = GetString(row, "desc") ?? string.Empty

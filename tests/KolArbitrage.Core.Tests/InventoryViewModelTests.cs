@@ -13,7 +13,7 @@ public sealed class InventoryViewModelTests
     private static InventoryViewModel Build(params DesktopInventoryItem[] items)
     {
         var viewModel = new InventoryViewModel();
-        viewModel.ApplySnapshot(items);
+        viewModel.ApplySnapshot(items, DateTimeOffset.UnixEpoch);
         return viewModel;
     }
 

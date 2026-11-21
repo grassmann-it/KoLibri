@@ -152,7 +152,13 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         cancellationToken.ThrowIfCancellationRequested();
 
         ValidateRequest(request, operation);
-        var uri = BuildUri(operation);
+        var route = operation == AdventureTransportOperation.Refresh ? request.Checkpoint?.Phase switch
+        {
+            AdventureRunPhase.Fight => AdventureTransportOperation.Fight,
+            AdventureRunPhase.Choice => AdventureTransportOperation.Choice,
+            _ => operation
+        } : operation;
+        var uri = BuildUri(route);
         _security.EnsureAllowed(uri, $"KoL adventure {operation} request");
 
         using var message = new HttpRequestMessage(
@@ -294,6 +300,21 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                     EnsureFieldMatches(fields, "action", fight.ActionId);
                     EnsureFieldMatches(fields, "round",
                         fight.Round.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+                var actionId = fields["action"];
+                if (actionId.StartsWith("skill:", StringComparison.Ordinal))
+                {
+                    fields["action"] = "skill";
+                    fields["whichskill"] = actionId["skill:".Length..];
+                }
+                else if (actionId.StartsWith("item:", StringComparison.Ordinal))
+                {
+                    fields["action"] = "useitem";
+                    fields["whichitem"] = actionId["item:".Length..];
+                }
+                else if (actionId == "run")
+                {
+                    fields["action"] = "runaway";
                 }
                 break;
             case AdventureTransportOperation.Choice:

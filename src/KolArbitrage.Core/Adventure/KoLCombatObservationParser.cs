@@ -465,7 +465,12 @@ public partial class KoLCombatObservationParser : ICombatObservationParser
                 || kind != CombatActionKind.Unknown)
             {
                 if (kind is CombatActionKind.Skill or CombatActionKind.Item)
-                    AddAction(actions, NewAction(kind, ValidActionId(value), label, value));
+                {
+                    var separator = name?.Equals("action", StringComparison.OrdinalIgnoreCase) == true
+                        ? value?.IndexOf(':') ?? -1 : -1;
+                    var id = separator >= 0 ? value![(separator + 1)..] : value;
+                    AddAction(actions, NewAction(kind, ValidActionId(id), label, value));
+                }
                 else if (kind is CombatActionKind.Attack or CombatActionKind.Run)
                     AddAction(actions, new CombatAction(kind, null, label) { Value = value });
             }

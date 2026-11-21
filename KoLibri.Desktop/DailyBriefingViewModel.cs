@@ -58,8 +58,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         try
         {
             var live = await _provider.LoadDailySnapshotAsync(
-                _role, new DailyRoutineSnapshot(), forceRefresh, null, cancellationToken)
-                .ConfigureAwait(false);
+                _role, new DailyRoutineSnapshot(), forceRefresh, cancellationToken);
             if (live is null)
             {
                 SnapshotText = "No session — please log in.";
@@ -96,6 +95,11 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
                 live.BaconMachines > 0 ? "open" : "skipped"));
 
             LoadState = Rows.Count == 0 ? DesktopLoadState.Empty : DesktopLoadState.Ready;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
         }
         catch (Exception exception)
         {

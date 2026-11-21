@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text.RegularExpressions;
 
 namespace KolArbitrage.Core.Daily;
@@ -27,10 +28,10 @@ public static class DropTracker
     /// there is one and falls back to the plain text otherwise.
     /// </summary>
     private static readonly Regex AcquirePattern = new(
-        @"You acquire(?: an item)?:\s*(?:<b>(?<bold>[^<]*)</b>|<i>(?<italic>[^<]*)</i>|(?<plain>[^<\r\n]+))",
+        @"You acquire(?:(?: an item|\s+items?)?:\s*|\s+(?=<[bi]>))(?:<b>(?<bold>[^<]*)</b>|<i>(?<italic>[^<]*)</i>|(?<plain>[^<\r\n]+))",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex QuantityPattern = new(
-        @"\((?<quantity>\d+)\)",
+        @"(?:^\s*(?<quantity>\d+)\s+|\s*\((?<quantity>\d+)\)\s*$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TagPattern = new(
         @"<[^>]+>",
@@ -47,8 +48,7 @@ public static class DropTracker
                 : match.Groups["italic"].Success ? match.Groups["italic"].Value
                 : match.Groups["plain"].Value;
             raw = TagPattern.Replace(raw, " ");
-            raw = raw.Replace("&nbsp;", " ", StringComparison.OrdinalIgnoreCase);
-            raw = raw.Replace("&amp;", "&", StringComparison.OrdinalIgnoreCase);
+            raw = WebUtility.HtmlDecode(raw);
             var quantity = 1;
             var quantityMatch = QuantityPattern.Match(raw);
             if (quantityMatch.Success

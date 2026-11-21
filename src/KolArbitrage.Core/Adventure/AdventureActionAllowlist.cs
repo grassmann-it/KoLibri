@@ -101,6 +101,8 @@ public sealed class AdventureActionAllowlist
         }
     }
 
+    public bool WaitForManualChoice { get; init; }
+
     public static AdventureActionAllowlist Empty => new();
 
     public IReadOnlyCollection<AdventureAllowlistEntry> Entries
@@ -329,7 +331,7 @@ public sealed class AdventureActionAllowlist
         => _entries.TryGetValue(adventureId?.Trim() ?? string.Empty, out entry!);
 
     private AdventureActionAllowlist Clone()
-        => new(_entries.Values);
+        => new(_entries.Values) { WaitForManualChoice = WaitForManualChoice };
 
     private static AdventureAllowlistEntry Rebuild(
         AdventureAllowlistEntry source,

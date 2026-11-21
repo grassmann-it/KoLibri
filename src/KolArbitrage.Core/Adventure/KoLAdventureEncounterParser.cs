@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,6 +22,7 @@ public interface IAdventureEncounterParser
 
 public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
 {
+    private static readonly KoLCombatObservationParser CombatParser = new();
     private static readonly Regex TagPattern = new("<input\\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex OptionLinkPattern = new("[?&]option=(\\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex RoundPattern = new("\\bonturn\\s*=\\s*['\"]?(\\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -48,7 +50,16 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         }
 
         var choiceId = ExtractInputValue(html, "whichchoice");
-        var choices = ExtractChoices(html);
+        var choices = ExtractChoices(html).ToList();
+        var labels = ExtractChoiceLabels(html, choiceId, choices);
+        if (path.EndsWith("choice.php", StringComparison.OrdinalIgnoreCase)
+            && choiceId is null && choices.Count == 0
+            && Regex.IsMatch(html, @"(?:you acquire|you gain|adventure complete|adventure is over)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return Build(adventureId, AdventureEncounterKind.Reward, path, null, [], false,
+                advisories, null, responseHash, retryCount, extraFields);
+        }
         if (path.EndsWith("choice.php", StringComparison.OrdinalIgnoreCase)
             || choiceId is not null
             || choices.Count > 0)
@@ -59,7 +70,7 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
                 advisories.Add("Choice page has no recognised options; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Choice, path, choiceId, choices,
                 choiceId is not null && choices.Count > 0, advisories, null, responseHash, retryCount,
-                extraFields);
+                extraFields) with { ChoiceLabels = labels };
         }
 
         var round = ExtractFightRound(html);
@@ -67,10 +78,14 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             || round is not null
             || Regex.IsMatch(html, @"\b(?:whichskill|fight\.php)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
+            var combat = CombatParser.Parse(html, responseUri);
+            if (combat.Outcome is CombatOutcome.Victory or CombatOutcome.Defeat or CombatOutcome.Fled)
+                return Build(adventureId, AdventureEncounterKind.Reward, path, null, [], false,
+                    advisories, null, responseHash, retryCount) with { Combat = combat };
             if (round is null)
                 advisories.Add("Combat response has no round marker; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Fight, path, null, [], round is not null,
-                advisories, round, responseHash, retryCount, extraFields);
+                advisories, round, responseHash, retryCount, extraFields) with { Combat = combat };
         }
 
         if (Regex.IsMatch(html, @"(?:you acquire|you gain|adventure complete|adventure is over)",
@@ -153,8 +168,9 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
             if (!string.Equals(GetAttribute(tag.Value, "name"), "option", StringComparison.OrdinalIgnoreCase))
                 continue;
             var value = GetAttribute(tag.Value, "value");
-            if (!string.IsNullOrWhiteSpace(value) && !choices.Contains(value, StringComparer.Ordinal))
-                choices.Add(value);
+            if (!IsDisabled(tag.Value) && int.TryParse(value, out var option) && option > 0
+                && !choices.Contains(value!, StringComparer.Ordinal))
+                choices.Add(value!);
         }
 
         foreach (Match match in OptionLinkPattern.Matches(html))
@@ -163,6 +179,45 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
                 choices.Add(match.Groups[1].Value);
         }
         return choices;
+    }
+
+    private static IReadOnlyDictionary<string, string> ExtractChoiceLabels(
+        string html, string? choiceId, List<string> choices)
+    {
+        const RegexOptions options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline;
+        var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (choiceId is null) return labels;
+
+        foreach (Match form in Regex.Matches(html, @"<form\b[^>]*>(.*?)</form\s*>", options))
+        {
+            var body = form.Groups[1].Value;
+            if (ExtractInputValue(body, "whichchoice") != choiceId) continue;
+            var formOption = ExtractInputValue(body, "option");
+
+            foreach (Match control in Regex.Matches(body, @"<input\b[^>]*>|<button\b[^>]*>(.*?)</button\s*>", options))
+            {
+                var tag = control.Value[..(control.Value.IndexOf('>') + 1)];
+                var type = GetAttribute(tag, "type");
+                if (IsDisabled(tag)) continue;
+
+                var button = tag.StartsWith("<button", StringComparison.OrdinalIgnoreCase);
+                if (!string.Equals(type, "submit", StringComparison.OrdinalIgnoreCase)
+                    && !(button && type is null)) continue;
+
+                var namedOption = string.Equals(GetAttribute(tag, "name"), "option", StringComparison.OrdinalIgnoreCase);
+                var value = GetAttribute(tag, "value");
+                var option = namedOption ? value : formOption;
+                if (!int.TryParse(option, out var optionNumber) || optionNumber <= 0) continue;
+                if (!choices.Contains(option!, StringComparer.Ordinal)) choices.Add(option!);
+
+                var rawLabel = button ? Regex.Replace(control.Groups[1].Value, "<[^>]*>", "") : value;
+                var label = WebUtility.HtmlDecode(rawLabel)?.Trim();
+                if (!string.IsNullOrWhiteSpace(label) && label != option)
+                    labels.TryAdd(option!, label);
+            }
+        }
+
+        return labels;
     }
 
     private static IReadOnlyDictionary<string, string> ExtractExtraFields(string html)
@@ -189,6 +244,10 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         }
         return fields;
     }
+
+    private static bool IsDisabled(string tag)
+        => GetAttribute(tag, "disabled") is not null
+            || Regex.IsMatch(tag, @"\sdisabled(?:\s|/?>)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static string? GetAttribute(string tag, string name)
     {

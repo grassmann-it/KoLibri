@@ -26,6 +26,8 @@ public sealed class DailyRoutineRunnerTests
             CampfireReserve = 3,
             DayShortnerPrice = 50_000,
             MainMeat = 1_000_000,
+            Bacon = 355,
+            BaconMachineOwned = true,
             HermitPermits = 3,
             Clovers = 1,
             AdventureReserveValue = 50_000,
@@ -40,7 +42,7 @@ public sealed class DailyRoutineRunnerTests
         Assert.True(report.Counts.ApprovableSteps > 0);
         Assert.Contains(report.ApprovableSteps, s => s.Contains("campfire", StringComparison.OrdinalIgnoreCase) || s.Contains("burn", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(report.ApprovableSteps, s => s.Contains("clover", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(report.ApprovableSteps, s => s.Contains("lucky surprise egg", StringComparison.OrdinalIgnoreCase) || s.Contains("internet bacon", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(report.ApprovableSteps, s => s.Contains("Internet Meme Shop", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(report.ApprovableSteps, s => s.Contains("bag(s) of foreign bribes", StringComparison.OrdinalIgnoreCase));
         Assert.True(report.Verdict is "LightRoutine" or "StandardRoutine" or "HeavyRoutine");
     }

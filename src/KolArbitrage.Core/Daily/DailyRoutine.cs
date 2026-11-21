@@ -13,10 +13,16 @@ public sealed record DailyRoutineSnapshot
     public long DayShortnerPrice { get; init; } = long.MaxValue;
     public long MainMeat { get; init; }
 
+    /// <summary>True once today's Day Shortener has been made from burning leaves; the pile is used at most once per day.</summary>
+    public bool DayShortenerDoneToday { get; init; }
+
     // Hermit
     public int HermitPermits { get; init; }
     public int Clovers { get; init; }
     public int UselessItems { get; init; }
+
+    /// <summary>How many 11-leaf clovers to buy from the Hermit with worthless items (0 = off). Capped by the Hermit's daily stock.</summary>
+    public int HermitCloversWanted { get; init; }
     public long AdventureReserveValue { get; init; }
     public long CloverFloorValue { get; init; }
     public long ExpectedCloverSaleValue { get; init; }
@@ -24,12 +30,12 @@ public sealed record DailyRoutineSnapshot
     public long WishUnitPrice { get; init; }
 
     // Internet shop
+    public int Bacon { get; init; }
+    public bool BaconMachineOwned { get; init; }
+    public bool BaconMachineUsedToday { get; init; }
     public IReadOnlyList<string> AlreadyPulledItemIds { get; init; } = Array.Empty<string>();
 
     // Bacons
-    public int OwnedMachines { get; init; }
-    public long MallPricePerMachine { get; init; }
-    public long PricegunMedianBaconPrice { get; init; }
     public long MallbotMeat { get; init; }
 
     // Foreign bribes
@@ -52,7 +58,6 @@ public sealed record DailyRoutineReport
     public required CampfireLeavesPlan Campfire { get; init; }
     public required HermitPlan Hermit { get; init; }
     public required InternetShopPlan InternetShop { get; init; }
-    public required BaconPlan Bacon { get; init; }
     public required ForeignBribePreview ForeignBribes { get; init; }
     public required IReadOnlyList<string> ApprovableSteps { get; init; }
     public required IReadOnlyList<string> Advisories { get; init; }
@@ -119,19 +124,12 @@ public sealed class DailyRoutineRunner
         var internet = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
         {
             AlreadyPulledItemIds = snapshot.AlreadyPulledItemIds,
-            AvailableMeat = snapshot.MainMeat
+            AvailableMeat = snapshot.MainMeat,
+            Bacon = snapshot.Bacon,
+            BaconMachineOwned = snapshot.BaconMachineOwned,
+            BaconMachineUsedToday = snapshot.BaconMachineUsedToday
         });
         AddSteps(internet.Steps, steps);
-
-        var bacon = new BaconArbitragePlanner().Plan(new BaconSnapshot
-        {
-            OwnedMachines = snapshot.OwnedMachines,
-            MallPricePerMachine = snapshot.MallPricePerMachine,
-            PricegunMedianSellPrice = snapshot.PricegunMedianBaconPrice,
-            AvailableMeat = snapshot.MallbotMeat
-        });
-        if (bacon.ShouldBuy)
-            steps.Add($"Buy {bacon.SuggestedQuantity} Infinite Bacon Machine(s) at {snapshot.MallPricePerMachine} meat each (median {snapshot.PricegunMedianBaconPrice}).");
 
         var bribes = PlanBribes(snapshot);
         if (bribes.PlannedQuantity > 0)
@@ -156,7 +154,6 @@ public sealed class DailyRoutineRunner
             Campfire = campfire,
             Hermit = hermit,
             InternetShop = internet,
-            Bacon = bacon,
             ForeignBribes = bribes,
             ApprovableSteps = steps,
             Advisories = advisories

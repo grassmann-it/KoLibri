@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)external/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external" />
+    <None Include="../KolArbitrage.Core.Tests/Fixtures/Adventure/combat-round-1.html;../KolArbitrage.Core.Tests/Fixtures/Adventure/choice-success.html;../KolArbitrage.Core.Tests/Fixtures/Html/SkeletonOfCrimbosPast/reward.html" CopyToOutputDirectory="PreserveNewest" LinkBase="Replay" />
   </ItemGroup>
 </Project>

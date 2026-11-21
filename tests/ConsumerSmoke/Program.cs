@@ -39,5 +39,7 @@ finally
 var runtime = new LibKolibriRuntime();
 Console.WriteLine($"LibKolibri runtime instance: {runtime.GetType().FullName}");
 
+await ManualAdventureReplay.RunAsync();
+
 Console.WriteLine("All consumer smoke checks passed.");
 return 0;

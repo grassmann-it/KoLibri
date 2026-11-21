@@ -133,7 +133,7 @@ public sealed class MallBuyClient
         {
             RequestId = Guid.NewGuid().ToString("N"),
             StatusCode = (int)response.StatusCode,
-            Accepted = response.IsSuccessStatusCode,
+            Accepted = IsConfirmedPurchase((int)response.StatusCode, body),
             StoreId = storeId,
             ItemId = itemId,
             UnitPrice = unitPrice,
@@ -142,6 +142,16 @@ public sealed class MallBuyClient
             Message = snippet
         };
     }
+
+    /// <summary>
+    /// A mall purchase only counts when KoL says so ("You acquire ..." or "You spent ... Meat").
+    /// An HTTP 200 alone is not enough: KoL answers a refused buy ("doesn't have that item at that
+    /// price", sold out) with a normal page.
+    /// </summary>
+    public static bool IsConfirmedPurchase(int statusCode, string body)
+        => statusCode is >= 200 and < 300 && !string.IsNullOrEmpty(body)
+           && (body.Contains("You acquire", StringComparison.OrdinalIgnoreCase)
+               || body.Contains("You spent", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>KoL's mall rows expose the store id as a string; the
     /// purchase needs the numeric form.</summary>

@@ -188,7 +188,7 @@ kolibri daily breakfast --role all \
 kolibri daily campfire --leaves 37191 --meat 128310
 kolibri daily hermit --permits 2 --clovers 3 --clover-sale 30000
 kolibri daily internet-shop
-kolibri daily bacon --mall-price 480000 --median 620000
+kolibri daily meme-shop-read
 
 # Audit trail
 kolibri daily-audit --tail 20

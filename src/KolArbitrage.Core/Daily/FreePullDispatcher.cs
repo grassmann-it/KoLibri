@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using KolArbitrage.Core.Accounts;
 
@@ -152,6 +153,97 @@ public sealed class FreePullDispatcher
         => await BurnLeavesAsync(credentials, DayShortenerLeafCost, cancellationToken)
             .ConfigureAwait(false);
 
+    /// <summary>
+    /// Pushes the Infinite BACON machine (100 BACON, once per day). KoL's own
+    /// "use" link is a GET; the request hash comes from the meme shop page.
+    /// </summary>
+    public async Task<FreePullResult> UseBaconMachineAsync(
+        AccountCredentials credentials, string pwd, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pwd);
+        var path = $"inv_use.php?which=3&whichitem={MemeShopCatalog.InfiniteBaconMachineItemId}&pwd={pwd}";
+        return await GetActionAsync(credentials, path, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads the Internet Meme Shop page. Items bought today are no longer listed.</summary>
+    public async Task<MemeShopPage> ReadMemeShopAsync(
+        AccountCredentials credentials, CancellationToken cancellationToken = default)
+        => MemeShopPage.Parse(await ReadMemeShopHtmlAsync(credentials, cancellationToken).ConfigureAwait(false));
+
+    /// <summary>
+    /// The session's request hash from the inventory page. Needed when the meme
+    /// shop page is not available yet (no BACON in the inventory).
+    /// </summary>
+    public async Task<string?> ReadSessionHashAsync(
+        AccountCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
+            throw new InvalidOperationException("This action needs a logged-in account with a cookie header.");
+        // KoL embeds the hash in links ("pwd=<hash>") and in the charpane script
+        // ("pwdhash = \"<hash>\""). Try the inventory page first, then the charpane.
+        foreach (var page in new[] { "inventory.php?which=3", "charpane.php" })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, page));
+            request.Headers.Add("Cookie", credentials.CookieHeader);
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var found = System.Text.RegularExpressions.Regex.Match(
+                body, @"(?:pwd=|pwdhash\s*=\s*[""'])(?<h>[0-9a-fA-F]{16,})");
+            if (found.Success) return found.Groups["h"].Value;
+        }
+        return null;
+    }
+
+    /// <summary>Raw HTML of the Internet Meme Shop page (diagnostics).</summary>
+    public async Task<string> ReadMemeShopHtmlAsync(
+        AccountCredentials credentials, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
+            throw new InvalidOperationException("The meme shop requires a logged-in account.");
+        var uri = new Uri(_baseUri, "shop.php?whichshop=" + MemeShopCatalog.ShopId);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Add("Cookie", credentials.CookieHeader);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Buys one unit of a shop row, exactly as the shop's Buy button does (a GET).</summary>
+    public async Task<FreePullResult> BuyMemeShopRowAsync(
+        AccountCredentials credentials, int rowId, string pwd, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pwd);
+        if (rowId <= 0) throw new ArgumentOutOfRangeException(nameof(rowId));
+        var path = $"shop.php?whichshop={MemeShopCatalog.ShopId}&action=buyitem&quantity=1&whichrow={rowId.ToString(CultureInfo.InvariantCulture)}&pwd={pwd}";
+        return await GetActionAsync(credentials, path, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<FreePullResult> GetActionAsync(
+        AccountCredentials credentials, string path, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
+            throw new InvalidOperationException("This action needs a logged-in account with a cookie header.");
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, path));
+        request.Headers.Add("Cookie", credentials.CookieHeader);
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var snippet = string.IsNullOrWhiteSpace(body)
+            ? $"(empty body, HTTP {(int)response.StatusCode}, location {response.Headers.Location?.ToString() ?? "none"})"
+            : ExtractMeaningfulSnippet(body);
+        // A real change shows "You acquire ..."; an empty or error page is not success.
+        var accepted = response.IsSuccessStatusCode
+            && body.Contains("acquire", StringComparison.OrdinalIgnoreCase);
+        return new FreePullResult(
+            RequestId: Guid.NewGuid().ToString("N"),
+            StatusCode: (int)response.StatusCode,
+            Accepted: accepted,
+            BodySnippet: snippet,
+            Location: response.Headers.Location?.ToString());
+    }
+
     private async Task<FreePullResult> PostAsync(
         AccountCredentials credentials,
         string path,
@@ -164,7 +256,9 @@ public sealed class FreePullDispatcher
         request.Content = new FormUrlEncodedContent(form);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        var snippet = ExtractMeaningfulSnippet(body);
+        var snippet = string.IsNullOrWhiteSpace(body)
+            ? $"(empty body, HTTP {(int)response.StatusCode}, location {response.Headers.Location?.ToString() ?? "none"})"
+            : ExtractMeaningfulSnippet(body);
         return new FreePullResult(
             RequestId: Guid.NewGuid().ToString("N"),
             StatusCode: (int)response.StatusCode,

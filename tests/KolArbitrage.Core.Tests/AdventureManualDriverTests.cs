@@ -22,23 +22,18 @@ public sealed class AdventureManualDriverTests
                 CanContinue = true,
                 ResponseHash = "c1"
             });
-        transport.EnqueueObservation(AdventureTransportOperation.Choice,
-            new AdventureKernelObservation
-            {
-                AdventureId = "skeleton-of-crimbos-past",
-                Kind = AdventureEncounterKind.Reward,
-                CanContinue = false,
-                ResponseHash = "reward"
-            });
+        var rewardHtml = File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
+            "Fixtures", "Html", "SkeletonOfCrimbosPast", "reward.html"));
+        transport.EnqueueHtml(AdventureTransportOperation.Choice,
+            "skeleton-of-crimbos-past", rewardHtml, new Uri("https://example.test/adventure.php"));
 
         var store = new InMemoryAdventureRunCheckpointStore();
         await using var gateway = new AdventureExecutionGateway(transport, store);
         var driver = new AdventureManualDriver(AccountRole.Main, gateway, "allow-token");
 
-        var allowlist = new AdventureActionAllowlist()
+        var allowlist = new AdventureActionAllowlist { WaitForManualChoice = true }
             .AddAdventure("skeleton-of-crimbos-past")
-            .AddEncounter("skeleton-of-crimbos-past", "skeleton")
-            .AddChoiceOption("skeleton-of-crimbos-past", "1003", "2");
+            .AddEncounter("skeleton-of-crimbos-past", "skeleton");
 
         var start = await driver.StartAsync(new AdventureRunRequest
         {
@@ -48,18 +43,26 @@ public sealed class AdventureManualDriverTests
         }, allowlist);
 
         Assert.False(start.IsComplete);
-        Assert.IsType<AdventureChoiceAction>(start.NextAction);
+        Assert.Null(start.NextAction);
+        Assert.Equal(new[] { "1", "2" }, start.Encounter!.AvailableChoices);
+        var invalid = await driver.ExecuteAsync("manual-1", allowlist, new ChoiceStepSpec("1003", "3"));
+        Assert.Equal("ActionUnavailable", invalid.StopReason);
+        Assert.Single(transport.Requests);
 
         var step = await driver.ExecuteAsync("manual-1", allowlist,
             new ChoiceStepSpec("1003", "2"));
 
         Assert.True(step.IsComplete);
+        var drop = Assert.Single(step.Drops);
+        Assert.Equal("knucklebone", drop.ItemName);
+        Assert.Equal(1, drop.Quantity);
         Assert.Null(step.NextAction);
+        Assert.Equal("2", transport.Requests[1].Fields["option"]);
         Assert.Equal(2, transport.Count(AdventureTransportOperation.Choice) + transport.Count(AdventureTransportOperation.Adventure));
     }
 
     [Fact]
-    public async Task Attack_step_creates_fight_action_via_allowlist()
+    public async Task Manual_selection_dispatches_the_selected_skill_instead_of_pending_attack()
     {
         var transport = new AdventureExecutionFixtureTransport();
         transport.EnqueueObservation(AdventureTransportOperation.Adventure,
@@ -71,7 +74,11 @@ public sealed class AdventureManualDriverTests
                 MonsterId = "skeleton",
                 FightRound = 1,
                 CanContinue = true,
-                ResponseHash = "f1"
+                ResponseHash = "f1",
+                Combat = new CombatObservation
+                {
+                    AvailableActions = new[] { new CombatAction(CombatActionKind.Skill, "123") }
+                }
             });
         transport.EnqueueObservation(AdventureTransportOperation.Fight,
             new AdventureKernelObservation
@@ -98,7 +105,14 @@ public sealed class AdventureManualDriverTests
 
         Assert.IsType<AdventureFightAction>(start.NextAction);
 
-        var step = await driver.ExecuteAsync("attack-1", allowlist, new AttackStepSpec());
+        var mismatched = await driver.ExecuteAsync("attack-1", allowlist, new SkillStepSpec("123", Round: 2));
+        Assert.Equal("ActionUnavailable", mismatched.StopReason);
+        var unavailable = await driver.ExecuteAsync("attack-1", allowlist, new AttackStepSpec());
+        Assert.Equal("ActionUnavailable", unavailable.StopReason);
+        Assert.Single(transport.Requests);
+
+        var step = await driver.ExecuteAsync("attack-1", allowlist, new SkillStepSpec("123", Round: 1));
+        Assert.Equal("skill:123", transport.Requests[1].Fields["action"]);
         Assert.True(step.IsComplete);
         Assert.Null(step.NextAction);
     }

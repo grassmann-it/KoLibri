@@ -11,6 +11,7 @@ public sealed class AccountSessionManager
     private readonly ISecretStore _secretStore;
     private readonly IClock _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _reconnectGate = new(1, 1);
     private AccountConfiguration? _configuration;
 
     public AccountSessionManager(
@@ -107,6 +108,52 @@ public sealed class AccountSessionManager
             throw new AccountConfigurationException(
                 $"No valid credentials are configured for the {role} account.");
         return session;
+    }
+
+    /// <summary>Reconnects the same profile after a confirmed session expiry.</summary>
+    public async Task<AccountSession?> ReconnectAsync(
+        AccountSession expired,
+        Func<string, string, CancellationToken, Task<KoLLoginResult>> login,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expired);
+        ArgumentNullException.ThrowIfNull(login);
+        await _reconnectGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var current = await GetSessionAsync(expired.Profile.Role, includeExpired: true,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (current is null || current.Profile != expired.Profile)
+                return null;
+            if (current.Credentials != expired.Credentials)
+                return current.IsExpired(now: _clock.UtcNow) ? null : current;
+
+            var username = current.Credentials.Username ?? current.Profile.DisplayName;
+            var password = current.Credentials.Password;
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+                return null;
+
+            var loginResult = await login(username, password, cancellationToken).ConfigureAwait(false);
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (FindProfile(expired.Profile.Role) != current.Profile ||
+                    await _secretStore.GetAsync(current.Profile.Id, cancellationToken).ConfigureAwait(false) != current.Credentials)
+                    return null;
+
+                var renewed = loginResult.Credentials with { Password = password, Username = username };
+                await _secretStore.SetAsync(current.Profile.Id, renewed, cancellationToken).ConfigureAwait(false);
+                return current with { Credentials = renewed };
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        finally
+        {
+            _reconnectGate.Release();
+        }
     }
 
     public async Task SetProfileAsync(AccountProfile profile, CancellationToken cancellationToken = default)

@@ -201,6 +201,11 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             }
             LoadState = Targets.Count == 0 ? DesktopLoadState.Empty : DesktopLoadState.Ready;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
+        }
         catch (Exception exception)
         {
             ErrorMessage = exception.Message;
@@ -330,7 +335,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             try
             {
                 var gateway = await CreateCombatGatewayAsync(role, approvalToken, cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
                 var runner = new KolArbitrage.Core.Daily.AutoCombatRunner(gateway);
                 var result = await runner.RunAsync(
                     policy,
@@ -340,7 +345,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
                     maxRounds: MaxRounds,
                     abortBelowHpPercent: AbortHpPercent,
                     approvalToken: approvalToken,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                    cancellationToken: cancellationToken);
                 outcomes.Add(new CombatRunOutcome
                 {
                     Role = role,
@@ -371,9 +376,9 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         CreateCombatGatewayAsync(AccountRole role, string approvalToken, CancellationToken cancellationToken)
     {
         var accounts = AccountSessionManager.CreateDefault();
-        await accounts.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await accounts.InitializeAsync(cancellationToken);
         var session = await accounts.GetSessionAsync(role, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
             throw new InvalidOperationException($"No valid session for {role}.");
         var http = KolArbitrage.Core.Accounts.KoLLoginClient.CreateAuthenticatedClient(

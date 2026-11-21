@@ -29,21 +29,25 @@ public sealed class LiveDailySnapshotBuilder
     }
 
     private readonly IAccountReadClient _account;
+    private readonly DailyDoneStore? _doneStore;
 
-    public LiveDailySnapshotBuilder(IAccountReadClient account)
+    public LiveDailySnapshotBuilder(IAccountReadClient account, DailyDoneStore? doneStore = null)
     {
         _account = account ?? throw new ArgumentNullException(nameof(account));
+        _doneStore = doneStore;
     }
 
     /// <summary>Reads the live status + inventory and derives the daily
     /// snapshot from them.</summary>
     public async Task<LiveDailySnapshot> BuildAsync(
         DailyRoutineSnapshot baseline,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = true,
+        AccountRole role = AccountRole.Main)
     {
         ArgumentNullException.ThrowIfNull(baseline);
-        var status = await _account.FetchStatusAsync(true, cancellationToken).ConfigureAwait(false);
-        var inventory = await _account.FetchInventoryAsync(true, cancellationToken).ConfigureAwait(false);
+        var status = await _account.FetchStatusAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        var inventory = await _account.FetchInventoryAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
 
         int QuantityOf(params int[] itemIds)
         {
@@ -71,11 +75,21 @@ public sealed class LiveDailySnapshotBuilder
             MainMeat = status.Meat,
             HermitPermits = permits,
             Clovers = clovers,
-            UselessItems = worthless
+            UselessItems = worthless,
+            Bacon = bacon,
+            BaconMachineOwned = machines > 0,
+            BaconMachineUsedToday = baseline.BaconMachineUsedToday
+                || (_doneStore?.IsDone(role.ToString(), DailyDoneStore.BaconMachine) ?? false),
+            AlreadyPulledItemIds = baseline.AlreadyPulledItemIds
+                .Concat(MemeShopCatalog.DailyItems.Select(i => i.Name)
+                    .Where(n => _doneStore?.IsDone(role.ToString(), DailyDoneStore.MemeBuy(n)) ?? false))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            DayShortenerDoneToday = baseline.DayShortenerDoneToday
+                || (_doneStore?.IsDone(role.ToString(), DailyDoneStore.DayShortener) ?? false)
         };
         var state = new AccountDailyState
         {
-            Role = AccountRole.Main,
+            Role = role,
             Status = status,
             Inventory = inventory,
             ObservedAt = inventory.FetchedAt

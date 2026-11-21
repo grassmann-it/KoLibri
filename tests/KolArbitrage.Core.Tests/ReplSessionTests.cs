@@ -127,18 +127,9 @@ public sealed class ReplSessionTests
     {
         var session = new ReplSession(BuildContext());
         var result = await session.DispatchLineAsync(
-            "internet-shop", CancellationToken.None);
+            "internet-shop --bacon 355 --machine", CancellationToken.None);
         Assert.Contains("internet-shop", result.Text);
-        Assert.Contains("ClaimAll", result.Text);
-    }
-
-    [Fact]
-    public async Task DispatchLineAsync_routes_bacon_unknown_price_to_unknown()
-    {
-        var session = new ReplSession(BuildContext());
-        var result = await session.DispatchLineAsync(
-            "bacon --owned 0 --mall-price 0 --median 0 --meat 0", CancellationToken.None);
-        Assert.Contains("UnknownPrice", result.Text);
+        Assert.Contains("BuyAll", result.Text);
     }
 
     [Fact]

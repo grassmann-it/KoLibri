@@ -113,6 +113,6 @@ public sealed class LiveMallViewModelTests
                     new InMemoryAccountStore(), new InMemorySecretStore())));
         await viewModel.LoadAsync();
         Assert.Empty(viewModel.Rows);
-        Assert.Equal("No own listings.", viewModel.Summary);
+        Assert.Equal("Sign in as Mallbot under Accounts to see store listings.", viewModel.Summary);
     }
 }

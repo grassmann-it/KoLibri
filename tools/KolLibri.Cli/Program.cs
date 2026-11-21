@@ -37,6 +37,7 @@ internal static partial class KolibriCli
                 "token" => await TokenDispatchAsync(args[1..]),
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
+                "mafia-script" => await MafiaScriptAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
@@ -1111,6 +1112,8 @@ internal static partial class KolibriCli
             var path = Path.Combine(
                 AppContext.BaseDirectory, "kolmafia-data");
             if (!Directory.Exists(path))
+                path = Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data");
+            if (!Directory.Exists(path))
                 path = Path.Combine(Directory.GetCurrentDirectory(), "external", "kolmafia-data");
             if (!Directory.Exists(path)) return null;
             var catalog = loader.Load(path);
@@ -1247,6 +1250,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  token show                                      zeigt den aktuellen Token");
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
+        Console.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         Console.WriteLine("  shop --role mallbot [--refresh]");
         Console.WriteLine("  crm --role mallbot [--refresh]    eigener Shop: Käufer-/Sales-Analyse");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
@@ -1272,7 +1276,7 @@ internal static partial class KolibriCli
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
-        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--mallbot-leaves N] [--main-meat N]");
+        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
         Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
         Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
         Console.WriteLine("           [--already-claimed NAME] [--output PATH]");

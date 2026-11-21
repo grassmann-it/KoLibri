@@ -85,7 +85,7 @@ public sealed class EncounterBrowserPaneTests
             transport.EnqueueObservation(AdventureTransportOperation.Adventure,
                 new AdventureKernelObservation
                 {
-                    AdventureId = "skeleton-of-crimbos-past",
+                    AdventureId = "adventure=543:Your Mushroom Garden",
                     Kind = AdventureEncounterKind.Fight,
                     EncounterId = "skeleton-of-crimbos-past",
                     MonsterId = "skeleton-of-crimbos-past",
@@ -100,7 +100,7 @@ public sealed class EncounterBrowserPaneTests
             pane.ApplyApprovalToken("allow-token");
             var row = pane.Browser!.Locations.First();
             await pane.StartAdventureAsync(row);
-            Assert.True(pane.Session!.IsSessionActive);
+            Assert.True(pane.Session!.IsSessionActive, pane.Session.LastMessage);
             Assert.Equal(1, transport.RequestCount);
 
             pane.Dispose();
@@ -121,7 +121,7 @@ public sealed class EncounterBrowserPaneTests
             transport.EnqueueObservation(AdventureTransportOperation.Adventure,
                 new AdventureKernelObservation
                 {
-                    AdventureId = "skeleton-of-crimbos-past",
+                    AdventureId = "adventure=543:Your Mushroom Garden",
                     Kind = AdventureEncounterKind.Fight,
                     EncounterId = "skeleton-of-crimbos-past",
                     MonsterId = "skeleton-of-crimbos-past",
@@ -132,7 +132,7 @@ public sealed class EncounterBrowserPaneTests
             transport.EnqueueObservation(AdventureTransportOperation.Fight,
                 new AdventureKernelObservation
                 {
-                    AdventureId = "skeleton-of-crimbos-past",
+                    AdventureId = "adventure=543:Your Mushroom Garden",
                     Kind = AdventureEncounterKind.Reward,
                     CanContinue = false,
                     ResponseHash = "reward"
@@ -151,7 +151,7 @@ public sealed class EncounterBrowserPaneTests
             var attack = pane.Browser.Actions.First(a => a.Kind == "attack");
             await pane.SubmitStepAsync(attack);
 
-            Assert.True(pane.Session!.StepLog.Count >= 2);
+            Assert.True(pane.Session!.StepLog.Count >= 2, pane.Session.LastMessage);
             pane.Dispose();
         }
         finally

@@ -27,7 +27,8 @@ public enum BoundedAdventureRunStopReason
     ConditionsBlocked,
     StepLimitReached,
     DeadlineReached,
-    GatewayStopped
+    GatewayStopped,
+    AwaitingManualChoice
 }
 
 public sealed record BoundedAdventureRunResult
@@ -88,12 +89,16 @@ public sealed class BoundedAdventureRunner
                 return Result(BoundedAdventureRunStopReason.Complete, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
             if (current.IsAborted || current.RequiresRefresh || current.IsIndeterminate)
                 return Result(BoundedAdventureRunStopReason.GatewayStopped, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
+            if (current.State is AdventureChoiceRunState && current.NextAction is null)
+                return Result(BoundedAdventureRunStopReason.AwaitingManualChoice, steps, Array.Empty<AdventureConditionResult>());
             if (steps.Count >= settings.MaxGatewaySteps)
                 return Result(BoundedAdventureRunStopReason.StepLimitReached, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
             if (_clock.GetUtcNow() - started >= settings.MaxDuration)
                 return Result(BoundedAdventureRunStopReason.DeadlineReached, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
 
             var observed = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
+            if (observed.Any(condition => condition.IsBlocked))
+                return Result(BoundedAdventureRunStopReason.ConditionsBlocked, steps, observed);
             if (observed.Count > 0 && observed.All(x => x.IsSatisfied))
                 return Result(BoundedAdventureRunStopReason.ConditionsSatisfied, steps, observed);
 

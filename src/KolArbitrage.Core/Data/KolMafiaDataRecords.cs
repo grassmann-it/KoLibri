@@ -60,6 +60,7 @@ public sealed record MafiaAdventureRecord
     public string Zone { get; init; } = string.Empty;
     public int TurnCost { get; init; } = 1;
     public IReadOnlyList<string> Requirements { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> MonsterNames { get; init; } = Array.Empty<string>();
     public string SniffProperty { get; init; } = string.Empty;
     public string Type { get; init; } = string.Empty;
     public string Desc { get; init; } = string.Empty;
@@ -132,4 +133,8 @@ public sealed record KoLmafiaCatalog(
     IReadOnlyList<MafiaMonsterPartRecord> MonsterParts,
     IReadOnlyList<MafiaRestoreRecord> Restores,
     DateTimeOffset LoadedAt,
-    string SourcePath);
+    string SourcePath)
+{
+    public IReadOnlyDictionary<string, string> FamiliarSpecies { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+}

@@ -45,9 +45,18 @@ public sealed class MafiaDataLoaderTests
         Assert.False(liver.Permable);
 
         // Spot-check: the campground adventure has a sniff property.
-        var campground = catalog.Adventures.FirstOrDefault(a => a.Name == "Campground");
+        var campground = catalog.Adventures.FirstOrDefault(a => a.Name == "Your Mushroom Garden");
         Assert.NotNull(campground);
-        Assert.True(campground!.Snarfblat > 0);
+        Assert.Equal(543, campground!.Snarfblat);
+        Assert.Equal("Campground", campground.Zone);
+        Assert.Contains("piranha plant", campground.MonsterNames);
+        var hacker = Assert.Single(catalog.Monsters, m => m.Name == "1335 HaXx0r");
+        Assert.NotNull(hacker.Drops);
+        Assert.Contains(hacker.Drops, drop => drop.Name == "Dyspepsi-Cola" && drop.Rate == 70);
+        Assert.Contains(hacker.Drops, drop => drop.Name == "1337 7r0uZ0RZ" && drop.Rate == 15);
+        var gym = Assert.Single(catalog.Adventures, a => a.SniffProperty == "clan_gym=MUSCLE");
+        Assert.Equal(0, gym.Snarfblat);
+        Assert.Equal(catalog.Adventures.Count, catalog.Adventures.Select(a => a.Id).Distinct().Count());
 
         // Spot-check: the first zone in the canonical Mafia dump is "Town"
         // with display name "Seaside Town".

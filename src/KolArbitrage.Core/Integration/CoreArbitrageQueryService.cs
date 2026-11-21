@@ -341,7 +341,7 @@ public class CoreArbitrageQueryService
             OtherCost = options.Purchase.OtherCost + maximumFixedTransfer,
             OtherCostPerUnit = options.Purchase.OtherCostPerUnit + maximumPerUnitTransfer
         };
-        var plan = _planner.Plan(listings, references, tradeability, plannerLimits);
+        var plan = _planner.Plan(listings, references, tradeability, plannerLimits, timestamp);
         var resultRows = new List<CoreArbitrageCandidate>(plan.Proposals.Count);
         foreach (var proposal in plan.Proposals)
         {

@@ -60,7 +60,8 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
         "BACON",
         "seal tooth",
         "hermit permit",
-        "lucky surprise egg"
+        "lucky surprise egg",
+        "bag of foreign bribes"
     };
 
     private readonly DesktopLiveDataProvider _provider;
@@ -89,7 +90,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
     {
         var itemId = ResolveItemId(itemName);
         if (itemId is null) return null;
-        return await _provider.LoadMedianPriceAsync(itemId).ConfigureAwait(false);
+        return await _provider.LoadMedianPriceAsync(itemId);
     }
 
     /// <summary>Resolves an item name to its KoL numeric id through the
@@ -159,14 +160,16 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
         {
             var names = _watchList.ToArray();
             var searches = await _provider
-                .LoadMallListingsAsync(_role, names, cancellationToken)
-                .ConfigureAwait(false);
+                .LoadMallListingsAsync(_role, names, cancellationToken, forceRefresh)
+                ;
             Rows.Clear();
             foreach (var search in searches)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (search.IsStale) continue;
                 var cheapest = search.Cheapest;
                 if (cheapest is null) continue;
-                var median = await _medianLookup(search.ItemName).ConfigureAwait(false);
+                var median = await _medianLookup(search.ItemName);
                 var spread = median is { } m ? m - cheapest.Price : 0;
                 var margin = median is { } mm && mm > 0 ? spread / (decimal)mm : 0m;
                 Rows.Add(new LiveArbitrageRow
@@ -180,8 +183,13 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                     IsProfitable = spread > 0
                 });
             }
-            await LoadRulePlansAsync(searches, cancellationToken).ConfigureAwait(false);
+            await LoadRulePlansAsync(searches, cancellationToken);
             LoadState = Rows.Count == 0 ? DesktopLoadState.Empty : DesktopLoadState.Ready;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
         }
         catch (Exception exception)
         {
@@ -205,14 +213,18 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
         CancellationToken cancellationToken)
     {
         if (Rules.Count == 0) LoadRules();
-        var status = await _provider.LoadStatusAsync(_role).ConfigureAwait(false);
+        var status = await _provider.LoadStatusAsync(_role, cancellationToken: cancellationToken);
         var meat = status?.Meat ?? 0;
         foreach (var index in Enumerable.Range(0, Rules.Count).ToArray())
         {
             var row = Rules[index];
             var search = searches.FirstOrDefault(x =>
                 string.Equals(x.ItemName, row.ItemName, StringComparison.OrdinalIgnoreCase));
-            if (search is null) continue;
+            if (search is null || search.IsStale || status is null || status.IsStale)
+            {
+                Rules[index] = row with { CandidateCount = 0, PlannedCost = 0, PlannedProfit = 0 };
+                continue;
+            }
             var rule = new KolArbitrage.Core.Daily.BuyRule
             {
                 ItemId = row.ItemId,

@@ -78,8 +78,8 @@
 
       <!-- Densities stay semantic so future compact tables can opt in without
            changing the shell's spacing contract. -->
-      <Thickness x:Key="ComfortableCardPadding">18</Thickness>
-      <Thickness x:Key="ComfortableContentMargin">34,30</Thickness>
+      <Thickness x:Key="ComfortableCardPadding">12</Thickness>
+      <Thickness x:Key="ComfortableContentMargin">24,16</Thickness>
       <Thickness x:Key="CompactContentMargin">20,20</Thickness>
     </ResourceDictionary>
   </Application.Resources>
@@ -93,8 +93,12 @@
       <Setter Property="FontFamily" Value="Inter" />
     </Style>
 
+    <Style Selector="ListBoxItem">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+
     <Style Selector="TextBlock.h1">
-      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontSize" Value="24" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
@@ -119,7 +123,7 @@
       <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="{DynamicResource ComfortableCardPadding}" />
     </Style>
     <Style Selector="Border.panel-subtle">
@@ -140,7 +144,7 @@
 
     <!-- KoLmafia-style menu entries: flat, no chrome until hovered. -->
     <Style Selector="Button.menu-item">
-      <Setter Property="Padding" Value="11,6" />
+      <Setter Property="Padding" Value="9,6" />
       <Setter Property="Margin" Value="0,0,1,0" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -166,7 +170,8 @@
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="7" />
-    </Style>    <Style Selector="Button.nav-item:pointerover">
+    </Style>
+    <Style Selector="Button.nav-item:pointerover">
       <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>

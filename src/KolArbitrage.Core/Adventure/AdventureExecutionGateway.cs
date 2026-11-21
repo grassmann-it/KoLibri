@@ -102,6 +102,23 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
             cancellationToken);
     }
 
+    internal Task<AdventureExecutionResult> ExecuteManualActionAsync(
+        AdventureCheckpoint expected,
+        AdventureKernelAction action,
+        AdventureActionAllowlist allowlist,
+        CancellationToken cancellationToken)
+        => InLaneAsync(async token =>
+        {
+            var checkpoint = await _checkpoints.LoadAsync(expected.RunId, token).ConfigureAwait(false);
+            if (checkpoint is null || checkpoint.Revision != expected.Revision
+                || checkpoint.InFlightRequestId is not null)
+                return CheckpointConflict(expected.ToState(), expected);
+
+            var state = checkpoint.ToState();
+            return await DispatchAsync(checkpoint, state, action, OperationFor(action), allowlist, token)
+                .ConfigureAwait(false);
+        }, cancellationToken);
+
     public Task<AdventureExecutionResult> AdvanceAsync(
         string runId,
         AdventureActionAllowlist allowlist,
@@ -279,6 +296,14 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
             var decision = AbortExisting(state, AdventureAbortReason.InvalidCheckpoint,
                 "The checkpoint has no pending action to execute.");
             return await PersistAbortAsync(checkpoint, decision, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (state.PendingAction is AdventureFightAction fight && checkpoint.ObservedFightActions is { } offered
+            && !offered.Any(candidate => candidate.IsEnabled && candidate.AdventureActionId == fight.ActionId))
+        {
+            var decision = AbortExisting(state, AdventureAbortReason.UnknownFight,
+                "The pending fight action is not available in the server response.");
+            return Result(AdventureExecutionStatus.Aborted, decision, decision.State.AbortMessage);
         }
 
         var operation = OperationFor(state.PendingAction);
@@ -522,7 +547,9 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
 
         var withHistory = decision.Checkpoint with
         {
-            ResponseHashes = AppendResponseHash(marked.ResponseHashes, hash)
+            ResponseHashes = AppendResponseHash(marked.ResponseHashes, hash),
+            ObservedFightActions = observation.Kind == AdventureEncounterKind.Fight
+                ? observation.Combat?.AvailableActions : null
         };
         var nextCheckpoint = PrepareCheckpoint(withHistory, expected: marked);
         if (!await TryCasAsync(marked, nextCheckpoint, cancellationToken).ConfigureAwait(false))
@@ -534,7 +561,7 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
                 ? AdventureExecutionStatus.Complete
                 : AdventureExecutionStatus.Advanced;
         return Result(status, decision with { Checkpoint = nextCheckpoint },
-            response: response, requestId: request.RequestId);
+            response: response with { Observation = observation }, requestId: request.RequestId);
     }
 
     private async Task<AdventureExecutionResult> AbortAndPersistAsync(

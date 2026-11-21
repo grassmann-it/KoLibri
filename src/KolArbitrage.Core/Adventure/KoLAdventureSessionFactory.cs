@@ -36,13 +36,24 @@ public static class KoLAdventureSessionFactory
         ArgumentNullException.ThrowIfNull(verification);
         var manager = accounts ?? AccountSessionManager.CreateDefault();
         var session = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
-        var binding = new AdventureTransportAccountBinding(
-            session.Profile.Role,
-            session.Profile.Id,
-            session.Profile.DisplayName);
         var http = KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials,
-            new Uri("https://www.kingdomofloathing.com/"));
+            session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
+        return Create(session, http, approval, verification, checkpoints, auditJournal, options);
+    }
+
+    /// <summary>Creates a session and takes ownership of the supplied HTTP client.</summary>
+    public static KoLAdventureSession Create(
+        AccountSession session, HttpClient http,
+        IAdventureApprovalHook approval, IAdventureVerificationHook verification,
+        IAdventureRunCheckpointStore? checkpoints = null, IAuditEventJournal? auditJournal = null,
+        AdventureHttpTransportOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(approval);
+        ArgumentNullException.ThrowIfNull(verification);
+        var binding = new AdventureTransportAccountBinding(
+            session.Profile.Role, session.Profile.Id, session.Profile.DisplayName);
         try
         {
             var transport = new HttpAdventureExecutionTransport(http, binding, options);

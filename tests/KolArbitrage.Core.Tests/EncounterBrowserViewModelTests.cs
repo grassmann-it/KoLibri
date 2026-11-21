@@ -13,8 +13,50 @@ public sealed class EncounterBrowserViewModelTests
         => new MafiaDataLoader().Load(Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"));
 
     private static EncounterBrowserLocationRow FirstTestLocation(EncounterBrowserViewModel vm)
-        => vm.Locations.First(l => (l.Description?.Contains("Skeleton Store", StringComparison.OrdinalIgnoreCase) ?? false)
-                                   || (l.Description?.Contains("Bone Spikes", StringComparison.OrdinalIgnoreCase) ?? false));
+        => vm.Locations.First(l => (l.DisplayName?.Contains("Skeleton Store", StringComparison.OrdinalIgnoreCase) ?? false)
+                                   || (l.DisplayName?.Contains("Bone Spikes", StringComparison.OrdinalIgnoreCase) ?? false));
+
+    [Fact]
+    public void Browser_projects_current_fight_controls_and_resource_observation()
+    {
+        var browser = new EncounterBrowserViewModel(LoadCatalog());
+        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
+            "Fixtures", "Adventure", "combat-round-1.html"));
+        var encounter = new KoLAdventureEncounterParser().Parse(
+            "skeleton", new Uri("https://example.test/fight.php"), html);
+        browser.ShowEncounter(encounter);
+
+        Assert.Equal(80, encounter.Combat!.PlayerHp);
+        Assert.Equal(40, encounter.Combat.PlayerMp);
+        Assert.Equal(new[] { "attack", "skill", "item" }, browser.Actions.Select(action => action.Kind));
+        var skill = Assert.IsType<SkillStepSpec>(browser.BuildStepSpec(browser.Actions[1]));
+        Assert.Equal("1001", skill.SkillId);
+        Assert.Equal(1, skill.Round);
+    }
+
+    [Fact]
+    public void Browser_projects_the_current_choice_into_selectable_steps()
+    {
+        var browser = new EncounterBrowserViewModel(LoadCatalog());
+        var parser = new KoLAdventureEncounterParser();
+        browser.ShowEncounter(parser.Parse("skeleton", new Uri("https://example.test/choice.php"), """
+            <form action="choice.php">
+              <input type="hidden" name="whichchoice" value="1003">
+              <input type="hidden" name="option" value="2">
+              <input type="submit" value="Open &amp; enter">
+            </form>
+            <form action="choice.php">
+              <input type="hidden" name="whichchoice" value="1003">
+              <button name="option" value="5"><b>Leave</b> quietly</button>
+              <button name="option" value="6" disabled>Unavailable</button>
+            </form>
+            """));
+
+        Assert.Equal(new[] { "Open & enter", "Leave quietly" }, browser.Actions.Select(action => action.DisplayName));
+        var step = Assert.IsType<ChoiceStepSpec>(browser.BuildStepSpec(browser.Actions[1]));
+        Assert.Equal("1003", step.ChoiceId);
+        Assert.Equal("5", step.OptionId);
+    }
 
     [Fact]
     public void Browser_loads_locations_from_vendor_catalog()
@@ -117,7 +159,7 @@ public sealed class EncounterBrowserViewModelTests
             transport.EnqueueObservation(AdventureTransportOperation.Adventure,
                 new AdventureKernelObservation
                 {
-                    AdventureId = "skeleton-of-crimbos-past",
+                    AdventureId = "adventure=439:The Skeleton Store",
                     Kind = AdventureEncounterKind.Fight,
                     EncounterId = "skeleton-of-crimbos-past",
                     MonsterId = "skeleton-of-crimbos-past",
@@ -141,7 +183,7 @@ public sealed class EncounterBrowserViewModelTests
 
             var start = await session.StartAdventureAsync(location, browser, CancellationToken.None);
             Assert.NotNull(start);
-            Assert.True(session.IsSessionActive);
+            Assert.True(session.IsSessionActive, session.LastMessage);
             Assert.NotEmpty(session.StepLog);
             Assert.Equal(1, transport.RequestCount);
         }

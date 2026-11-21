@@ -51,7 +51,7 @@ public sealed record RoleOverride(
 /// <summary>
 /// Builds and executes the daily routine across multiple accounts. The
 /// orchestrator owns no transport of its own; each role delegates to a
-/// <see cref="DailyRoutineExecutor"/> built from the host's
+/// bridge run on the host's
 /// gateway-factory and approval-token. This keeps the surface small and
 /// lets callers plug in their own mocking layer for tests.
 /// </summary>
@@ -61,7 +61,6 @@ public sealed class DailyOrchestrator
     private readonly string? _approvalToken;
     private readonly TimeProvider _clock;
     private readonly Func<AccountRole, IAccountDailyStateReader>? _stateReaderFactory;
-    private readonly Func<AccountRole, BaconSnapshot>? _baconSnapshotFactory;
     private readonly Func<AccountRole, FreePullDispatcher>? _freePullFactory;
     private readonly Func<AccountRole, AccountCredentials?>? _credentialsFactory;
 
@@ -83,14 +82,12 @@ public sealed class DailyOrchestrator
         Func<AccountRole, AdventureExecutionGateway> gatewayFactory,
         string? approvalToken,
         Func<AccountRole, IAccountDailyStateReader> stateReaderFactory,
-        Func<AccountRole, BaconSnapshot>? baconSnapshotFactory = null,
         Func<AccountRole, FreePullDispatcher>? freePullFactory = null,
         Func<AccountRole, AccountCredentials?>? credentialsFactory = null,
         TimeProvider? clock = null)
         : this(gatewayFactory, approvalToken, clock)
     {
         _stateReaderFactory = stateReaderFactory ?? throw new ArgumentNullException(nameof(stateReaderFactory));
-        _baconSnapshotFactory = baconSnapshotFactory;
         _freePullFactory = freePullFactory;
         _credentialsFactory = credentialsFactory;
     }
@@ -116,52 +113,6 @@ public sealed class DailyOrchestrator
             GeneratedAt = _clock.GetUtcNow(),
             Plans = plans,
             TotalApprovableSteps = totalSteps
-        };
-    }
-
-    public async Task<DailyOrchestrationResult> ExecuteAsync(
-        DailyOrchestrationReport report,
-        BoundedChoiceChainOptions? options = null,
-        bool failFast = false,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(report);
-        if (!CanExecute)
-        {
-            return new DailyOrchestrationResult
-            {
-                Results = report.Plans.Select(p => (p, new DailyRoutineExecutionResult
-                {
-                    Executed = false,
-                    Role = p.Role,
-                    Steps = Array.Empty<DailyStepOutcome>(),
-                    AuditPath = null
-                })).ToArray(),
-                ExecutedRoleCount = 0,
-                SucceededRoleCount = 0,
-                FailedRoleCount = 0
-            };
-        }
-
-        var tasks = report.Plans.Select(async plan =>
-        {
-            var executor = new DailyRoutineExecutor(_gatewayFactory, _approvalToken, _clock);
-            var execResult = await executor.ExecuteAsync(plan.Role, plan.Preview, options, cancellationToken)
-                .ConfigureAwait(false);
-            if (failFast && !execResult.Executed)
-                throw new InvalidOperationException(
-                    $"Role {plan.Role} did not execute (token missing or no steps).");
-            return (Plan: plan, Execution: execResult);
-        });
-        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-
-        return new DailyOrchestrationResult
-        {
-            Results = results,
-            ExecutedRoleCount = results.Count(r => r.Execution.Executed),
-            SucceededRoleCount = results.Count(r => r.Execution.Steps.Count > 0
-                && r.Execution.Steps.All(s => s.Status != AdventureExecutionStatus.Aborted)),
-            FailedRoleCount = results.Count(r => r.Execution.Steps.Any(s => s.Status == AdventureExecutionStatus.Aborted))
         };
     }
 
@@ -200,9 +151,8 @@ public sealed class DailyOrchestrator
         {
             var reader = _stateReaderFactory!(plan.Role);
             var state = await reader.ReadAsync(plan.Role, cancellationToken).ConfigureAwait(false);
-            var bacon = _baconSnapshotFactory?.Invoke(plan.Role);
             var bridge = new AutoCombatDailyBridge();
-            var planned = bridge.Plan(state, plan.Snapshot, bacon);
+            var planned = bridge.Plan(state, plan.Snapshot);
             if (planned.AllowlistedChoiceIds.Count == 0)
             {
                 return (Plan: plan, Execution: new DailyRoutineExecutionResult
@@ -278,9 +228,6 @@ public sealed class DailyOrchestrator
             WishBuyQuantity = overrideSnapshot.WishBuyQuantity != 0 ? overrideSnapshot.WishBuyQuantity : defaults.WishBuyQuantity,
             WishUnitPrice = overrideSnapshot.WishUnitPrice != 0 ? overrideSnapshot.WishUnitPrice : defaults.WishUnitPrice,
             AlreadyPulledItemIds = overrideSnapshot.AlreadyPulledItemIds.Count > 0 ? overrideSnapshot.AlreadyPulledItemIds : defaults.AlreadyPulledItemIds,
-            OwnedMachines = overrideSnapshot.OwnedMachines != 0 ? overrideSnapshot.OwnedMachines : defaults.OwnedMachines,
-            MallPricePerMachine = overrideSnapshot.MallPricePerMachine != 0 ? overrideSnapshot.MallPricePerMachine : defaults.MallPricePerMachine,
-            PricegunMedianBaconPrice = overrideSnapshot.PricegunMedianBaconPrice != 0 ? overrideSnapshot.PricegunMedianBaconPrice : defaults.PricegunMedianBaconPrice,
             MallbotMeat = overrideSnapshot.MallbotMeat != 0 ? overrideSnapshot.MallbotMeat : defaults.MallbotMeat,
             ForeignBribeBagPrice = overrideSnapshot.ForeignBribeBagPrice != long.MaxValue ? overrideSnapshot.ForeignBribeBagPrice : defaults.ForeignBribeBagPrice,
             ForeignBribeBagStock = overrideSnapshot.ForeignBribeBagStock != 0 ? overrideSnapshot.ForeignBribeBagStock : defaults.ForeignBribeBagStock,

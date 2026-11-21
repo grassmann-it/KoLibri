@@ -43,15 +43,16 @@ public sealed class LiveArbitrageViewModelTests
 public sealed class LiveGutsViewModelTests
 {
     [Fact]
-    public async Task Missing_session_yields_no_accounts_and_no_listings()
+    public async Task Missing_session_marks_both_accounts_signed_out_and_shows_no_listings()
     {
         var viewModel = new LiveGutsViewModel(
             provider: new DesktopLiveDataProvider(
                 new KolArbitrage.Core.Accounts.AccountSessionManager(
                     new InMemoryAccountStore(), new InMemorySecretStore())));
         await viewModel.LoadAsync();
-        Assert.Empty(viewModel.Accounts);
+        Assert.Equal(2, viewModel.Accounts.Count);
+        Assert.All(viewModel.Accounts, account => Assert.False(account.HasStatus));
         Assert.Empty(viewModel.StoreRows);
-        Assert.Equal("No session.", viewModel.GutsSummary);
+        Assert.Contains("0 of 2 accounts available", viewModel.GutsSummary);
     }
 }

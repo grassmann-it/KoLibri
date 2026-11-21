@@ -54,6 +54,11 @@ public sealed record AdventureEncounterState(
     string? ResponseHash = null,
     int RetryCount = 0)
 {
+    public CombatObservation? Combat { get; init; }
+
+    public IReadOnlyDictionary<string, string> ChoiceLabels { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>
     /// Safe hidden fields carried by a choice form (for example KoL's short
     /// password token).  The allowlist still chooses the option; these fields

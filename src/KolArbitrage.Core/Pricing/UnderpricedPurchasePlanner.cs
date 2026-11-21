@@ -30,13 +30,21 @@ public sealed class UnderpricedPurchasePlanner
         IReadOnlyDictionary<string, RobustPriceReference> references,
         IReadOnlyDictionary<string, UnderpricedItemTradeability>? tradeability = null,
         UnderpricedPurchaseLimits? limits = null)
+        => Plan(listings, references, tradeability, limits, _clock.GetUtcNow());
+
+    internal UnderpricedPurchasePlan Plan(
+        IEnumerable<UnderpricedPurchaseListing> listings,
+        IReadOnlyDictionary<string, RobustPriceReference> references,
+        IReadOnlyDictionary<string, UnderpricedItemTradeability>? tradeability,
+        UnderpricedPurchaseLimits? limits,
+        DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(listings);
         ArgumentNullException.ThrowIfNull(references);
         var policy = limits ?? _defaults;
         policy.Validate();
 
-        var drafts = listings.Select(x => EvaluateListing(x, references, tradeability, policy)).ToList();
+        var drafts = listings.Select(x => EvaluateListing(x, references, tradeability, policy, now)).ToList();
         var ordered = drafts.Where(x => x.Reasons.Count == 0)
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.NetProfit)
@@ -261,7 +269,8 @@ public sealed class UnderpricedPurchasePlanner
         UnderpricedPurchaseListing? listing,
         IReadOnlyDictionary<string, RobustPriceReference> references,
         IReadOnlyDictionary<string, UnderpricedItemTradeability>? tradeability,
-        UnderpricedPurchaseLimits policy)
+        UnderpricedPurchaseLimits policy,
+        DateTimeOffset now)
     {
         listing ??= new UnderpricedPurchaseListing { ItemId = string.Empty, SellerId = string.Empty };
         var itemId = listing.ItemId?.Trim() ?? string.Empty;
@@ -288,7 +297,7 @@ public sealed class UnderpricedPurchasePlanner
             reasons.Add((UnderpricedPurchaseRejectionReason.MissingReference, "No independent conservative resale reference."));
         else
         {
-            if (reference.IsStale || (reference.AsOf is { } asOf && _clock.GetUtcNow() - asOf > policy.MaximumReferenceAge))
+            if (reference.IsStale || (reference.AsOf is { } asOf && now - asOf > policy.MaximumReferenceAge))
                 reasons.Add((UnderpricedPurchaseRejectionReason.StaleReference, "Resale reference is stale."));
             if (reference.Confidence <= 0)
                 reasons.Add((UnderpricedPurchaseRejectionReason.LowConfidenceReference, "Resale reference has no confidence."));

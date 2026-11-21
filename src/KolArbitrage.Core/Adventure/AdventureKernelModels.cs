@@ -212,6 +212,10 @@ public sealed record AdventureKernelObservation
     public int? FightRound { get; init; }
     public string? ChoiceId { get; init; }
     public IReadOnlyList<string> AvailableChoices { get; init; } = Array.Empty<string>();
+    public CombatObservation? Combat { get; init; }
+
+    public IReadOnlyDictionary<string, string> ChoiceLabels { get; init; }
+        = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, string> ExtraFields { get; init; }
         = new Dictionary<string, string>(StringComparer.Ordinal);
     public bool CanContinue { get; init; } = true;
@@ -230,6 +234,9 @@ public sealed record AdventureKernelObservation
             EncounterId = encounter.Location,
             ChoiceId = encounter.ChoiceId,
             AvailableChoices = encounter.AvailableChoices ?? Array.Empty<string>(),
+            ChoiceLabels = encounter.ChoiceLabels,
+            Combat = encounter.Combat,
+            MonsterId = encounter.Combat?.MonsterId,
             ExtraFields = encounter.ExtraFields
                 ?? new Dictionary<string, string>(StringComparer.Ordinal),
             CanContinue = encounter.CanContinue,
@@ -473,6 +480,8 @@ public sealed record AdventureCheckpoint
     public string? PendingActionId { get; init; }
     public string? PendingChoiceId { get; init; }
     public string? PendingChoiceOption { get; init; }
+    public IReadOnlyList<CombatAction>? ObservedFightActions { get; init; }
+    public IReadOnlyList<string> ManualChoiceOptions { get; init; } = Array.Empty<string>();
     public IReadOnlyDictionary<string, string> PendingChoiceFields { get; init; }
         = new Dictionary<string, string>(StringComparer.Ordinal);
     public AdventureAbortReason? AbortReason { get; init; }
@@ -528,6 +537,7 @@ public sealed record AdventureCheckpoint
             DailyLimit = (DailyLimit ?? new AdventureDailyLimitContract()).Normalize(),
             Counters = (Counters ?? new AdventureCounterContract()).Normalize(),
             ResponseHashes = ResponseHashes ?? Array.Empty<string>(),
+            ManualChoiceOptions = ManualChoiceOptions ?? Array.Empty<string>(),
             PendingChoiceFields = PendingChoiceFields
                 ?? new Dictionary<string, string>(StringComparer.Ordinal)
         };

@@ -53,10 +53,9 @@ public sealed class AutoCombatDailyBridge
 
     public BridgeExecutionResult Plan(
         AccountDailyState state,
-        DailyRoutineSnapshot snapshot,
-        BaconSnapshot? bacon = null)
+        DailyRoutineSnapshot snapshot)
     {
-        var steps = BuildSteps(state, snapshot, bacon);
+        var steps = BuildSteps(state, snapshot);
         return new BridgeExecutionResult
         {
             Executed = steps.Count > 0,
@@ -67,10 +66,73 @@ public sealed class AutoCombatDailyBridge
         };
     }
 
+    public static async Task<(bool Accepted, string Message)> ExecuteMemeStepAsync(
+        ChoiceStepSpec step,
+        FreePullDispatcher? dispatcher,
+        AccountCredentials? credentials,
+        DailyDoneStore? doneStore,
+        string accountKey,
+        CancellationToken cancellationToken)
+    {
+        if (dispatcher is null || credentials is null)
+            return (false, "No free-pull dispatcher or stored credentials for this role.");
+        try
+        {
+            var page = await dispatcher.ReadMemeShopAsync(credentials, cancellationToken).ConfigureAwait(false);
+            // Without BACON the shop page is just "Where's the bacon?", so the
+            // machine step takes its request hash from the inventory page.
+            var pwd = page.Pwd;
+            if (string.IsNullOrWhiteSpace(pwd) && step.ChoiceId == DailyInternetShopPlanner.MachineChoiceId)
+                pwd = await dispatcher.ReadSessionHashAsync(credentials, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(pwd))
+                return (false, "No request hash available (the meme shop is closed without BACON, or the session expired).");
+
+            if (step.ChoiceId == DailyInternetShopPlanner.MachineChoiceId)
+            {
+                var pushed = await dispatcher.UseBaconMachineAsync(credentials, pwd, cancellationToken).ConfigureAwait(false);
+                var spent = pushed.BodySnippet.Contains("nothing happens", StringComparison.OrdinalIgnoreCase)
+                    || pushed.BodySnippet.Contains("no more bacon", StringComparison.OrdinalIgnoreCase)
+                    || pushed.BodySnippet.Contains("regenerate", StringComparison.OrdinalIgnoreCase)
+                    || pushed.BodySnippet.Contains("until tomorrow", StringComparison.OrdinalIgnoreCase)
+                    || pushed.BodySnippet.Contains("fill back up", StringComparison.OrdinalIgnoreCase);
+                // KoL answers a successful push with a redirect to the inventory message page.
+                var redirected = pushed.StatusCode is >= 300 and < 400
+                    && (pushed.Location?.Contains("inventory.php", StringComparison.OrdinalIgnoreCase) ?? false);
+                var ok = pushed.Accepted || redirected;
+                if (ok || spent) doneStore?.MarkDone(accountKey, DailyDoneStore.BaconMachine);
+                return (ok, pushed.BodySnippet);
+            }
+
+            var item = step.OptionId;
+            var price = MemeShopCatalog.DailyItems.FirstOrDefault(
+                i => string.Equals(i.Name, item, StringComparison.OrdinalIgnoreCase)).Price;
+            if (price <= 0) return (false, $"'{item}' is not a known daily meme shop item.");
+            var row = page.Find(item);
+            if (row is null)
+            {
+                // KoL removes a daily item from the shop once it was bought.
+                doneStore?.MarkDone(accountKey, DailyDoneStore.MemeBuy(item));
+                return (false, $"'{item}' is not on offer; already bought today.");
+            }
+            if (page.Bacon is { } bacon && bacon < price)
+                return (false, $"Only {bacon} BACON for '{item}' ({price} needed).");
+            var bought = await dispatcher.BuyMemeShopRowAsync(credentials, row.RowId, pwd, cancellationToken).ConfigureAwait(false);
+            if (bought.Accepted) doneStore?.MarkDone(accountKey, DailyDoneStore.MemeBuy(item));
+            return (bought.Accepted, bought.BodySnippet);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     public IReadOnlyList<AdventureStepSpec> BuildSteps(
         AccountDailyState state,
-        DailyRoutineSnapshot snapshot,
-        BaconSnapshot? bacon = null)
+        DailyRoutineSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -91,12 +153,11 @@ public sealed class AutoCombatDailyBridge
             // pile.
             steps.Add(new ChoiceStepSpec("choice-campfire", "1"));
         }
-        if (snapshot.CampfireLeaves >= FreePullDispatcher.DayShortenerLeafCost
-            && (!leafAvailable || !dayUseful))
+        // The pile of burning leaves yields one Day Shortener for
+        // DayShortenerLeafCost leaves, once per day. We never buy one on the mall.
+        if (!snapshot.DayShortenerDoneToday
+            && snapshot.CampfireLeaves >= FreePullDispatcher.DayShortenerLeafCost + snapshot.CampfireReserve)
         {
-            // The leaf reserve is too thin to burn but we still hold enough
-            // leaves to craft a Day Shortener, which buys the day without
-            // spending the reserve.
             steps.Add(new ChoiceStepSpec("choice-day-shortner",
                 FreePullDispatcher.DayShortenerLeafCost.ToString(
                     System.Globalization.CultureInfo.InvariantCulture)));
@@ -109,7 +170,16 @@ public sealed class AutoCombatDailyBridge
         //    clover count. When permits run out but enough worthless items
         //    are on hand we emit the trade intent as well — one worthless
         //    item buys one permit.
-        if (snapshot.HermitPermits > 0 && snapshot.Clovers > 0
+        if (snapshot.HermitCloversWanted > 0 && snapshot.HermitPermits > 0)
+        {
+            // Explicit request: buy N clovers (up to the daily stock) with
+            // worthless items. One permit opens the shop; the result of each
+            // trade is read back, so a consumed permit stops the loop there.
+            var wanted = Math.Min(snapshot.HermitCloversWanted, HermitDailyStock);
+            for (var i = 0; i < wanted; i++)
+                steps.Add(new ChoiceStepSpec("choice-clover", "1"));
+        }
+        else if (snapshot.HermitPermits > 0 && snapshot.Clovers > 0
             && snapshot.ExpectedCloverSaleValue > snapshot.CloverFloorValue
             && snapshot.ExpectedCloverSaleValue > snapshot.AdventureReserveValue)
         {
@@ -157,22 +227,19 @@ public sealed class AutoCombatDailyBridge
                 Round: null));
         }
 
-        // 4. Bacons: the Infinite Bacon Machine (9025) turns leaves into BACON
-        //    (8763) every day. When the machine is missing we buy it once;
-        //    when the BACON spread beats the minimum profit we buy BACON on
-        //    the mall. The bridge reads a separate BaconSnapshot (the bacon
-        //    planner already owns its own thresholds).
-        if (bacon is not null
-            && bacon.MallPricePerMachine > 0
-            && bacon.PricegunMedianSellPrice > 0
-            && bacon.PricegunMedianSellPrice - bacon.MallPricePerMachine >= bacon.MinimumProfitPerUnit
-            && bacon.AvailableMeat - bacon.MallPricePerMachine * Math.Max(1, bacon.MaximumBuyQuantity) >= 200_000)
+        // 4. Internet Meme Shop: push the Infinite BACON machine once, then buy
+        //    each once-per-day item while BACON lasts. The machine cannot be
+        //    traded, so it is never bought on the mall; BACON itself is.
+        var shop = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
         {
-            // The machine itself (one-off) — the BACON buy is handled by the
-            // BaconArbitrageExecutor which knows the live mall listing.
-            steps.Add(new ItemStepSpec("bacon-machine", Quantity: 1,
-                MonsterId: null, Round: null));
-        }
+            AlreadyPulledItemIds = snapshot.AlreadyPulledItemIds,
+            AvailableMeat = snapshot.MainMeat,
+            Bacon = snapshot.Bacon,
+            BaconMachineOwned = snapshot.BaconMachineOwned,
+            BaconMachineUsedToday = snapshot.BaconMachineUsedToday
+        });
+        foreach (var shopStep in shop.Steps)
+            steps.Add(new ChoiceStepSpec(shopStep.ChoiceId, shopStep.OptionId));
 
         return steps;
     }
@@ -202,7 +269,9 @@ public sealed class AutoCombatDailyBridge
         BridgeAuditLog? audit = null,
         string? operationId = null,
         string? accountId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DailyDoneStore? doneStore = null,
+        string? doneAccountKey = null)
     {
         ArgumentNullException.ThrowIfNull(steps);
         ArgumentNullException.ThrowIfNull(gateway);
@@ -296,6 +365,23 @@ public sealed class AutoCombatDailyBridge
         foreach (var cs in choiceSteps)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (cs.ChoiceId is DailyInternetShopPlanner.MachineChoiceId or DailyInternetShopPlanner.BuyChoiceId)
+            {
+                var memeOutcome = await ExecuteMemeStepAsync(cs, freePullDispatcher, freePullCredentials,
+                    doneStore, doneAccountKey ?? accountId ?? "Main", cancellationToken).ConfigureAwait(false);
+                if (memeOutcome.Accepted) executedCount++;
+                if (audit is not null)
+                {
+                    await audit.AppendAsync(new AuditEvent(
+                        AuditEventPhase.Commit, opId, source,
+                        requestId: Guid.NewGuid().ToString("N"),
+                        action: $"bridge.choice.{cs.ChoiceId}.{cs.OptionId}",
+                        status: memeOutcome.Accepted ? "submitted" : "skipped",
+                        message: memeOutcome.Message,
+                        accountId: accountId), cancellationToken).ConfigureAwait(false);
+                }
+                continue;
+            }
             var whichChoice = FreePullDispatcher.WhichChoiceFor(cs.ChoiceId);
             var canFreePull = freePullDispatcher is not null
                 && freePullCredentials is not null
@@ -324,6 +410,8 @@ public sealed class AutoCombatDailyBridge
                     requestId = result.RequestId;
                     outcome = result.Accepted ? "submitted" : $"http-{result.StatusCode}";
                     if (result.Accepted) executedCount++;
+                    if (result.Accepted && cs.ChoiceId == "choice-day-shortner" && doneStore is not null)
+                        doneStore.MarkDone(doneAccountKey ?? accountId ?? "Main", DailyDoneStore.DayShortener);
                     lastFreePullSnippet = result.Location is { } loc
                         ? $"[{result.StatusCode}] -> {loc} | {(result.BodySnippet.Length > 0 ? result.BodySnippet : "(empty body)")}"
                         : result.BodySnippet;
@@ -412,11 +500,11 @@ public sealed class AutoCombatDailyBridge
         };
     }
 
-    public DailyDecision Decide(string surface, AccountDailyState state, DailyRoutineSnapshot snapshot, BaconSnapshot? bacon = null)
+    public DailyDecision Decide(string surface, AccountDailyState state, DailyRoutineSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(snapshot);
-        var steps = BuildSteps(state, snapshot, bacon);
+        var steps = BuildSteps(state, snapshot);
         AdventureStepSpec[] surfaceSteps = steps.Where(s => Matches(surface, s)).ToArray();
         var shouldAct = surfaceSteps.Length > 0;
         var first = surfaceSteps.Length > 0 ? surfaceSteps[0] : null;
@@ -443,7 +531,6 @@ public sealed class AutoCombatDailyBridge
             "internet-shop" => step is ChoiceStepSpec cs3 && (cs3.ChoiceId.Contains("lucky-surprise-egg", StringComparison.OrdinalIgnoreCase)
                 || cs3.ChoiceId.Contains("internet-bacon", StringComparison.OrdinalIgnoreCase)
                 || cs3.ChoiceId.Contains("bacon-machine", StringComparison.OrdinalIgnoreCase)),
-            "bacon" => step is ItemStepSpec its && its.ItemId == "bacon-machine",
             "spade" => step is ItemStepSpec its2 && its2.ItemId == "shovel",
             _ => false
         };

@@ -50,9 +50,6 @@ public partial class KolibriMcpServer
             WishBuyQuantity = NullableIntProperty(arguments, "wishBuy") ?? 0,
             WishUnitPrice = NullableLongProperty(arguments, "wishPrice") ?? 0,
             AlreadyPulledItemIds = ParseStringArray(arguments, "alreadyPulled") ?? Array.Empty<string>(),
-            OwnedMachines = NullableIntProperty(arguments, "ownedMachines") ?? 0,
-            MallPricePerMachine = NullableLongProperty(arguments, "mallPrice") ?? 0,
-            PricegunMedianBaconPrice = NullableLongProperty(arguments, "baconMedian") ?? 0,
             MallbotMeat = NullableLongProperty(arguments, "mallbotMeat") ?? 0,
             ForeignBribeBagPrice = NullableLongProperty(arguments, "bagPrice") ?? long.MaxValue,
             ForeignBribeBagStock = NullableIntProperty(arguments, "bagStock") ?? 0,
@@ -91,14 +88,6 @@ public partial class KolibriMcpServer
                 report.InternetShop.Rationale,
                 report.InternetShop.Steps,
                 report.InternetShop.Skipped
-            },
-            bacon = new
-            {
-                report.Bacon.ShouldBuy,
-                report.Bacon.Verdict,
-                report.Bacon.SuggestedQuantity,
-                report.Bacon.ExpectedProfitPerUnit,
-                report.Bacon.Rationale
             },
             foreignBribes = report.ForeignBribes
         });

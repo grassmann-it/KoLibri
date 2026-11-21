@@ -123,18 +123,84 @@ public sealed class AutoCombatDailyBridgeTests
     }
 
     [Fact]
-    public void Bacon_buy_step_when_spread_positive_and_budget_fits()
+    public void Day_shortener_comes_from_burning_leaves_once_per_day()
     {
         var bridge = new AutoCombatDailyBridge();
-        var bacon = new BaconSnapshot
+        var fresh = bridge.BuildSteps(State(null),
+            new DailyRoutineSnapshot { CampfireLeaves = 37_345, MainMeat = 100_000 });
+        var shortener = Assert.Single(fresh.OfType<ChoiceStepSpec>()
+            .Where(c => c.ChoiceId == "choice-day-shortner"));
+        Assert.Equal(FreePullDispatcher.DayShortenerLeafCost.ToString(), shortener.OptionId);
+
+        var done = bridge.BuildSteps(State(null),
+            new DailyRoutineSnapshot { CampfireLeaves = 37_345, MainMeat = 100_000, DayShortenerDoneToday = true });
+        Assert.DoesNotContain(done, s => s is ChoiceStepSpec c && c.ChoiceId == "choice-day-shortner");
+
+        var few = bridge.BuildSteps(State(null),
+            new DailyRoutineSnapshot { CampfireLeaves = 100, MainMeat = 100_000 });
+        Assert.DoesNotContain(few, s => s is ChoiceStepSpec c && c.ChoiceId == "choice-day-shortner");
+    }
+
+    [Fact]
+    public void Hermit_buys_requested_clovers_capped_by_daily_stock()
+    {
+        var bridge = new AutoCombatDailyBridge();
+        var steps = bridge.BuildSteps(State(null),
+            new DailyRoutineSnapshot { HermitPermits = 1, UselessItems = 500, HermitCloversWanted = 5 });
+        Assert.Equal(AutoCombatDailyBridge.HermitDailyStock,
+            steps.OfType<ChoiceStepSpec>().Count(c => c.ChoiceId == "choice-clover"));
+
+        var none = bridge.BuildSteps(State(null),
+            new DailyRoutineSnapshot { HermitPermits = 0, HermitCloversWanted = 3 });
+        Assert.DoesNotContain(none, s => s is ChoiceStepSpec c && c.ChoiceId == "choice-clover");
+    }
+
+    [Fact]
+    public void Meme_shop_pushes_machine_once_then_buys_affordable_daily_items()
+    {
+        var bridge = new AutoCombatDailyBridge();
+        var steps = bridge.BuildSteps(State(null), new DailyRoutineSnapshot
         {
-            MallPricePerMachine = 400_000,
-            PricegunMedianSellPrice = 600_000,
-            AvailableMeat = 12_000_000,
-            MinimumProfitPerUnit = 50_000,
-            MaximumBuyQuantity = 10
-        };
-        var steps = bridge.BuildSteps(State(null), new DailyRoutineSnapshot(), bacon);
-        Assert.Contains(steps, s => s is ItemStepSpec i && i.ItemId == "bacon-machine");
+            Bacon = 355, BaconMachineOwned = true
+        }).OfType<ChoiceStepSpec>().ToArray();
+
+        Assert.Single(steps, s => s.ChoiceId == DailyInternetShopPlanner.MachineChoiceId);
+        var bought = steps.Where(s => s.ChoiceId == DailyInternetShopPlanner.BuyChoiceId)
+            .Select(s => s.OptionId).ToArray();
+        Assert.Equal(new[] { "viral video", "plus one", "gallon of milk", "print screen button", "daily dungeon malware" }, bought);
+    }
+
+    [Fact]
+    public void Meme_shop_skips_machine_when_used_and_items_when_bacon_is_short()
+    {
+        var bridge = new AutoCombatDailyBridge();
+        var steps = bridge.BuildSteps(State(null), new DailyRoutineSnapshot
+        {
+            Bacon = 120, BaconMachineOwned = true, BaconMachineUsedToday = true,
+            AlreadyPulledItemIds = new[] { "viral video" }
+        }).OfType<ChoiceStepSpec>().ToArray();
+
+        Assert.DoesNotContain(steps, s => s.ChoiceId == DailyInternetShopPlanner.MachineChoiceId);
+        var bought = steps.Where(s => s.ChoiceId == DailyInternetShopPlanner.BuyChoiceId)
+            .Select(s => s.OptionId).ToArray();
+        // 120 BACON: plus one (74) fits, then 46 left cannot pay the rest.
+        Assert.Equal(new[] { "plus one" }, bought);
+    }
+
+    [Fact]
+    public void Meme_shop_page_parses_balance_and_rows_and_hides_bought_items()
+    {
+        const string html = """
+            <table>
+            <tr><td><form action="shop.php"><input type=hidden name=whichrow value="1001"><b>viral video</b> 20 BACON</form></td></tr>
+            <tr><td><form action="shop.php"><input type=hidden name=whichrow value="1003"><b>gallon of milk</b> 100 BACON</form></td></tr>
+            </table>
+            <p>You have: <b>455</b> BACON</p>
+            """;
+        var page = MemeShopPage.Parse(html);
+        Assert.Equal(455, page.Bacon);
+        Assert.Equal(1001, page.Find("viral video")!.RowId);
+        Assert.Equal(1003, page.Find("Gallon of Milk")!.RowId);
+        Assert.Null(page.Find("plus one"));
     }
 }

@@ -111,9 +111,16 @@ public sealed class InventoryViewModel : DesktopViewModel
     /// <summary>Total number of distinct rows, before filtering.</summary>
     public int TotalCount => _allItems.Count;
 
-    public string SummaryText => Items.Count == 0
-        ? "No entries."
-        : $"{Items.Count} of {TotalCount} entries";
+    public string SummaryText => LoadState switch
+    {
+        DesktopLoadState.Error => ErrorMessage ?? "Inventory could not be loaded.",
+        DesktopLoadState.Loading => "Loading inventory…",
+        _ when _signedOut => $"Sign in as {_role} under Accounts to see inventory.",
+        _ when _loadedAt is null => "Inventory has not been loaded.",
+        _ => $"{Items.Count:N0} of {TotalCount:N0} item types" + (IsStale ? " · stale" : "")
+    };
+
+    private bool _signedOut;
 
     /// <summary>Replaces the item set and re-applies the filter. The live
     /// loader calls this; tests use it to drive the view model without a
@@ -127,6 +134,16 @@ public sealed class InventoryViewModel : DesktopViewModel
         OnPropertyChanged(nameof(SummaryText));
     }
 
+    internal void ApplyLiveSnapshot(DesktopInventorySnapshot snapshot)
+    {
+        _signedOut = !snapshot.HasSession;
+        ApplySnapshot(snapshot.Items, snapshot.HasSession ? snapshot.ObservedAt : null);
+        LoadState = snapshot.Items.Count == 0
+            ? DesktopLoadState.Empty
+            : snapshot.IsStale ? DesktopLoadState.Stale : DesktopLoadState.Ready;
+        IsStale = snapshot.IsStale;
+    }
+
     /// <summary>Loads the live inventory.</summary>
     public async Task LoadAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
@@ -135,12 +152,13 @@ public sealed class InventoryViewModel : DesktopViewModel
         {
             var snapshot = await _provider
                 .LoadInventoryAsync(_role, forceRefresh, _catalog, cancellationToken)
-                .ConfigureAwait(false);
-            ApplySnapshot(snapshot.Items, snapshot.ObservedAt);
-            LoadState = snapshot.Items.Count == 0
-                ? DesktopLoadState.Empty
-                : snapshot.IsStale ? DesktopLoadState.Stale : DesktopLoadState.Ready;
-            IsStale = snapshot.IsStale;
+                ;
+            ApplyLiveSnapshot(snapshot);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
         }
         catch (Exception exception)
         {

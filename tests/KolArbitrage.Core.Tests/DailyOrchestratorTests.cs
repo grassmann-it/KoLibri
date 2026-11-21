@@ -38,66 +38,6 @@ public sealed class DailyOrchestratorTests
     }
 
     [Fact]
-    public async Task Execute_without_token_returns_no_op_for_every_role()
-    {
-        var orchestrator = new DailyOrchestrator(
-            _ => new AdventureExecutionGateway(
-                new AdventureExecutionFixtureTransport(),
-                new InMemoryAdventureRunCheckpointStore()),
-            approvalToken: null);
-
-        var overrides = new[]
-        {
-            new RoleOverride(AccountRole.Main, new DailyRoutineSnapshot { CampfireLeaves = 7 })
-        };
-        var plan = orchestrator.BuildPlan(overrides, new DailyRoutineSnapshot());
-        var result = await orchestrator.ExecuteAsync(plan);
-
-        Assert.Equal(0, result.ExecutedRoleCount);
-        Assert.Equal(0, result.SucceededRoleCount);
-        Assert.All(result.Results, r => Assert.False(r.Execution.Executed));
-    }
-
-    [Fact]
-    public async Task Execute_with_token_attempts_every_role()
-    {
-        var transport1 = new AdventureExecutionFixtureTransport();
-        var transport2 = new AdventureExecutionFixtureTransport();
-        var store1 = new InMemoryAdventureRunCheckpointStore();
-        var store2 = new InMemoryAdventureRunCheckpointStore();
-        var transports = new Dictionary<AccountRole, AdventureExecutionFixtureTransport>
-        {
-            [AccountRole.Main] = transport1,
-            [AccountRole.Mallbot] = transport2
-        };
-        var stores = new Dictionary<AccountRole, InMemoryAdventureRunCheckpointStore>
-        {
-            [AccountRole.Main] = store1,
-            [AccountRole.Mallbot] = store2
-        };
-        var orchestrator = new DailyOrchestrator(
-            role => new AdventureExecutionGateway(transports[role], stores[role]),
-            approvalToken: "allow-token");
-
-        var overrides = new[]
-        {
-            new RoleOverride(AccountRole.Main, new DailyRoutineSnapshot { CampfireLeaves = 7 }),
-            new RoleOverride(AccountRole.Mallbot, new DailyRoutineSnapshot { CampfireLeaves = 4 })
-        };
-        var plan = orchestrator.BuildPlan(overrides, new DailyRoutineSnapshot());
-        var result = await orchestrator.ExecuteAsync(plan);
-
-        // The bounded runner needs an existing checkpoint to act; with a
-        // fresh run id it returns immediately with no steps. The
-        // orchestrator still touches both roles and surfaces them in the
-        // aggregated result so the operator can audit the attempt.
-        Assert.Equal(2, result.ExecutedRoleCount);
-        Assert.All(result.Results, r => Assert.Equal(r.Plan.Role, r.Execution.Role));
-        Assert.Contains(result.Results, r => r.Plan.Role == AccountRole.Main);
-        Assert.Contains(result.Results, r => r.Plan.Role == AccountRole.Mallbot);
-    }
-
-    [Fact]
     public void MergeSnapshots_uses_override_when_set()
     {
         var orchestrator = new DailyOrchestrator(

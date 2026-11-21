@@ -59,6 +59,15 @@ public sealed record CombatAction
     public string? Label => Name;
     public int? ManaCost => MpCost;
 
+    internal string? AdventureActionId => Kind switch
+    {
+        CombatActionKind.Attack => "attack",
+        CombatActionKind.Run => "run",
+        CombatActionKind.Skill when Id is not null => $"skill:{Id}",
+        CombatActionKind.Item when Id is not null => $"item:{Id}",
+        _ => null
+    };
+
     private static string? NullIfWhiteSpace(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

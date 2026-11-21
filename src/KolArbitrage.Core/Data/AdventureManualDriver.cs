@@ -1,5 +1,6 @@
 using KolArbitrage.Core.Adventure;
 using KolArbitrage.Core.Accounts;
+using KolArbitrage.Core.Daily;
 
 namespace KolArbitrage.Core.Data;
 
@@ -20,6 +21,7 @@ public sealed record ManualStepOutcome
     public required AdventureKernelAction? NextAction { get; init; }
     public required string? Message { get; init; }
     public required string? RequestId { get; init; }
+    public IReadOnlyList<QuestDrop> Drops { get; init; } = Array.Empty<QuestDrop>();
 }
 
 /// <summary>
@@ -32,13 +34,16 @@ public sealed class AdventureManualDriver
 {
     private readonly AccountRole _role;
     private readonly AdventureExecutionGateway _gateway;
-    private readonly string _approvalToken;
-
-    public AdventureManualDriver(AccountRole role, AdventureExecutionGateway gateway, string approvalToken)
+    public AdventureManualDriver(AccountRole role, AdventureExecutionGateway gateway)
     {
         _role = role;
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
-        _approvalToken = approvalToken ?? throw new ArgumentNullException(nameof(approvalToken));
+    }
+
+    public AdventureManualDriver(AccountRole role, AdventureExecutionGateway gateway, string approvalToken)
+        : this(role, gateway)
+    {
+        ArgumentNullException.ThrowIfNull(approvalToken);
     }
 
     public async ValueTask<ManualStepOutcome> StartAsync(
@@ -96,53 +101,61 @@ public sealed class AdventureManualDriver
             return ToOutcome(refresh, runId, checkpoint.AdventureId);
         }
 
-        var allowlistWithStep = allowlist;
-        switch (step)
+        var state = checkpoint.ToState();
+        AdventureKernelAction? action = checkpoint.Role != _role || !allowlist.IsAdventureAllowed(checkpoint.AdventureId)
+            ? null : (state, step) switch
         {
-            case SkillStepSpec skill:
-                allowlistWithStep = allowlist.AddFightAction(
-                    checkpoint.AdventureId,
-                    $"skill:{skill.SkillId}",
-                    encounterId: null,
-                    monsterId: skill.MonsterId,
-                    round: skill.Round);
-                break;
-            case ItemStepSpec item:
-                allowlistWithStep = allowlist.AddFightAction(
-                    checkpoint.AdventureId,
-                    $"item:{item.ItemId}",
-                    encounterId: null,
-                    monsterId: item.MonsterId,
-                    round: item.Round);
-                break;
-            case ChoiceStepSpec choice:
-                allowlistWithStep = allowlist.AddChoiceOption(
-                    checkpoint.AdventureId, choice.ChoiceId, choice.OptionId);
-                break;
-            case AttackStepSpec:
-                allowlistWithStep = EnsureFightAction(allowlist, checkpoint, "attack");
-                break;
-            case RunStepSpec:
-                allowlistWithStep = EnsureFightAction(allowlist, checkpoint, "run");
-                break;
-        }
+            ({ PendingAction: AdventureFightAction fight }, _) => SelectFightAction(fight, step),
+            (AdventureChoiceRunState { PendingAction: null } waiting, ChoiceStepSpec selected)
+                when waiting.ChoiceId == selected.ChoiceId
+                    && checkpoint.ManualChoiceOptions.Contains(selected.OptionId, StringComparer.Ordinal)
+                => new AdventureChoiceAction(checkpoint.AdventureId, selected.ChoiceId, selected.OptionId,
+                    waiting.EncounterId, checkpoint.PendingChoiceFields),
+            ({ PendingAction: AdventureChoiceAction choice }, ChoiceStepSpec selected) when choice.ChoiceId == selected.ChoiceId && choice.OptionId == selected.OptionId => choice,
+            _ => null
+        };
+        if (action is null || (action is AdventureFightAction fightAction
+            && checkpoint.ObservedFightActions is { } offered
+            && !offered.Any(candidate => candidate.IsEnabled && candidate.AdventureActionId == fightAction.ActionId)))
+            return new ManualStepOutcome
+            {
+                RunId = runId,
+                Location = checkpoint.AdventureId,
+                Status = AdventureExecutionStatus.Advanced,
+                IsComplete = false,
+                IsAborted = false,
+                RequiresRefresh = false,
+                StopReason = "ActionUnavailable",
+                Encounter = null,
+                NextAction = state.PendingAction,
+                Message = "The selected action does not match the current encounter.",
+                RequestId = null
+            };
 
-        await Task.CompletedTask; // keep async signature for future awaiters
-        var result = await _gateway.ExecutePendingAsync(runId, allowlistWithStep, cancellationToken).ConfigureAwait(false);
+        var result = await _gateway.ExecuteManualActionAsync(checkpoint, action, allowlist, cancellationToken)
+            .ConfigureAwait(false);
         return ToOutcome(result, runId, checkpoint.AdventureId);
     }
 
-    private static AdventureActionAllowlist EnsureFightAction(
-        AdventureActionAllowlist allowlist,
-        AdventureCheckpoint checkpoint,
-        string actionId)
+    private static AdventureFightAction? SelectFightAction(AdventureFightAction fight, AdventureStepSpec step)
     {
-        if (allowlist.TryGetFightAction(checkpoint.AdventureId, null, 0, out _))
-            return allowlist;
-        return allowlist.AddFightAction(checkpoint.AdventureId, actionId);
+        var actionId = step switch
+        {
+            AttackStepSpec => "attack",
+            RunStepSpec => "run",
+            SkillStepSpec skill when MatchesFight(fight, skill.MonsterId, skill.Round) => $"skill:{skill.SkillId}",
+            ItemStepSpec item when item.Quantity == 1 && MatchesFight(fight, item.MonsterId, item.Round)
+                => $"item:{item.ItemId}",
+            _ => null
+        };
+        return actionId is null ? null
+            : new AdventureFightAction(fight.AdventureId, actionId, fight.Round, fight.EncounterId, fight.MonsterId);
     }
 
-    private static ManualStepOutcome ToOutcome(AdventureExecutionResult result, string runId, string location)
+    private static bool MatchesFight(AdventureFightAction fight, string? monsterId, int? round)
+        => (monsterId is null || monsterId == fight.MonsterId) && (round is null || round == fight.Round);
+
+    public static ManualStepOutcome ToOutcome(AdventureExecutionResult result, string runId, string location)
         => new()
         {
             RunId = runId,
@@ -151,10 +164,19 @@ public sealed class AdventureManualDriver
             IsComplete = result.IsComplete,
             IsAborted = result.IsAborted,
             RequiresRefresh = result.RequiresRefresh,
-            Encounter = result.Response?.Encounter,
+            Encounter = result.Response?.Encounter ?? ToEncounter(result.Response?.Observation),
             StopReason = result.AbortReason?.ToString() ?? result.Status.ToString(),
             NextAction = result.NextAction,
-            Message = result.Messages.Count == 0 ? null : string.Join(" ", result.Messages),
-            RequestId = result.RequestId
+            Message = result.Messages.Count == 0 ? result.State.AbortMessage : string.Join(" ", result.Messages),
+            RequestId = result.RequestId,
+            Drops = result.Response?.Html is { } html ? DropTracker.ReadDrops(html) : Array.Empty<QuestDrop>()
         };
+
+    private static AdventureEncounterState? ToEncounter(AdventureKernelObservation? observation)
+        => observation is null ? null : new AdventureEncounterState(
+            observation.AdventureId, observation.Kind, observation.MonsterId ?? observation.EncounterId,
+            observation.ChoiceId, observation.AvailableChoices, observation.CanContinue,
+            observation.UnknownReason is { } reason ? new[] { reason } : Array.Empty<string>(),
+            observation.FightRound, observation.ResponseHash) { ChoiceLabels = observation.ChoiceLabels, Combat = observation.Combat };
+
 }

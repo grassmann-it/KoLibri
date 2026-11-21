@@ -189,7 +189,7 @@ public sealed class AdventureRunKernel
         return new AdventureKernelDecision
         {
             State = state,
-            Checkpoint = AdventureCheckpoint.FromState(state),
+            Checkpoint = value,
             Actions = Array.Empty<AdventureKernelAction>(),
             RequiresRefresh = state.PendingAction is not null,
             WasResumed = true
@@ -260,6 +260,27 @@ public sealed class AdventureRunKernel
                 AdventureAbortReason.EncounterNotAllowlisted,
                 "The choice encounter is not allowlisted.",
                 observation.ResponseHash);
+        if (allowlist.WaitForManualChoice && observation.AvailableChoices.Count > 0)
+        {
+            var awaiting = new AdventureChoiceRunState(
+                state.RunId, state.AdventureId, state.Role, state.DailyLimit,
+                state.Counters with { ChoicesMade = Increment(state.Counters.ChoicesMade) })
+            {
+                EncounterId = observation.EncounterId,
+                ChoiceId = observation.ChoiceId,
+                LastResponseHash = observation.ResponseHash
+            };
+            return new AdventureKernelDecision
+            {
+                State = awaiting,
+                Checkpoint = AdventureCheckpoint.FromState(awaiting) with
+                {
+                    ManualChoiceOptions = observation.AvailableChoices.ToArray(),
+                    PendingChoiceFields = observation.ExtraFields
+                        ?? new Dictionary<string, string>(StringComparer.Ordinal)
+                }
+            };
+        }
         if (!allowlist.TryGetChoiceAction(
                 state.AdventureId,
                 observation.ChoiceId,

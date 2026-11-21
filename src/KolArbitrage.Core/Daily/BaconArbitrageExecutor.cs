@@ -23,6 +23,8 @@ public sealed class BaconArbitrageExecutor
         public const int Bacon = 8763;
         /// <summary>Infinite BACON machine — the one-off that produces BACON.</summary>
         public const int BaconMachine = 9025;
+        /// <summary>Bag of foreign bribes — opened for coinmaster currency.</summary>
+        public const int ForeignBribeBag = 8691;
     }
 
     private readonly MallBuyClient _buyClient;
@@ -60,26 +62,17 @@ public sealed class BaconArbitrageExecutor
     {
         ArgumentNullException.ThrowIfNull(credentials);
 
-        // 1. The one-off: the Infinite BACON machine, when the account has
-        //    none. The machine is what makes BACON worth arbitraging.
+        // The Infinite BACON machine cannot be traded, so it is never bought on the mall.
+        // Without one there is nothing to arbitrage; BACON itself is topped up via TopUpBaconAsync.
         if (ownedMachines == 0)
         {
-            var machinePlan = await TryBuyAsync(
-                credentials, Ids.BaconMachine, availableMeat, meatReserve,
-                maximumQuantity: 1, priceCeiling: 0, cancellationToken)
-                .ConfigureAwait(false);
-            if (machinePlan.Outcome is { Bought: true })
-            {
-                return machinePlan.Outcome;
-            }
             return new Outcome
             {
-                Verdict = "NoMachineListing",
+                Verdict = "NoMachine",
                 Bought = false,
                 Quantity = 0,
                 Spent = 0,
-                Rationale = machinePlan.Reason,
-                Purchases = machinePlan.Outcome.Purchases
+                Rationale = "The Infinite BACON machine is untradeable and cannot be bought on the mall."
             };
         }
 
@@ -97,8 +90,69 @@ public sealed class BaconArbitrageExecutor
     {
         Ids.Bacon => "BACON",
         Ids.BaconMachine => "infinite BACON machine",
+        Ids.ForeignBribeBag => "bag of foreign bribes",
         _ => itemId.ToString(System.Globalization.CultureInfo.InvariantCulture)
     };
+
+    /// <summary>
+    /// Buys BACON on the mall until <paramref name="needed"/> more BACON is held, never
+    /// paying more than <paramref name="maxPricePerBacon"/> per unit or dipping under the
+    /// meat reserve. BACON is tradeable; the machine is not, so it is never bought here.
+    /// Stops at the first round that buys nothing (no listing, too expensive, budget).
+    /// </summary>
+    public Task<Outcome> TopUpBaconAsync(
+        AccountCredentials credentials,
+        int needed,
+        long availableMeat,
+        long maxPricePerBacon,
+        long meatReserve,
+        int maxRounds = 5,
+        CancellationToken cancellationToken = default)
+        => TopUpItemAsync(credentials, Ids.Bacon, needed, availableMeat, maxPricePerBacon,
+            meatReserve, maxRounds, cancellationToken);
+
+    /// <summary>
+    /// Buys <paramref name="needed"/> units of a tradeable item from the cheapest mall
+    /// listings, round by round, under a per-unit price ceiling and a meat reserve.
+    /// </summary>
+    public async Task<Outcome> TopUpItemAsync(
+        AccountCredentials credentials,
+        int itemId,
+        int needed,
+        long availableMeat,
+        long maxPricePerUnit,
+        long meatReserve,
+        int maxRounds = 5,
+        CancellationToken cancellationToken = default,
+        string? itemName = null)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        if (needed <= 0)
+            return new Outcome { Verdict = "NothingNeeded", Bought = false, Quantity = 0, Spent = 0, Rationale = "Nothing needed." };
+        var bought = 0;
+        var spent = 0L;
+        var purchases = new List<MallBuyResult>();
+        var last = "No purchase attempted.";
+        for (var round = 0; round < maxRounds && bought < needed; round++)
+        {
+            var step = await TryBuyAsync(credentials, itemId, availableMeat - spent, meatReserve,
+                needed - bought, maxPricePerUnit, cancellationToken, itemName).ConfigureAwait(false);
+            last = step.Outcome.Rationale;
+            if (!step.Outcome.Bought) break;
+            bought += step.Outcome.Quantity;
+            spent += step.Outcome.Spent;
+            purchases.AddRange(step.Outcome.Purchases);
+        }
+        return new Outcome
+        {
+            Verdict = bought >= needed ? "Complete" : bought > 0 ? "Partial" : "NotBought",
+            Bought = bought > 0,
+            Quantity = bought,
+            Spent = spent,
+            Rationale = $"Bought {bought} of {needed} (item {itemId}) for {spent} meat. Last: {last}",
+            Purchases = purchases
+        };
+    }
 
     private async Task<(Outcome Outcome, string Reason)> TryBuyAsync(
         AccountCredentials credentials,
@@ -107,12 +161,13 @@ public sealed class BaconArbitrageExecutor
         long meatReserve,
         int maximumQuantity,
         long priceCeiling,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? itemName = null)
     {
         // Find the cheapest listing for the item. KoL's mall search runs on
         // the item name, not the id.
         var snapshot = await _mall.SearchAsync(
-            itemNameFor(itemId), cancellationToken: cancellationToken).ConfigureAwait(false);
+            itemName ?? itemNameFor(itemId), cancellationToken: cancellationToken).ConfigureAwait(false);
         var candidate = snapshot.Listings
             .Where(l => l.Price > 0)
             .OrderBy(l => l.Price)

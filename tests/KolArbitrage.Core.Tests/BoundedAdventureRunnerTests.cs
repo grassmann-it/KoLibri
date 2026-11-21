@@ -6,6 +6,29 @@ namespace KolArbitrage.Core.Tests;
 public sealed class BoundedAdventureRunnerTests
 {
     [Fact]
+    public async Task Manual_choice_stops_without_sending_a_choice_or_aborting_its_checkpoint()
+    {
+        using var transport = new AdventureExecutionFixtureTransport();
+        transport.EnqueueObservation(AdventureTransportOperation.Adventure,
+            new AdventureKernelObservation
+            {
+                AdventureId = "skeleton", Kind = AdventureEncounterKind.Choice,
+                ChoiceId = "1003", AvailableChoices = new[] { "1", "2" }, ResponseHash = "choice-hash"
+            });
+        var checkpoints = new InMemoryAdventureRunCheckpointStore();
+        await using var gateway = new AdventureExecutionGateway(transport, checkpoints);
+        var policy = new AdventureActionAllowlist { WaitForManualChoice = true }.AddAdventure("skeleton");
+        var result = await new BoundedAdventureRunner(gateway).RunAsync(
+            new AdventureRunRequest { RunId = "manual-choice", AdventureId = "skeleton" }, policy);
+
+        Assert.Equal(BoundedAdventureRunStopReason.AwaitingManualChoice, result.StopReason);
+        Assert.Single(transport.Requests);
+        var checkpoint = await checkpoints.LoadAsync("manual-choice");
+        Assert.Equal(new[] { "1", "2" }, checkpoint!.ManualChoiceOptions);
+        Assert.Equal(AdventureRunPhase.Choice, checkpoint.Phase);
+    }
+
+    [Fact]
     public async Task DoesNotStartWhenStopConditionIsAlreadySatisfied()
     {
         using var transport = new AdventureExecutionFixtureTransport();

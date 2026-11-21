@@ -28,6 +28,15 @@ public sealed record InternetShopSnapshot
     /// <summary>Meat available today.</summary>
     public long AvailableMeat { get; init; }
 
+    /// <summary>BACON the account holds right now.</summary>
+    public int Bacon { get; init; }
+
+    /// <summary>Whether the account owns an Infinite BACON machine (item 9025).</summary>
+    public bool BaconMachineOwned { get; init; }
+
+    /// <summary>Whether the machine was already pushed today (it gives 100 BACON once per day).</summary>
+    public bool BaconMachineUsedToday { get; init; }
+
     /// <summary>Optional list of free-pull items. Empty => the planner uses its
     /// built-in catalog of well-known daily pulls.</summary>
     public IReadOnlyList<InternetShopFreePull> Catalog { get; init; } = Array.Empty<InternetShopFreePull>();
@@ -53,49 +62,16 @@ public sealed record InternetShopPlanStep
 }
 
 /// <summary>
-/// Static catalog of well-known daily pulls. The list is intentionally
-/// explicit so a reviewer can audit which "free once a day" sources the
-/// planner touches. Bacon is included so the routine can claim the
-/// Infinite Bacon Machine from the Crackpot Masterson quest page.
-/// </summary>
-public static class InternetShopCatalog
-{
-    public static readonly IReadOnlyList<InternetShopFreePull> DefaultPulls = new[]
-    {
-        new InternetShopFreePull
-        {
-            ChoiceId = "choice-lucky-surprise-egg",
-            OptionId = "1",
-            DisplayName = "Lucky Surprise Egg",
-            SourcePage = "shop.php?whichshop=exotic",
-            AlreadyClaimed = false
-        },
-        new InternetShopFreePull
-        {
-            ChoiceId = "choice-internet-bacon",
-            OptionId = "1",
-            DisplayName = "Internet Bacon",
-            SourcePage = "shop.php?whichshop=exotic",
-            AlreadyClaimed = false
-        },
-        new InternetShopFreePull
-        {
-            ChoiceId = "choice-bacon-machine",
-            OptionId = "1",
-            DisplayName = "Infinite Bacon Machine",
-            SourcePage = "shop.php?whichshop=exotic",
-            AlreadyClaimed = false
-        }
-    };
-}
-
-/// <summary>
-/// Read-only planner for daily free pulls (Hermit, Campfire, Internet Bacon,
-/// Lucky Surprise Egg, …). Each free pull becomes a typed choice POST that
-/// the bridge can route through the bounded choice chain.
+/// Plans the daily Internet Meme Shop visit: push the Infinite BACON machine
+/// once (100 BACON), then buy each once-per-day item while BACON lasts.
+/// Pure and read-only; the bridge performs the requests.
 /// </summary>
 public sealed class DailyInternetShopPlanner
 {
+    public const string MachineChoiceId = "meme-bacon-machine";
+    public const string BuyChoiceId = "meme-buy";
+    public const int MachineYield = 100;
+
     public DailyInternetShopPlannerOptions Options { get; }
 
     public DailyInternetShopPlanner(DailyInternetShopPlannerOptions? options = null)
@@ -104,47 +80,50 @@ public sealed class DailyInternetShopPlanner
     public InternetShopPlan Plan(InternetShopSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var pulled = new HashSet<string>(snapshot.AlreadyPulledItemIds, StringComparer.OrdinalIgnoreCase);
+        var bought = new HashSet<string>(snapshot.AlreadyPulledItemIds, StringComparer.OrdinalIgnoreCase);
         var steps = new List<InternetShopPlanStep>();
         var skipped = new List<string>();
-        var catalog = snapshot.Catalog.Count == 0
-            ? InternetShopCatalog.DefaultPulls
-            : snapshot.Catalog;
+        var projected = (long)Math.Max(0, snapshot.Bacon);
 
-        foreach (var pull in catalog)
+        if (snapshot.BaconMachineOwned && !snapshot.BaconMachineUsedToday)
         {
-            if (pull.AlreadyClaimed || pulled.Contains(pull.DisplayName))
-            {
-                skipped.Add(pull.DisplayName);
-                continue;
-            }
             steps.Add(new InternetShopPlanStep
             {
-                Kind = "free-pull",
-                ChoiceId = pull.ChoiceId,
-                OptionId = pull.OptionId,
-                Description = $"Claim daily free pull '{pull.DisplayName}' from {pull.SourcePage}."
+                Kind = "use-item",
+                ChoiceId = MachineChoiceId,
+                OptionId = "1",
+                Description = $"Push the Infinite BACON machine (+{MachineYield} BACON, once per day)."
+            });
+            projected += MachineYield;
+        }
+        else if (snapshot.BaconMachineOwned)
+        {
+            skipped.Add("Infinite BACON machine (already used today)");
+        }
+
+        foreach (var (name, price) in MemeShopCatalog.DailyItems)
+        {
+            if (bought.Contains(name)) { skipped.Add($"{name} (already bought today)"); continue; }
+            if (projected < price) { skipped.Add($"{name} (needs {price} BACON, {projected} left)"); continue; }
+            projected -= price;
+            steps.Add(new InternetShopPlanStep
+            {
+                Kind = "purchase",
+                ChoiceId = BuyChoiceId,
+                OptionId = name,
+                Description = $"Buy '{name}' from the Internet Meme Shop for {price} BACON."
             });
         }
 
-        if (steps.Count == 0)
-        {
-            return new InternetShopPlan
-            {
-                Verdict = "AllClaimed",
-                Steps = steps.ToArray(),
-                Rationale = $"All {catalog.Count} daily pulls already claimed.",
-                Skipped = skipped
-            };
-        }
-
-        var verdict = steps.Count == catalog.Count ? "ClaimAll" : "ClaimRemaining";
-        var rationale = $"{steps.Count} of {catalog.Count} daily pulls remain.";
+        var buys = steps.Count(x => x.Kind == "purchase");
+        var missing = MemeShopCatalog.DailyItems.Count(i => !bought.Contains(i.Name)) - buys;
+        var verdict = steps.Count == 0 ? (missing > 0 ? "NeedBacon" : "AllClaimed")
+            : missing > 0 ? "Partial" : "BuyAll";
         return new InternetShopPlan
         {
             Verdict = verdict,
             Steps = steps.ToArray(),
-            Rationale = rationale,
+            Rationale = $"{buys} daily item(s) planned, {missing} short of BACON; {projected} BACON left after the plan.",
             Skipped = skipped
         };
     }
