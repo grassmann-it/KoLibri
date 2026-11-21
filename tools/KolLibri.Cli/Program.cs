@@ -292,7 +292,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
         Console.WriteLine("  login status [--role main|mallbot|all]       zeigt gespeicherte Sessions + Cookies");
         Console.WriteLine("  login clear --role main|mallbot|all          löscht gespeicherte Credentials");
-        Console.WriteLine("  login refresh --role main|mallbot --username NAME --password PWD");
+        Console.WriteLine("  login refresh --role main|mallbot [--username NAME --password PWD]   (ohne Flags: gespeichertes Passwort)");
         Console.WriteLine("  login refresh --role main|mallbot             (interaktive Eingabe)");
         Console.WriteLine("  token mint [--label TXT]                       erzeugt einen Approval-Token");
         Console.WriteLine("  token show                                      zeigt den aktuellen Token");
