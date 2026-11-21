@@ -25,6 +25,8 @@ public interface IAccountActions
     Task<bool> MessageAsync(AccountRole from, string recipient, string text, CancellationToken ct);
     Task<(int Used, string? Rejection)> UseItemAsync(AccountRole role, int itemId, int quantity, CancellationToken ct);
     Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct);
+    Task<(int Consumed, string? Rejection)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct);
+    Task<int> RestAsync(AccountRole role, int times, CancellationToken ct);
     Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct);
     Task<IReadOnlyList<BuyerSummary>> BuyersAsync(int minPoints, int limit, CancellationToken ct);
     Task<BuyerSummary?> BuyerAsync(string buyerKey, CancellationToken ct);
@@ -78,6 +80,20 @@ public sealed partial class KolibriClientActions : IAccountActions
         return await client.UseItemAsync(itemId, quantity, ct).ConfigureAwait(false);
     }
 
+    public async Task<(int, string?)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct)
+    {
+        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
+        var k = kind switch { "food" => KoLibri.Core.Spiel.CharacterConsumableKind.Food, "drink" => KoLibri.Core.Spiel.CharacterConsumableKind.Drink,
+            "spleen" => KoLibri.Core.Spiel.CharacterConsumableKind.Spleen, _ => throw new ArgumentException("kind must be food, drink or spleen.") };
+        return await client.ConsumeAsync(itemId, k, quantity, ct).ConfigureAwait(false);
+    }
+
+    public async Task<int> RestAsync(AccountRole role, int times, CancellationToken ct)
+    {
+        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
+        return (await client.RestAsync(times, ct).ConfigureAwait(false)).Count;
+    }
+
     public async Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct)
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
@@ -124,6 +140,16 @@ public partial class KolibriMcpServer
             "Use an inventory item one or more times (at most 50). Two-step. Needs right 'item.use'.",
             Sch("""{"type":"object","additionalProperties":false,"required":["itemId"],"properties":{@ROLE@,"itemId":{"type":"integer","minimum":1},"quantity":{"type":"integer","minimum":1,"maximum":50},@PLAN@}}"""),
             (a, ct) => UseItemAsync(gate, actions, a, ct));
+
+        Register("kol_consume",
+            "Eat, drink or take a spleen item from the inventory (kind food|drink|spleen, at most 100). KoL's own limits apply (too full, too drunk, spleen). Two-step. Needs right 'item.use'.",
+            Sch("""{"type":"object","additionalProperties":false,"required":["itemId","kind"],"properties":{@ROLE@,"itemId":{"type":"integer","minimum":1},"kind":{"type":"string","enum":["food","drink","spleen"]},"quantity":{"type":"integer","minimum":1,"maximum":100},@PLAN@}}"""),
+            (a, ct) => ConsumeAsync(gate, actions, a, ct));
+
+        Register("kol_rest",
+            "Rest at the campground 1..20 times (free rests restore HP and MP). Two-step. Needs right 'item.use'.",
+            Sch("""{"type":"object","additionalProperties":false,"properties":{@ROLE@,"times":{"type":"integer","minimum":1,"maximum":20},@PLAN@}}"""),
+            (a, ct) => RestAsync(gate, actions, a, ct));
 
         Register("kol_reprice_shop",
             "Change prices in the own mall store (at most 20 items). Preview shows what KoL's store page currently has. Needs right 'shop.reprice'.",
@@ -314,6 +340,41 @@ public partial class KolibriMcpServer
                 var (used, rejection) = await actions.UseItemAsync(role, itemId, quantity, ct).ConfigureAwait(false);
                 held[0].Commit(used, $"item {itemId}");
                 return new { preview = false, itemId, requested = quantity, used, rejection };
+            }).ConfigureAwait(false);
+    }
+
+    private async Task<object?> ConsumeAsync(AccessGate gate, IAccountActions actions, JsonElement args, CancellationToken ct)
+    {
+        var role = RoleFor(args, _options.DefaultRole);
+        var itemId = NullableIntProperty(args, "itemId") ?? throw new McpInvalidParamsException("itemId is required.");
+        var kind = OptionalString(args, "kind") ?? "";
+        if (kind is not ("food" or "drink" or "spleen")) throw new McpInvalidParamsException("kind must be food, drink or spleen.");
+        var quantity = NullableIntProperty(args, "quantity") ?? 1;
+        if (quantity is < 1 or > 100) throw new McpInvalidParamsException("quantity must be 1..100.");
+
+        return await TwoStepAsync(gate, args, "kol_consume", [new AccessRequest("item.use", role.ToString(), quantity)],
+            () => Task.FromResult<object>(new { role = role.ToString(), itemId, kind, quantity }),
+            async held =>
+            {
+                var (consumed, rejection) = await actions.ConsumeAsync(role, itemId, kind, quantity, ct).ConfigureAwait(false);
+                held[0].Commit(consumed, $"{kind} item {itemId}");
+                return new { preview = false, itemId, kind, requested = quantity, consumed, rejection };
+            }).ConfigureAwait(false);
+    }
+
+    private async Task<object?> RestAsync(AccessGate gate, IAccountActions actions, JsonElement args, CancellationToken ct)
+    {
+        var role = RoleFor(args, _options.DefaultRole);
+        var times = NullableIntProperty(args, "times") ?? 1;
+        if (times is < 1 or > 20) throw new McpInvalidParamsException("times must be 1..20.");
+
+        return await TwoStepAsync(gate, args, "kol_rest", [new AccessRequest("item.use", role.ToString(), times)],
+            () => Task.FromResult<object>(new { role = role.ToString(), times }),
+            async held =>
+            {
+                var done = await actions.RestAsync(role, times, ct).ConfigureAwait(false);
+                held[0].Commit(done, "rest");
+                return new { preview = false, requested = times, rested = done };
             }).ConfigureAwait(false);
     }
 

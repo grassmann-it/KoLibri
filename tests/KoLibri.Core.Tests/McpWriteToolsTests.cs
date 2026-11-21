@@ -31,7 +31,10 @@ public sealed class McpWriteToolsTests : IDisposable
             return Task.FromResult<IReadOnlyList<RepriceLine>>(changes.Select(c => new RepriceLine(c.ItemId, c.ExpectedPrice, c.ExpectedPrice, c.NewPrice, commit ? "Updated" : "Ready", null)).ToArray());
         }
 
-        public int RewardCalls, SalesCalls;
+        public int RewardCalls, SalesCalls, ConsumeCalls, RestCalls;
+        public Task<(int Consumed, string? Rejection)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct)
+        { ConsumeCalls++; return Task.FromResult((Math.Min(quantity, 3), quantity > 3 ? "too full" : (string?)null)); }
+        public Task<int> RestAsync(AccountRole role, int times, CancellationToken ct) { RestCalls++; return Task.FromResult(times); }
         public bool Blocked;
         public Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct)
         { SalesCalls++; return Task.FromResult(new ShopSalesReport(DateTimeOffset.UnixEpoch, false, 0, 0, 0, [], [])); }
@@ -251,6 +254,22 @@ public sealed class McpWriteToolsTests : IDisposable
         await RunAsync(token, "kol_meme_shop", "{\"topUpBacon\":true,\"maxBaconPrice\":500}");
         Assert.Equal(1_200, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.MallBuy));
         Assert.Equal(10_000_000 - 5_000, _actions.LastMemeReserve);   // reserve keeps the spend inside the budget
+    }
+
+    [Fact]
+    public async Task Consume_and_rest_are_two_step_and_book_what_happened()
+    {
+        var token = Token();
+        var pre = await CallAsync(token, "kol_consume", "{\"itemId\":995,\"kind\":\"food\",\"quantity\":2}");
+        Assert.False(pre.Error);
+        Assert.Equal(0, _actions.ConsumeCalls);
+        var done = await RunAsync(token, "kol_consume", "{\"itemId\":995,\"kind\":\"food\",\"quantity\":2}");
+        Assert.Equal(2, done.GetProperty("consumed").GetInt32());
+        Assert.True((await CallAsync(token, "kol_consume", "{\"itemId\":1,\"kind\":\"water\"}")).Error);
+
+        var rest = await RunAsync(token, "kol_rest", "{\"times\":1}");
+        Assert.Equal(1, rest.GetProperty("rested").GetInt32());
+        Assert.Equal(1, _actions.RestCalls);
     }
 
     [Fact]

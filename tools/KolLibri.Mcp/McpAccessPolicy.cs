@@ -57,7 +57,7 @@ public static class McpAccessPolicy
         ["kol_choice_chain_execute"] = ["maxChoices"],
     };
 
-    internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop", "kol_transfer", "kol_send_message", "kol_use_item", "kol_reprice_shop", "kol_reward_buyer" };
+    internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop", "kol_transfer", "kol_send_message", "kol_use_item", "kol_consume", "kol_rest", "kol_reprice_shop", "kol_reward_buyer" };
 
     /// <summary>Authorizer for the HTTP host: every call is checked against the token's grant.</summary>
     public static ToolAuthorizer ForToken(AccessGate gate, Func<string?> currentToken, string defaultRole)

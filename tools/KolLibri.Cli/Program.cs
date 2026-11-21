@@ -43,6 +43,8 @@ internal static partial class KolibriCli
                 "mafia-script" => await MafiaScriptAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
+                "consume" => await ConsumeAsync(args[1..]),
+                "rest" => await RestAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
@@ -304,6 +306,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         Console.WriteLine("  shop --role mallbot [--refresh]");
         Console.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
+        Console.WriteLine("  consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]   eat/drink/spleen (preview without --execute)");
+        Console.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests)");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
@@ -315,7 +319,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
         Console.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
-        Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
+        Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (previews; only adventure run --execute and choice-chain --execute send requests)");
         Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
         Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
         Console.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
