@@ -186,6 +186,65 @@ public sealed class KolibriClient : IDisposable
         return ManualAdventureSession.OpenAsync(Role, approval, verification, _accounts, cancellationToken);
     }
 
+    /// <summary>
+    /// Sends a KMail, optionally with items and meat attached. True means KoL showed its
+    /// "Message sent" confirmation; anything else must be treated as not sent.
+    /// </summary>
+    public async Task<bool> SendKMailAsync(
+        string recipient, string message, IReadOnlyList<KoLMailAttachment>? items = null, long meat = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
+            .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new InvalidOperationException("No request hash for this account; nothing was sent.");
+        return await KoLMailbox.SendAsync(_http, hash, recipient, message, items ?? [], meat, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Uses an inventory item <paramref name="quantity"/> times (one request each, stops at the first
+    /// refusal). Returns how many uses KoL confirmed by the inventory count going down.
+    /// </summary>
+    public async Task<(int Used, string? Rejection)> UseItemAsync(
+        int itemId, int quantity, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(quantity, 1);
+        var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
+            .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new InvalidOperationException("No request hash for this account; nothing was used.");
+        var actions = new CharacterActionClient(_http, hash);
+        var key = itemId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        int Count(KoLInventorySnapshot i) => i.Items.Where(x => x.ItemId == key).Sum(x => x.Quantity);
+        var current = Count(await GetInventoryAsync(true, cancellationToken).ConfigureAwait(false));
+        var used = 0;
+        string? rejection = null;
+        for (var i = 0; i < quantity; i++)
+        {
+            var result = await actions.ExecuteAsync(new UseInventoryItem(itemId), cancellationToken).ConfigureAwait(false);
+            var after = result.Inventory.IsStale ? current : Count(result.Inventory);
+            if (after >= current) { rejection = result.RejectionReason ?? "KoL did not confirm the use."; break; }
+            used++;
+            current = after;
+        }
+        return (used, rejection);
+    }
+
+    /// <summary>Changes prices in the account's own mall store. Without <paramref name="commit"/> only checks.</summary>
+    public Task<KolArbitrage.Core.Markt.ShopMutationResult> RepriceShopAsync(
+        IEnumerable<KolArbitrage.Core.Markt.ShopPriceUpdate> updates, bool commit, CancellationToken cancellationToken = default)
+        => new KoLShopMutationClient(_http).ApplyPriceUpdatesAsync(updates, commit, cancellationToken);
+
+    /// <summary>Display name of the stored account for a role, or null when none is stored.</summary>
+    public async Task<string?> OtherAccountNameAsync(CancellationToken cancellationToken = default)
+    {
+        var other = Role == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
+        var session = await _accounts.GetSessionAsync(other, includeExpired: true, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return session?.Profile.DisplayName;
+    }
+
     private async Task<bool> SessionWorksAsync(CancellationToken cancellationToken)
     {
         try

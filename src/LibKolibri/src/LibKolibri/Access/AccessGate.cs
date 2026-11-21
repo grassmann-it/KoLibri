@@ -34,6 +34,14 @@ public sealed class AccessGate
         return grant is null || grant.RevokedAt is not null || grant.ExpiresAt <= _clock.GetUtcNow() ? null : grant;
     }
 
+    /// <summary>Budget left today for a right, or null when the token has no budgeted limit for it.</summary>
+    public long? RemainingToday(string token, string right)
+    {
+        var grant = ActiveGrant(token);
+        if (grant is null || !grant.Rights.TryGetValue(right, out var limit) || limit.DailyBudget is null) return null;
+        return Math.Max(0, limit.DailyBudget.Value - _ledger.UsedToday(grant.Id, right));
+    }
+
     public AccessDecision Authorize(string token, AccessRequest request)
     {
         var grant = _grants.FindByToken(token);
