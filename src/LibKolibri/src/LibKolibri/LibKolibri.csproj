@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <PackageId>KoLibri.LibKolibri</PackageId>
+    <Version>0.1.0-preview</Version>
+    <Authors>grassmann-it</Authors>
+    <Description>Public KoL connector for .NET 8. Wraps the KoLmafia data snapshot, account reads, mall and pricing lookups, the daily routine planners, the mall-arbitrage executors, the bounded adventure runner and the hash-chain audit ledger. Drop-in library for tools that need to talk to Kingdom of Loathing.</Description>
+    <PackageTags>kol;kingdom-of-loathing;kolmafia;connector;automation;arbitrage;net8</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/grassmann-it/LibKolibri</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <TargetPackOnBuild>false</TargetPackOnBuild>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Inside the KoLibri repository the core is a project reference, so a
+         fresh clone builds without a NuGet feed. Outside the repository the
+         published package is used instead. The path is resolved once, in
+         MSBuild's own working directory. -->
+    <KolArbitrageCoreProject>$(MSBuildThisFileDirectory)../../../KolArbitrage.Core/KolArbitrage.Core.csproj</KolArbitrageCoreProject>
+    <HasKolArbitrageCoreProject Condition="Exists('$(KolArbitrageCoreProject)')">true</HasKolArbitrageCoreProject>
+    <HasKolArbitrageCoreProject Condition="'$(HasKolArbitrageCoreProject)' == ''">false</HasKolArbitrageCoreProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(KolArbitrageCoreProject)"
+                     Condition="'$(HasKolArbitrageCoreProject)' == 'true'" />
+    <PackageReference Include="KoLibri.Core" Version="0.1.0-preview"
+                     Condition="'$(HasKolArbitrageCoreProject)' != 'true'" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>
