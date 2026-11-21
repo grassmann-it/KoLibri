@@ -1,8 +1,6 @@
 using System.Threading.Tasks;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

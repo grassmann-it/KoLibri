@@ -64,7 +64,7 @@ adapter, but always carry `RequiresApproval`; no message or gift is sent by
 the current CLI. `BuyerCrmService.SetBlocked` changes the local block flag and
 optional note; blocked profiles cannot receive reward intents.
 
-Eine lokale Blockierung kann über den stabilen Schlüssel gesetzt werden:
+A local block can be set via the stable key:
 
 ```bash
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- \\

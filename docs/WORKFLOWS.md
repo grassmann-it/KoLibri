@@ -1,36 +1,36 @@
-# KoLibri-Arbeitsabläufe
+# KoLibri Workflows
 
-`KoLWorkflowPlanner` beschreibt den täglichen Dry-Run-Ablauf für Main und
-Mallbot. Jeder mutierende Schritt trägt den Status `ApprovalRequired`; vor dem
-Commit muss der Adapter den Account- und Preiszustand erneut lesen.
+`KoLWorkflowPlanner` describes the daily dry-run flow for Main and Mallbot.
+Every mutating step carries the status `ApprovalRequired`; before the commit,
+the adapter must re-read the account and price state.
 
-Der Ablauf ist absichtlich in Phasen getrennt:
+The flow is deliberately split into phases:
 
-1. Sessions, Meat, Adventures und Inventar von Main und Mallbot aktualisieren.
-2. Eigenen Shop, Verkäufe und Pricegun/Mall-Referenzen aktualisieren.
-3. Foreign-Bribe-Pilotcharge auf dem Mallbot planen; Bags ungeöffnet halten.
-4. Ungeöffnete Bags zum Main verschieben und dort die Currency-Ausbeute messen.
-5. Handelbare Coinmaster-Ausgaben sowie One-Day-Tickets nach Netto-Marge ranken.
-6. Gekaufte Ware zum Mallbot verschieben und mit Preisleiter/History relisten;
-   Überbestände zusätzlich als einzelne, rotierende Promo prüfen.
-7. Hermit-Bestand zuerst prüfen, Utility-Reserve abziehen und nur den sicheren
-   Clover-Überschuss für Mallbot/Verkauf freigeben.
-8. Tägliches Skeleton-/Knucklebones-Ziel ausführen und One-Day-Ticket-Chancen
-   nur nach Netto-Margencheck nutzen.
-9. Snapshots, Transfers, Käufe, Verkäufe und Entscheidungen auditierbar speichern.
+1. Refresh sessions, Meat, adventures and inventory for Main and Mallbot.
+2. Refresh the own shop, sales and Pricegun/Mall references.
+3. Plan the Foreign-Bribe pilot batch on the Mallbot; keep the bags unopened.
+4. Move unopened bags to Main and measure the currency yield there.
+5. Rank tradeable Coinmaster purchases and one-day tickets by net margin.
+6. Move purchased goods to the Mallbot and relist them with a price ladder and
+   history; additionally review overstock as a single, rotating promo.
+7. Check the Hermit stock first, subtract the utility reserve and release only
+   the safe clover surplus for Mallbot/sale.
+8. Run the daily Skeleton/Knucklebones target and use one-day-ticket
+   opportunities only after a net-margin check.
+9. Store snapshots, transfers, purchases, sales and decisions in an auditable way.
 
-Die ersten mutierenden Schritte bleiben getrennt: `apply-prices` kann bereits
-explizit bestätigte Shoppreise setzen; Bag-Käufe, Transfers, Bag-Öffnungen,
-Coinmaster-Käufe und Abenteuer benötigen eigene Approval-Adapter.
+The first mutating steps remain separate: `apply-prices` can already set
+explicitly confirmed shop prices; bag purchases, transfers, bag openings,
+Coinmaster purchases and adventures need their own approval adapters.
 
-Das Modell bildet damit die Basis für `LibKolibri`: Login/HTTP, Mall, Pricegun,
-Inventar, Adventure, Coinmaster und Transfer werden als austauschbare Adapter
-behandelt. Die Desktop-App, CLI und ein späterer MCP-Server können denselben
-Workflow-Plan verwenden.
+The model is thus the basis for `LibKolibri`: login/HTTP, Mall, Pricegun,
+inventory, adventure, Coinmaster and transfer are treated as interchangeable
+adapters. The desktop app, the CLI and a later MCP server can use the same
+workflow plan.
 
-Der Plan lässt sich auch ohne Netzwerkzugriff als Checkliste ausgeben. Das ist
-für abgelaufene Sessions und Tests wichtig; es werden dabei weder Käufe noch
-Transfers ausgeführt:
+The plan can also be printed as a checklist without network access. This
+matters for expired sessions and for tests; no purchases or transfers are
+executed:
 
 ```bash
 dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- \
@@ -40,7 +40,7 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- \
   --quantity 40 --reserve 1000000
 ```
 
-Ohne `--main-ready`/`--mallbot-ready` bleiben die kontobezogenen Schritte
-bewusst `Blocked`. Im normalen Modus liest `workflow-plan` Main- und
-Mallbot-Status sowie den Bag-Mallboden read-only; schlägt dieser Snapshot wegen
-einer abgelaufenen Session fehl, wird trotzdem ein blockierter Plan ausgegeben.
+Without `--main-ready`/`--mallbot-ready`, the account-related steps stay
+deliberately `Blocked`. In normal mode, `workflow-plan` reads the Main and
+Mallbot status and the bag Mall floor read-only; if that snapshot fails because
+of an expired session, a blocked plan is still printed.

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <PackageId>KoLibri.Core</PackageId>
+    <Description>Core domain layer for KoLibri: bounded adventure runner, adventure step spec, daily planners, hash-chain audit ledger, approval token store, KoLmafia data records.</Description>
+    <PackageTags>kol;kingdom-of-loathing;kolmafia;core;net8</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <TargetPackOnBuild>false</TargetPackOnBuild>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Windows only at run time (guarded by OperatingSystem.IsWindows); wraps the local secret key with DPAPI. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+</Project>

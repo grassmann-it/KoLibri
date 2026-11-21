@@ -1,8 +1,6 @@
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KolLibri.Mcp;
 
@@ -48,7 +46,7 @@ public partial class KolibriMcpServer
                 });
                 continue;
             }
-            var builder = new LiveDailySnapshotBuilder(client);
+            var builder = new LiveDailySnapshotBuilder(client, new DailyDoneStore());
             var live = await builder.BuildAsync(baseline, cancellationToken).ConfigureAwait(false);
             var bridge = new AutoCombatDailyBridge();
             var plan = bridge.Plan(live.State, live.Snapshot);
@@ -121,6 +119,7 @@ public partial class KolibriMcpServer
             MainMeat = OptionalLong(arguments, "meat") ?? 0,
             MallbotMeat = OptionalLong(arguments, "mallbotMeat") ?? 0,
             HermitPermits = OptionalInt(arguments, "permits") ?? 0,
+            HermitCloversWanted = OptionalInt(arguments, "hermitClovers") ?? 0,
             Clovers = OptionalInt(arguments, "clovers") ?? 0,
             UselessItems = OptionalInt(arguments, "uselessItems") ?? 0,
             AdventureReserveValue = OptionalLong(arguments, "adventureValue") ?? 0,
@@ -136,6 +135,7 @@ public partial class KolibriMcpServer
             + "\"execute\":{\"type\":\"boolean\"},"
             + "\"approvalToken\":{\"type\":\"string\"},"
             + "\"leaves\":{\"type\":\"integer\"},"
+            + "\"hermitClovers\":{\"type\":\"integer\"},"
             + "\"campfireReserve\":{\"type\":\"integer\"},"
             + "\"meat\":{\"type\":\"integer\"},"
             + "\"mallbotMeat\":{\"type\":\"integer\"},"

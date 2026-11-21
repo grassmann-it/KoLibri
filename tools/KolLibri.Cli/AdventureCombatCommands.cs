@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
+using KoLibri.Core.Spiel;
 
 // These commands intentionally stop at the read/preview boundary.  Keeping
 // them in a separate partial keeps the existing pricing CLI stable while the
@@ -47,7 +46,7 @@ internal static partial class KolibriCli
             "choice-chain" or "choicechain" => await AdventureChoiceChainAsync(args[1..]),
             "run" or "execute" => await AdventureRunAsync(args[1..]),
             "stop" or "abort" => await AdventureStopAsync(args[1..]),
-            _ => Fail($"Unbekannter adventure-Befehl: {args[0]}")
+            _ => Fail($"Unknown adventure command: {args[0]}")
         };
     }
 
@@ -578,7 +577,7 @@ internal static partial class KolibriCli
             "preview" or "inspect" => await CombatPreviewAsync(args[1..], manual: false),
             "manual" or "step" => await CombatPreviewAsync(args[1..], manual: true),
             "auto" or "autocombat" => await AutoCombatCommandAsync(args[1..]),
-            _ => Fail($"Unbekannter combat-Befehl: {args[0]}")
+            _ => Fail($"Unknown combat command: {args[0]}")
         };
     }
 
@@ -848,22 +847,22 @@ internal static partial class KolibriCli
         if (snapshotPath is null)
             return null;
         if (!File.Exists(snapshotPath))
-            throw new ArgumentException($"Recovery-Snapshot '{snapshotPath}' wurde nicht gefunden.");
+            throw new ArgumentException($"Recovery snapshot '{snapshotPath}' was not found.");
         try
         {
             var snapshot = JsonSerializer.Deserialize<RecoverySnapshot>(
                 File.ReadAllText(snapshotPath), JsonOptions)
-                ?? throw new ArgumentException("Recovery-Snapshot ist leer.");
+                ?? throw new ArgumentException("Recovery snapshot is empty.");
             var policyPath = GetOption(args, "--recovery-policy");
             var policy = policyPath is null
                 ? new RecoveryPolicy()
                 : JsonSerializer.Deserialize<RecoveryPolicy>(File.ReadAllText(policyPath), JsonOptions)
-                    ?? throw new ArgumentException("Recovery-Policy ist leer.");
+                    ?? throw new ArgumentException("Recovery policy is empty.");
             return new RecoveryPlanner(policy).Plan(snapshot);
         }
         catch (JsonException exception)
         {
-            throw new ArgumentException("Recovery-Snapshot oder -Policy ist kein gültiges JSON.", exception);
+            throw new ArgumentException("Recovery snapshot or policy is not valid JSON.", exception);
         }
     }
 
@@ -925,15 +924,15 @@ internal static partial class KolibriCli
     private static AdventureCheckpoint ReadCheckpoint(string path)
     {
         if (!File.Exists(path))
-            throw new ArgumentException($"Checkpoint-Datei '{path}' wurde nicht gefunden.");
+            throw new ArgumentException($"Checkpoint file '{path}' was not found.");
         try
         {
             return JsonSerializer.Deserialize<AdventureCheckpoint>(File.ReadAllText(path), JsonOptions)
-                ?? throw new ArgumentException($"Checkpoint-Datei '{path}' ist leer.");
+                ?? throw new ArgumentException($"Checkpoint file '{path}' is empty.");
         }
         catch (JsonException exception)
         {
-            throw new ArgumentException($"Checkpoint-Datei '{path}' ist kein gültiges JSON.", exception);
+            throw new ArgumentException($"Checkpoint file '{path}' is not valid JSON.", exception);
         }
     }
 
@@ -944,7 +943,7 @@ internal static partial class KolibriCli
             ? document.RootElement
             : document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : default;
         if (element.ValueKind != JsonValueKind.Array)
-            throw new ArgumentException($"{path} muss ein JSON-Array oder ein Objekt mit '{propertyName}' sein.");
+            throw new ArgumentException($"{path} must be a JSON array or an object with '{propertyName}'.");
         return element.Deserialize<T[]>(JsonOptions) ?? Array.Empty<T>();
     }
 
@@ -954,15 +953,15 @@ internal static partial class KolibriCli
         var element = document.RootElement.ValueKind == JsonValueKind.Object
             && document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : document.RootElement;
         return element.Deserialize<T>(JsonOptions)
-            ?? throw new ArgumentException($"{path} enthält kein gültiges {typeof(T).Name}-Objekt.");
+            ?? throw new ArgumentException($"{path} does not contain a valid {typeof(T).Name} object.");
     }
 
     private static JsonDocument ReadJsonDocument(string path)
     {
         if (!File.Exists(path))
-            throw new ArgumentException($"JSON-Datei '{path}' wurde nicht gefunden.");
+            throw new ArgumentException($"JSON file '{path}' was not found.");
         try { return JsonDocument.Parse(File.ReadAllText(path)); }
-        catch (JsonException exception) { throw new ArgumentException($"JSON-Datei '{path}' ist ungültig.", exception); }
+        catch (JsonException exception) { throw new ArgumentException($"JSON file '{path}' is invalid.", exception); }
     }
 
     private static void SaveCheckpoint(string path, AdventureCheckpoint checkpoint)

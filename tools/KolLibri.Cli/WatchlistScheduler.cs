@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 /// <summary>
 /// One item watched by the read-only scheduler.  Tradeability is deliberately
@@ -104,7 +104,7 @@ public class JsonWatchlistStore
         }
         catch (JsonException exception)
         {
-            throw new InvalidOperationException($"Watchlist-Datei '{_path}' ist kein gültiges JSON.", exception);
+            throw new InvalidOperationException($"Watchlist file '{_path}' is not valid JSON.", exception);
         }
         finally
         {
@@ -508,14 +508,14 @@ internal static class WatchlistSchedulerCommand
         var operation = args.Length > 0 && !args[0].StartsWith('-') ? args[0].ToLowerInvariant() : "scan";
         var store = new JsonWatchlistStore(GetOption(args, "--store"));
         var watchlistId = GetOption(args, "--watchlist-id") ?? GetOption(args, "--watchlist") ?? "default";
-        if (string.IsNullOrWhiteSpace(watchlistId)) throw new ArgumentException("--watchlist darf nicht leer sein.");
+        if (string.IsNullOrWhiteSpace(watchlistId)) throw new ArgumentException("--watchlist must not be empty.");
         return operation switch
         {
             "add" => await AddAsync(args, store, watchlistId, jsonOptions),
             "remove" or "delete" => await RemoveAsync(args, store, watchlistId, jsonOptions),
             "list" or "show" => await ListAsync(store, watchlistId, jsonOptions),
             "scan" or "run" => await ScanAsync(args, store, watchlistId, readClient, jsonOptions),
-            _ => throw new ArgumentException($"Unbekannte watchlist-Aktion '{operation}'. Erwartet add, remove, list oder scan.")
+            _ => throw new ArgumentException($"Unknown watchlist action '{operation}'. Expected add, remove, list or scan.")
         };
     }
 
@@ -523,13 +523,13 @@ internal static class WatchlistSchedulerCommand
     {
         var items = GetOptions(args, "--item");
         if (items.Count == 0 && args.Length > 1 && !args[1].StartsWith('-')) items = new[] { args[1] };
-        if (items.Count == 0) throw new ArgumentException("watchlist add benötigt mindestens ein --item ITEM_ID.");
+        if (items.Count == 0) throw new ArgumentException("watchlist add requires at least one --item ITEM_ID.");
         var tradeable = ParseOptionalBool(GetOption(args, "--tradeable"));
         var accountBound = ParseOptionalBool(GetOption(args, "--account-bound"));
         var canSell = ParseOptionalBool(GetOption(args, "--can-sell"));
         var transferOption = GetOption(args, "--transfer-cost");
         var transfer = transferOption is null ? (decimal?)null : ParseDecimal(transferOption, 0m, "--transfer-cost");
-        if (transfer is < 0) throw new ArgumentException("--transfer-cost darf nicht negativ sein.");
+        if (transfer is < 0) throw new ArgumentException("--transfer-cost must not be negative.");
         var displayName = GetOption(args, "--name");
         var now = DateTimeOffset.UtcNow;
         var document = await store.LoadAsync();
@@ -566,7 +566,7 @@ internal static class WatchlistSchedulerCommand
     {
         var items = GetOptions(args, "--item");
         if (items.Count == 0 && args.Length > 1 && !args[1].StartsWith('-')) items = new[] { args[1] };
-        if (items.Count == 0) throw new ArgumentException("watchlist remove benötigt mindestens ein --item ITEM_ID.");
+        if (items.Count == 0) throw new ArgumentException("watchlist remove requires at least one --item ITEM_ID.");
         var normalized = items.Select(NormalizeItemId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var document = await store.LoadAsync();
         var entries = document.Entries.Where(x => !IsInWatchlist(x, watchlistId)
@@ -621,7 +621,7 @@ internal static class WatchlistSchedulerCommand
         if (interval <= 0) throw new ArgumentException("--interval muss positiv sein.");
         var mode = GetOption(args, "--mode")?.ToLowerInvariant();
         if (mode is not null && mode is not ("once" or "periodic"))
-            throw new ArgumentException("--mode muss once oder periodic sein.");
+            throw new ArgumentException("--mode must be once or periodic.");
         var periodic = HasFlag(args, "--periodic") || mode == "periodic";
         var once = HasFlag(args, "--once") || mode == "once" || (!periodic && !HasOption(args, "--iterations"));
         var iterations = ParseInt(GetOption(args, "--iterations"), once ? 1 : int.MaxValue, 1, 10_000, "--iterations");
@@ -632,7 +632,7 @@ internal static class WatchlistSchedulerCommand
         var transferOverride = transferOverrideText is null
             ? (decimal?)null
             : ParseDecimal(transferOverrideText, 0m, "--transfer-cost");
-        if (transferOverride is < 0) throw new ArgumentException("--transfer-cost darf nicht negativ sein.");
+        if (transferOverride is < 0) throw new ArgumentException("--transfer-cost must not be negative.");
         var maxAgeHours = ParseDouble(GetOption(args, "--max-age-hours"), 6d, "--max-age-hours");
         var options = new WatchlistScanOptions
         {
@@ -671,7 +671,7 @@ internal static class WatchlistSchedulerCommand
                     ? entry
                     : new WatchlistEntry { ItemId = item }).ToArray();
             }
-            if (entries.Length == 0) throw new ArgumentException("Watchlist ist leer. Zuerst 'watchlist add --item ITEM_ID' verwenden.");
+            if (entries.Length == 0) throw new ArgumentException("Watchlist is empty. Use 'watchlist add --item ITEM_ID' first.");
             if (transferOverride is { } transfer)
                 entries = entries.Select(entry => entry with { TransferCost = transfer }).ToArray();
 
@@ -729,37 +729,37 @@ internal static class WatchlistSchedulerCommand
     {
         "main" => AccountRole.Main,
         "mallbot" => AccountRole.Mallbot,
-        _ => throw new ArgumentException("Role muss main oder mallbot sein.")
+        _ => throw new ArgumentException("Role must be main or mallbot.")
     };
 
     private static string NormalizeItemId(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || !value.Trim().All(char.IsDigit))
-            throw new ArgumentException($"Ungültige ITEM_ID '{value}'. Erwartet eine numerische Item-ID.");
+            throw new ArgumentException($"Invalid ITEM_ID '{value}'. Expected a numeric item ID.");
         return value.Trim();
     }
 
     private static decimal ParseDecimal(string? value, decimal fallback, string option)
         => value is null ? fallback : decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed : throw new ArgumentException($"{option} benötigt eine Zahl.");
+            ? parsed : throw new ArgumentException($"{option} requires a number.");
 
     private static double ParseDouble(string? value, double fallback, string option)
         => value is null ? fallback : double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed : throw new ArgumentException($"{option} benötigt eine Zahl.");
+            ? parsed : throw new ArgumentException($"{option} requires a number.");
 
     private static int ParseInt(string? value, int fallback, int min, int max, string option)
     {
         if (value is null) return fallback;
         if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
-            throw new ArgumentException($"{option} benötigt eine Ganzzahl.");
+            throw new ArgumentException($"{option} requires an integer.");
         return Math.Clamp(parsed, min, max);
     }
 
     private static bool ParseBool(string? value, bool fallback)
-        => value is null ? fallback : bool.TryParse(value, out var parsed) ? parsed : throw new ArgumentException("Boolescher Wert erwartet.");
+        => value is null ? fallback : bool.TryParse(value, out var parsed) ? parsed : throw new ArgumentException("Boolean value expected.");
 
     private static bool? ParseOptionalBool(string? value)
-        => value is null ? null : bool.TryParse(value, out var parsed) ? parsed : throw new ArgumentException("Boolescher Wert erwartet.");
+        => value is null ? null : bool.TryParse(value, out var parsed) ? parsed : throw new ArgumentException("Boolean value expected.");
 
     private static bool HasFlag(string[] args, string name) => args.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
     private static bool HasOption(string[] args, string name) => args.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
@@ -776,7 +776,7 @@ internal static class WatchlistSchedulerCommand
         for (var index = 0; index < args.Length; index++)
         {
             if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase)) continue;
-            if (index + 1 >= args.Length || args[index + 1].StartsWith('-')) throw new ArgumentException($"{name} benötigt einen Wert.");
+            if (index + 1 >= args.Length || args[index + 1].StartsWith('-')) throw new ArgumentException($"{name} requires a value.");
             values.Add(args[++index]);
         }
         return values;

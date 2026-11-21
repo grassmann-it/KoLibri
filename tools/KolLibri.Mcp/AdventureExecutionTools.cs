@@ -1,8 +1,6 @@
 using System.Text.Json;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
 using LibKolibri;
+using KoLibri.Core.Spiel;
 
 namespace KolLibri.Mcp;
 
@@ -44,7 +42,7 @@ public partial class KolibriMcpServer
         var location = RequiredString(arguments, "locationId");
         var runId = OptionalString(arguments, "runId") ?? $"mcp-{Guid.NewGuid():N}";
         var execute = BoolProperty(arguments, "execute");
-        var approvalToken = OptionalString(arguments, "approvalToken");
+        var approvalToken = ApprovalTokenFor(arguments);
         var maxSteps = Math.Clamp(NullableIntProperty(arguments, "maxGatewaySteps") ?? 20, 1, 10_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 300);
 
@@ -135,7 +133,7 @@ public partial class KolibriMcpServer
         var role = RoleFor(arguments, _options.DefaultRole);
         var runId = RequiredString(arguments, "runId");
         var execute = BoolProperty(arguments, "execute");
-        var approvalToken = OptionalString(arguments, "approvalToken");
+        var approvalToken = ApprovalTokenFor(arguments);
         var maxChoices = Math.Clamp(NullableIntProperty(arguments, "maxChoices") ?? 10, 1, 1_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 120);
 
@@ -238,4 +236,14 @@ internal sealed class NullConditionSnapshotProvider : IAdventureConditionSnapsho
 {
     public ValueTask<AdventureConditionSnapshot> ReadAsync(CancellationToken cancellationToken = default)
         => ValueTask.FromResult(new AdventureConditionSnapshot { IsStale = true, UnavailableReason = "No condition snapshot was supplied." });
+}
+
+public partial class KolibriMcpServer
+{
+    /// <summary>
+    /// Under an access gate (HTTP) the grant is the approval, so the client need not invent a token;
+    /// without a gate the caller must still pass the host's approval token.
+    /// </summary>
+    private string? ApprovalTokenFor(JsonElement arguments)
+        => OptionalString(arguments, "approvalToken") ?? (Authorizer is null ? null : "kolibri-mcp-gated");
 }

@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

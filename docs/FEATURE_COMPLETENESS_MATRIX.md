@@ -1,107 +1,106 @@
-# KoLmafia ↔ KoLibri: Feature-Completeness-Matrix
+# KoLmafia ↔ KoLibri: Feature Completeness Matrix
 
-Diese Matrix vergleicht den aktuellen KoLmafia-Stand (Upstream `main`) mit dem
-Stand im Repository. Der Fokus liegt auf Adventure, Kampf und wiederholbaren
-Workflows. Preis-/Mall-Funktionen werden nur dort erwähnt, wo sie den
-Adventure-Lauf blockieren oder absichern.
+This matrix compares the current KoLmafia state (upstream `main`) with the
+state in the repository. The focus is on adventure, combat and repeatable
+workflows. Price/Mall functions are only mentioned where they block or secure
+the adventure run.
 
-**Statuszeichen:** `✓` ist im aktuellen Scope nutzbar, `◐` ist ein
-Sicherheitskern/Fixture/Preview ohne vollständigen Live-Adapter, `✗` fehlt,
-`↗` ist bewusst zurückgestellt. Eine positive KoLibri-Bewertung bedeutet dabei
-nicht, dass eine HTTP-Mutation bereits ausgeführt wird.
+**Status symbols:** `✓` is usable in the current scope, `◐` is a safety
+core/fixture/preview without a complete live adapter, `✗` is missing, `↗` is
+deliberately deferred. A positive KoLibri rating does not mean that an HTTP
+mutation is already executed.
 
-## Vergleich
+## Comparison
 
-| Fähigkeit | KoLmafia (Referenz) | KoLibri heute | Lücke/Risiko | Prio | Abnahmekriterium für KoLibri |
+| Capability | KoLmafia (reference) | KoLibri today | Gap/risk | Prio | Acceptance criterion for KoLibri |
 |---|---|---|---|:---:|---|
-| Adventure-Ziel planen | `adventure [#] <location>` und Zustands-/Questdaten steuern Ort und Anzahl. | `DailyAdventurePlanner` erzeugt einen deterministischen Plan für Knucklebones, Skeleton of Crimbos Past, Lucky Surprise Eggs und Turnbudget; `AdventureState.IsStale` ergibt explizit `BlockedStaleSnapshot`. `FarmVsBuyPlanner` vergleicht Farmen mit Mallkauf. `✓` (Preview) | Nur wenige domänenspezifische Ziele; keine generische Condition-Sprache. | **P1** | Plan bleibt bei fehlendem Yield, Turnbudget oder stale Snapshot blockiert und ist über CLI/MCP/Desktop identisch. |
-| Adventure-Request/Live-Transport | `AdventureRequest` sendet `adventure.php` (`snarfblat`), validiert Orte und behandelt viele Spezialseiten. | `AdventureExecutionGateway` persistiert den numerischen Katalogwert im Checkpoint und bindet ihn in die Transportfelder; CLI `adventure run --snarfblat N` kann ihn explizit weiterreichen; produktiv existiert weiterhin nur die sichere Transportgrenze, die Fixture-Implementierung sendet nicht an KoL. `◐` | Kein produktiver, routegebundener Adapter; `adventure-plan` bleibt read-only. | **P2** | Für eine allowlistete Zone existiert ein echter Adapter mit Request-Limit, Session-Gate, frischem Status und Post-Verify; nicht unterstützte Seiten stoppen. |
-| Redirect-/Phasen-Dispatch | `GenericRequest` dispatcht Adventure → Fight/Choice und verarbeitet Hooks, Ergebnisse und Redirects. | Kernel-Phasen `Ready → Encounter → Fight/Choice → Reward/Complete/Aborted`; Gateway macht pro Schritt eine Anfrage. `◐` | Redirects und Folgekämpfe sind nur über abstrahierte Beobachtungen abgedeckt; kein vollständiger KoL-Dispatcher. | **P2** | Redirects werden anhand von Route/Parser sicher klassifiziert; kein implizites POST bei unbekanntem Ziel. |
-| Encounter-Parsing | KoLmafia pflegt umfangreiche Parser und Result-Registrierung für aktuelle Seiten. | `KoLAdventureEncounterParser` erkennt Login, Fight, Choice, Reward und `Unknown`, extrahiert Round/Choice/Options/Hash. `✓` für Minimalmodell, `◐` für reale Vielfalt | Regex-Minimalparser kann neue Formulare, Ergebnisse oder Sonderseiten nicht sicher abbilden. | **P0** | Fixture-Katalog für jede unterstützte Zone; unbekannte oder unvollständige Seite wird `Unknown`/`Blocked`, nie geraten. |
-| Unbekannter Zustand / manueller Stop | KoLmafia kann bei Fehlern/`abort` anhalten, hat aber breite Fallback-Logik. | Unknown Fight/Choice/Encounter, Session-Grenze und ungültige Beobachtung führen zu explizitem Abort mit Checkpoint. `✓` | Stop-Gründe müssen in allen Oberflächen sichtbar und resume-fähig bleiben. | **P0** | Jeder Stop enthält Reason-Code, letzte Response-Hash, Checkpoint und manuellen nächsten Schritt. |
-| Choice-Chain | `ChoiceManager` validiert `whichchoice`/`option`, übergibt Extra-Felder und loopt, bis kein Choice-Formular mehr vorhanden ist. | Allowlist für Choice-ID/Option/Encounter; `BoundedChoiceChainRunner` führt nur pending Choice-Aktionen bis zu einem Step-/Zeitlimit weiter und stoppt vor Fight, Unknown oder Refresh; Extra-Felder werden begrenzt übernommen. `◐` (Fixture) | Keine allgemeine Choice-Datenbank, keine settingsbasierte Automatisierung, kein produktiver Transport. | **P1** für unterstützte Tageszonen, **P2** breit | Jede unterstützte Choice hat Parser-Fixture, erlaubte Optionen, Extra-Feld-Schema und Folge-Response-Tests. |
-| Kampf-Request/Turn-Loop | `FightRequest` führt Round-0-Initialisierung, `fight.php`-Aktionen, Multi-Fights und Folge-Choices aus; der aktuelle Upstream-Code ist ein umfangreicher, zonenspezifischer Parser/Dispatcher. | `BoundedManualCombatRunner` führt über `ManualCombatGateway` eine begrenzte Round-Sequenz aus, inspiziert vor jedem Preview erneut und stoppt bei Terminal-, Gateway-, Timeout- oder Step-Limit-Zustand. `◐` | Ein vollständiger zonenspezifischer KoL-Dispatcher und AutoCombat-Live-Policy fehlen weiterhin. | **P2** | Ein bounded Runner führt eine allowlistete Sequenz aus, prüft Round/Monster-Fortschritt und stoppt bei Abweichung. |
-| Kampfregeln / Skills / Items / Makros | KoLmafia nutzt Kampfpräferenzen, Combat Actions, Skills/Items, Makros, Pickpocket/Run und Spezialmonsterregeln. | `AutoCombatPolicy` bleibt deklarativ; `AutoCombatAdventureAdapter` übersetzt eine Entscheidung nur dann in eine `AdventureFightAction`, wenn die Action im aktuellen Fight-Snapshot sichtbar und aktiviert ist. CLI/MCP können zusätzlich einen Recovery-Plan als Gate anwenden. `◐` | Noch kein vollständiges Ressourcen-/Recovery-Commit und kein freies Macro-System. | **P2** (begrenzte Teilmenge) | Deklarative Regeln für wenige bekannte Monster/Runden (inkl. Dry-Run) werden separat versioniert; kein freies Script darf Requests erzeugen. |
-| Recovery / Ressourcen / Safety-Checks im Kampf | RecoveryManager, HP/MP-Schwellen, Consumables, Effects, Equipment und Familiar fließen in die Entscheidung ein. | `RecoveryPlanner` erzeugt einen bounded Read-only-Plan; `AccountRecoverySnapshotProvider` mappt frische Status-/Inventar-Reads inklusive HP/MP, Effects, Familiar und Equipment; `AutoCombatAdventureAdapter` und `BoundedManualCombatRunner` akzeptieren optional nur einen Plan mit `CanEnterCombat`, andernfalls bleibt die Action vor Preview/POST blockiert. Der echte Fight-Gateway-POST braucht weiterhin einen frischen, transportgebundenen Recovery-Read. `◐` | Live-Kampf ohne Ressourcen-Gate wäre nicht sicher. | **P1** | Vor jedem Fight-POST frischer Status, Recovery-Reserve und erlaubte Consumables prüfen; bei fehlender Information `Blocked`. |
-| Kampf-/Choice-Post-Approval | Kein einheitlicher Human-Approval-Token für jeden Kampf-POST. | `IAdventureApprovalHook` vor jedem mutierenden Adventure/Fight/Choice-Request; `IAdventureVerificationHook` danach. `✓` | Hook muss an echte Approval-/Audit-Inbox angebunden werden, bevor Live-Ausführung freigeschaltet wird. | **P0** | Ohne Approval kein POST; Verify-Fehler persistiert Abort und sendet nicht erneut. |
-| Timeout / Retry / Idempotenz | Adventure/Fight-Requests erlauben Upstream-Retry-on-timeout; die breite Zustandslogik versucht weiterzulaufen. | Non-idempotentes POST bleibt bei Timeout `Indeterminate`; Gateway markiert In-Flight, verlangt Refresh und sendet nicht blind erneut. Request-ID, Fingerprint, Response-Hash und CAS-Checkpoint sind vorhanden. `✓` (Sicherheitskern) | Reconciliation muss an den echten KoL-Transport gebunden werden. | **P0** | Timeout-Fixture beweist: genau ein POST, danach Refresh und Entscheidung anhand des aktuellen Encounter; kein Doppelturn. |
-| Checkpoint / Crash-Resume | KoLmafia hält Session-/Preference-Zustand, aber keinen vergleichbaren bounded CAS-Checkpoint pro Mutation. | `AdventureCheckpoint`, Response-History, In-Flight-Marker, Revision/CAS, `ResumeAsync` und lokaler JSON-CAS-Store sind implementiert. `✓` (Core) | Retention-/Cleanup-Policy und vollständige UI-Resume-Controls fehlen noch. | **P0** | Prozessabbruch nach jedem Server-Response ist resume-fähig; `Resume` emittiert zuerst nur Refresh, nie den alten POST. |
-| Tageslimits / Counter | Conditions und Sessionzustand können Abenteuer stoppen; tägliche Sonderregeln sind verteilt in Fachlogik/Preferences. | `AdventureDailyLimitContract`, Counter-Store und Run-Reservation schützen Turns/Runs; Planner kennt Ziel und Egg-Cap. `✓` für Tagesplan | Keine allgemeine tägliche Resource-/Semi-Rare-/Choice-Condition. | **P1** | Limit wird vor Start reserviert, nach Response gespeichert und gegen frischen Account-Snapshot verifiziert. |
-| Conditions / Objectives | `conditions add` unterstützt Items, Choice-Adventures, Level, Stats, HP und MP; `adventure` hält bei erfüllten Conditions. | `AdventureCondition`/`AdventureConditionSnapshot` evaluieren Item/Count, Stat, HP/MP, Choice-Count und Turns; `AccountAdventureConditionSnapshotProvider` bindet frische Status-/Inventar-Reads; `BoundedAdventureRunner` stoppt vor einem POST bei erfülltem Ziel oder fehlendem Snapshot. `◐` | HP/MP/Choice benötigen weiterhin spezialisierte Combat-/Choice-Reads; vollständiger Live-Run-Command fehlt. | **P1** | Typed `Condition`-Modell mit item/count/stat/HP/MP/choiceadv/turns; jede Condition liefert Fortschritt und Stop-Grund. |
-| Farm-vs-Buy / Ticket-Ökonomie | `acquire` kann je nach Zustand Item erzeugen, kaufen, aus Storage holen oder Mall nutzen; Conditions treiben Adventure. | `FarmVsBuyPlanner` ist reine ROI-/Confidence-Vorschau; Coinmaster/One-Day-Ticket-Ranking ist read/preview. `✓` (Plan) | Kein Commit-Adapter, keine vollständige Acquire-Kette. | **P1** | Farm/Bay-Entscheidung bindet Ticket-/Transfer-/Consumable-Kosten, Confidence und aktuelle Mall-Referenz; Commit bleibt separater Approval-Schritt. |
-| Wiederholbarer Tagesworkflow | CLI/ASH-Skripte, `repeat`, Moods/Triggers, `breakfast` und Quest-Kommandos erlauben weitgehende Automatisierung. | `KoLWorkflowPlanner` bildet Main/Mallbot-Phasen mit ReadOnly/Ready/ApprovalRequired/Blocked/Deferred; CLI/MCP erzeugen JSON-Plan. `adventure-plan --periodic` liest pro Tick frisch; `DailyAdventurePlanExecutor` führt einen bereits freigegebenen Plan bounded und sequenziell über einen Gateway-Callback aus. `✓` (Plan/Executor), `◐` (Live-Adapter) | Kein zeitbasierter Commit-Worker; der Callback muss weiterhin einen approval-bound Gateway verwenden. | **P1** | Ein Tageslauf ist deterministisch, stoppbar und resume-fähig; Plan, Warnungen und Approval-ID sind in CLI/MCP/Desktop gleich. |
-| Scheduler / Watchlist | KoLmafia kann Skripte wiederholen; externe Skripte/cron übernehmen Zeitplanung. | `WatchlistScanner`/JSON-Store scannt Mall/Pricegun read-only mit Worker-Limit; `DailyAdventurePlanScheduler` liest pro Tick einen frischen Snapshot und erzeugt bounded Pläne ohne Mutation. Kein automatischer Kauf. `◐` | „Scheduler“ darf nicht den Eindruck erwecken, live zu mutieren. | **P1** | Scheduler erzeugt nur Plan/Preview und Audit; Ausführung erfordert explizite Run-Approval und bounded worker. |
-| CLI / MCP / UI | KoLmafia CLI, GUI, Relay Browser und ASH teilen Sessionzustand. | CLI `adventure-plan`/`adventure run`, MCP Preview-Tools (`kol_adventure_daily_schedule` eingeschlossen), opt-in `LibKolibri`-Combat-Gateway und Desktop-Services teilen Planner/Gateway-Verträge; MCP-AutoCombat kann zusätzlich einen Recovery-Snapshot als Safety-Gate prüfen; Live-CLI ist explizit `--execute` + Approval-Token. `◐` | MCP/Desktop-Live-Command und Golden-JSON für den vollständigen Runner fehlen noch. | **P1** | Golden JSON für denselben Snapshot in CLI/MCP/Desktop; Executor erst nach demselben Gateway-Vertrag verfügbar. |
-| Session-/Login-Grenze | `GenericRequest` erkennt Login/Redirect und verwaltet Cookies/Session. | Verschlüsselte Profile, Login, Cache und `KoLResponseClassifier` erkennen Login-/Stale-Seiten; Gateway stoppt bei Session-Grenze. `✓` | Adventure-Transport muss dieselben Session-Clients verwenden, nicht eigene Cookies. | **P0** | Login-Redirect oder abgelaufene Session erzeugt keinen Folge-POST und bleibt im Audit sichtbar. |
-| Audit / Mutationsledger | KoLmafia protokolliert Requests/Events, aber ohne KoLibri-Preview→Approval→Commit-Vertrag. | Audit-Journal, Operation-Ledger und Approval-Contracts; `AuditedAdventureHooks` schreibt Adventure-Preview, Approval/Commit und Verify mit Request-ID, Checkpoint und Response-Hash. `✓` (Vertrag) | Live-Host muss ein Journal injizieren; Retention/Rotation ist noch offen. | **P0** | Jeder POST hat Plan-/Approval-/Request-ID, Vorher/Nachher-Status, Response-Hash und Verify-Ergebnis. |
-| Test-/Fixture-Strategie | Upstream enthält Adventure-, Fight- und Choice-Fixtures sowie Fake-HTTP-Tests. | `tests/.../Fixtures/Adventure` plus Parser-, Kernel- und Gateway-Tests; Fixture-Transport prüft Korrelation/Timeout/Approval. `✓` für Sicherheitsfälle | Noch keine breite Zonenabdeckung und kein Live-Contract-Test gegen einen Route-Adapter. | **P0** | Jede neue Zone liefert HTML-Fixtures für Start/Fight/Choice/Reward/Login/Unknown und testet die nächste Request-Aktion. |
-| Zonen-/Quest-/Path-Abdeckung | Viele Spezialorte, Quests, Paths, Ascension- und Mini-Games sind in Fachklassen integriert. | Kein Quest-/Path-/Ascension-Automation-Ziel; generischer `AdventureId`-Vertrag reicht für bounded Adapter. `↗` | Vollständige Parität wäre ein eigenes Produkt und erhöht Sicherheitsfläche. | **P2** für ausgewählte Farmzonen, sonst bewusst später | Unterstützte Zone explizit katalogisieren; alles andere bleibt `NotAllowlisted`/manuell. |
-| Equipment / Familiar / Modifier / Maximizer | KoLmafia kann Outfit, Familiar, Modifier und `maximize` für den Kampf wählen. | Read-only Status-Snapshots liefern jetzt optionale Familiar-/Equipment-Daten an `RecoverySnapshot`; Auswahl und Modifier-Berechnung bleiben bewusst aus dem Adventure-Gateway heraus. `◐` | Keine deterministische Auswahl- oder Modifier-Policy. | **P2** | Read-only Modifier-/Equipment-Snapshot zuerst; Auswahl erst nach deterministischer Policy und Preview. |
-| Buffs / Mood / Breakfast / Healing außerhalb Kampf | CLI-Moods, Trigger, Breakfast, Rest/Relax und Buff-/Effect-Management sind integriert. | Nicht vorhanden; Eggs sind ein expliziter Planner-Schritt, keine allgemeine Effect-Policy. `✗` | Vor dem Farming kann eine manuelle Vorbereitung erforderlich sein. | **P2** (oder bewusst P3) | Nur typisierte, begrenzte Preflight-Schritte mit eigener Approval; kein ASH-Klon. |
-| Freie Scripting-Sprache / Relay Browser | ASH/CLI mit Variablen, Funktionen, Branching, Loops und Relay Browser. | Bewusst kein JavaScript-/ASH-Klon; typisierte Workflows und MCP/CLI-Schemas. `↗` | Keine Drop-in-Kompatibilität für bestehende KoLmafia-Skripte. | **P3 / Nichtziel** | Nicht in P0–P2 einplanen; Plugin-/Provider-Schnittstelle erst nach stabilen Verträgen. |
+| Adventure goal planning | `adventure [#] <location>` and state/quest data control location and count. | `DailyAdventurePlanner` produces a deterministic plan for Knucklebones, Skeleton of Crimbo's Past, Lucky Surprise Eggs and turn budget; `AdventureState.IsStale` explicitly yields `BlockedStaleSnapshot`. `FarmVsBuyPlanner` compares farming with a Mall purchase. `✓` (preview) | Only a few domain-specific goals; no generic condition language. | **P1** | The plan stays blocked on missing yield, turn budget or stale snapshot and is identical across CLI/MCP/Desktop. |
+| Adventure request/live transport | `AdventureRequest` sends `adventure.php` (`snarfblat`), validates locations and handles many special pages. | `AdventureExecutionGateway` persists the numeric catalog value in the checkpoint and binds it into the transport fields; CLI `adventure run --snarfblat N` can pass it on explicitly; in production only the safe transport boundary exists, the fixture implementation does not send to KoL. `◐` | No productive, route-bound adapter; `adventure-plan` stays read-only. | **P2** | For an allowlisted zone a real adapter exists with request limit, session gate, fresh status and post-verify; unsupported pages stop. |
+| Redirect/phase dispatch | `GenericRequest` dispatches Adventure → Fight/Choice and handles hooks, results and redirects. | Kernel phases `Ready → Encounter → Fight/Choice → Reward/Complete/Aborted`; the gateway makes one request per step. `◐` | Redirects and follow-up fights are only covered through abstracted observations; no complete KoL dispatcher. | **P2** | Redirects are safely classified by route/parser; no implicit POST on an unknown target. |
+| Encounter parsing | KoLmafia maintains extensive parsers and result registration for current pages. | `KoLAdventureEncounterParser` recognizes login, fight, choice, reward and `Unknown`, extracts round/choice/options/hash. `✓` for the minimal model, `◐` for real-world variety | A regex minimal parser cannot safely map new forms, results or special pages. | **P0** | Fixture catalog for every supported zone; an unknown or incomplete page becomes `Unknown`/`Blocked`, never guessed. |
+| Unknown state / manual stop | KoLmafia can halt on errors/`abort`, but has broad fallback logic. | Unknown fight/choice/encounter, session boundary and invalid observation lead to an explicit abort with checkpoint. `✓` | Stop reasons must stay visible and resumable on all surfaces. | **P0** | Every stop contains a reason code, last response hash, checkpoint and a manual next step. |
+| Choice chain | `ChoiceManager` validates `whichchoice`/`option`, passes extra fields and loops until no choice form remains. | Allowlist for choice ID/option/encounter; `BoundedChoiceChainRunner` only continues pending choice actions up to a step/time limit and stops before fight, unknown or refresh; extra fields are adopted in a bounded way. `◐` (fixture) | No general choice database, no settings-based automation, no productive transport. | **P1** for supported daily zones, **P2** broadly | Every supported choice has a parser fixture, allowed options, extra-field schema and follow-up response tests. |
+| Combat request/turn loop | `FightRequest` performs round-0 initialization, `fight.php` actions, multi-fights and follow-up choices; the current upstream code is an extensive, zone-specific parser/dispatcher. | `BoundedManualCombatRunner` executes a bounded round sequence via `ManualCombatGateway`, re-inspects before every preview and stops on terminal, gateway, timeout or step-limit state. `◐` | A complete zone-specific KoL dispatcher and AutoCombat live policy are still missing. | **P2** | A bounded runner executes an allowlisted sequence, checks round/monster progress and stops on deviation. |
+| Combat rules / skills / items / macros | KoLmafia uses combat preferences, combat actions, skills/items, macros, pickpocket/run and special-monster rules. | `AutoCombatPolicy` stays declarative; `AutoCombatAdventureAdapter` only translates a decision into an `AdventureFightAction` if the action is visible and enabled in the current fight snapshot. CLI/MCP can additionally apply a recovery plan as a gate. `◐` | No complete resource/recovery commit yet and no free macro system. | **P2** (bounded subset) | Declarative rules for a few known monsters/rounds (incl. dry run) are versioned separately; no free script may produce requests. |
+| Recovery / resources / safety checks in combat | RecoveryManager, HP/MP thresholds, consumables, effects, equipment and familiar feed into the decision. | `RecoveryPlanner` produces a bounded read-only plan; `AccountRecoverySnapshotProvider` maps fresh status/inventory reads including HP/MP, effects, familiar and equipment; `AutoCombatAdventureAdapter` and `BoundedManualCombatRunner` optionally accept only a plan with `CanEnterCombat`, otherwise the action stays blocked before preview/POST. The real fight-gateway POST still needs a fresh, transport-bound recovery read. `◐` | Live combat without a resource gate would not be safe. | **P1** | Before every fight POST, check fresh status, recovery reserve and allowed consumables; on missing information `Blocked`. |
+| Combat/choice post approval | No uniform human-approval token for every combat POST. | `IAdventureApprovalHook` before every mutating adventure/fight/choice request; `IAdventureVerificationHook` afterwards. `✓` | The hook must be connected to a real approval/audit inbox before live execution is enabled. | **P0** | Without approval no POST; a verify failure persists an abort and does not send again. |
+| Timeout / retry / idempotency | Adventure/fight requests allow upstream retry-on-timeout; the broad state logic tries to keep going. | A non-idempotent POST stays `Indeterminate` on timeout; the gateway marks in-flight, requires a refresh and does not blindly resend. Request ID, fingerprint, response hash and CAS checkpoint exist. `✓` (safety core) | Reconciliation must be bound to the real KoL transport. | **P0** | A timeout fixture proves: exactly one POST, then refresh and a decision based on the current encounter; no double turn. |
+| Checkpoint / crash resume | KoLmafia keeps session/preference state, but no comparable bounded CAS checkpoint per mutation. | `AdventureCheckpoint`, response history, in-flight marker, revision/CAS, `ResumeAsync` and a local JSON CAS store are implemented. `✓` (core) | Retention/cleanup policy and complete UI resume controls are still missing. | **P0** | A process abort after any server response is resumable; `Resume` first emits only a refresh, never the old POST. |
+| Daily limits / counters | Conditions and session state can stop adventures; daily special rules are spread across domain logic/preferences. | `AdventureDailyLimitContract`, counter store and run reservation protect turns/runs; the planner knows goal and egg cap. `✓` for the daily plan | No general daily resource/semi-rare/choice condition. | **P1** | The limit is reserved before start, stored after the response and verified against a fresh account snapshot. |
+| Conditions / objectives | `conditions add` supports items, choice adventures, level, stats, HP and MP; `adventure` halts when conditions are met. | `AdventureCondition`/`AdventureConditionSnapshot` evaluate item/count, stat, HP/MP, choice count and turns; `AccountAdventureConditionSnapshotProvider` binds fresh status/inventory reads; `BoundedAdventureRunner` stops before a POST when the goal is met or a snapshot is missing. `◐` | HP/MP/choice still need specialized combat/choice reads; a complete live-run command is missing. | **P1** | A typed `Condition` model with item/count/stat/HP/MP/choiceadv/turns; every condition yields progress and a stop reason. |
+| Farm-vs-Buy / ticket economy | `acquire` can create, buy, fetch from storage or use the Mall depending on state; conditions drive adventure. | `FarmVsBuyPlanner` is a pure ROI/confidence preview; Coinmaster/one-day-ticket ranking is read/preview. `✓` (plan) | No commit adapter, no complete acquire chain. | **P1** | The farm/buy decision binds ticket/transfer/consumable costs, confidence and current Mall reference; commit stays a separate approval step. |
+| Repeatable daily workflow | CLI/ASH scripts, `repeat`, moods/triggers, `breakfast` and quest commands allow extensive automation. | `KoLWorkflowPlanner` models Main/Mallbot phases with ReadOnly/Ready/ApprovalRequired/Blocked/Deferred; CLI/MCP produce a JSON plan. `adventure-plan --periodic` reads fresh on every tick; `DailyAdventurePlanExecutor` executes an already approved plan in a bounded, sequential way via a gateway callback. `✓` (plan/executor), `◐` (live adapter) | No time-based commit worker; the callback must still use an approval-bound gateway. | **P1** | A daily run is deterministic, stoppable and resumable; plan, warnings and approval ID are identical in CLI/MCP/Desktop. |
+| Scheduler / watchlist | KoLmafia can repeat scripts; external scripts/cron handle scheduling. | `WatchlistScanner`/JSON store scans Mall/Pricegun read-only with a worker limit; `DailyAdventurePlanScheduler` reads a fresh snapshot per tick and produces bounded plans without mutation. No automatic purchase. `◐` | A "scheduler" must not give the impression of mutating live. | **P1** | The scheduler only produces plan/preview and audit; execution requires explicit run approval and a bounded worker. |
+| CLI / MCP / UI | KoLmafia CLI, GUI, Relay Browser and ASH share session state. | CLI `adventure-plan`/`adventure run`, MCP preview tools (including `kol_adventure_daily_schedule`), the opt-in `LibKolibri` combat gateway and desktop services share planner/gateway contracts; MCP AutoCombat can additionally check a recovery snapshot as a safety gate; live CLI is explicitly `--execute` + approval token. `◐` | MCP/desktop live command and golden JSON for the complete runner are still missing. | **P1** | Golden JSON for the same snapshot in CLI/MCP/Desktop; the executor only becomes available after the same gateway contract. |
+| Session/login boundary | `GenericRequest` detects login/redirect and manages cookies/session. | Encrypted profiles, login, cache and `KoLResponseClassifier` detect login/stale pages; the gateway stops at the session boundary. `✓` | The adventure transport must use the same session clients, not its own cookies. | **P0** | A login redirect or expired session produces no follow-up POST and stays visible in the audit. |
+| Audit / mutation ledger | KoLmafia logs requests/events, but without the KoLibri Preview→Approval→Commit contract. | Audit journal, operation ledger and approval contracts; `AuditedAdventureHooks` writes adventure preview, approval/commit and verify with request ID, checkpoint and response hash. `✓` (contract) | The live host must inject a journal; retention/rotation is still open. | **P0** | Every POST has a plan/approval/request ID, before/after status, response hash and verify result. |
+| Test/fixture strategy | Upstream contains adventure, fight and choice fixtures as well as fake-HTTP tests. | `tests/.../Fixtures/Adventure` plus parser, kernel and gateway tests; the fixture transport checks correlation/timeout/approval. `✓` for safety cases | No broad zone coverage yet and no live contract test against a route adapter. | **P0** | Every new zone delivers HTML fixtures for start/fight/choice/reward/login/unknown and tests the next request action. |
+| Zone/quest/path coverage | Many special locations, quests, paths, ascension and mini-games are integrated into domain classes. | No quest/path/ascension automation goal; the generic `AdventureId` contract suffices for bounded adapters. `↗` | Full parity would be its own product and increases the safety surface. | **P2** for selected farm zones, otherwise deliberately later | Explicitly catalog supported zones; everything else stays `NotAllowlisted`/manual. |
+| Equipment / familiar / modifier / maximizer | KoLmafia can choose outfit, familiar, modifiers and `maximize` for combat. | Read-only status snapshots now deliver optional familiar/equipment data to `RecoverySnapshot`; selection and modifier computation are deliberately kept out of the adventure gateway. `◐` | No deterministic selection or modifier policy. | **P2** | A read-only modifier/equipment snapshot first; selection only after a deterministic policy and preview. |
+| Buffs / mood / breakfast / healing outside combat | CLI moods, triggers, breakfast, rest/relax and buff/effect management are integrated. | Not present; eggs are an explicit planner step, not a general effect policy. `✗` | Manual preparation may be required before farming. | **P2** (or deliberately P3) | Only typed, bounded preflight steps with their own approval; no ASH clone. |
+| Free scripting language / Relay Browser | ASH/CLI with variables, functions, branching, loops and Relay Browser. | Deliberately no JavaScript/ASH clone; typed workflows and MCP/CLI schemas. `↗` | No drop-in compatibility for existing KoLmafia scripts. | **P3 / non-goal** | Do not plan in P0–P2; plugin/provider interface only after stable contracts. |
 
-## Priorisierte Umsetzung
+## Prioritized implementation
 
-### P0 – vor jeder Live-Mutation
+### P0 – before any live mutation
 
-1. Den vorhandenen Parser-/Kernel-/Gateway-Sicherheitskern als verbindlichen
-   Vertrag festschreiben: unbekannt = Stop, keine implizite Aktion.
-2. Adventure-Fixtures und Contract-Tests für Login-Redirect, stale Session,
-   Round-/Choice-Mismatch, Duplicate-Response, Timeout, Approval-Deny und
-   Checkpoint-CAS vervollständigen.
-3. Adventure-POSTs an das bestehende Session-/Request-Gate und Audit-Ledger
-   anbinden. Kein separater Cookie- oder Retry-Stack im Adapter.
-4. Approval- und Verify-Hooks an dieselbe Preview → Approval → Commit → Verify-
-   Kette wie Kauf, Transfer und Reprice anschließen.
+1. Fix the existing parser/kernel/gateway safety core as a binding contract:
+   unknown = stop, no implicit action.
+2. Complete adventure fixtures and contract tests for login redirect, stale
+   session, round/choice mismatch, duplicate response, timeout, approval deny
+   and checkpoint CAS.
+3. Bind adventure POSTs to the existing session/request gate and audit ledger.
+   No separate cookie or retry stack in the adapter.
+4. Connect approval and verify hooks to the same Preview → Approval → Commit →
+   Verify chain as purchase, transfer and reprice.
 
-**P0-Fertig:** Ein absichtlich fehlerhafter oder unbekannter Server-Response
-führt reproduzierbar zu `Blocked`/`Aborted`, hinterlässt einen resume-fähigen
-Checkpoint und sendet keinen zweiten POST.
+**P0 done:** A deliberately faulty or unknown server response reproducibly
+leads to `Blocked`/`Aborted`, leaves a resumable checkpoint and sends no second
+POST.
 
-### P1 – täglicher, kontrollierter Mehrwert
+### P1 – daily, controlled added value
 
-1. Typed Conditions (Item/Count, Turns, HP/MP, Choice-Count, Stats) und ein
-   frischer Status-/Inventory-Read vor jedem geplanten Lauf.
-2. Einen kleinen Tages-Runner für eine katalogisierte Zone bauen: Ziel,
-   Turnbudget, Egg-/Ticket-Reserve, Stop-Gründe und Audit; der bounded Core-
-   Runner ist vorhanden, CLI/MCP/Desktop-Preview und Live-Statusbindung fehlen.
-3. Farm-vs-Buy sowie Ticket-/Coinmaster-Kosten in denselben Tagesplan
-   integrieren; Kauf/Farm bleibt getrennte Approval-Aktion.
-4. CLI, MCP und Desktop auf Golden-JSON und dieselben Checkpoints/Approval-IDs
-   bringen. Der vorhandene Mall-/Pricegun-Watchlist-Worker bleibt read-only.
+1. Typed conditions (item/count, turns, HP/MP, choice count, stats) and a fresh
+   status/inventory read before every planned run.
+2. Build a small daily runner for a cataloged zone: goal, turn budget,
+   egg/ticket reserve, stop reasons and audit; the bounded core runner exists,
+   CLI/MCP/Desktop preview and live status binding are missing.
+3. Integrate farm-vs-buy as well as ticket/Coinmaster costs into the same
+   daily plan; buying/farming stays a separate approval action.
+4. Bring CLI, MCP and Desktop onto golden JSON and the same checkpoints/approval
+   IDs. The existing Mall/Pricegun watchlist worker stays read-only.
 
-**P1-Fertig:** Ein Nutzer kann einen Tageslauf planen, einen bounded Run
-   freigeben, bei stale/unknown/limit sicher stoppen und anschließend ohne
-   Doppelturn fortsetzen.
+**P1 done:** A user can plan a daily run, approve a bounded run, stop safely
+on stale/unknown/limit and then continue without a double turn.
 
-### P2 – gezielte Abdeckung statt KoLmafia-Klon
+### P2 – targeted coverage instead of a KoLmafia clone
 
-1. Produktiven Adventure-/Fight-/Choice-Transport für wenige katalogisierte
-   Farmzonen ergänzen; je Zone eigene Formfelder und Fixtures.
-2. Deklarative Kampfregeln für bekannte Monster/Runden (Attack/Skill/Item/Run)
-   sowie minimale Recovery-Gates; keine freie Macro-/ASH-Ausführung.
-3. Redirect-/Multi-Fight-/Sonderchoice-Ketten nur nach Fixture-Belegen
-   erweitern. Quest-/Path-/Ascension-Seiten bleiben nicht automatisch.
-4. Read-only Equipment/Familiar/Modifier-Daten anschließen, wenn sie Farm-ROI
-   oder Überlebensentscheidung tatsächlich verbessern.
+1. Add productive adventure/fight/choice transport for a few cataloged farm
+   zones; own form fields and fixtures per zone.
+2. Declarative combat rules for known monsters/rounds (attack/skill/item/run)
+   as well as minimal recovery gates; no free macro/ASH execution.
+3. Extend redirect/multi-fight/special-choice chains only after fixture
+   evidence. Quest/path/ascension pages stay non-automatic.
+4. Connect read-only equipment/familiar/modifier data when it actually
+   improves farm ROI or survival decisions.
 
-## Abgrenzung zur KoLmafia-Parität
+## Delimitation from KoLmafia parity
 
-KoLmafia bleibt für allgemeine Adventure- und Kampfbreite die Referenz. KoLibri
-strebt für P0/P1/P2 eine kleinere, überprüfbare Teilmenge an: wenige bekannte
-Zonen, explizite Aktionen, frische Reads, Approval und Resume. ASH-/Relay-
-Kompatibilität, vollständige Quest-/Path-Automation, globale Choice-Datenbank
-und freie Kampf-Macros sind keine Voraussetzung für den Mallbot-/Tagesbetrieb
-und bleiben nachgelagert.
+KoLmafia remains the reference for general adventure and combat breadth.
+For P0/P1/P2, KoLibri aims for a smaller, verifiable subset: a few known
+zones, explicit actions, fresh reads, approval and resume. ASH/Relay
+compatibility, complete quest/path automation, a global choice database and
+free combat macros are not a prerequisite for Mallbot/daily operation and
+remain downstream.
 
-## Quellen
+## Sources
 
-- Repo-Plan und bewusstes Scope: [`FEATURE_COMPLETENESS_PLAN.md`](FEATURE_COMPLETENESS_PLAN.md)
-- Repo-Adventure-Referenz: [`KOLMAFIA_ADVENTURE_RESEARCH.md`](KOLMAFIA_ADVENTURE_RESEARCH.md)
-- KoLibri-Minimalparser: [`KoLAdventureEncounterParser.cs`](../src/KolArbitrage.Core/Adventure/KoLAdventureEncounterParser.cs)
-- KoLibri-State-Machine: [`AdventureRunKernel.cs`](../src/KolArbitrage.Core/Adventure/AdventureRunKernel.cs)
-- KoLibri-Gateway/Approval/CAS: [`AdventureExecutionGateway.cs`](../src/KolArbitrage.Core/Adventure/AdventureExecutionGateway.cs)
-- KoLibri-Tagesplan: [`DailyAdventurePlanner.cs`](../src/KolArbitrage.Core/Adventure/DailyAdventurePlanner.cs)
-- KoLibri-Workflow: [`WorkflowModels.cs`](../src/KolArbitrage.Core/Integration/WorkflowModels.cs)
+- Repo plan and deliberate scope: [`FEATURE_COMPLETENESS_PLAN.md`](FEATURE_COMPLETENESS_PLAN.md)
+- Repo adventure reference: [`KOLMAFIA_ADVENTURE_RESEARCH.md`](KOLMAFIA_ADVENTURE_RESEARCH.md)
+- KoLibri minimal parser: [`KoLAdventureEncounterParser.cs`](../src/KoLibri.Core/Adventure/KoLAdventureEncounterParser.cs)
+- KoLibri state machine: [`AdventureRunKernel.cs`](../src/KoLibri.Core/Adventure/AdventureRunKernel.cs)
+- KoLibri gateway/approval/CAS: [`AdventureExecutionGateway.cs`](../src/KoLibri.Core/Adventure/AdventureExecutionGateway.cs)
+- KoLibri daily plan: [`DailyAdventurePlanner.cs`](../src/KoLibri.Core/Adventure/DailyAdventurePlanner.cs)
+- KoLibri workflow: [`WorkflowModels.cs`](../src/KoLibri.Core/Integration/WorkflowModels.cs)
 - KoLmafia [`AdventureRequest`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/request/AdventureRequest.java), [`FightRequest`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/request/FightRequest.java), [`ChoiceManager`](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/session/ChoiceManager.java)
-- KoLmafia [CLI-/Conditions-/Adventure-Handbuch](https://github.com/kolmafia/kolmafia.sourceforge.net/blob/main/scripting.html)
+- KoLmafia [CLI/conditions/adventure handbook](https://github.com/kolmafia/kolmafia.sourceforge.net/blob/main/scripting.html)

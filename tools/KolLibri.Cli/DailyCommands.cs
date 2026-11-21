@@ -1,10 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 internal static partial class KolibriCli
 {
@@ -21,12 +19,16 @@ internal static partial class KolibriCli
             "campfire" => DailyCampfireAsync(args[1..]),
             "hermit" => DailyHermitAsync(args[1..]),
             "internet-shop" or "internetshop" => DailyInternetShopAsync(args[1..]),
-            "bacon" or "bacons" => DailyBaconAsync(args[1..]),
+            "meme-shop-read" => DailyMemeShopReadAsync(args[1..]),
+            "meme-shop" => DailyMemeShopRunAsync(args[1..]),
+            "bribes-sample" => DailyBribesSampleAsync(args[1..]),
+            "send-items" => DailySendItemsAsync(args[1..]),
+            "item-arbitrage" => DailyItemArbitrageAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
             "daily-go" or "go" => DailyGoAsync(args[1..]),
             "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
             "breakfast" => await DailyBreakfastAsync(args[1..]),
-            _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
+            _ => Fail($"Unknown daily command: {args[0]}")
         };
     }
 
@@ -99,6 +101,373 @@ internal static partial class KolibriCli
         return 0;
     }
 
+    /// <summary>Read-only: one GET of the Internet Meme Shop page, parsed. Sends nothing else.</summary>
+    private static int DailyMemeShopReadAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var dispatcher = CreateFreePullDispatcher(role);
+        var credentials = TryGetCredentials(role);
+        if (dispatcher is null || credentials is null)
+        {
+            WriteJson(new { command = "daily meme-shop-read", error = "No stored login for this role." });
+            return 1;
+        }
+        var html = dispatcher.ReadMemeShopHtmlAsync(credentials).GetAwaiter().GetResult();
+        if (HasFlag(args, "--raw"))
+        {
+            // Diagnostic: the first item row, with every hidden value redacted.
+            var i = html.IndexOf("viral video", StringComparison.OrdinalIgnoreCase);
+            var from = html.LastIndexOf("<tr", Math.Max(0, i), StringComparison.OrdinalIgnoreCase);
+            var to = html.IndexOf("</tr>", Math.Max(0, i), StringComparison.OrdinalIgnoreCase);
+            var row = from >= 0 && to > from ? html[from..(to + 5)] : html[..Math.Min(1500, html.Length)];
+            Console.WriteLine(System.Text.RegularExpressions.Regex.Replace(
+                row, "([?&]pwd=|value\\s*=\\s*[\"']?)[0-9a-fA-F]{16,}", "$1<redacted>"));
+            return 0;
+        }
+        var page = MemeShopPage.Parse(html);
+        WriteJson(new
+        {
+            command = "daily meme-shop-read",
+            readOnly = true,
+            bacon = page.Bacon,
+            rowsOnOffer = page.Rows.Select(r => new { r.ItemName, r.RowId }).ToArray(),
+            dailyItemsMissingFromShop = MemeShopCatalog.DailyItems
+                .Where(i => page.Find(i.Name) is null).Select(i => i.Name).ToArray()
+        });
+        return 0;
+    }
+
+    /// <summary>
+    /// Today's Internet Meme Shop visit for one role: push the BACON machine if it
+    /// was not used today, then buy the daily items BACON allows. Touches nothing
+    /// else. Without --execute it only prints the plan.
+    /// </summary>
+    private static int DailyMemeShopRunAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var execute = HasFlag(args, "--execute");
+        var dispatcher = CreateFreePullDispatcher(role);
+        var credentials = TryGetCredentials(role);
+        if (dispatcher is null || credentials is null)
+        {
+            WriteJson(new { command = "daily meme-shop", error = "No stored login for this role." });
+            return 1;
+        }
+        var client = ReadClientAsync(role).GetAwaiter().GetResult();
+        var doneStore = new DailyDoneStore();
+        var live = new LiveDailySnapshotBuilder(client.Api, doneStore)
+            .BuildAsync(new DailyRoutineSnapshot(), role: role).GetAwaiter().GetResult();
+        var bacon = live.Snapshot.Bacon;
+        object? topUp = null;
+        if (execute && !HasFlag(args, "--no-top-up") && client.Mall is not null)
+        {
+            // Fill BACON up to today's remaining set of daily items (machine yield counted),
+            // paying at most --max-bacon-price per BACON and keeping a meat reserve.
+            var needed = DailyInternetShopPlanner.BaconShortfall(
+                live.Snapshot.AlreadyPulledItemIds, bacon,
+                live.Snapshot.BaconMachineOwned, live.Snapshot.BaconMachineUsedToday);
+            if (needed > 0)
+            {
+                var maxPrice = long.TryParse(GetOption(args, "--max-bacon-price"), out var mp) ? mp : 1_500;
+                var reserve = long.TryParse(GetOption(args, "--reserve"), out var rv) ? rv
+                    : role == AccountRole.Mallbot ? 1_000_000 : 200_000;
+                var outcome = new BaconArbitrageExecutor(CreateMallBuyClient(role), client.Mall)
+                    .TopUpBaconAsync(credentials, needed, live.Meat, maxPrice, reserve)
+                    .GetAwaiter().GetResult();
+                bacon += outcome.Quantity;
+                topUp = new { needed, outcome.Verdict, outcome.Quantity, outcome.Spent, outcome.Rationale, maxPrice };
+            }
+        }
+        var plan = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
+        {
+            AlreadyPulledItemIds = live.Snapshot.AlreadyPulledItemIds,
+            Bacon = bacon,
+            BaconMachineOwned = live.Snapshot.BaconMachineOwned,
+            BaconMachineUsedToday = live.Snapshot.BaconMachineUsedToday
+        });
+        var results = new List<object>();
+        if (execute)
+        {
+            foreach (var step in plan.Steps)
+            {
+                var outcome = AutoCombatDailyBridge.ExecuteMemeStepAsync(
+                    new ChoiceStepSpec(step.ChoiceId, step.OptionId), dispatcher, credentials,
+                    doneStore, role.ToString(), CancellationToken.None).GetAwaiter().GetResult();
+                results.Add(new { step = step.Description, outcome.Accepted, outcome.Message });
+            }
+        }
+        WriteJson(new
+        {
+            command = "daily meme-shop",
+            readOnly = !execute,
+            executed = execute,
+            plan.Verdict,
+            plan.Rationale,
+            plan.Steps,
+            plan.Skipped,
+            topUp,
+            results
+        });
+        return 0;
+    }
+
+    /// <summary>
+    /// Measuring step for the Foreign Bribes arbitrage. Bags are bought on the Mallbot, sent to Main
+    /// by KMail and opened ONLY on Main (never on the Mallbot). Each bag's yield is logged as an
+    /// inventory diff on Main. Without --execute it only prints the plan.
+    /// </summary>
+    private static int DailyBribesSampleAsync(string[] args)
+    {
+        var bags = Math.Clamp(ReadInt(args, "--bags", 5), 1, 40);
+        var maxPrice = long.TryParse(GetOption(args, "--max-price"), out var mp) ? mp : 40_000;
+        var reserve = long.TryParse(GetOption(args, "--reserve"), out var rv) ? rv : 1_000_000;
+        var execute = HasFlag(args, "--execute");
+        var mallbotCredentials = TryGetCredentials(AccountRole.Mallbot);
+        var mainCredentials = TryGetCredentials(AccountRole.Main);
+        if (mallbotCredentials is null || mainCredentials is null)
+        {
+            WriteJson(new { command = "daily bribes-sample", error = "Both Mallbot and Main need a stored login." });
+            return 1;
+        }
+        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
+        var mainName = accounts.FirstOrDefault(a => a.Role == AccountRole.Main)?.DisplayName;
+        if (string.IsNullOrWhiteSpace(mainName))
+        {
+            WriteJson(new { command = "daily bribes-sample", error = "No Main account name configured." });
+            return 1;
+        }
+        var mallbot = ReadClientAsync(AccountRole.Mallbot).GetAwaiter().GetResult();
+        var main = ReadClientAsync(AccountRole.Main).GetAwaiter().GetResult();
+        var status = mallbot.Api.FetchStatusAsync(true).GetAwaiter().GetResult();
+        var floor = mallbot.Mall.SearchAsync("bag of foreign bribes").GetAwaiter().GetResult()
+            .Listings.Where(l => l.Price > 0).OrderBy(l => l.Price).FirstOrDefault();
+        if (!execute)
+        {
+            WriteJson(new
+            {
+                command = "daily bribes-sample", readOnly = true, buyOn = "Mallbot", sendTo = mainName, openOn = "Main",
+                bags, maxPrice, reserve, mallbotMeat = status.Meat, mallFloor = floor?.Price,
+                estimatedSpend = floor is null ? (long?)null : floor.Price * bags,
+                note = "Add --execute to buy on the Mallbot, send to Main and open on Main."
+            });
+            return 0;
+        }
+
+        var buyer = new BaconArbitrageExecutor(CreateMallBuyClient(AccountRole.Mallbot), mallbot.Mall);
+        var buy = buyer.TopUpItemAsync(mallbotCredentials, BaconArbitrageExecutor.Ids.ForeignBribeBag, bags,
+            status.Meat, maxPrice, reserve).GetAwaiter().GetResult();
+        if (buy.Quantity <= 0)
+        {
+            WriteJson(new { command = "daily bribes-sample", executed = true, bought = 0, buy.Verdict, buy.Rationale });
+            return 0;
+        }
+
+        // Send exactly the bought bags to Main by KMail.
+        var mallbotHash = CreateFreePullDispatcher(AccountRole.Mallbot)!
+            .ReadSessionHashAsync(mallbotCredentials).GetAwaiter().GetResult();
+        var mallbotHttp = ReadAuthenticatedHttpAsync(AccountRole.Mallbot).GetAwaiter().GetResult();
+        var mainBefore = main.Api.FetchInventoryAsync(true).GetAwaiter().GetResult();
+        var sent = !string.IsNullOrWhiteSpace(mallbotHash) && KoLMailbox.SendAsync(mallbotHttp, mallbotHash, mainName,
+            "Foreign bribe bags for opening.",
+            new[] { new KoLMailAttachment(BaconArbitrageExecutor.Ids.ForeignBribeBag, buy.Quantity) }, 0)
+            .GetAwaiter().GetResult();
+        if (!sent)
+        {
+            WriteJson(new { command = "daily bribes-sample", executed = true, bagsBought = buy.Quantity, buy.Spent,
+                error = "Bags were bought on the Mallbot but the KMail transfer to Main was not confirmed. Nothing was opened." });
+            return 1;
+        }
+
+        var arrived = CountItem(main.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(),
+            BaconArbitrageExecutor.Ids.ForeignBribeBag) - CountItem(mainBefore, BaconArbitrageExecutor.Ids.ForeignBribeBag);
+        if (arrived < buy.Quantity)
+        {
+            WriteJson(new { command = "daily bribes-sample", executed = true, bagsBought = buy.Quantity, buy.Spent, arrivedOnMain = arrived,
+                error = "Not all bags arrived on Main yet. Nothing was opened." });
+            return 1;
+        }
+
+        // Opening happens on Main only.
+        var mainHash = CreateFreePullDispatcher(AccountRole.Main)!.ReadSessionHashAsync(mainCredentials).GetAwaiter().GetResult();
+        if (string.IsNullOrWhiteSpace(mainHash))
+        {
+            WriteJson(new { command = "daily bribes-sample", executed = true, bagsBought = buy.Quantity, error = "No request hash for Main; bags are on Main, not opened." });
+            return 1;
+        }
+        var actions = new CharacterActionClient(ReadAuthenticatedHttpAsync(AccountRole.Main).GetAwaiter().GetResult(), mainHash);
+        var before = main.Api.FetchInventoryAsync(true).GetAwaiter().GetResult();
+        var perBag = new List<object>();
+        var previous = before;
+        var opened = 0;
+        for (var i = 0; i < buy.Quantity; i++)
+        {
+            var result = actions.ExecuteAsync(new UseInventoryItem(BaconArbitrageExecutor.Ids.ForeignBribeBag))
+                .GetAwaiter().GetResult();
+            perBag.Add(new { bag = i + 1, rejected = result.RejectionReason, gains = InventoryDiff(previous, result.Inventory) });
+            previous = result.Inventory;
+            if (result.RejectionReason is not null) break;
+            opened++;
+        }
+        var total = InventoryDiff(before, previous);
+        var record = new
+        {
+            at = DateTimeOffset.UtcNow, boughtOn = "Mallbot", openedOn = "Main", bagsBought = buy.Quantity, spent = buy.Spent,
+            bagsOpened = opened, perBag, total
+        };
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "KoLibri", "bribe-samples.jsonl");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.AppendAllText(path, System.Text.Json.JsonSerializer.Serialize(record) + Environment.NewLine);
+        WriteJson(new { command = "daily bribes-sample", executed = true, record.bagsBought, record.spent, record.bagsOpened, record.total, record.perBag, logPath = path });
+        return 0;
+    }
+
+    private static int CountItem(KoLInventorySnapshot inventory, int itemId)
+        => inventory.Items.Where(i => i.ItemId == itemId.ToString(CultureInfo.InvariantCulture)).Sum(i => i.Quantity);
+
+    private static object[] InventoryDiff(KoLInventorySnapshot before, KoLInventorySnapshot after)
+    {
+        static Dictionary<string, (string Name, int Qty)> Map(KoLInventorySnapshot snap)
+            => snap.Items.GroupBy(i => i.ItemId).ToDictionary(g => g.Key,
+                g => (g.First().Name, g.Sum(i => i.Quantity)));
+        var a = Map(before);
+        var b = Map(after);
+        return b.Keys.Union(a.Keys)
+            .Select(id => new
+            {
+                itemId = id,
+                name = b.TryGetValue(id, out var n) ? n.Name : a[id].Name,
+                delta = (b.TryGetValue(id, out var x) ? x.Qty : 0) - (a.TryGetValue(id, out var y) ? y.Qty : 0)
+            })
+            .Where(d => d.delta != 0 && d.itemId != BaconArbitrageExecutor.Ids.ForeignBribeBag.ToString())
+            .OrderByDescending(d => Math.Abs(d.delta))
+            .Cast<object>().ToArray();
+    }
+
+    /// <summary>
+    /// Sends items from one account to the other by KMail attachment and checks that they arrived.
+    /// Without --execute it only prints what would be sent. Meat is never sent.
+    /// </summary>
+    private static int DailySendItemsAsync(string[] args)
+    {
+        var from = ParseRole(GetOption(args, "--from") ?? "main");
+        var to = ParseRole(GetOption(args, "--to") ?? (from == AccountRole.Main ? "mallbot" : "main"));
+        var itemId = ReadInt(args, "--item", 0);
+        var quantity = ReadInt(args, "--qty", 1);
+        var execute = HasFlag(args, "--execute");
+        if (from == to || itemId <= 0 || quantity <= 0)
+        {
+            WriteJson(new { command = "daily send-items", error = "Need two different roles, --item ID and --qty N." });
+            return 1;
+        }
+        var fromCredentials = TryGetCredentials(from);
+        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
+        var recipient = accounts.FirstOrDefault(a => a.Role == to)?.DisplayName;
+        if (fromCredentials is null || string.IsNullOrWhiteSpace(recipient))
+        {
+            WriteJson(new { command = "daily send-items", error = "Missing stored login or recipient account." });
+            return 1;
+        }
+        var sender = ReadClientAsync(from).GetAwaiter().GetResult();
+        var receiver = ReadClientAsync(to).GetAwaiter().GetResult();
+        var senderHas = CountItem(sender.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
+        var receiverBefore = CountItem(receiver.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
+        if (!execute || senderHas < quantity)
+        {
+            WriteJson(new
+            {
+                command = "daily send-items", readOnly = !execute, from = from.ToString(), to = to.ToString(), recipient,
+                itemId, quantity, senderHas, receiverBefore,
+                error = senderHas < quantity ? "Sender holds fewer than requested; nothing sent." : null,
+                note = "Add --execute to send."
+            });
+            return senderHas < quantity ? 1 : 0;
+        }
+        var hash = CreateFreePullDispatcher(from)!.ReadSessionHashAsync(fromCredentials).GetAwaiter().GetResult();
+        if (string.IsNullOrWhiteSpace(hash))
+        {
+            WriteJson(new { command = "daily send-items", error = "No request hash for the sender; nothing sent." });
+            return 1;
+        }
+        var http = ReadAuthenticatedHttpAsync(from).GetAwaiter().GetResult();
+        var confirmed = KoLMailbox.SendAsync(http, hash, recipient, "Items from KoLibri.",
+            new[] { new KoLMailAttachment(itemId, quantity) }, 0).GetAwaiter().GetResult();
+        var senderAfter = CountItem(sender.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
+        var receiverAfter = CountItem(receiver.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
+        WriteJson(new
+        {
+            command = "daily send-items", executed = true, confirmed, from = from.ToString(), to = to.ToString(),
+            itemId, quantity, senderBefore = senderHas, senderAfter, receiverBefore, receiverAfter,
+            arrived = receiverAfter - receiverBefore >= quantity
+        });
+        return confirmed ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Buys a tradeable item when the cheapest mall listing is at least --min-margin below the recent
+    /// Pricegun median, optionally on either account, and sends the purchase to the other account
+    /// (normally the Mallbot, which owns the store). Without --execute it only prints the decision.
+    /// </summary>
+    private static int DailyItemArbitrageAsync(string[] args)
+    {
+        var itemId = ReadInt(args, "--item", 10881);
+        var itemName = GetOption(args, "--name") ?? (itemId == 10881 ? "11-leaf clover" : null);
+        var buyOn = ParseRole(GetOption(args, "--buy-on") ?? "main");
+        var sendTo = GetOption(args, "--send-to") is { } st ? ParseRole(st) : (AccountRole?)null;
+        var qty = Math.Clamp(ReadInt(args, "--qty", 10), 1, 200);
+        var margin = double.TryParse(GetOption(args, "--min-margin"), NumberStyles.Float, CultureInfo.InvariantCulture, out var mg) ? mg : 0.10;
+        var execute = HasFlag(args, "--execute");
+        var credentials = TryGetCredentials(buyOn);
+        if (string.IsNullOrWhiteSpace(itemName) || credentials is null || margin is < 0 or >= 1)
+        {
+            WriteJson(new { command = "daily item-arbitrage", error = "Need --item with --name, a stored login and 0 <= --min-margin < 1." });
+            return 1;
+        }
+        var client = ReadClientAsync(buyOn).GetAwaiter().GetResult();
+        using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var history = new PricegunReadClient(pricegunHttp).FetchAsync(itemId.ToString(CultureInfo.InvariantCulture), forceRefresh: true)
+            .GetAwaiter().GetResult();
+        var prices = history.Sales.Select(x => (long)x.UnitPrice).ToArray();
+        var median = ArbitrageRule.Median(prices);
+        var maxPriceOrNull = ArbitrageRule.MaxBuyPrice(prices, margin);
+        if (median is null || maxPriceOrNull is null)
+        {
+            WriteJson(new { command = "daily item-arbitrage", error = $"Only {prices.Length} recent sales; not enough to judge a price." });
+            return 1;
+        }
+        var maxPrice = maxPriceOrNull.Value;
+        var cheapest = client.Mall.SearchAsync(itemName).GetAwaiter().GetResult()
+            .Listings.Where(l => l.Price > 0).OrderBy(l => l.Price).FirstOrDefault();
+        var meat = client.Api.FetchStatusAsync(true).GetAwaiter().GetResult().Meat;
+        var reserve = long.TryParse(GetOption(args, "--reserve"), out var rv) ? rv : buyOn == AccountRole.Mallbot ? 1_000_000 : 200_000;
+        var worthBuying = cheapest is not null && cheapest.Price <= maxPrice;
+        object decision = new
+        {
+            command = "daily item-arbitrage", readOnly = !execute, item = itemName, itemId, buyOn = buyOn.ToString(),
+            sendTo = sendTo?.ToString(), sales = prices.Length, median, minMargin = margin, maxPrice,
+            cheapestListing = cheapest?.Price, worthBuying, meat, reserve, qty
+        };
+        if (!execute || !worthBuying)
+        {
+            WriteJson(decision);
+            return 0;
+        }
+        var buy = new BaconArbitrageExecutor(CreateMallBuyClient(buyOn), client.Mall)
+            .TopUpItemAsync(credentials, itemId, qty, meat, maxPrice, reserve, itemName: itemName).GetAwaiter().GetResult();
+        string? transfer = null;
+        if (buy.Quantity > 0 && sendTo is { } target && target != buyOn)
+        {
+            var code = DailySendItemsAsync(new[]
+            {
+                "--from", buyOn.ToString().ToLowerInvariant(), "--to", target.ToString().ToLowerInvariant(),
+                "--item", itemId.ToString(CultureInfo.InvariantCulture), "--qty", buy.Quantity.ToString(CultureInfo.InvariantCulture), "--execute"
+            });
+            transfer = code == 0 ? "sent" : "send-failed";
+        }
+        WriteJson(new { decision, bought = buy.Quantity, spent = buy.Spent, buy.Verdict, buy.Rationale, transfer });
+        return 0;
+    }
+
     private static int DailyInternetShopAsync(string[] args)
     {
         var pulled = GetOptions(args, "--already-claimed").ToArray();
@@ -106,7 +475,10 @@ internal static partial class KolibriCli
         var plan = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
         {
             AlreadyPulledItemIds = pulled,
-            AvailableMeat = meat
+            AvailableMeat = meat,
+            Bacon = ReadInt(args, "--bacon", 0),
+            BaconMachineOwned = HasFlag(args, "--machine"),
+            BaconMachineUsedToday = HasFlag(args, "--machine-used")
         });
         WriteJson(new
         {
@@ -122,41 +494,13 @@ internal static partial class KolibriCli
         return 0;
     }
 
-    private static int DailyBaconAsync(string[] args)
-    {
-        var snapshot = new BaconSnapshot
-        {
-            OwnedMachines = ReadInt(args, "--owned", 0),
-            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mall) ? Math.Max(0, mall) : 0,
-            PricegunMedianSellPrice = long.TryParse(GetOption(args, "--median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var median) ? Math.Max(0, median) : 0,
-            AvailableMeat = long.TryParse(GetOption(args, "--meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var meat) ? Math.Max(0, meat) : 0,
-            MinimumProfitPerUnit = long.TryParse(GetOption(args, "--min-profit"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var minProfit) ? Math.Max(0, minProfit) : 50_000,
-            MaximumBuyQuantity = ReadInt(args, "--max-qty", 10)
-        };
-        var plan = new BaconArbitragePlanner().Plan(snapshot);
-        WriteJson(new
-        {
-            command = "daily bacon",
-            readOnly = true,
-            previewOnly = true,
-            plan.ShouldBuy,
-            plan.Verdict,
-            plan.SuggestedQuantity,
-            plan.ExpectedProfitPerUnit,
-            plan.Rationale,
-            plan.Snapshot,
-            note = "Preview only; no mall purchase is sent."
-        });
-        return 0;
-    }
-
     private static void PrintDailyHelp()
     {
         Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N]");
         Console.WriteLine("                 [--shortner-price N] [--meat N] [--not-useful]");
         Console.WriteLine("  daily hermit [--permits N] [--clovers N] [--adventure-value N]");
         Console.WriteLine("              [--clover-floor N] [--reserve N]");
-        Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
+        Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--bacon N] [--machine] [--machine-used]");
         Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
         Console.WriteLine("               [--min-profit N] [--max-qty N]");
         Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
@@ -191,7 +535,7 @@ internal static partial class KolibriCli
     {
         var roles = ResolveRoles(args);
         if (roles.Count == 0)
-            throw new ArgumentException("daily-go braucht mindestens eine Rolle (main, mallbot, all).");
+            throw new ArgumentException("daily-go requires at least one role (main, mallbot, all).");
 
         var defaultSnapshot = BuildDailySnapshot(args);
 
@@ -213,27 +557,20 @@ internal static partial class KolibriCli
         }).ToArray();
 
         var token = GetOption(args, "--approval-token");
-        var useBridge = HasFlag(args, "--use-bridge");
+        var useBridge = true; // the legacy choice-chain executor is gone; --use-bridge is accepted and ignored
         BridgeAuditLog? bridgeAudit = useBridge ? new BridgeAuditLog(BridgeAuditLog.DefaultPath()) : null;
-        var orchestrator = useBridge
-            ? new DailyOrchestrator(
-                gatewayFactory: role => CreateAdventureGateway(role, token),
-                approvalToken: token,
-                stateReaderFactory: _ => new OfflineAccountDailyStateReader(),
-                freePullFactory: role => CreateFreePullDispatcher(role),
-                credentialsFactory: role => TryGetCredentials(role))
-            : new DailyOrchestrator(
-                gatewayFactory: role => CreateAdventureGateway(role, token),
-                approvalToken: token);
+        var orchestrator = new DailyOrchestrator(
+            gatewayFactory: role => CreateAdventureGateway(role, token),
+            approvalToken: token,
+            stateReaderFactory: _ => new OfflineAccountDailyStateReader(),
+            freePullFactory: role => CreateFreePullDispatcher(role),
+            credentialsFactory: role => TryGetCredentials(role));
         var plan = orchestrator.BuildPlan(overrides, defaultSnapshot);
 
         DailyOrchestrationResult? execution = null;
         if (HasFlag(args, "--execute"))
         {
-            execution = useBridge
-                ? orchestrator.ExecuteBridgeAsync(plan, audit: bridgeAudit).GetAwaiter().GetResult()
-                : orchestrator.ExecuteAsync(plan, failFast: HasFlag(args, "--fail-fast"))
-                    .GetAwaiter().GetResult();
+            execution = orchestrator.ExecuteBridgeAsync(plan, audit: bridgeAudit).GetAwaiter().GetResult();
         }
         bridgeAudit?.Dispose();
 
@@ -316,9 +653,6 @@ internal static partial class KolibriCli
             WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
             UselessItems = ReadInt(args, "--useless-items", 0),
             AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
-            OwnedMachines = ReadInt(args, "--owned-machines", 0),
-            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
-            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
             MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
             ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
             ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),
@@ -328,19 +662,12 @@ internal static partial class KolibriCli
 
         var report = new DailyRoutineRunner().Run(snapshot);
 
-        // Live execution path: --execute plus --approval-token drives the
-        // bounded runner. Without the token we stay in preview mode.
-        DailyRoutineExecutionResult? executionResult = null;
         if (HasFlag(args, "--execute"))
         {
-            var token = GetOption(args, "--approval-token");
-            var executor = new DailyRoutineExecutor(
-                gatewayFactory: role => CreateAdventureGateway(role, token),
-                approvalToken: token);
-            executionResult = executor.ExecuteAsync(
-                ParseRole(GetOption(args, "--role") ?? "main"),
-                report).AsTask().GetAwaiter().GetResult();
+            Console.Error.WriteLine("daily routine is preview-only. Use 'daily-go --execute' (live state, confirmed steps).");
+            return 2;
         }
+        DailyRoutineExecutionResult? executionResult = null;
 
         WriteJson(new
         {
@@ -377,14 +704,6 @@ internal static partial class KolibriCli
                     report.InternetShop.Rationale,
                     report.InternetShop.Steps,
                     report.InternetShop.Skipped
-                },
-                bacon = new
-                {
-                    report.Bacon.ShouldBuy,
-                    report.Bacon.Verdict,
-                    report.Bacon.SuggestedQuantity,
-                    report.Bacon.ExpectedProfitPerUnit,
-                    report.Bacon.Rationale
                 },
                 foreignBribes = report.ForeignBribes
             },
@@ -438,7 +757,7 @@ internal static partial class KolibriCli
         var roles = ResolveRoles(args);
         if (roles.Count == 0)
             throw new ArgumentException(
-                "breakfast braucht mindestens eine Rolle (main, mallbot, all).");
+                "breakfast requires at least one role (main, mallbot, all).");
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
         var baseline = BuildDailySnapshot(args);
@@ -453,8 +772,9 @@ internal static partial class KolibriCli
             foreach (var role in roles)
             {
                 var client = await ReadClientAsync(role);
-                var builder = new LiveDailySnapshotBuilder(client.Api);
-                var live = await builder.BuildAsync(baseline);
+                var doneStore = new DailyDoneStore();
+                var builder = new LiveDailySnapshotBuilder(client.Api, doneStore);
+                var live = await builder.BuildAsync(baseline, role: role);
                 var plan = bridge.Plan(live.State, live.Snapshot);
                 AutoCombatDailyBridge.BridgeExecutionResult? execution = null;
                 if (execute && !string.IsNullOrWhiteSpace(token))
@@ -464,7 +784,8 @@ internal static partial class KolibriCli
                         plan.Steps, gateway,
                         freePullDispatcher: CreateFreePullDispatcher(role),
                         freePullCredentials: TryGetCredentials(role),
-                        audit: audit, accountId: role.ToString());
+                        audit: audit, accountId: role.ToString(),
+                        doneStore: doneStore, doneAccountKey: role.ToString());
                 }
 
                 // Restock + arbitrage: the mall side of the daily routine.
@@ -693,11 +1014,9 @@ internal static partial class KolibriCli
             ExpectedCloverSaleValue = long.TryParse(GetOption(args, "--clover-sale"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var cs) ? Math.Max(0, cs) : 0,
             WishBuyQuantity = ReadInt(args, "--wish-buy", 0),
             WishUnitPrice = long.TryParse(GetOption(args, "--wish-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var wp) ? Math.Max(0, wp) : 0,
+            HermitCloversWanted = ReadInt(args, "--hermit-clovers", 0),
             UselessItems = ReadInt(args, "--useless-items", 0),
             AlreadyPulledItemIds = GetOptions(args, "--already-claimed").ToArray(),
-            OwnedMachines = ReadInt(args, "--owned-machines", 0),
-            MallPricePerMachine = long.TryParse(GetOption(args, "--mall-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mp) ? Math.Max(0, mp) : 0,
-            PricegunMedianBaconPrice = long.TryParse(GetOption(args, "--bacon-median"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bm) ? Math.Max(0, bm) : 0,
             MallbotMeat = long.TryParse(GetOption(args, "--mallbot-meat"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var mb) ? Math.Max(0, mb) : 0,
             ForeignBribeBagPrice = long.TryParse(GetOption(args, "--bag-price"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var bp) ? Math.Max(0, bp) : long.MaxValue,
             ForeignBribeBagStock = ReadInt(args, "--bag-stock", 0),

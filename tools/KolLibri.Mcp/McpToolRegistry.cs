@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
+using KoLibri.Core.Basis;
 
 namespace KolLibri.Mcp;
 
@@ -52,6 +52,9 @@ public sealed class McpToolRegistry
         if (!_tools.TryAdd(definition.Name, definition))
             throw new InvalidOperationException($"MCP tool '{definition.Name}' is already registered.");
     }
+
+    /// <summary>Removes a tool from the advertised list (for tools a host chooses not to offer).</summary>
+    public bool Remove(string name) => _tools.Remove(name);
 
     public bool TryGet(string name, out McpToolDefinition? definition)
         => _tools.TryGetValue(name, out definition);

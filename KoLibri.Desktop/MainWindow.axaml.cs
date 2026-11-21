@@ -4,20 +4,14 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Analytics;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
 public partial class MainWindow : Window
 {
     private StackPanel? _contentRoot;
-    private StackPanel? _overviewPanel;
     private Button? _themeToggleButton;
     private bool _isOpsDark;
     private TextBlock? _statusText;
@@ -29,25 +23,23 @@ public partial class MainWindow : Window
     private Button? _navMall;
     private Button? _navAdventure;
     private Button? _navCombat;
+    private Button? _navAccounts;
+    private ScrollViewer? _pageScroll;
+    private readonly DesktopLiveDataProvider _live;
+    private readonly KoLmafiaCatalog? _catalog;
+    private Task _busyTask = Task.CompletedTask;
+    private int _navigationVersion;
     private TextBlock? _shellPageTitle;
     private TextBlock? _shellPageDescription;
-    private Border? _pageStatePanel;
-    private TextBlock? _pageStateTitle;
-    private TextBlock? _pageStateDescription;
-    private TextBlock? _pageStateStatus;
     private Border? _accountsPanel;
-    private Border? _mallPanel;
+    private Border? _agentsPanel;
+    private Button? _navAgents;
     private Border? _adventurePanel;
-    private Border? _combatPanel;
-    private TextBlock? _mallRoleLabel;
-    private TextBlock? _mallSummary;
-    private TextBlock? _mallRows;
     private TextBlock? _adventureAccountLabel;
     private TextBlock? _adventureTurnsLabel;
     private TextBlock? _adventureKnucklebonesLabel;
     private TextBlock? _adventurePlanSummary;
     private TextBlock? _adventurePlanAdvisories;
-    private TextBlock? _combatPreviewSummary;
     private ComboBox? _accountRoleSelector;
     private Button? _globalRefreshButton;
     private ProgressBar? _busyIndicator;
@@ -55,19 +47,16 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _refreshCancellation;
     private string _activeSection = "Guts";
     private AccountRole _selectedRole = AccountRole.Mallbot;
-    private readonly AccountSessionManager _accounts = AccountSessionManager.CreateDefault();
+    private readonly AccountSessionManager _accounts;
     private readonly KoLLoginClient _loginClient = new();
     private EncounterBrowserPane? _encounterBrowser;
     private ListBox? _encounterLocationsGrid;
     private ListBox? _encounterMonstersGrid;
     private ListBox? _encounterActionsGrid;
     private TextBox? _encounterFilterBox;
-    private TextBox? _encounterTokenBox;
     private Button? _encounterStartButton;
     private Button? _encounterSubmitButton;
     private Button? _encounterEndButton;
-    private Button? _encounterSaveTokenButton;
-    private Button? _encounterLoadTokenButton;
     private TextBlock? _encounterStatusText;
     private TextBlock? _encounterStepLogText;
 
@@ -79,12 +68,12 @@ public partial class MainWindow : Window
     private ListBox? _inventoryList;
     private StackPanel? _inventoryCategoryStrip;
     private StackPanel? _inventoryDetailPanel;
-    private InventoryViewModel _inventory = new();
-    private DailyBriefingViewModel _daily = new();
-    private LiveGutsViewModel _guts = new();
-    private LiveArbitrageViewModel _arbitrage = new();
-    private LiveMallViewModel _mall = new();
-    private AutoCombatViewModel _autoCombat = new();
+    private InventoryViewModel _inventory = null!;
+    private DailyBriefingViewModel _daily = null!;
+    private LiveGutsViewModel _guts = null!;
+    private LiveArbitrageViewModel _arbitrage = null!;
+    private LiveMallViewModel _mall = null!;
+    private AutoCombatViewModel _autoCombat = null!;
     private StackPanel? _mallSection;
     private StackPanel? _combatSection;
     private ListBox? _mallListingRows;
@@ -97,8 +86,6 @@ public partial class MainWindow : Window
     private NumericUpDown? _combatAbortHp;
     private NumericUpDown? _combatMaxRounds;
     private TextBlock? _combatPreviewText;
-    private TextBox? _combatEncounterBox;
-    private TextBox? _combatTokenBox;
     private TextBlock? _combatRunStatusText;
     private StackPanel? _gutsPanel;
     private StackPanel? _arbitragePanel;
@@ -108,18 +95,28 @@ public partial class MainWindow : Window
     private ListBox? _storeRows;
     private ListBox? _arbitrageRows;
     private TextBlock? _arbitrageSummaryText;
+    private ListBox? _arbitrageRules;
+    private TextBlock? _arbitragePlanText;
     private StackPanel? _dailyPanel;
     private ListBox? _dailyRows;
     private TextBlock? _dailySnapshotText;
     private TextBlock? _dailySummaryText;
     private TextBlock? _dailyStatusText;
-    private TextBox? _dailyTokenBox;
 
-    public MainWindow()
+    public MainWindow() : this(null)
     {
+    }
+
+    public MainWindow(Func<Action<string>, EncounterBrowserPane>? createEncounterPane, string? tokenDirectory = null,
+        AccountSessionManager? accounts = null, Func<AccountSession, HttpClient>? createAccountHttp = null)
+    {
+        _accounts = accounts ?? AccountSessionManager.CreateDefault();
+        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp);
+        _catalog = TryLoadCatalog();
         InitializeComponent();
+        _pageScroll = this.FindControl<ScrollViewer>("PageScroll");
+        _navAccounts = this.FindControl<Button>("NavAccounts");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
-        _overviewPanel = this.FindControl<StackPanel>("OverviewPanel");
         _inventoryPanel = this.FindControl<StackPanel>("InventoryPanel");
         _inventorySearchBox = this.FindControl<TextBox>("InventorySearchBox");
         _inventorySummaryText = this.FindControl<TextBlock>("InventorySummaryText");
@@ -127,6 +124,8 @@ public partial class MainWindow : Window
         _inventoryList = this.FindControl<ListBox>("InventoryList");
         _inventoryCategoryStrip = this.FindControl<StackPanel>("InventoryCategoryStrip");
         _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
+        if (this.FindControl<ComboBox>("CharacterSlotPicker") is { } slotPicker)
+            slotPicker.ItemsSource = Enum.GetValues<CharacterEquipmentSlot>();
         _navOverview = this.FindControl<Button>("NavOverview");
         _navInventory = this.FindControl<Button>("NavInventory");
         _navDaily = this.FindControl<Button>("NavDaily");
@@ -143,6 +142,8 @@ public partial class MainWindow : Window
         _storeRows = this.FindControl<ListBox>("StoreRows");
         _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
         _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
+        _arbitrageRules = this.FindControl<ListBox>("ArbitrageRules");
+        _arbitragePlanText = this.FindControl<TextBlock>("ArbitragePlanText");
         _mallSection = this.FindControl<StackPanel>("MallSection");
         _combatSection = this.FindControl<StackPanel>("CombatSection");
         _mallListingRows = this.FindControl<ListBox>("MallListingRows");
@@ -155,61 +156,54 @@ public partial class MainWindow : Window
         _combatAbortHp = this.FindControl<NumericUpDown>("CombatAbortHp");
         _combatMaxRounds = this.FindControl<NumericUpDown>("CombatMaxRounds");
         _combatPreviewText = this.FindControl<TextBlock>("CombatPreviewText");
-        _combatEncounterBox = this.FindControl<TextBox>("CombatEncounterBox");
-        _combatTokenBox = this.FindControl<TextBox>("CombatTokenBox");
         _combatRunStatusText = this.FindControl<TextBlock>("CombatRunStatusText");
         _dailyRows = this.FindControl<ListBox>("DailyRows");
         _dailySnapshotText = this.FindControl<TextBlock>("DailySnapshotText");
         _dailySummaryText = this.FindControl<TextBlock>("DailySummaryText");
         _dailyStatusText = this.FindControl<TextBlock>("DailyStatusText");
-        _dailyTokenBox = this.FindControl<TextBox>("DailyTokenBox");
-        WireInventoryBrowser();
         _themeToggleButton = this.FindControl<Button>("ThemeToggleButton");
         _statusText = this.FindControl<TextBlock>("StatusText");
         _statusBar = this.FindControl<Border>("StatusBar");
         _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
         _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
-        _pageStatePanel = this.FindControl<Border>("PageStatePanel");
-        _pageStateTitle = this.FindControl<TextBlock>("PageStateTitle");
-        _pageStateDescription = this.FindControl<TextBlock>("PageStateDescription");
-        _pageStateStatus = this.FindControl<TextBlock>("PageStateStatus");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
-        _mallPanel = this.FindControl<Border>("MallPanel");
+        _agentsPanel = this.FindControl<Border>("AgentsPanel");
+        _navAgents = this.FindControl<Button>("NavAgents");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
-        _combatPanel = this.FindControl<Border>("CombatPanel");
         _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
         _encounterMonstersGrid = this.FindControl<ListBox>("EncounterMonstersGrid");
         _encounterActionsGrid = this.FindControl<ListBox>("EncounterActionsGrid");
         _encounterFilterBox = this.FindControl<TextBox>("EncounterFilterBox");
-        _encounterTokenBox = this.FindControl<TextBox>("EncounterTokenBox");
         _encounterStartButton = this.FindControl<Button>("EncounterStartButton");
         _encounterSubmitButton = this.FindControl<Button>("EncounterSubmitButton");
         _encounterEndButton = this.FindControl<Button>("EncounterEndButton");
-        _encounterSaveTokenButton = this.FindControl<Button>("EncounterSaveTokenButton");
-        _encounterLoadTokenButton = this.FindControl<Button>("EncounterLoadTokenButton");
         _encounterStatusText = this.FindControl<TextBlock>("EncounterStatusText");
         _encounterStepLogText = this.FindControl<TextBlock>("EncounterStepLogText");
-        WireEncounterBrowser();
-        _mallRoleLabel = this.FindControl<TextBlock>("MallRoleLabel");
-        _mallSummary = this.FindControl<TextBlock>("MallSummary");
-        _mallRows = this.FindControl<TextBlock>("MallRows");
         _adventureAccountLabel = this.FindControl<TextBlock>("AdventureAccountLabel");
         _adventureTurnsLabel = this.FindControl<TextBlock>("AdventureTurnsLabel");
         _adventureKnucklebonesLabel = this.FindControl<TextBlock>("AdventureKnucklebonesLabel");
         _adventurePlanSummary = this.FindControl<TextBlock>("AdventurePlanSummary");
         _adventurePlanAdvisories = this.FindControl<TextBlock>("AdventurePlanAdvisories");
-        _combatPreviewSummary = this.FindControl<TextBlock>("CombatPreviewSummary");
         _accountRoleSelector = this.FindControl<ComboBox>("AccountRoleSelector");
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
         _cancelRefreshButton = this.FindControl<Button>("CancelRefreshButton");
         _selectedRole = ReadSelectedRole();
+        _autoCombat = new AutoCombatViewModel(_catalog);
+        ResetAccountViews();
+        WireEncounterBrowser(createEncounterPane, tokenDirectory);
         SetActiveNavigation(_activeSection);
         UpdatePageState(_activeSection);
         SizeChanged += WindowSizeChanged;
         UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
-        Opened += (_, _) => UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
-        _ = LoadSavedAccountsAsync();
+        Opened += async (_, _) => await OpenSectionAsync("Guts");
+        Closed += (_, _) =>
+        {
+            _navigationVersion++;
+            _refreshCancellation?.Cancel();
+            _encounterBrowser?.Dispose();
+            _live.Dispose();
+        };
     }
 
     private void InitializeComponent() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
@@ -218,7 +212,7 @@ public partial class MainWindow : Window
     {
         // Let text editors keep ordinary typing and only consume the explicit
         // application gestures defined by the shared UX catalog.
-        if (e.Key == Key.F1)
+        if (e.Key == Key.F1 && e.KeyModifiers == KeyModifiers.None)
         {
             ShowShortcutHelp();
             e.Handled = true;
@@ -228,13 +222,6 @@ public partial class MainWindow : Window
         if (e.Key == Key.F5 && e.KeyModifiers == KeyModifiers.None)
         {
             RefreshClick(sender, new RoutedEventArgs());
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift)
-        {
-            ContextPreviewClick(sender, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
@@ -257,24 +244,25 @@ public partial class MainWindow : Window
         var section = key switch
         {
             Key.D1 or Key.NumPad1 => "Guts",
-            Key.D2 or Key.NumPad2 => "Pricing Engine",
-            Key.D3 or Key.NumPad3 => "Mall & Shop",
-            Key.D4 or Key.NumPad4 => "Adventure",
-            Key.D5 or Key.NumPad5 => "Combat",
-            Key.D6 or Key.NumPad6 => "Accounts & Transfer",
-            Key.D7 or Key.NumPad7 => "Settings",
+            Key.D2 or Key.NumPad2 => "Inventory",
+            Key.D3 or Key.NumPad3 => "Daily",
+            Key.D4 or Key.NumPad4 => "Arbitrage",
+            Key.D5 or Key.NumPad5 => "Mall & Shop",
+            Key.D6 or Key.NumPad6 => "Adventure",
+            Key.D7 or Key.NumPad7 => "Combat",
+            Key.D8 or Key.NumPad8 => "Accounts",
             _ => null
         };
         if (section is null)
             return false;
 
-        Navigate(section);
+        _ = OpenSectionAsync(section);
         return true;
     }
 
     private void ShowShortcutHelp()
     {
-        SetStatus("Keyboard: Ctrl+1..7 sections · F5 refresh · Shift+F10 context preview · Ctrl+Esc cancel · F1 help.");
+        SetStatus("Keyboard: Ctrl+1–8 switch tabs · F5 refresh · Ctrl+Esc cancel · F1 help.");
     }
 
     private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -286,7 +274,7 @@ public partial class MainWindow : Window
         // narrow windows so the item list keeps as much width as possible.
         var compact = width > 0 && width < 1080;
         if (_contentRoot is not null)
-            _contentRoot.Margin = compact ? new Thickness(20, 20) : new Thickness(34, 30);
+            _contentRoot.Margin = compact ? new Thickness(14, 12) : new Thickness(24, 16);
     }
 
     private void ThemeToggleClick(object? sender, RoutedEventArgs e)
@@ -307,7 +295,7 @@ public partial class MainWindow : Window
         _activeSection = section;
         SetActiveNavigation(section);
         UpdatePageState(section);
-        SetStatus($"Section “{section}” selected.");
+        _pageScroll?.ScrollToHome();
     }
 
     /// <summary>
@@ -324,7 +312,9 @@ public partial class MainWindow : Window
             (_navArbitrage, "Arbitrage"),
             (_navMall, "Mall & Shop"),
             (_navAdventure, "Adventure"),
-            (_navCombat, "Combat")
+            (_navCombat, "Combat"),
+            (_navAccounts, "Accounts"),
+            (_navAgents, "Agents")
         };
         foreach (var (button, tag) in entries)
         {
@@ -334,262 +324,101 @@ public partial class MainWindow : Window
             else button.Classes.Remove("active");
         }
     }
-    private void OverviewClick(object? sender, RoutedEventArgs e) => Navigate("Guts");
-
-    /// <summary>Opens the guts: the live account cards and the own store.</summary>
-    private async void GutsClick(object? sender, RoutedEventArgs e)
+    private async void SectionClick(object? sender, RoutedEventArgs e)
     {
-        Navigate("Guts");
-        await RunBusyOperationAsync("Guts laden", cancellationToken =>
-            _guts.LoadAsync(cancellationToken: cancellationToken));
-        if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
-        if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
-        if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
-        if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
+        if (sender is Button { Tag: string section })
+            await OpenSectionAsync(section);
     }
 
-    /// <summary>Opens the arbitrage table: live mall listings against the
-    /// pricegun median.</summary>
-    private async void ArbitrageClick(object? sender, RoutedEventArgs e)
+    private async Task OpenSectionAsync(string section)
     {
-        Navigate("Arbitrage");
-        await RunBusyOperationAsync("Arbitrage laden", cancellationToken =>
-            _arbitrage.LoadAsync(cancellationToken: cancellationToken));
-        if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
-        if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+        var version = ++_navigationVersion;
+        Navigate(section);
+        await _busyTask;
+        if (version == _navigationVersion && IsVisible)
+            await RefreshSectionAsync(forceRefresh: false);
     }
 
-    private void PricingClick(object? sender, RoutedEventArgs e) => Navigate("Pricing Engine");
-    private async void MallClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Mall & Shop");
-        await RunBusyOperationAsync("Loading mall", cancellationToken =>
-            _mall.LoadAsync(cancellationToken: cancellationToken));
-        if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
-        if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
-    }
-    private async void AccountsClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Accounts & Transfer");
-        await RunBusyOperationAsync("Loading accounts", LoadSavedAccountsAsync);
-    }
-    private async void AdventureClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Adventure");
-        await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(false, cancellationToken));
-    }
-    private void CombatClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Combat");
-        if (_combatPreviewSummary is not null)
-            _combatPreviewSummary.Text = "Keine Observation geladen. Preview bleibt blockiert, bis Monster, Runde und legale Actions frisch gelesen wurden.";
-    }
+    private async void RefreshClick(object? sender, RoutedEventArgs e)
+        => await RefreshSectionAsync(forceRefresh: true);
 
-    /// <summary>Opens the auto-combat configurator with the catalog
-    /// targets, skills and items.</summary>
-    private async void AutoCombatClick(object? sender, RoutedEventArgs e)
+    private Task RefreshSectionAsync(bool forceRefresh)
     {
-        Navigate("Combat");
-        await RunBusyOperationAsync("Loading combat catalog", _autoCombat.LoadAsync);
-        if (_combatTargetList is not null) _combatTargetList.ItemsSource = _autoCombat.Targets;
-        if (_combatSkillPicker is not null)
+        var section = _activeSection;
+        return RunBusyOperationAsync($"Loading {section}", async cancellationToken =>
         {
-            _combatSkillPicker.ItemsSource = _autoCombat.Skills;
-            _combatSkillPicker.ItemTemplate = BuildOptionTemplate();
-        }
-        if (_combatItemPicker is not null)
-        {
-            _combatItemPicker.ItemsSource = _autoCombat.Items;
-            _combatItemPicker.ItemTemplate = BuildOptionTemplate();
-        }
-        if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
-        if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
-        if (_combatAbortHp is not null) _combatAbortHp.Value = _autoCombat.AbortHpPercent;
-        if (_combatMaxRounds is not null) _combatMaxRounds.Value = _autoCombat.MaxRounds;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    private static Avalonia.Controls.Templates.IDataTemplate BuildOptionTemplate()
-        => new Avalonia.Controls.Templates.FuncDataTemplate<CombatOption>((option, _) =>
-            new TextBlock { Text = option?.Name ?? string.Empty, Margin = new Avalonia.Thickness(4, 2) });
-
-    private void CombatTargetChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_combatTargetList?.SelectedItem is CombatTarget target)
-            _autoCombat.SelectedTarget = target;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    private void CombatSkillPicked(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_combatSkillPicker?.SelectedItem is CombatOption skill)
-            _autoCombat.SelectedSkill = skill;
-        if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    private void CombatItemPicked(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_combatItemPicker?.SelectedItem is CombatOption item)
-            _autoCombat.SelectedItem = item;
-        if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    private void CombatAbortChanged(object? sender, NumericUpDownValueChangedEventArgs e)
-    {
-        if (e.NewValue is { } value) _autoCombat.AbortHpPercent = (int)value;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    private void CombatRoundsChanged(object? sender, NumericUpDownValueChangedEventArgs e)
-    {
-        if (e.NewValue is { } value) _autoCombat.MaxRounds = (int)value;
-        if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-    }
-
-    /// <summary>Runs the configured fight on every selected account.</summary>
-    private async void CombatRunClick(object? sender, RoutedEventArgs e)
-    {
-        var encounter = _combatEncounterBox?.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(encounter))
-        {
-            if (_combatRunStatusText is not null)
-                _combatRunStatusText.Text = "Enter the encounter to fight in.";
-            return;
-        }
-        var token = _combatTokenBox?.Text?.Trim();
-        if (_combatRunStatusText is not null)
-            _combatRunStatusText.Text = "Fighting…";
-        await RunBusyOperationAsync("Fighting", async cancellationToken =>
-        {
-            var outcomes = await _autoCombat
-                .RunAsync(encounter, null, token, cancellationToken)
-                .ConfigureAwait(false);
-            if (_combatRunStatusText is null) return;
-            _combatRunStatusText.Text = string.Join(
-                Environment.NewLine,
-                outcomes.Select(outcome =>
-                    $"{outcome.Role}: {outcome.Outcome} — {outcome.Rationale}"));
+            switch (section)
+            {
+                case "Guts":
+                    await _guts.LoadAsync(forceRefresh, cancellationToken);
+                    ShowLoadResult(section, _guts);
+                    break;
+                case "Inventory":
+                    await _inventory.LoadAsync(forceRefresh, cancellationToken);
+                    ShowLoadResult(section, _inventory);
+                    break;
+                case "Daily":
+                    await _daily.LoadAsync(forceRefresh, cancellationToken);
+                    ShowLoadResult(section, _daily);
+                    break;
+                case "Arbitrage":
+                    await _arbitrage.LoadAsync(forceRefresh, cancellationToken);
+                    ShowLoadResult(section, _arbitrage);
+                    break;
+                case "Mall & Shop":
+                    await _mall.LoadAsync(forceRefresh, cancellationToken);
+                    ShowLoadResult(section, _mall);
+                    break;
+                case "Combat":
+                    await LoadCombatCatalogAsync(cancellationToken);
+                    ShowLoadResult(section, _autoCombat);
+                    break;
+                case "Accounts":
+                    await LoadSavedAccountsAsync(cancellationToken);
+                    break;
+                case "Agents":
+                    LoadAgents();
+                    break;
+                case "Adventure":
+                    await RefreshAdventureAsync(forceRefresh, cancellationToken);
+                    break;
+            }
         });
     }
-    private void SettingsClick(object? sender, RoutedEventArgs e) => Navigate("Settings");
-    private void ContextPreviewClick(object? sender, RoutedEventArgs e)
+
+    private void ShowLoadResult(string section, DesktopViewModel viewModel)
     {
-        SetStatus($"Context preview for “{_activeSection}” opened. No KoL action was sent.");
+        SetStatus(viewModel.LoadState == DesktopLoadState.Error
+            ? $"{section}: {viewModel.ErrorMessage}"
+            : $"{section} updated.");
     }
 
-    private void ContextRefreshClick(object? sender, RoutedEventArgs e)
+    private async void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        SetStatus($"Context “{_activeSection}” marked. The refresh runs through the section refresh.");
-    }
-    private async void RefreshClick(object? sender, RoutedEventArgs e)
-    {
-        switch (_activeSection)
-        {
-            case "Guts":
-                await RunBusyOperationAsync("Loading guts", cancellationToken =>
-                    _guts.LoadAsync(forceRefresh: true, cancellationToken));
-                if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
-                if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
-                if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
-                if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
-                break;
-            case "Arbitrage":
-                await RunBusyOperationAsync("Loading arbitrage", cancellationToken =>
-                    _arbitrage.LoadAsync(forceRefresh: true, cancellationToken));
-                if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
-                if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
-                break;
-            case "Inventory":
-                await RunBusyOperationAsync("Loading inventory", cancellationToken =>
-                    _inventory.LoadAsync(forceRefresh: true, cancellationToken));
-                if (_inventoryList is not null) _inventoryList.ItemsSource = _inventory.Items;
-                if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
-                if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
-                RenderInventoryDetail();
-                break;
-            case "Daily":
-                await RunBusyOperationAsync("Loading daily plan", cancellationToken =>
-                    _daily.LoadAsync(forceRefresh: true, cancellationToken));
-                if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
-                if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
-                if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
-                break;
-            case "Mall & Shop":
-                await RunBusyOperationAsync("Loading mall", cancellationToken =>
-                    _mall.LoadAsync(forceRefresh: true, cancellationToken));
-                if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
-                if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
-                break;
-            case "Combat":
-                await RunBusyOperationAsync("Loading combat catalog", _autoCombat.LoadAsync);
-                if (_combatTargetList is not null) _combatTargetList.ItemsSource = _autoCombat.Targets;
-                if (_combatSkillList is not null) _combatSkillList.ItemsSource = _autoCombat.SelectedSkills;
-                if (_combatItemList is not null) _combatItemList.ItemsSource = _autoCombat.SelectedItems;
-                if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
-                break;
-            case "Accounts & Transfer":
-                await RunBusyOperationAsync("Loading accounts", LoadSavedAccountsAsync);
-                break;
-            case "Adventure":
-                await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
-                break;
-            default:
-                await RunBusyOperationAsync("Refreshing", RefreshCurrentPageStateAsync);
-                break;
-        }
-    }
+        if (_accountRoleSelector is null || ReadSelectedRole() == _selectedRole)
+            return;
 
-    private async void RefreshMallClick(object? sender, RoutedEventArgs e)
-        => await RunBusyOperationAsync("Refreshing mall", cancellationToken => RefreshMallAsync(true, cancellationToken));
-
-    private async void RefreshAdventureClick(object? sender, RoutedEventArgs e)
-        => await RunBusyOperationAsync("Loading adventure plan", cancellationToken => RefreshAdventureAsync(true, cancellationToken));
-
-    private void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
         _selectedRole = ReadSelectedRole();
-        if (_mallRoleLabel is not null)
-            _mallRoleLabel.Text = $"Konto: {_selectedRole}";
-
-        if (_activeSection == "Mall & Shop")
-        {
-            if (_mallSummary is not null)
-                _mallSummary.Text = $"Account “{_selectedRole}” selected. Reload the mall data.";
-            if (_mallRows is not null)
-                _mallRows.Text = string.Empty;
-        }
-
-        SetStatus($"Account “{_selectedRole}” selected. Read-only queries use this account.");
+        ResetAccountViews();
+        await OpenSectionAsync(_activeSection);
     }
 
-    private async Task RefreshCurrentPageStateAsync(CancellationToken cancellationToken)
+    private Task RunBusyOperationAsync(string operation, Func<CancellationToken, Task> action)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        // Keep the busy/cancel affordance visible for at least one dispatcher
-        // turn even when a page has no query service yet.
-        await Task.Yield();
-        cancellationToken.ThrowIfCancellationRequested();
-        UpdatePageStateStatus(_activeSection, "No external data source loaded for this section.");
-        SetStatus(_activeSection == "Guts"
-            ? "Overview refreshed. Read-only metrics wait for a connected query service."
-            : $"{_activeSection}: Noch keine Daten geladen.");
+        if (_refreshCancellation is not null)
+            return _busyTask;
+
+        _busyTask = ExecuteBusyOperationAsync(operation, action);
+        return _busyTask;
     }
 
-    private async Task RunBusyOperationAsync(
+    private async Task ExecuteBusyOperationAsync(
         string operation,
         Func<CancellationToken, Task> action)
     {
-        if (_refreshCancellation is not null)
-        {
-            SetStatus("A refresh is already running. Cancel it or wait before starting another.");
-            return;
-        }
-
         using var cancellation = new CancellationTokenSource();
         _refreshCancellation = cancellation;
-        SetBusy(true, $"{operation} running …");
+        SetBusy(true, $"{operation}…");
         try
         {
             // Yield once so the disabled refresh button, progress indicator,
@@ -600,11 +429,11 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            SetStatus($"{operation} abgebrochen.");
+            SetStatus($"{operation} cancelled.");
         }
         catch (Exception exception)
         {
-            SetStatus($"{operation} fehlgeschlagen: {exception.Message}");
+            SetStatus($"{operation} failed: {exception.Message}");
         }
         finally
         {
@@ -619,7 +448,7 @@ public partial class MainWindow : Window
         if (_refreshCancellation is null)
             return;
         _refreshCancellation.Cancel();
-        SetStatus("Abbruch angefordert …");
+        SetStatus("Cancelling…");
     }
 
     private void SetBusy(bool busy, string? message = null)
@@ -627,8 +456,10 @@ public partial class MainWindow : Window
         if (_globalRefreshButton is not null)
         {
             _globalRefreshButton.IsEnabled = !busy;
-            _globalRefreshButton.Content = busy ? "⟳  Refreshing …" : "⟳  Daten aktualisieren";
+
         }
+        if (_accountRoleSelector is not null)
+            _accountRoleSelector.IsEnabled = !busy;
         if (_busyIndicator is not null)
             _busyIndicator.IsVisible = busy;
         if (_cancelRefreshButton is not null)
@@ -637,70 +468,6 @@ public partial class MainWindow : Window
             _statusBar.IsVisible = true;
         if (message is not null && _statusText is not null)
             _statusText.Text = message;
-    }
-
-    private async Task RefreshMallAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
-    {
-        if (_mallSummary is null || _mallRows is null) return;
-        try
-        {
-            await _accounts.InitializeAsync(cancellationToken);
-            var role = _selectedRole;
-            var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken);
-            if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            {
-                _mallSummary.Text = $"Log {role} in through Accounts first.";
-                _mallRows.Text = string.Empty;
-                UpdatePageStateStatus("Mall & Shop", $"No valid {role} login on file.");
-                SetStatus($"Mall konnte nicht geladen werden: {role} ist nicht angemeldet.");
-                return;
-            }
-
-            using var http = KoLLoginClient.CreateAuthenticatedClient(
-                session.Credentials,
-                new Uri("https://www.kingdomofloathing.com/"));
-            var mall = new KoLMallReadClient(http);
-            var listings = await mall.FetchOwnShopAsync(forceRefresh, cancellationToken);
-            var categorizer = new InventoryCategorizer();
-            var analyses = new List<InventoryCategorization>();
-            foreach (var listing in listings.Take(20))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var market = await mall.SearchAsync(
-                    listing.DisplayName ?? listing.ItemId,
-                    forceRefresh,
-                    cancellationToken);
-                var lowest = market.Listings.Count == 0 ? (decimal?)null : market.Listings.Min(x => (decimal)x.Price);
-                analyses.Add(categorizer.Analyze(new InventoryItemSnapshot
-                {
-                    ItemId = listing.ItemId,
-                    DisplayName = listing.DisplayName ?? $"Item {listing.ItemId}",
-                    OwnedQuantity = listing.Quantity,
-                    CurrentListingPrice = listing.Price,
-                    LowestMarketPrice = lowest,
-                    MarketReferencePrice = lowest,
-                    ObservedQuantity = market.Listings.Sum(x => x.Quantity)
-                }));
-            }
-            _mallSummary.Text = $"{listings.Count} eigene Listings · {analyses.Count(x => x.Has(InventoryCategory.Overpriced))} overpriced · {analyses.Count(x => x.Has(InventoryCategory.Underpriced))} unter Markt · Quelle: {session.Profile.Role}";
-            _mallRows.Text = analyses.Count == 0
-                ? "Keine Listings gefunden oder Shopseite konnte noch nicht geparst werden."
-                : string.Join(Environment.NewLine, analyses.Select(x =>
-                    $"{x.DisplayName}   {x.CurrentPrice:N0} Meat   {string.Join(", ", x.Categories)}   → {x.SuggestedAction}"));
-            UpdatePageStateStatus("Mall & Shop", $"{listings.Count} Listings von {role} geladen.");
-            SetStatus("Mall and shop data refreshed. Price changes stay disabled.");
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _mallSummary.Text = "Mall-Aktualisierung fehlgeschlagen.";
-            _mallRows.Text = exception.Message;
-            UpdatePageStateStatus("Mall & Shop", "The query failed; the existing data stays unchanged.");
-            SetStatus("Mall konnte nicht aktualisiert werden: " + exception.Message);
-        }
     }
 
     private async Task RefreshAdventureAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -718,7 +485,7 @@ public partial class MainWindow : Window
             _adventureKnucklebonesLabel.Text = "— / 100";
             _adventurePlanSummary.Text = $"Log {role} in through Accounts first.";
             _adventurePlanAdvisories.Text = "No session snapshot available.";
-            UpdatePageStateStatus("Adventure", $"No valid {role} login on file.");
+            SetStatus($"Sign in as {role} under Accounts to load the farm plan.");
             return;
         }
 
@@ -728,27 +495,41 @@ public partial class MainWindow : Window
         var account = new KoLAccountReadClient(http);
         var status = await account.FetchStatusAsync(forceRefresh, cancellationToken);
         var inventory = await account.FetchInventoryAsync(forceRefresh, cancellationToken);
+        if (role != _selectedRole) return;
+        if (!status.IsStale && _encounterBrowser?.ObserveAscension(role, session.Profile.Id, status.Ascensions) == true)
+        {
+            UpdateEncounterStatus("New ascension detected. The previous adventure was closed.");
+            RefreshEncounterStepLog();
+        }
+        var runDetails = new List<string> { role.ToString() };
+        if (status.PathId is { } path)
+            runDetails.Add(path == 0 ? "No path" : string.IsNullOrWhiteSpace(status.PathName) ? $"Path {path}" : status.PathName);
+        if (status.Ascensions is { } ascensions) runDetails.Add($"{ascensions} ascensions");
+        if (status.Hardcore == true) runDetails.Add("Hardcore");
+        if (status.RoninTurnsRemaining is > 0) runDetails.Add($"Ronin {status.RoninTurnsRemaining}");
+        _adventureAccountLabel.Text = string.Join(" · ", runDetails);
         var knucklebones = inventory.Items
-            .Where(item => item.Name.Contains("knucklebone", StringComparison.OrdinalIgnoreCase)
-                || item.ItemId.Contains("knucklebone", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.ItemId == "12051")
             .Sum(item => item.Quantity);
         _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
-        var state = new KolArbitrage.Core.Adventure.AdventureState
+        var state = new KoLibri.Core.Spiel.AdventureState
         {
             IsStale = status.IsStale || inventory.IsStale,
             Knucklebones = Math.Max(0, knucklebones),
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
         };
-        var plan = new KolArbitrage.Core.Adventure.DailyAdventurePlanner().Plan(state);
+        var plan = new KoLibri.Core.Spiel.DailyAdventurePlanner().Plan(state);
         _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} step(s), projected {plan.ProjectedKnucklebones:N1} knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
             ? "No warnings. Every execution stays bound to approval and verification."
             : string.Join(Environment.NewLine, plan.Advisories);
-        UpdatePageStateStatus("Adventure", $"Status and inventory for {role} loaded; preview only.");
         SetStatus("Adventure plan refreshed. No adventure or combat action was sent.");
     }
+
+    private readonly List<KoLChatMessage> _chatMessages = new();
+    private long _chatCursor;
 
     private async Task LoadSavedAccountsAsync(CancellationToken cancellationToken = default)
     {
@@ -757,8 +538,7 @@ public partial class MainWindow : Window
             await _accounts.InitializeAsync(cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Main, cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Mallbot, cancellationToken);
-            UpdatePageStateStatus("Accounts & Transfer", "Stored roles and sessions checked.");
-            SetStatus("Accounts loaded. Passwords stay protected and are not shown.");
+            SetStatus("Account profiles loaded.");
         }
         catch (OperationCanceledException)
         {
@@ -766,7 +546,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            SetStatus($"Konten konnten nicht geladen werden: {exception.Message}");
+            SetStatus($"Could not load accounts: {exception.Message}");
         }
     }
 
@@ -787,11 +567,9 @@ public partial class MainWindow : Window
         if (usernameBox is null || passwordBox is null || rememberBox is null || status is null)
             return;
         usernameBox.Text = username;
-        // Never repopulate a password from disk. Existing installations may
-        // have one from an older version, but it must not be exposed in the UI
-        // or used implicitly for a new login.
         passwordBox.Text = string.Empty;
-        status.Text = "Stored (session not checked yet)";
+        rememberBox.IsChecked = !string.IsNullOrEmpty(session.Credentials.Password);
+        status.Text = rememberBox.IsChecked == true ? "Password saved · Sign in to reconnect" : "Session saved";
         status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
     }
 
@@ -799,8 +577,6 @@ public partial class MainWindow : Window
     {
         if (sender is not Button button || !Enum.TryParse<AccountRole>(button.Tag?.ToString(), out var role))
             return;
-
-        button.IsEnabled = false;
 
         var usernameBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainUsername" : "MallbotUsername");
         var passwordBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainPassword" : "MallbotPassword");
@@ -811,15 +587,27 @@ public partial class MainWindow : Window
         var username = usernameBox.Text?.Trim();
         var password = passwordBox.Text;
 
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-        {
-            status.Text = "Benutzername und Passwort erforderlich";
-            status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
-            return;
-        }
-
+        button.IsEnabled = false;
         try
         {
+            if (string.IsNullOrEmpty(password) && rememberBox.IsChecked == true)
+            {
+                var saved = await _accounts.GetSessionAsync(role, includeExpired: true);
+                var savedUsername = saved?.Credentials.Username ?? saved?.Profile.DisplayName;
+                if (string.Equals(username, savedUsername, StringComparison.OrdinalIgnoreCase))
+                    password = saved?.Credentials.Password;
+            }
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            {
+                status.Text = "Enter a username and password.";
+                status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
+                return;
+            }
+
+            status.Text = "Logging in…";
+            status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
+            var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
             var id = role == AccountRole.Main ? "main" : "mallbot";
             await _accounts.SetProfileAsync(new AccountProfile
             {
@@ -828,116 +616,56 @@ public partial class MainWindow : Window
                 Role = role,
                 Enabled = true
             });
-            // Remove any previous session before associating this role with a
-            // new login. This prevents a failed attempt from silently using a
-            // stale session for a different character.
-            await _accounts.ClearCredentialsAsync(role);
-
-            status.Text = "Logging in …";
-            status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
-            var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
             await _accounts.SetCredentialsAsync(role, login.Credentials);
-            status.Text = "Connected and stored encrypted";
+            passwordBox.Text = string.Empty;
+            ResetAccountViews();
+            status.Text = "Connected";
             status.Foreground = ThemeBrush("SuccessBrush", Brushes.LightGreen);
             SetStatus($"{role} is logged in at KoL. Read-only data can be loaded now.");
         }
         catch (KoLLoginException exception)
         {
             passwordBox.Text = string.Empty;
-            status.Text = "Login fehlgeschlagen (Passwort nicht gespeichert)";
+            status.Text = "Login failed";
             status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
-            SetStatus($"{role}: KoL-Login fehlgeschlagen [{exception.Reason}] ({exception.Message}). Bitte erneut versuchen.");
+            SetStatus($"{role}: KoL login failed [{exception.Reason}] ({exception.Message}).");
         }
         catch (Exception exception)
         {
             passwordBox.Text = string.Empty;
-            status.Text = "Speichern fehlgeschlagen";
+            status.Text = "Could not save login";
             status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
-            SetStatus($"{role} konnte nicht gespeichert werden: {exception.Message}");
+            SetStatus($"{role} could not be saved: {exception.Message}");
         }
         finally
         {
+            passwordBox.Text = string.Empty;
             button.IsEnabled = true;
         }
     }
 
     private void UpdatePageState(string section)
     {
-        var isOverview = string.Equals(section, "Guts", StringComparison.Ordinal);
-        var isInventory = string.Equals(section, "Inventory", StringComparison.Ordinal);
-        var isDaily = string.Equals(section, "Daily", StringComparison.Ordinal);
-        var isArbitrage = string.Equals(section, "Arbitrage", StringComparison.Ordinal);
-        var isAccounts = string.Equals(section, "Accounts & Transfer", StringComparison.Ordinal);
-        var isMall = string.Equals(section, "Mall & Shop", StringComparison.Ordinal);
-        var isAdventure = string.Equals(section, "Adventure", StringComparison.Ordinal);
-        var isCombat = string.Equals(section, "Combat", StringComparison.Ordinal);
-        var (title, description) = DescribeSection(section);
-
-        if (_overviewPanel is not null)
-            _overviewPanel.IsVisible = false;
-        if (_gutsPanel is not null)
-            _gutsPanel.IsVisible = isOverview;
-        if (_inventoryPanel is not null)
-            _inventoryPanel.IsVisible = isInventory;
-        if (_dailyPanel is not null)
-            _dailyPanel.IsVisible = isDaily;
-        if (_arbitragePanel is not null)
-            _arbitragePanel.IsVisible = isArbitrage;
-        if (_accountsPanel is not null)
-            _accountsPanel.IsVisible = isAccounts;
-        if (_mallPanel is not null)
-            _mallPanel.IsVisible = false;
-        if (_mallSection is not null)
-            _mallSection.IsVisible = isMall;
-        if (_combatPanel is not null)
-            _combatPanel.IsVisible = false;
-        if (_combatSection is not null)
-            _combatSection.IsVisible = isCombat;
-        if (_adventurePanel is not null)
-            _adventurePanel.IsVisible = isAdventure;
-        if (_pageStatePanel is not null)
-            _pageStatePanel.IsVisible = !isOverview && !isInventory && !isDaily && !isArbitrage
-                && !isAccounts && !isMall && !isAdventure && !isCombat;
+        if (_gutsPanel is not null) _gutsPanel.IsVisible = section == "Guts";
+        if (_inventoryPanel is not null) _inventoryPanel.IsVisible = section == "Inventory";
+        if (_dailyPanel is not null) _dailyPanel.IsVisible = section == "Daily";
+        if (_arbitragePanel is not null) _arbitragePanel.IsVisible = section == "Arbitrage";
+        if (_mallSection is not null) _mallSection.IsVisible = section == "Mall & Shop";
+        if (_adventurePanel is not null) _adventurePanel.IsVisible = section == "Adventure";
+        if (_combatSection is not null) _combatSection.IsVisible = section == "Combat";
+        if (_accountsPanel is not null) _accountsPanel.IsVisible = section == "Accounts";
+        if (_agentsPanel is not null) _agentsPanel.IsVisible = section == "Agents";
         if (_shellPageTitle is not null)
-            _shellPageTitle.Text = isOverview ? "Good morning" : title;
+            _shellPageTitle.Text = section == "Adventure" ? "Adventures" : section;
         if (_shellPageDescription is not null)
-            _shellPageDescription.Text = isOverview
-                ? "Your arbitrage overview for today."
-                : description;
-        if (_pageStateTitle is not null)
-            _pageStateTitle.Text = title;
-        if (_pageStateDescription is not null)
-            _pageStateDescription.Text = description;
-        if (isMall && _mallRoleLabel is not null)
-            _mallRoleLabel.Text = $"Konto: {_selectedRole}";
-        if (_pageStateStatus is not null && !isOverview)
-            _pageStateStatus.Text = isAccounts
-                ? "No account check has run yet."
-                : isMall
-                    ? $"No mall data loaded for {_selectedRole} yet."
-                    : "Noch keine Daten geladen.";
+            _shellPageDescription.Text = section switch
+            {
+                "Guts" => $"All accounts · {_selectedRole} store",
+                "Accounts" => "Main and Mallbot",
+                "Combat" => "Auto-combat · Main and Mallbot",
+                _ => _selectedRole.ToString()
+            };
     }
-
-    private void UpdatePageStateStatus(string section, string status)
-    {
-        if (_activeSection == section && _pageStateStatus is not null)
-            _pageStateStatus.Text = status;
-    }
-
-    private static (string Title, string Description) DescribeSection(string section)
-        => section switch
-        {
-            "Inventory" => ("Inventory", "Live inventory with search, categories and item detail."),
-            "Daily" => ("Daily", "What the bot does today — campfire, hermit, free pulls and arbitrage."),
-            "Arbitrage" => ("Arbitrage", "Live mall listings against the pricegun median."),
-            "Pricing Engine" => ("Pricing Engine", "Price sources, references and buy candidates are checked here as a read-only preview."),
-            "Mall & Shop" => ("Mall & Shop", "Own listings and market prices are loaded read-only for the selected account."),
-            "Accounts & Transfer" => ("Accounts & Transfer", "Main- und Mallbot-Sessions werden getrennt verwaltet; Transfers bleiben eine Vorschau."),
-            "Adventure" => ("Adventure", "Daily goals and farm-vs-buy plans appear here once a query service is connected."),
-            "Combat" => ("Combat", "Manuelle und deklarative AutoCombat-Entscheidungen bleiben an frische Fight-Observations und Approval gebunden."),
-            "Settings" => ("Settings", "Shell-, Cache- und Sicherheitsoptionen werden hier verwaltet."),
-            _ => (section, "Dieser Bereich hat noch keine geladenen Daten.")
-        };
 
     private AccountRole ReadSelectedRole()
     {
@@ -965,19 +693,160 @@ public partial class MainWindow : Window
     /// strip and the detail pane all read from one view model so the
     /// filtering logic stays testable and out of the view.
     /// </summary>
+    private void ResetAccountViews()
+    {
+        _encounterBrowser?.SelectAccount(_selectedRole);
+        _chatCursor = 0;
+        _chatMessages.Clear();
+        if (this.FindControl<ComboBox>("KoLChatContacts") is { } chatContacts) chatContacts.ItemsSource = null;
+        if (this.FindControl<TextBox>("KoLChatRecipient") is { } recipientBox) recipientBox.Text = string.Empty;
+        if (this.FindControl<TextBox>("KoLChatDraft") is { } chatDraft) chatDraft.Text = string.Empty;
+        RefreshKoLChatChannels();
+        if (this.FindControl<TextBlock>("KoLChatStatus") is { } chatStatus) chatStatus.Text = string.Empty;
+        ClearCharacterEquipment();
+        if (this.FindControl<TextBlock>("ClanProfileStatus") is { } clan) clan.Text = string.Empty;
+        if (this.FindControl<ItemsControl>("ClanMembers") is { } roster) roster.ItemsSource = null;
+        if (this.FindControl<ItemsControl>("ClanLoungeFacilities") is { } lounge) lounge.ItemsSource = null;
+        if (this.FindControl<TextBlock>("ClanLoungeStatus") is { } loungeStatus) loungeStatus.Text = string.Empty;
+        if (this.FindControl<Button>("UseClanLookingGlass") is { } lookingGlass) lookingGlass.IsVisible = false;
+        if (this.FindControl<Button>("UseClanCrimboTree") is { } crimboTree) crimboTree.IsVisible = false;
+        if (this.FindControl<Button>("PlayClanKlaw") is { } klaw) klaw.IsVisible = false;
+        if (this.FindControl<StackPanel>("ClanHotTubControls") is { } hotTub) hotTub.IsVisible = false;
+        if (this.FindControl<StackPanel>("ClanPoolControls") is { } pool) pool.IsVisible = false;
+        if (this.FindControl<StackPanel>("ClanShowerControls") is { } shower) shower.IsVisible = false;
+        if (this.FindControl<StackPanel>("ClanSwimControls") is { } swim) swim.IsVisible = false;
+        if (this.FindControl<StackPanel>("ClanFaxControls") is { } fax) fax.IsVisible = false;
+        if (this.FindControl<WrapPanel>("ClanPoolChoiceControls") is { } poolChoice) poolChoice.IsVisible = false;
+        if (this.FindControl<ComboBox>("ClanShowerTemperature") is { } temperature) temperature.SelectedIndex = -1;
+        if (this.FindControl<ComboBox>("ClanPoolStance") is { } stance) stance.SelectedIndex = -1;
+        if (this.FindControl<CheckBox>("AllowHotTubCurseRemoval") is { } hotTubConsent) hotTubConsent.IsChecked = false;
+        if (this.FindControl<ListBox>("ClanStashItems") is { } stash) stash.ItemsSource = null;
+        if (this.FindControl<TextBlock>("ClanStashStatus") is { } stashStatus) stashStatus.Text = string.Empty;
+        if (this.FindControl<TextBox>("ClanStashQuantity") is { } stashQuantity) stashQuantity.Text = string.Empty;
+        if (this.FindControl<ComboBox>("ClanStashDepositItems") is { } depositItems) depositItems.ItemsSource = null;
+        if (this.FindControl<TextBox>("ClanStashDepositQuantity") is { } depositQuantity) depositQuantity.Text = string.Empty;
+        _koLmailFolder = KoLMailFolder.Inbox;
+        SetKoLmailDeleteConfirmation(false);
+        SetKoLmailNavigation(1, false);
+        if (this.FindControl<TextBox>("KoLmailRecipient") is { } recipient) recipient.Text = string.Empty;
+        if (this.FindControl<TextBox>("KoLmailMessage") is { } message) message.Text = string.Empty;
+        if (this.FindControl<TextBox>("KoLmailAttachments") is { } attachments) attachments.Text = string.Empty;
+        if (this.FindControl<TextBox>("KoLmailMeat") is { } meat) meat.Text = string.Empty;
+        if (this.FindControl<TextBlock>("KoLmailSendStatus") is { } sendStatus) sendStatus.Text = string.Empty;
+        if (this.FindControl<ListBox>("KoLmailInboxRows") is { } inbox) inbox.ItemsSource = null;
+        if (this.FindControl<TextBlock>("KoLmailInboxStatus") is { } mail) mail.Text = string.Empty;
+        RefreshEncounterStepLog();
+        _inventory = new InventoryViewModel(_selectedRole, _live, _catalog);
+        _inventory.SearchText = _inventorySearchBox?.Text ?? string.Empty;
+        _arbitrage = new LiveArbitrageViewModel(_selectedRole, _live, catalog: _catalog);
+        _arbitrage.LoadRules();
+        _mall = new LiveMallViewModel(_selectedRole, _live);
+        if (this.FindControl<ListBox>("MallSearchRows") is { } results)
+        {
+            results.ItemsSource = null;
+            results.IsVisible = false;
+        }
+        if (this.FindControl<TextBlock>("MallSearchStatus") is { } mallSearchStatus)
+            mallSearchStatus.Text = string.Empty;
+        _guts = new LiveGutsViewModel(_selectedRole, _live);
+        _daily = new DailyBriefingViewModel(_selectedRole, _live);
+
+        if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
+        if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
+        if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
+        if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;
+        if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
+        if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
+
+        _guts.PropertyChanged += (_, _) => RenderAccountSummaries();
+        _arbitrage.PropertyChanged += (_, _) => RenderAccountSummaries();
+        _daily.PropertyChanged += (_, _) => RenderAccountSummaries();
+        _mall.PropertyChanged += (_, _) => RenderAccountSummaries();
+        RenderAccountSummaries();
+        WireInventoryBrowser();
+    }
+
+    private async void MallSearchClick(object? sender, RoutedEventArgs e) => await SearchMallAsync();
+
+    private async void MallSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        await SearchMallAsync();
+    }
+
+    private Task SearchMallAsync()
+    {
+        var input = this.FindControl<TextBox>("MallSearchBox");
+        var status = this.FindControl<TextBlock>("MallSearchStatus");
+        var rows = this.FindControl<ListBox>("MallSearchRows");
+        var query = input?.Text?.Trim();
+        if (status is null || rows is null || _refreshCancellation is not null)
+            return Task.CompletedTask;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            status.Text = "Enter an item name or ID.";
+            return Task.CompletedTask;
+        }
+
+        var catalogItem = _catalog?.Items.FirstOrDefault(item =>
+            string.Equals(item.Id, query, StringComparison.Ordinal)
+            || string.Equals(item.Name, query, StringComparison.OrdinalIgnoreCase));
+        if (int.TryParse(query, out _) && catalogItem is null)
+        {
+            status.Text = $"Item ID {query} is missing from the catalog. Search by name.";
+            return Task.CompletedTask;
+        }
+
+        var role = _selectedRole;
+        rows.IsVisible = false;
+        status.Text = string.Empty;
+        return RunBusyOperationAsync("Searching the mall", async cancellationToken =>
+        {
+            var name = catalogItem?.Name ?? query;
+            var result = await _live.SearchMallAsync(role, name, cancellationToken);
+            var offers = result.Listings
+                .Where(listing => catalogItem is null || listing.ItemId == catalogItem.Id)
+                .OrderBy(listing => listing.Price)
+                .Select(listing => new MallMarketRow(
+                    listing.StoreName ?? $"Store #{listing.StoreId}",
+                    $"{listing.Price:N0} Meat", $"{listing.Quantity:N0} in stock",
+                    listing.PurchaseLimit is > 0 ? $"{listing.PurchaseLimit} / day" : "—"))
+                .ToArray();
+            rows.ItemsSource = offers;
+            rows.IsVisible = offers.Length > 0;
+            status.Text = offers.Length == 0
+                ? $"No offers for {name}."
+                : $"{name} · {offers.Length:N0} offers · {result.FetchedAt.ToLocalTime():HH:mm}";
+            if (result.IsStale) status.Text += " · stale";
+            SetStatus($"Mall search finished for {role}.");
+        });
+    }
+
+    private async void MallListingDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_mallListingRows?.SelectedItem is MallStoreRow row
+            && this.FindControl<TextBox>("MallSearchBox") is { } input)
+        {
+            input.Text = row.ItemName;
+            input.BringIntoView();
+            await SearchMallAsync();
+        }
+    }
+
+    private void RenderAccountSummaries()
+    {
+        if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
+        if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
+        if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
+        if (_arbitragePlanText is not null) _arbitragePlanText.Text = _arbitrage.PlanText;
+        if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
+        if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
+        if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
+    }
+
     private void WireInventoryBrowser()
     {
-        // The catalog gives the item rows their uses, access flags and image.
-        // It is optional: without it the inventory still lists, it just has
-        // no detail data.
-        var catalog = TryLoadCatalog();
-        if (catalog is not null)
-        {
-            _inventory = new InventoryViewModel(catalog: catalog);
-            _arbitrage = new LiveArbitrageViewModel(catalog: catalog);
-            _mall = new LiveMallViewModel(catalog: catalog);
-            _autoCombat = new AutoCombatViewModel(catalog);
-        }
         if (_inventoryList is not null)
         {
             _inventoryList.ItemsSource = _inventory.Items;
@@ -1004,6 +873,7 @@ public partial class MainWindow : Window
                         child.Classes.Remove("active");
                     button.Classes.Add("active");
                 };
+                button.Classes.Set("active", category == _inventory.SelectedCategory);
                 _inventoryCategoryStrip.Children.Add(button);
             }
         }
@@ -1023,6 +893,8 @@ public partial class MainWindow : Window
             }
         };
         if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+        if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+        RenderInventoryDetail();
     }
 
     private void RenderInventoryDetail()
@@ -1052,15 +924,16 @@ public partial class MainWindow : Window
         });
         _inventoryDetailPanel.Children.Add(new TextBlock
         {
-            Text = $"Verwendung: {detail.UsesText}",
+            Text = $"Uses: {detail.UsesText}",
             FontSize = 12,
             Margin = new Avalonia.Thickness(0, 8, 0, 0)
         });
         _inventoryDetailPanel.Children.Add(new TextBlock
         {
-            Text = $"Billigster Mall-Preis: {detail.MallPriceText}",
+            Text = $"Cheapest mall price: {detail.MallPriceText}",
             FontSize = 12
         });
+        RenderInventoryActions(detail);
     }
 
     private void InventorySearchChanged(object? sender, TextChangedEventArgs e)
@@ -1075,304 +948,4 @@ public partial class MainWindow : Window
             _inventory.SelectedItem = item;
     }
 
-    private async void InventoryClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Inventory");
-        await RunBusyOperationAsync("Loading inventory", cancellationToken =>
-            _inventory.LoadAsync(cancellationToken: cancellationToken));
-        if (_inventoryList is not null)
-            _inventoryList.ItemsSource = _inventory.Items;
-        if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
-        if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
-        RenderInventoryDetail();
-    }
-
-    /// <summary>Opens the morning briefing: the live numbers and the plan
-    /// the bot would run today.</summary>
-    private async void DailyClick(object? sender, RoutedEventArgs e)
-    {
-        Navigate("Daily");
-        await RunBusyOperationAsync("Loading daily plan", cancellationToken =>
-            _daily.LoadAsync(cancellationToken: cancellationToken));
-        if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
-        if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
-        if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
-    }
-
-    private void DailySelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_dailyRows?.SelectedItem is not DailyBriefingRow row) return;
-        if (_dailyStatusText is not null)
-            _dailyStatusText.Text = $"{row.Surface}: {row.Description} — {row.Detail}";
-    }
-
-    /// <summary>Runs the daily routine with the approval token from the
-    /// window. Without a token nothing is submitted — the bridge refuses
-    /// to write without one.</summary>
-    private async void DailyRunClick(object? sender, RoutedEventArgs e)
-    {
-        var token = _dailyTokenBox?.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            if (_dailyStatusText is not null)
-                _dailyStatusText.Text = "No approval token — nothing was sent.";
-            return;
-        }
-        await RunBusyOperationAsync("Daily routine", async cancellationToken =>
-        {
-            var account = await _accounts
-                .GetSessionAsync(_selectedRole, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            if (account is null)
-            {
-                if (_dailyStatusText is not null)
-                    _dailyStatusText.Text = "No session for the selected account.";
-                return;
-            }
-            var ok = await RunDailyRoutineAsync(account, token, cancellationToken).ConfigureAwait(false);
-            if (_dailyStatusText is not null)
-                _dailyStatusText.Text = ok
-                    ? "Daily routine executed. Details are in the audit log."
-                    : "The daily routine could not be completed.";
-        });
-    }
-
-    /// <summary>Runs the daily routine for the selected account through the
-    /// same bridge the CLI uses.</summary>
-    private async Task<bool> RunDailyRoutineAsync(
-        AccountSession account, string approvalToken, CancellationToken cancellationToken)
-    {
-        var http = KoLLoginClient.CreateAuthenticatedClient(
-            account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var readClient = new KoLAccountReadClient(http);
-        var live = await new LiveDailySnapshotBuilder(readClient)
-            .BuildAsync(new KolArbitrage.Core.Daily.DailyRoutineSnapshot(), cancellationToken)
-            .ConfigureAwait(false);
-        var bridge = new KolArbitrage.Core.Daily.AutoCombatDailyBridge();
-        var plan = bridge.Plan(live.State, live.Snapshot);
-        // The approval hook is where the token gate lives: the gateway only
-        // posts when the operator's token matches.
-        var approval = new DelegateAdventureApprovalHook((_, _) =>
-            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
-        var verification = new DelegateAdventureVerificationHook((context, _) =>
-            ValueTask.FromResult(context.Response.Accepted != false
-                ? AdventureVerificationResult.Success()
-                : AdventureVerificationResult.Failed("Die Live-Antwort wurde von KoL abgelehnt.")));
-        var session = await KoLAdventureSessionFactory.CreateAsync(
-            _selectedRole, approval, verification, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        var dispatcher = new KolArbitrage.Core.Daily.FreePullDispatcher(
-            http, KolArbitrage.Core.Daily.FreePullDispatcher.DefaultBaseUri);
-        using var audit = new KolArbitrage.Core.Daily.BridgeAuditLog(
-            KolArbitrage.Core.Daily.BridgeAuditLog.DefaultPath());
-        var result = await bridge.ExecuteAsync(
-            plan.Steps, session.Gateway,
-            freePullDispatcher: dispatcher,
-            freePullCredentials: account.Credentials,
-            audit: audit,
-            accountId: _selectedRole.ToString(),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
-        return result.Executed;
-    }
-
-    private static KolArbitrage.Core.Data.KoLmafiaCatalog? TryLoadCatalog()
-    {
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"),
-            Path.Combine(Directory.GetCurrentDirectory(), "external", "kolmafia-data")
-        };
-        foreach (var candidate in candidates)
-        {
-            if (!Directory.Exists(candidate)) continue;
-            try
-            {
-                return new KolArbitrage.Core.Data.MafiaDataLoader().Load(candidate);
-            }
-            catch
-            {
-                // A broken catalog must not take the window down.
-            }
-        }
-        return null;
-    }
-
-    private void WireEncounterBrowser()
-    {
-        var catalogDir = Path.Combine(
-            AppContext.BaseDirectory,
-            "external", "kolmafia-data");
-        if (!Directory.Exists(catalogDir))
-            return;
-
-        _encounterBrowser = new EncounterBrowserPane(
-            _selectedRole,
-            gatewayFactory: _ => CreateManualGateway(),
-            setStatus: msg => UpdateEncounterStatus(msg),
-            resolveChoices: locationId => ResolveEncounterChoices(locationId),
-            monstersFor: locationId => ResolveMonstersForLocation(locationId));
-        try
-        {
-            _encounterBrowser.Initialise(catalogDir);
-        }
-        catch (Exception exception)
-        {
-            UpdateEncounterStatus($"Catalog konnte nicht geladen werden: {exception.Message}");
-            return;
-        }
-
-        if (_encounterLocationsGrid is not null && _encounterBrowser.Browser is not null)
-        {
-            _encounterLocationsGrid.ItemsSource = _encounterBrowser.Browser.Locations;
-            _encounterMonstersGrid!.ItemsSource = _encounterBrowser.Browser.Monsters;
-            _encounterActionsGrid!.ItemsSource = _encounterBrowser.Browser.Actions;
-        }
-
-        if (_encounterFilterBox is not null)
-        {
-            _encounterFilterBox.TextChanged += (_, _) =>
-            {
-                if (_encounterBrowser?.Browser is { } browser)
-                    browser.FilterText = _encounterFilterBox.Text ?? string.Empty;
-            };
-        }
-
-        if (_encounterLocationsGrid is not null)
-        {
-            _encounterLocationsGrid.SelectionChanged += (_, _) =>
-            {
-                if (_encounterBrowser?.Browser is { } browser
-                    && _encounterLocationsGrid.SelectedItem is EncounterBrowserLocationRow row)
-                {
-                    browser.SelectedLocation = row;
-                    RefreshEncounterStepLog();
-                }
-            };
-            _encounterLocationsGrid.DoubleTapped += async (_, _) =>
-            {
-                if (_encounterLocationsGrid.SelectedItem is EncounterBrowserLocationRow row)
-                    await _encounterBrowser.StartAdventureAsync(row).ConfigureAwait(false);
-                RefreshEncounterStepLog();
-            };
-        }
-
-        if (_encounterMonstersGrid is not null)
-        {
-            _encounterMonstersGrid.SelectionChanged += (_, _) =>
-            {
-                if (_encounterBrowser?.Browser is { } browser
-                    && _encounterMonstersGrid.SelectedItem is EncounterBrowserMonsterRow monster)
-                {
-                    browser.SelectedMonster = monster;
-                }
-            };
-        }
-
-        if (_encounterActionsGrid is not null)
-        {
-            _encounterActionsGrid.DoubleTapped += async (_, _) =>
-            {
-                if (_encounterActionsGrid.SelectedItem is EncounterBrowserActionRow row)
-                    await _encounterBrowser.SubmitStepAsync(row).ConfigureAwait(false);
-                RefreshEncounterStepLog();
-            };
-        }
-
-        if (_encounterStartButton is not null)
-            _encounterStartButton.Click += async (_, _) =>
-            {
-                if (_encounterLocationsGrid?.SelectedItem is EncounterBrowserLocationRow row)
-                    await _encounterBrowser.StartAdventureAsync(row).ConfigureAwait(false);
-                RefreshEncounterStepLog();
-            };
-
-        if (_encounterSubmitButton is not null)
-            _encounterSubmitButton.Click += async (_, _) =>
-            {
-                if (_encounterActionsGrid?.SelectedItem is EncounterBrowserActionRow row)
-                    await _encounterBrowser.SubmitStepAsync(row).ConfigureAwait(false);
-                RefreshEncounterStepLog();
-            };
-
-        if (_encounterEndButton is not null)
-            _encounterEndButton.Click += (_, _) =>
-            {
-                _encounterBrowser.EndSession();
-                RefreshEncounterStepLog();
-            };
-
-        if (_encounterSaveTokenButton is not null)
-            _encounterSaveTokenButton.Click += async (_, _) =>
-            {
-                var token = _encounterTokenBox?.Text ?? string.Empty;
-                if (_encounterBrowser is null || string.IsNullOrWhiteSpace(token))
-                {
-                    UpdateEncounterStatus("Approval-Token ist erforderlich.");
-                    return;
-                }
-                _encounterBrowser.ApplyApprovalToken(token);
-                try
-                {
-                    await _encounterBrowser.PersistTokenAsync("manual-browser");
-                }
-                catch (Exception exception)
-                {
-                    UpdateEncounterStatus($"Token konnte nicht gespeichert werden: {exception.Message}");
-                }
-            };
-
-        if (_encounterLoadTokenButton is not null)
-            _encounterLoadTokenButton.Click += async (_, _) =>
-            {
-                try { await _encounterBrowser.LoadStoredTokenAsync(); }
-                catch (Exception exception)
-                {
-                    UpdateEncounterStatus($"Token konnte nicht geladen werden: {exception.Message}");
-                }
-                if (_encounterTokenBox is not null && _encounterBrowser?.Session is { } session)
-                    _encounterTokenBox.Text = session.ApprovalToken;
-            };
-
-        // Auto-load on first display if a token is already stored.
-        _ = _encounterBrowser.LoadStoredTokenAsync();
-    }
-
-    private KolArbitrage.Core.Adventure.AdventureExecutionGateway CreateManualGateway()
-    {
-        // The gateway is consumed by the manual driver; the in-memory store is
-        // enough for the catalog browsing surface. Live POSTs only happen when
-        // a real approval token is applied via ApplyApprovalToken.
-        return new KolArbitrage.Core.Adventure.AdventureExecutionGateway(
-            new AdventureExecutionFixtureTransport(),
-            new InMemoryAdventureRunCheckpointStore());
-    }
-
-    private void UpdateEncounterStatus(string message)
-    {
-        if (_encounterStatusText is null) return;
-        _encounterStatusText.Text = $"{DateTime.Now:HH:mm:ss} · {message}";
-    }
-
-    private void RefreshEncounterStepLog()
-    {
-        if (_encounterStepLogText is null || _encounterBrowser?.Session is not { } session) return;
-        var lines = session.StepLog.Take(10).Select(entry =>
-            $"{entry.At:HH:mm:ss} {entry.Kind} {entry.Status} {entry.StopReason}");
-        _encounterStepLogText.Text = string.Join("\n", lines);
-    }
-
-    private static IEnumerable<string> ResolveEncounterChoices(string locationId)
-        => locationId == "skeleton-of-crimbos-past"
-            ? new[] { "1003:1", "1003:2" }
-            : Array.Empty<string>();
-
-    private static IReadOnlyList<MafiaMonsterRecord> ResolveMonstersForLocation(string locationId)
-        => locationId switch
-        {
-            "skeleton-of-crimbos-past" => new MafiaDataLoader()
-                .Load(Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"))
-                .Monsters.Where(m => m.Id.Contains("skeleton", StringComparison.OrdinalIgnoreCase))
-                .ToArray(),
-            _ => Array.Empty<MafiaMonsterRecord>()
-        };
 }

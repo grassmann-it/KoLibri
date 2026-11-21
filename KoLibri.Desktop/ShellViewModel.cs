@@ -245,8 +245,8 @@ public class ShellViewModel : DesktopViewModel
     private void ApplySnapshot(ShellSnapshot snapshot)
     {
         StatusMessage = snapshot.HasErrors
-            ? "Snapshot geladen; mindestens eine Quelle meldet einen Fehler."
-            : snapshot.IsStale ? "Snapshot geladen; mindestens eine Quelle ist stale." : "Snapshot geladen.";
+            ? "Snapshot loaded; at least one source reports an error."
+            : snapshot.IsStale ? "Snapshot loaded; at least one source is stale." : "Snapshot loaded.";
         OnPropertyChanged(nameof(IsAnyLoading));
         OnPropertyChanged(nameof(HasStaleData));
         OnPropertyChanged(nameof(HasErrors));

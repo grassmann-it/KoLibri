@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/kolibri-icon.svg" width="96" alt="KoLibri"></p>
+
 # KoLibri
 
 **KoLmafia's automation, minus the clicking.**
@@ -16,12 +18,15 @@ dotnet run --project tools/KolLibri.Cli -- daily breakfast --role all --execute 
 That single command reads both accounts, works out the day's numbers
 from the live data, plans the routine and runs it.
 
+> KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
+> New here? Start with [docs/quickstart.md](docs/quickstart.md).
+
 ## What is in here
 
 | Project | Role | Package |
 |---|---|---|
-| `src/KolArbitrage.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
-| `src/LibKolibri` | The public API façade over the core | [`KoLibri.LibKolibri`](https://github.com/grassmann-it/LibKolibri) |
+| `src/KoLibri.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
+| `src/LibKolibri` | The public API façade over the core | `KoLibri.LibKolibri` |
 | `tools/KolLibri.Cli` | Command line front-end | — |
 | `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
 | `KoLibri.Desktop` | Avalonia desktop client | — |
@@ -100,25 +105,64 @@ python3 scripts/import-kolmafia-data.py   # refresh from a KoLmafia checkout
 The library:
 
 ```xml
-<PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
+<PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
 ```
 
 ```csharp
+using KoLibri.Core.Basis;
 using LibKolibri;
-using KolArbitrage.Core.Integration;
 
-var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
-runtime.TryGet<IAccountReadClient>(AccountRole.Main, out var account);
-
-var status = await account.FetchStatusAsync();
+using var kol = await KolibriClient.OpenAsync(AccountRole.Main);
+var status = await kol.GetStatusAsync();
 Console.WriteLine($"{status.PlayerName}: {status.Meat} meat");
 ```
 
-The CLI and the MCP server build from source:
+The CLI and the MCP server install as dotnet tools (`KoLibri.Cli`, `KoLibri.Mcp`) or build from source:
 
 ```bash
 dotnet build KoLibri.slnx
 dotnet run --project tools/KolLibri.Cli -- --help
+```
+
+## Desktop
+
+The desktop client is the operator's console: it reads both accounts
+live, shows the inventory with the KoLmafia catalog, the daily briefing,
+the market scan with the buy rules, the mall and the combat panel.
+
+```bash
+dotnet run --project KoLibri.Desktop
+```
+
+It needs a session for each account — the panels stay empty without one:
+
+```bash
+kolibri login refresh --role main
+kolibri login refresh --role mallbot
+```
+
+`kolibri login status` tells whether a session still works. It asks KoL,
+not just the stored cookie: a session that KoL dropped says
+`rejectedByServer: true`, and `usable: false`. The stored expiry only
+covers the cookie's lifetime — KoL ends a session earlier when the
+password changes or the account is signed out somewhere else.
+
+The panels:
+
+| Panel | What it shows |
+|---|---|
+| **Guts** | Meat, adventures, items and level of both accounts |
+| **Inventory** | The live inventory with the catalog's flags, uses and images |
+| **Daily** | The day's briefing from the live accounts |
+| **Arbitrage** | Mall listings against the pricegun median, plus the buy rules |
+| **Mall** | Own store and the market |
+| **Adventures** | Locations, encounters and the bounded runner |
+| **Combat** | The auto-combat policy and the fight log |
+
+Everything that spends meat is behind the approval token:
+
+```bash
+kolibri token mint
 ```
 
 ## CLI
@@ -147,7 +191,7 @@ kolibri daily breakfast --role all \
 kolibri daily campfire --leaves 37191 --meat 128310
 kolibri daily hermit --permits 2 --clovers 3 --clover-sale 30000
 kolibri daily internet-shop
-kolibri daily bacon --mall-price 480000 --median 620000
+kolibri daily meme-shop-read
 
 # Audit trail
 kolibri daily-audit --tail 20
@@ -156,25 +200,41 @@ kolibri daily-audit --verify
 
 ## MCP
 
-The MCP server exposes the same capabilities to agent hosts. Read-only
-tools are always available; the live ones require an approval token.
+`kolibri-mcp` serves MCP over HTTP on `127.0.0.1:8765` (local only). An AI client
+connects, the browser opens a consent page, and **you** choose accounts, rights and
+daily limits. The client only receives what you approved; see
+[docs/mcp-access.md](docs/mcp-access.md).
+
+```bash
+kolibri-mcp                    # http://127.0.0.1:8765/mcp, consent code printed here
+kolibri-mcp grants list        # approved clients with today's usage
+kolibri-mcp grants revoke ID   # stop one client at once
+kolibri-mcp --stdio            # read-only tools over stdio, no approval needed
+```
 
 | Tool | What it does |
 |---|---|
-| `kol_run_daily_bridge` | Plans the daily routine from the live accounts |
-| `kol_daily_audit` | Reads the hash-chained audit log |
-| `kol_daily_campfire_plan` / `kol_daily_hermit_plan` / `kol_daily_routine` | The planners, read-only |
-| `kol_login_status` / `kol_login_clear` / `kol_login_refresh` | Session management |
-| `kol_adventure_run_execute` / `kol_choice_chain_execute` | The bounded live paths |
+| `kol_status` / `kol_inventory` | Account reads |
+| `kol_price_summary` / `kol_price_recommendation` / `kol_underprice_preview` | Market reads |
+| `kol_run_daily_bridge` / `kol_daily_*` | Plans the daily routine without executing |
 | `kol_preview_purchase` / `kol_preview_transfer` | Validates a proposal without acting |
+| `kol_mall_buy` / `kol_meme_shop` | Buy under a price ceiling / run the meme shop |
+| `kol_transfer` / `kol_send_message` / `kol_use_item` / `kol_reprice_shop` | Send to the other account / KMail / use items / change shop prices |
+| `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`) |
+
+Every write is two steps: preview returns a `planId`, the same call with that id executes once.
+
+Login management tools are not available to AI clients.
 
 ## Safety model
 
 This tool acts on a game account that holds real value, so the guardrails
 are structural rather than advisory.
 
-1. **Reads are free, writes are gated.** Every mutating path needs an
-   approval token. A tool without one simply cannot write.
+1. **Reads are free, writes are gated.** An AI client needs a token you
+   approved in the browser, with rights and per-day limits. The CLI and Desktop
+   are yours and need none; under an AI harness the CLI asks for a
+   confirmation at the real terminal before it writes (`kolibri agent-mode`).
 2. **Credentials never appear in code.** Sessions live encrypted in the
    user's local app-data folder. The library reads them at runtime and
    keeps them inside the authenticated HTTP clients.
@@ -209,12 +269,11 @@ Honest about what does not work yet:
 
 ```bash
 dotnet build KoLibri.slnx
-dotnet test tests/KolArbitrage.Core.Tests/KolArbitrage.Core.Tests.csproj
-dotnet pack src/KolArbitrage.Core/KolArbitrage.Core.csproj -c Release
+dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj
+dotnet pack src/KoLibri.Core/KoLibri.Core.csproj -c Release
 ```
 
-The `src/LibKolibri` submodule points at
-[grassmann-it/LibKolibri](https://github.com/grassmann-it/LibKolibri).
+Repository: [grassmann-it/KoLibri](https://github.com/grassmann-it/KoLibri).
 
 ## License
 

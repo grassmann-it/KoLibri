@@ -3,7 +3,7 @@
 into structured JSON Lines files under external/kolmafia-data/.
 
 This script is the bridge between Mafia's tab/whitespace files and the
-typed records the KolArbitrage.Core data layer expects. It is meant to
+typed records the KoLibri.Core data layer expects. It is meant to
 be re-run only when upstream KoLmafia changes; the JSONL output is
 checked into the repository so the rest of the build runs offline.
 """
@@ -85,18 +85,19 @@ def parse_zones(line: str) -> dict | None:
 
 
 def parse_adventures(line: str) -> dict | None:
-    """Tab-separated: name\tsniffProperty\tzone\tdesc\t[type]"""
+    """Parse zone, route, attributes, location name and optional goals."""
     parts = line.split("\t")
     if len(parts) < 4:
         return None
-    sniff_match = re.search(r"(\d+)", parts[1])
-    sniff = int(sniff_match.group(1)) if sniff_match else 0
+    zone, route, attributes, name = parts[:4]
+    adventure = re.fullmatch(r"adventure=(\d+)", route)
     return {
-        "name": parts[0],
-        "sniffProperty": parts[1],
-        "sniff": sniff,
-        "zone": parts[2],
-        "desc": parts[3],
+        "id": f"{route}:{name}",
+        "name": name,
+        "sniffProperty": route,
+        "sniff": int(adventure.group(1)) if adventure else 0,
+        "zone": zone,
+        "desc": attributes,
         "type": parts[4] if len(parts) > 4 else "",
     }
 
@@ -167,7 +168,7 @@ def parse_monsters(line: str) -> dict | None:
     drops_blob = match.group("drops")
     drops = []
     if drops_blob:
-        for drop in re.split(r"\t(?=\S+ \(\w*\d+\))", drops_blob):
+        for drop in drops_blob.split("\t"):
             d = DROP_LINE.match(drop.strip())
             if d:
                 drops.append({
@@ -239,7 +240,15 @@ def parse_restores(line: str) -> dict | None:
     }
 
 
+def parse_familiar(line: str) -> dict | None:
+    fields = line.split("\t")
+    if len(fields) < 2 or not fields[0].isdigit():
+        return None
+    return {"id": fields[0], "name": fields[1]}
+
+
 PARSERS = {
+    "familiars.txt": (parse_familiar, "familiars.jsonl"),
     "items.txt": (parse_items, "items.jsonl"),
     "zonelist.txt": (parse_zones, "zones.jsonl"),
     "adventures.txt": (parse_adventures, "adventures.jsonl"),
@@ -270,12 +279,24 @@ def strip_comments(path: Path):
         yield line
 
 
+def load_area_monsters(path: Path) -> dict[str, list[str]]:
+    areas = {}
+    for line in strip_comments(path):
+        fields = line.split("\t")
+        if len(fields) < 2:
+            continue
+        areas[fields[0]] = [entry.partition(":")[0].strip()
+                            for entry in fields[2:] if entry.strip()]
+    return areas
+
+
 def main() -> int:
     if not MAFIA_DATA.exists():
         print(f"KoLmafia data directory not found: {MAFIA_DATA}", file=sys.stderr)
         return 1
     OUT.mkdir(parents=True, exist_ok=True)
     summary = []
+    area_monsters = load_area_monsters(MAFIA_DATA / "combats.txt")
     for filename, (parser, outname) in PARSERS.items():
         src = MAFIA_DATA / filename
         dst = OUT / outname
@@ -288,6 +309,8 @@ def main() -> int:
                 record = parser(raw)
                 if record is None:
                     continue
+                if filename == "adventures.txt":
+                    record["monsters"] = area_monsters.get(record["name"], [])
                 out.write(json.dumps(record, ensure_ascii=False))
                 out.write("\n")
                 count += 1

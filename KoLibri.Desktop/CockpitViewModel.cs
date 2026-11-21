@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
 using LibKolibri;
 using LibSnapshotFreshness = LibKolibri.SnapshotFreshness;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -88,7 +88,7 @@ public class CockpitViewModel : DesktopViewModel
     private AccountCardProjection? _main;
     private AccountCardProjection? _mallbot;
     private int _openApprovalCount;
-    private string _dailyGoal = "Tagesziel wird nach dem ersten Snapshot angezeigt.";
+    private string _dailyGoal = "Daily goal is shown after the first snapshot.";
 
     public CockpitViewModel(
         IAccountGateway? mainGateway = null,

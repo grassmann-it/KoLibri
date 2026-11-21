@@ -1,7 +1,7 @@
 using System.Text.Json;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Security;
 using LibKolibri;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 Console.WriteLine("--- KoLibri consumer smoke test ---");
 
@@ -38,6 +38,8 @@ finally
 // 3. Reach into LibKolibri's public API to make sure the surface is real.
 var runtime = new LibKolibriRuntime();
 Console.WriteLine($"LibKolibri runtime instance: {runtime.GetType().FullName}");
+
+await ManualAdventureReplay.RunAsync();
 
 Console.WriteLine("All consumer smoke checks passed.");
 return 0;

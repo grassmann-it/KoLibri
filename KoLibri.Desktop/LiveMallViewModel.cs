@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
+using KoLibri.Core.Basis;
 
 namespace KoLibri.Desktop;
 
@@ -15,44 +14,21 @@ public sealed record MallStoreRow
     public required string PriceText { get; init; }
     public required string QuantityText { get; init; }
     public required string LimitText { get; init; }
-    /// <summary>The cheapest mall listing for the same item, when there is
-    /// one — the number that says whether the asking price is competitive.</summary>
-    public long? CheapestMarketPrice { get; init; }
-    public string MarketText => CheapestMarketPrice is { } price
-        ? $"market {price:N0}"
-        : "not listed";
+
 }
 
 /// <summary>
-/// The mall screen: the account's own listings with the market price next
-/// to them. KoLmafia shows the same pairing — your price and the cheapest
-/// offer for the same item — because the difference is what you can still
-/// win.
-///
-/// The panel is read-only. Repricing a listing goes through the approval
-/// flow, not through this view.
+/// Read-only view of the selected account’s own listings.
 /// </summary>
 public sealed class LiveMallViewModel : DesktopViewModel
 {
     private readonly DesktopLiveDataProvider _provider;
     private readonly AccountRole _role;
-    private readonly KolArbitrage.Core.Data.KoLmafiaCatalog? _catalog;
-
-    public LiveMallViewModel(
-        AccountRole role = AccountRole.Mallbot,
-        DesktopLiveDataProvider? provider = null,
-        KolArbitrage.Core.Data.KoLmafiaCatalog? catalog = null)
+    public LiveMallViewModel(AccountRole role = AccountRole.Mallbot, DesktopLiveDataProvider? provider = null)
     {
         _role = role;
         _provider = provider ?? new DesktopLiveDataProvider();
-        _catalog = catalog;
     }
-
-    public AccountRole Role => _role;
-
-    /// <summary>How many distinct items get a market price lookup. Each
-    /// lookup is one request to KoL, so the list stays small.</summary>
-    public const int MarketPriceLookups = 25;
 
     public ObservableCollection<MallStoreRow> Rows { get; } = new();
 
@@ -62,35 +38,21 @@ public sealed class LiveMallViewModel : DesktopViewModel
 
     public long TotalOffered => Rows.Sum(r => r.Price * r.Quantity);
 
-    /// <summary>Loads the own store and the market prices for the listed
-    /// items.</summary>
+    /// <summary>Loads the selected account’s store.</summary>
     public async Task LoadAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
         LoadState = DesktopLoadState.Loading;
         try
         {
-            var listings = await _provider
-                .LoadOwnShopAsync(_role, cancellationToken).ConfigureAwait(false);
-            // One mall search per distinct item — the own store can hold
-            // hundreds of listings, and a search per listing would hammer
-            // KoL. Only the first few items get a market price; the rest
-            // show without one.
-            var names = listings
-                .Select(l => string.IsNullOrWhiteSpace(l.DisplayName) ? l.ItemId : l.DisplayName!)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(MarketPriceLookups)
-                .ToArray();
-            var searches = await _provider
-                .LoadMallListingsAsync(_role, names, cancellationToken).ConfigureAwait(false);
-            var market = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-            foreach (var search in searches)
+            var listings = await _provider.LoadOwnShopAsync(_role, cancellationToken, forceRefresh);
+            Rows.Clear();
+            if (listings is null)
             {
-                var cheapest = search.Cheapest;
-                if (cheapest is not null) market[search.ItemName] = cheapest.Price;
+                Summary = $"Sign in as {_role} under Accounts to see store listings.";
+                LoadState = DesktopLoadState.Empty;
+                return;
             }
 
-            Rows.Clear();
             foreach (var listing in listings)
             {
                 var name = string.IsNullOrWhiteSpace(listing.DisplayName)
@@ -105,12 +67,7 @@ public sealed class LiveMallViewModel : DesktopViewModel
                     PurchaseLimit = listing.PurchaseLimit,
                     PriceText = $"{listing.Price:N0} Meat",
                     QuantityText = listing.Quantity == 1 ? "1 pc" : $"{listing.Quantity:N0} pcs",
-                    LimitText = listing.PurchaseLimit is { } limit
-                        ? $"{limit} / day"
-                        : "—",
-                    CheapestMarketPrice = market.TryGetValue(name, out var marketPrice)
-                        ? marketPrice
-                        : null
+                    LimitText = listing.PurchaseLimit is > 0 ? $"{listing.PurchaseLimit} / day" : "—"
                 });
             }
 
@@ -119,8 +76,14 @@ public sealed class LiveMallViewModel : DesktopViewModel
                 : $"{Rows.Count} listings · {TotalOffered:N0} Meat offered";
             LoadState = Rows.Count == 0 ? DesktopLoadState.Empty : DesktopLoadState.Ready;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
+        }
         catch (Exception exception)
         {
+            Summary = $"Store unavailable: {exception.Message}";
             ErrorMessage = exception.Message;
             LoadState = DesktopLoadState.Error;
         }
@@ -134,3 +97,5 @@ public sealed class LiveMallViewModel : DesktopViewModel
     public Task RefreshAsync(CancellationToken cancellationToken = default)
         => LoadAsync(forceRefresh: true, cancellationToken);
 }
+
+public sealed record MallMarketRow(string Store, string Price, string Stock, string Limit);

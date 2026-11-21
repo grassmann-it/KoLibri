@@ -7,10 +7,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="KoLibri.Core" Version="0.1.0-preview" />
-    <PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
+    <PackageReference Include="KoLibri.Core" Version="0.4.0" />
+    <PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)external/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external" />
+    <None Include="../KoLibri.Core.Tests/Fixtures/Adventure/combat-round-1.html;../KoLibri.Core.Tests/Fixtures/Adventure/choice-success.html;../KoLibri.Core.Tests/Fixtures/Html/SkeletonOfCrimbosPast/reward.html" CopyToOutputDirectory="PreserveNewest" LinkBase="Replay" />
   </ItemGroup>
 </Project>

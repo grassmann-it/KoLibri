@@ -5,9 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kolibri-mcp</ToolCommandName>
+    <PackageId>KoLibri.Mcp</PackageId>
+    <Description>MCP server that lets an AI assistant read a Kingdom of Loathing account, search the mall, plan the daily routine and, with approval, adventure.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
     <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </ItemGroup>
 </Project>

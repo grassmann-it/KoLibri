@@ -1,11 +1,7 @@
 using System.Text;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Analytics;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Cli.Repl;
 
@@ -85,11 +81,11 @@ public sealed class KoLibriReplContext : IReplContext
 
     public async Task<IReadOnlyList<LoginStatusRow>> GetLoginStatusAsync(CancellationToken cancellationToken)
     {
-        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        var manager = KoLibri.Core.Basis.AccountSessionManager.CreateDefault();
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var profiles = await manager.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<LoginStatusRow>();
-        foreach (var role in Enum.GetValues<KolArbitrage.Core.Accounts.AccountRole>())
+        foreach (var role in Enum.GetValues<KoLibri.Core.Basis.AccountRole>())
         {
             var profile = profiles.FirstOrDefault(p => p.Role == role);
             var session = await manager.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -106,9 +102,9 @@ public sealed class KoLibriReplContext : IReplContext
         return rows;
     }
 
-    public async Task<int> ClearLoginAsync(IEnumerable<KolArbitrage.Core.Accounts.AccountRole> roles, CancellationToken cancellationToken)
+    public async Task<int> ClearLoginAsync(IEnumerable<KoLibri.Core.Basis.AccountRole> roles, CancellationToken cancellationToken)
     {
-        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        var manager = KoLibri.Core.Basis.AccountSessionManager.CreateDefault();
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var cleared = 0;
         foreach (var role in roles)
@@ -117,7 +113,7 @@ public sealed class KoLibriReplContext : IReplContext
             if (profile is null) continue;
             try
             {
-                await manager.SetCredentialsAsync(role, new KolArbitrage.Core.Accounts.AccountCredentials
+                await manager.SetCredentialsAsync(role, new KoLibri.Core.Basis.AccountCredentials
                 {
                     Password = string.Empty,
                     CookieHeader = string.Empty,
@@ -125,17 +121,17 @@ public sealed class KoLibriReplContext : IReplContext
                 }, cancellationToken).ConfigureAwait(false);
                 cleared++;
             }
-            catch (KolArbitrage.Core.Accounts.AccountConfigurationException) { }
+            catch (KoLibri.Core.Basis.AccountConfigurationException) { }
         }
         return cleared;
     }
 
     public async Task<LoginRefreshRow> RefreshLoginAsync(
-        KolArbitrage.Core.Accounts.AccountRole role, string username, string password,
+        KoLibri.Core.Basis.AccountRole role, string username, string password,
         CancellationToken cancellationToken)
     {
-        var login = await new KolArbitrage.Core.Accounts.KoLLoginClient().LoginAsync(username, password, rememberPassword: true, cancellationToken).ConfigureAwait(false);
-        var manager = KolArbitrage.Core.Accounts.AccountSessionManager.CreateDefault();
+        var login = await new KoLibri.Core.Basis.KoLLoginClient().LoginAsync(username, password, rememberPassword: true, cancellationToken).ConfigureAwait(false);
+        var manager = KoLibri.Core.Basis.AccountSessionManager.CreateDefault();
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
         return new LoginRefreshRow(role, username, login.LoggedInAt);

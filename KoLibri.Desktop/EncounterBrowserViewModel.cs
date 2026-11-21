@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Data;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -77,6 +76,7 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
         set
         {
             if (!SetProperty(ref _selectedLocation, value)) return;
+            SelectedMonster = null;
             RebuildMonsters();
             RebuildActions();
             OnPropertyChanged(nameof(SelectedLocationDisplay));
@@ -98,33 +98,35 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
     public string? SelectedMonsterDisplay => _selectedMonster?.Name;
 
     public IReadOnlyList<EncounterBrowserMonsterRow> MonstersForSelectedLocation()
-        => _selectedLocation is null
-            ? Array.Empty<EncounterBrowserMonsterRow>()
-            : _catalog.Monsters
-                .Where(m => MonsterBelongsToLocation(m, _selectedLocation.LocationId))
-                .Select(BuildMonsterRow)
-                .ToArray();
+    {
+        var adventure = _catalog.Adventures.FirstOrDefault(a => a.Id == _selectedLocation?.LocationId);
+        if (adventure is null)
+            return Array.Empty<EncounterBrowserMonsterRow>();
+
+        var names = adventure.MonsterNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return _catalog.Monsters.Where(m => names.Contains(m.Name)).Select(BuildMonsterRow).ToArray();
+    }
 
     public AdventureStepSpec BuildStepSpec(EncounterBrowserActionRow action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        var location = _selectedLocation?.LocationId ?? "?";
-        var monster = _selectedMonster?.MonsterId;
+        var monster = _currentEncounter?.Combat?.MonsterId ?? (_currentEncounter is null ? _selectedMonster?.MonsterId : null);
+        var round = _currentEncounter?.FightRound;
         return action.Kind switch
         {
             "attack" => new AttackStepSpec(),
-            "skill" => new SkillStepSpec(action.Id, MonsterId: monster),
-            "item" => new ItemStepSpec(action.Id, MonsterId: monster),
+            "skill" => new SkillStepSpec(action.Id, MonsterId: monster, Round: round),
+            "item" => new ItemStepSpec(action.Id, MonsterId: monster, Round: round),
             "run" => new RunStepSpec(),
             "choice" => ParseChoiceRow(action.Id),
-            _ => new AttackStepSpec()
+            _ => throw new ArgumentException("Unknown adventure action.", nameof(action))
         };
 
         ChoiceStepSpec ParseChoiceRow(string id)
         {
             var separator = id.IndexOf(':', StringComparison.Ordinal);
             if (separator <= 0)
-                return new ChoiceStepSpec(action.Id, "1");
+                throw new ArgumentException("The choice option is missing its choice ID.", nameof(action));
             return new ChoiceStepSpec(id[..separator], id[(separator + 1)..]);
         }
     }
@@ -150,9 +152,46 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
             Monsters.Add(row);
     }
 
+    private AdventureEncounterState? _currentEncounter;
+
+    public void ShowEncounter(AdventureEncounterState? encounter)
+    {
+        _currentEncounter = encounter;
+        RebuildActions();
+    }
+
     private void RebuildActions()
     {
         Actions.Clear();
+        if (_currentEncounter is { Kind: AdventureEncounterKind.Choice, ChoiceId: { } choice } encounter)
+        {
+            foreach (var option in encounter.AvailableChoices)
+                Actions.Add(new EncounterBrowserActionRow("choice", $"{choice}:{option}",
+                    encounter.ChoiceLabels.GetValueOrDefault(option, $"Option {option}"), ""));
+            return;
+        }
+        if (_currentEncounter?.Combat is { } combat)
+        {
+            if (_currentEncounter.Kind != AdventureEncounterKind.Fight) return;
+            var enabledActions = combat.AvailableActions.Where(action => action.IsEnabled)
+                .DistinctBy(action => (action.Kind,
+                    action.Kind is CombatActionKind.Attack or CombatActionKind.Run ? null : action.Id));
+            foreach (var action in enabledActions)
+            {
+                var kind = action.Kind switch
+                {
+                    CombatActionKind.Attack => "attack",
+                    CombatActionKind.Run => "run",
+                    CombatActionKind.Skill => "skill",
+                    CombatActionKind.Item => "item",
+                    _ => null
+                };
+                if (kind is not null)
+                    Actions.Add(new EncounterBrowserActionRow(kind, action.Id ?? kind, action.Name ?? kind,
+                        action.MpCost is { } mp ? $"{mp} MP" : string.Empty));
+            }
+            return;
+        }
         if (_selectedMonster is null)
         {
             Actions.Add(new EncounterBrowserActionRow("attack", "attack", "Attack", "Default melee attack."));
@@ -172,7 +211,7 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
         foreach (var adventure in catalog.Adventures)
         {
             var zoneName = byZone.TryGetValue(adventure.Zone, out var name) ? name : adventure.Zone;
-            var encounterCount = catalog.Monsters.Count(m => MonsterBelongsToZone(m, adventure.Zone));
+            var encounterCount = adventure.MonsterNames.Count;
             yield return new EncounterBrowserLocationRow(
                 adventure.Id,
                 adventure.Name,
@@ -196,35 +235,4 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
             monster.Elements,
             monster.Skills,
             monster.Items);
-
-    private static bool MonsterBelongsToZone(MafiaMonsterRecord monster, string zoneId)
-    {
-        // Heuristic: a monster belongs to a zone when its id starts with the
-        // zone id (or vice versa). This keeps the catalog stable until the
-        // Mafia data files expose the explicit monster → zone map.
-        if (string.IsNullOrEmpty(zoneId)) return false;
-        var a = monster.Id.ToLowerInvariant();
-        var b = zoneId.ToLowerInvariant();
-        return a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal);
-    }
-
-    private static bool MonsterBelongsToLocation(MafiaMonsterRecord monster, string locationId)
-    {
-        if (string.IsNullOrEmpty(locationId)) return false;
-        var a = monster.Id.ToLowerInvariant();
-        var b = locationId.ToLowerInvariant();
-        if (a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal)
-            || a.Contains(b, StringComparison.Ordinal))
-            return true;
-        // Fallback: the real Mafia catalog does not embed a monster→location
-        // table. As a soft heuristic, if the monster name shares a token with
-        // the location id we treat it as a candidate. This is intentionally
-        // permissive so the operator can still see a populated monster list.
-        foreach (var segment in b.Split('-', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (segment.Length >= 4 && a.Contains(segment, StringComparison.Ordinal))
-                return true;
-        }
-        return false;
-    }
 }

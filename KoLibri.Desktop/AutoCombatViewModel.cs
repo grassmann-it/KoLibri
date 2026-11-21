@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -33,14 +33,14 @@ public sealed record CombatTarget
 /// </summary>
 public sealed class AutoCombatViewModel : DesktopViewModel
 {
-    private readonly KolArbitrage.Core.Data.KoLmafiaCatalog? _catalog;
+    private readonly KoLibri.Core.Spiel.KoLmafiaCatalog? _catalog;
     private CombatTarget? _selectedTarget;
     private CombatOption? _selectedSkill;
     private CombatOption? _selectedItem;
     private int _abortHpPercent = 30;
     private int _maxRounds = 20;
 
-    public AutoCombatViewModel(KolArbitrage.Core.Data.KoLmafiaCatalog? catalog = null)
+    public AutoCombatViewModel(KoLibri.Core.Spiel.KoLmafiaCatalog? catalog = null)
     {
         _catalog = catalog;
         Targets = new ObservableCollection<CombatTarget>();
@@ -201,6 +201,11 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             }
             LoadState = Targets.Count == 0 ? DesktopLoadState.Empty : DesktopLoadState.Ready;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LoadState = DesktopLoadState.Empty;
+            throw;
+        }
         catch (Exception exception)
         {
             ErrorMessage = exception.Message;
@@ -231,7 +236,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     /// skills come first in the order the operator picked them, the items
     /// follow, and attacking is the fallback.
     /// </summary>
-    public KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicy()
+    public KoLibri.Core.Spiel.AutoCombatPolicy BuildPolicy()
         => BuildPolicyCore(
             SelectedSkills.Select(s => s.Id).ToArray(),
             SelectedItems.Select(i => i.Id).ToArray());
@@ -248,19 +253,19 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     /// desktop does not depend on the core's internal assembly layout for
     /// something this small.
     /// </summary>
-    private static KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicyCore(
+    private static KoLibri.Core.Spiel.AutoCombatPolicy BuildPolicyCore(
         IReadOnlyList<string> skillIds,
         IReadOnlyList<string> itemIds)
     {
-        var rules = new List<KolArbitrage.Core.Adventure.AutoCombatRule>();
+        var rules = new List<KoLibri.Core.Spiel.AutoCombatRule>();
         foreach (var skill in skillIds.Where(s => !string.IsNullOrWhiteSpace(s)))
         {
-            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            rules.Add(new KoLibri.Core.Spiel.AutoCombatRule
             {
-                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
-                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                When = new KoLibri.Core.Spiel.AutoCombatPredicate(),
+                Then = new KoLibri.Core.Spiel.AutoCombatAction
                 {
-                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Skill,
+                    Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Skill,
                     Id = skill.Trim(),
                     Quantity = 1
                 },
@@ -269,24 +274,24 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         }
         foreach (var item in itemIds.Where(i => !string.IsNullOrWhiteSpace(i)))
         {
-            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            rules.Add(new KoLibri.Core.Spiel.AutoCombatRule
             {
-                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
-                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                When = new KoLibri.Core.Spiel.AutoCombatPredicate(),
+                Then = new KoLibri.Core.Spiel.AutoCombatAction
                 {
-                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Item,
+                    Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Item,
                     Id = item.Trim(),
                     Quantity = 1
                 },
                 MaxUses = 1
             });
         }
-        return new KolArbitrage.Core.Adventure.AutoCombatPolicy
+        return new KoLibri.Core.Spiel.AutoCombatPolicy
         {
             Rules = rules.ToArray(),
-            DefaultAction = new KolArbitrage.Core.Adventure.AutoCombatAction
+            DefaultAction = new KoLibri.Core.Spiel.AutoCombatAction
             {
-                Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Attack,
+                Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Attack,
                 Quantity = 1
             }
         };
@@ -330,8 +335,8 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             try
             {
                 var gateway = await CreateCombatGatewayAsync(role, approvalToken, cancellationToken)
-                    .ConfigureAwait(false);
-                var runner = new KolArbitrage.Core.Daily.AutoCombatRunner(gateway);
+                    ;
+                var runner = new KoLibri.Core.Spiel.AutoCombatRunner(gateway);
                 var result = await runner.RunAsync(
                     policy,
                     combatId: encounterId,
@@ -340,7 +345,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
                     maxRounds: MaxRounds,
                     abortBelowHpPercent: AbortHpPercent,
                     approvalToken: approvalToken,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                    cancellationToken: cancellationToken);
                 outcomes.Add(new CombatRunOutcome
                 {
                     Role = role,
@@ -367,22 +372,22 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         return outcomes;
     }
 
-    private static async Task<KolArbitrage.Core.Adventure.ManualCombatGateway>
+    private static async Task<KoLibri.Core.Spiel.ManualCombatGateway>
         CreateCombatGatewayAsync(AccountRole role, string approvalToken, CancellationToken cancellationToken)
     {
         var accounts = AccountSessionManager.CreateDefault();
-        await accounts.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await accounts.InitializeAsync(cancellationToken);
         var session = await accounts.GetSessionAsync(role, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
             throw new InvalidOperationException($"No valid session for {role}.");
-        var http = KolArbitrage.Core.Accounts.KoLLoginClient.CreateAuthenticatedClient(
+        var http = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var transport = new KolArbitrage.Core.Adventure.LiveManualCombatTransport(http);
-        var approval = new KolArbitrage.Core.Adventure.DelegateManualCombatApprovalHook(
+        var transport = new KoLibri.Core.Spiel.LiveManualCombatTransport(http);
+        var approval = new KoLibri.Core.Spiel.DelegateManualCombatApprovalHook(
             (context, _) => ValueTask.FromResult(
-                KolArbitrage.Core.Adventure.ManualCombatApprovalDecision.Allow(approvalToken)));
-        return new KolArbitrage.Core.Adventure.ManualCombatGateway(
+                KoLibri.Core.Spiel.ManualCombatApprovalDecision.Allow(approvalToken)));
+        return new KoLibri.Core.Spiel.ManualCombatGateway(
             transport,
             policy: null,
             approval: approval);
@@ -396,6 +401,6 @@ public sealed record CombatRunOutcome
     public required string Outcome { get; init; }
     public required string Rationale { get; init; }
     public int Rounds { get; init; }
-    public IReadOnlyList<KolArbitrage.Core.Daily.AutoCombatRound> RoundLog { get; init; }
-        = Array.Empty<KolArbitrage.Core.Daily.AutoCombatRound>();
+    public IReadOnlyList<KoLibri.Core.Spiel.AutoCombatRound> RoundLog { get; init; }
+        = Array.Empty<KoLibri.Core.Spiel.AutoCombatRound>();
 }

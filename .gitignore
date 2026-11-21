@@ -11,3 +11,7 @@
 /reports/live-*.json
 external/kolmafia/
 scripts/__pycache__/
+
+# Working notes — local only
+/.learnings/
+/dist/

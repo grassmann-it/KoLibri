@@ -1,0 +1,60 @@
+name: Release
+
+# Push a tag like v0.4.0 to build the programs for every platform and attach them to a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: package ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: windows-latest, rid: win-x64 }
+          - { os: macos-14, rid: osx-arm64 }
+          - { os: macos-13, rid: osx-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Package
+        shell: bash
+        run: scripts/package.sh ${{ matrix.rid }}
+      - name: Archive
+        shell: bash
+        run: |
+          cd dist
+          d=$(ls -d KoLibri-*-${{ matrix.rid }})
+          if [[ "${{ matrix.rid }}" == win-* ]]; then 7z a "$d.zip" "$d"; else tar -czf "$d.tar.gz" "$d"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" artifacts/* --repo "${{ github.repository }}" \
+            --title "KoLibri ${{ github.ref_name }}" --generate-notes --draft

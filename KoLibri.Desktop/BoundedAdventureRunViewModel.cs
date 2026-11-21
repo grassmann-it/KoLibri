@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Adventure;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

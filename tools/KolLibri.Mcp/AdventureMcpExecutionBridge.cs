@@ -1,6 +1,5 @@
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KolLibri.Mcp;
 

@@ -1,11 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Cli.Repl;
 
@@ -135,7 +131,6 @@ public sealed class ReplDispatcher
             "campfire" => await CampfireAsync(args, context, cancellationToken),
             "hermit" => await HermitAsync(args, context, cancellationToken),
             "internet-shop" or "internetshop" => await InternetShopAsync(args, context, cancellationToken),
-            "bacon" => await BaconAsync(args, context, cancellationToken),
             "reprice" => await RepriceAsync(args, context, cancellationToken),
             "tokens" => await TokensAsync(args, context, cancellationToken),
             "login" => await LoginAsync(args, context, cancellationToken),
@@ -282,14 +277,6 @@ public sealed class ReplDispatcher
             new[] { "#", "kind", "step" }, rows));
     }
 
-    private static Task<ReplResult> BaconAsync(string[] args, IReplContext ctx, CancellationToken _)
-    {
-        var snapshot = ParseBaconSnapshot(args);
-        var plan = new BaconArbitragePlanner().Plan(snapshot);
-        return Task.FromResult(ReplResult.Plain(
-            $"bacon — verdict={plan.Verdict}, buy={plan.ShouldBuy}, qty={plan.SuggestedQuantity}\n{plan.Rationale}"));
-    }
-
     private static async Task<ReplResult> RepriceAsync(string[] args, IReplContext ctx, CancellationToken token)
     {
         var limit = 10;
@@ -307,7 +294,7 @@ public sealed class ReplDispatcher
 
     private static Task<ReplResult> TokensAsync(string[] args, IReplContext ctx, CancellationToken _)
     {
-        var root = KolArbitrage.Core.Security.ApprovalTokenStore.DefaultRoot();
+        var root = KoLibri.Core.Basis.ApprovalTokenStore.DefaultRoot();
         var manual = Path.Combine(root, "manual-approval-token.json");
         var app = Path.Combine(root, "approval-token.json");
         var rows = new List<IReadOnlyList<string>>();
@@ -408,9 +395,6 @@ public sealed class ReplDispatcher
             WishBuyQuantity = I("--wish-buy"),
             WishUnitPrice = L("--wish-price"),
             AlreadyPulledItemIds = alreadyPulled,
-            OwnedMachines = I("--owned-machines"),
-            MallPricePerMachine = L("--mall-price"),
-            PricegunMedianBaconPrice = L("--bacon-median"),
             MallbotMeat = L("--mallbot-meat"),
             ForeignBribeBagPrice = L("--bag-price"),
             ForeignBribeBagStock = I("--bag-stock"),
@@ -446,18 +430,10 @@ public sealed class ReplDispatcher
         => new()
         {
             AlreadyPulledItemIds = FlagList(args, "--already-claimed"),
-            AvailableMeat = ParseLong(args, "--meat")
-        };
-
-    internal static BaconSnapshot ParseBaconSnapshot(string[] args)
-        => new()
-        {
-            OwnedMachines = ParseInt(args, "--owned"),
-            MallPricePerMachine = ParseLong(args, "--mall-price"),
-            PricegunMedianSellPrice = ParseLong(args, "--median"),
             AvailableMeat = ParseLong(args, "--meat"),
-            MinimumProfitPerUnit = ParseLong(args, "--min-profit", 50_000),
-            MaximumBuyQuantity = ParseInt(args, "--max-qty", 10)
+            Bacon = ParseInt(args, "--bacon"),
+            BaconMachineOwned = args.Contains("--machine"),
+            BaconMachineUsedToday = args.Contains("--machine-used")
         };
 
     private static string? Arg(string[] args, string key)
