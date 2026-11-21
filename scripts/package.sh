@@ -25,7 +25,13 @@ cp "$tmp/desktop/KoLibri.Desktop$ext" "$out/KoLibri$ext"
 mkdir -p "$out/external"
 cp -R "$root/external/kolmafia-data" "$out/external/kolmafia-data"
 cp "$root/README.md" "$root/LICENSE" "$root/NOTICE.md" "$out/"
-mkdir -p "$out/docs" && cp "$root/docs/quickstart.md" "$root/docs/mcp-access.md" "$out/docs/"
-[[ "$rid" == win-* ]] || chmod +x "$out/kolibri" "$out/kolibri-mcp" "$out/KoLibri"
+mkdir -p "$out/docs" && cp "$root/docs/quickstart.md" "$root/docs/mcp-access.md" "$root/docs/usage.md" "$out/docs/"
+# `kolicli` is a second name for `kolibri` (a shim on Windows, a symlink elsewhere).
+if [[ "$rid" == win-* ]]; then
+  printf '@echo off\r\n"%%~dp0kolibri.exe" %%*\r\n' > "$out/kolicli.cmd"
+else
+  ln -s kolibri "$out/kolicli"
+  chmod +x "$out/kolibri" "$out/kolibri-mcp" "$out/KoLibri"
+fi
 rm -rf "$tmp"
 echo "$out"
