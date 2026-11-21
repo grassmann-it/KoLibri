@@ -195,25 +195,37 @@ kolibri daily-audit --verify
 
 ## MCP
 
-The MCP server exposes the same capabilities to agent hosts. Read-only
-tools are always available; the live ones require an approval token.
+`kolibri-mcp` serves MCP over HTTP on `127.0.0.1:8765` (local only). An AI client
+connects, the browser opens a consent page, and **you** choose accounts, rights and
+daily limits. The client only receives what you approved; see
+[docs/mcp-access.md](docs/mcp-access.md).
+
+```bash
+kolibri-mcp                    # http://127.0.0.1:8765/mcp, consent code printed here
+kolibri-mcp grants list        # approved clients with today's usage
+kolibri-mcp grants revoke ID   # stop one client at once
+kolibri-mcp --stdio            # read-only tools over stdio, no approval needed
+```
 
 | Tool | What it does |
 |---|---|
-| `kol_run_daily_bridge` | Plans the daily routine from the live accounts |
-| `kol_daily_audit` | Reads the hash-chained audit log |
-| `kol_daily_campfire_plan` / `kol_daily_hermit_plan` / `kol_daily_routine` | The planners, read-only |
-| `kol_login_status` / `kol_login_clear` / `kol_login_refresh` | Session management |
-| `kol_adventure_run_execute` / `kol_choice_chain_execute` | The bounded live paths |
+| `kol_status` / `kol_inventory` | Account reads |
+| `kol_price_summary` / `kol_price_recommendation` / `kol_underprice_preview` | Market reads |
+| `kol_run_daily_bridge` / `kol_daily_*` | Plans the daily routine without executing |
 | `kol_preview_purchase` / `kol_preview_transfer` | Validates a proposal without acting |
+| `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`, daily budget) |
+
+Login management tools are not available to AI clients.
 
 ## Safety model
 
 This tool acts on a game account that holds real value, so the guardrails
 are structural rather than advisory.
 
-1. **Reads are free, writes are gated.** Every mutating path needs an
-   approval token. A tool without one simply cannot write.
+1. **Reads are free, writes are gated.** An AI client needs a token you
+   approved in the browser, with rights and per-day limits. The CLI and Desktop
+   are yours and need none; under an AI harness the CLI asks for a
+   confirmation at the real terminal before it writes (`kolibri agent-mode`).
 2. **Credentials never appear in code.** Sessions live encrypted in the
    user's local app-data folder. The library reads them at runtime and
    keeps them inside the authenticated HTTP clients.
