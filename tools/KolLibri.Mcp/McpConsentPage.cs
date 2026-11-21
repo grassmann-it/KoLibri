@@ -14,6 +14,7 @@ public static class McpConsentPage
     {
         [Rights.AccountRead] = new(),
         [Rights.MarketRead] = new(),
+        [Rights.ShopRead] = new(),
         [Rights.Adventure] = new() { DailyBudget = 20 },
         [Rights.MallBuy] = new() { DailyBudget = 100_000, MaxUnitPrice = 50_000, MeatReserve = 100_000 },
         [Rights.DailyRun] = new() { DailyBudget = 1 },
@@ -28,6 +29,7 @@ public static class McpConsentPage
     {
         [Rights.AccountRead] = "Read account (status, inventory, plans)",
         [Rights.MarketRead] = "Read market (Mall prices)",
+        [Rights.ShopRead] = "Read own shop (sales, customers, price suggestions)",
         [Rights.Adventure] = "Adventuring",
         [Rights.MallBuy] = "Buy in the Mall",
         [Rights.DailyRun] = "Run daily routine / meme shop",

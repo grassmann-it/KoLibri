@@ -29,6 +29,9 @@ public static class McpAccessPolicy
         ["kol_underprice_preview"] = "market.search",
         ["kol_preview_purchase"] = "market.search",
         ["kol_preview_transfer"] = "account.status",
+        ["kol_shop_sales"] = "shop.read",
+        ["kol_shop_buyers"] = "shop.read",
+        ["kol_shop_price_suggestions"] = "shop.read",
         ["kol_workflow_plan"] = "daily.preview",
         ["kol_daily_routine"] = "daily.preview",
         ["kol_daily_campfire_plan"] = "daily.preview",
@@ -54,7 +57,7 @@ public static class McpAccessPolicy
         ["kol_choice_chain_execute"] = ["maxChoices"],
     };
 
-    internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop", "kol_transfer", "kol_send_message", "kol_use_item", "kol_reprice_shop" };
+    internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop", "kol_transfer", "kol_send_message", "kol_use_item", "kol_reprice_shop", "kol_reward_buyer" };
 
     /// <summary>Authorizer for the HTTP host: every call is checked against the token's grant.</summary>
     public static ToolAuthorizer ForToken(AccessGate gate, Func<string?> currentToken, string defaultRole)
