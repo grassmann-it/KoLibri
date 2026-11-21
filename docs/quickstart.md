@@ -16,8 +16,8 @@ Or from source: `dotnet build KoLibri.slnx`, then `dotnet run --project tools/Ko
 ## 2. Sign in
 
 ```bash
-kolibri login --role main      # prompts for the password, stores an encrypted session
-kolibri login --role mallbot   # optional second account
+kolibri login main            # prompts for the password, stores an encrypted session
+kolibri login mallbot         # optional second account
 kolibri status --role main
 ```
 
@@ -50,9 +50,9 @@ kolibri-mcp grants revoke <id>   # cut one client off immediately
 ## 4. Daily routine yourself
 
 ```bash
-kolibri daily routine --role all            # preview only
-kolibri daily-go --execute                  # run the confirmed steps
-kolibri daily meme-shop --execute           # Internet Meme Shop, with BACON top-up
+kolibri daily-go --role all                 # preview of the whole routine from the live accounts
+kolibri daily-go --role all --execute       # run the confirmed steps
+kolibri daily meme-shop --role main --execute   # Internet Meme Shop (BACON top-up is on by default; --no-top-up)
 ```
 
 Under an AI harness the CLI asks for a confirmation at the real terminal before it writes (agent mode, see
