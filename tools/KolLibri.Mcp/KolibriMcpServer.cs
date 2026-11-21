@@ -199,7 +199,7 @@ public partial class KolibriMcpServer
         KolibriMcpServerOptions? options,
         CancellationToken cancellationToken)
     {
-        await new KolibriMcpServer(runtime, options).RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), cancellationToken)
+        await new KolibriMcpServer(runtime, options) { Authorizer = McpAccessPolicy.ReadOnly }.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), cancellationToken)
             .ConfigureAwait(false);
         return 0;
     }
@@ -209,7 +209,7 @@ public partial class KolibriMcpServer
         KolibriMcpServerOptions? options,
         CancellationToken cancellationToken)
     {
-        await new KolibriMcpServer(runtime, options).RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), cancellationToken)
+        await new KolibriMcpServer(runtime, options) { Authorizer = McpAccessPolicy.ReadOnly }.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), cancellationToken)
             .ConfigureAwait(false);
         return 0;
     }
@@ -237,9 +237,15 @@ public partial class KolibriMcpServer
         if (arguments.ValueKind != JsonValueKind.Object)
             return ErrorResponse(id, -32602, "Tool arguments must be an object.");
 
+        var authorization = Authorizer?.Invoke(name, arguments) ?? ToolAuthorization.Ok();
+        if (!authorization.Allowed)
+            return ToolErrorResponse(id, authorization.Message ?? "Not allowed.");
+
+        var confirmed = false;
         try
         {
             var value = await tool!.Handler(arguments, cancellationToken).ConfigureAwait(false);
+            confirmed = true;
             var serialized = JsonSerializer.Serialize(value, McpJson.Options);
             using var document = JsonDocument.Parse(serialized);
             var structured = document.RootElement.Clone();
@@ -258,6 +264,12 @@ public partial class KolibriMcpServer
         catch (Exception exception)
         {
             return ToolErrorResponse(id, SanitizeError(exception));
+        }
+        finally
+        {
+            // Requested amount counts only when the handler ran through; a failed call frees the hold.
+            if (confirmed) authorization.Reservation?.Commit(authorization.Reservation.Amount, name);
+            else authorization.Reservation?.Release();
         }
     }
 
