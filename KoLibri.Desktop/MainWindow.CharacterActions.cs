@@ -2,8 +2,8 @@ using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using LibKolibri;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -248,7 +248,7 @@ public partial class MainWindow
             : new PullStorageItem(item.ItemId, 1));
     }
 
-    private void ShowCharacterStorage(CharacterStorageSnapshot snapshot, KolArbitrage.Core.Basis.AccountRole role)
+    private void ShowCharacterStorage(CharacterStorageSnapshot snapshot, KoLibri.Core.Basis.AccountRole role)
     {
         if (this.FindControl<ComboBox>("CharacterStoredItem") is { } picker)
         {

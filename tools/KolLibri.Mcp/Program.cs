@@ -1,5 +1,5 @@
 using KolLibri.Mcp;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Spiel;
 using LibKolibri.Access;
 
 // kolibri-mcp                       HTTP on 127.0.0.1:8765 (default; AI access needs approval in the browser)

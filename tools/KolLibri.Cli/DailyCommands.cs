@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 internal static partial class KolibriCli
 {

@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri;
 

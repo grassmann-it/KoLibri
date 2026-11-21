@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri.Access;
 

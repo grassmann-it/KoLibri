@@ -4,8 +4,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -505,14 +505,14 @@ public partial class MainWindow : Window
             .Sum(item => item.Quantity);
         _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
-        var state = new KolArbitrage.Core.Spiel.AdventureState
+        var state = new KoLibri.Core.Spiel.AdventureState
         {
             IsStale = status.IsStale || inventory.IsStale,
             Knucklebones = Math.Max(0, knucklebones),
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
         };
-        var plan = new KolArbitrage.Core.Spiel.DailyAdventurePlanner().Plan(state);
+        var plan = new KoLibri.Core.Spiel.DailyAdventurePlanner().Plan(state);
         _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} step(s), projected {plan.ProjectedKnucklebones:N1} knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
             ? "No warnings. Every execution stays bound to approval and verification."

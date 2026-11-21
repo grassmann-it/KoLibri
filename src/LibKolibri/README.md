@@ -10,7 +10,7 @@ executors, a bounded adventure runner and a tamper-evident audit
 ledger — all behind a small, stable public API.
 
 ```csharp
-using KolArbitrage.Core.Accounts;
+using KoLibri.Core.Accounts;
 using LibKolibri;
 
 // Sign in once; the session is stored encrypted and renewed with the saved password when KoL drops it.
@@ -101,7 +101,7 @@ Be clear-eyed before you build on it:
 - Foreign-bribe arbitrage is not automated.
 - Chat is read and send only; KMail cannot delete and has no outbox view.
 - Quest and path coverage is partial; unusual adventure choices need your own allowlist.
-- The API is `0.x` and may still move. The core is grouped in three layers: `KolArbitrage.Core.Basis` (accounts, security, safety, audit), `.Spiel` (adventure, daily, client reads, game data) and `.Markt` (mall, pricing, analytics). A lower layer never names a higher one.
+- The API is `0.x` and may still move. The core is grouped in three layers: `KoLibri.Core.Basis` (accounts, security, safety, audit), `.Spiel` (adventure, daily, client reads, game data) and `.Markt` (mall, pricing, analytics). A lower layer never names a higher one.
 
 ## Safety model
 

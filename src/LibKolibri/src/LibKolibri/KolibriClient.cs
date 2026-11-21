@@ -1,6 +1,6 @@
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri;
 
@@ -232,8 +232,8 @@ public sealed class KolibriClient : IDisposable
     }
 
     /// <summary>Changes prices in the account's own mall store. Without <paramref name="commit"/> only checks.</summary>
-    public Task<KolArbitrage.Core.Markt.ShopMutationResult> RepriceShopAsync(
-        IEnumerable<KolArbitrage.Core.Markt.ShopPriceUpdate> updates, bool commit, CancellationToken cancellationToken = default)
+    public Task<KoLibri.Core.Markt.ShopMutationResult> RepriceShopAsync(
+        IEnumerable<KoLibri.Core.Markt.ShopPriceUpdate> updates, bool commit, CancellationToken cancellationToken = default)
         => new KoLShopMutationClient(_http).ApplyPriceUpdatesAsync(updates, commit, cancellationToken);
 
     /// <summary>Display name of the stored account for a role, or null when none is stored.</summary>

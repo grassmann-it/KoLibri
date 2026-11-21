@@ -1,18 +1,18 @@
 #pragma warning disable CS1591
 
-using CoreTransferApproval = KolArbitrage.Core.Markt.TransferApproval;
-using CoreTransferApprovalPolicy = KolArbitrage.Core.Markt.TransferApprovalPolicy;
-using CoreTransferApprovalRequest = KolArbitrage.Core.Markt.TransferApprovalRequest;
-using CoreTransferCommitRequest = KolArbitrage.Core.Markt.TransferCommitRequest;
-using CoreTransferCommitResult = KolArbitrage.Core.Markt.TransferCommitResult;
-using CoreTransferIdempotencyStore = KolArbitrage.Core.Markt.ITransferIdempotencyStore;
-using CoreTransferObservation = KolArbitrage.Core.Markt.TransferObservation;
-using CoreTransferPreview = KolArbitrage.Core.Markt.TransferPreview;
-using CoreTransferRequest = KolArbitrage.Core.Markt.TransferRequest;
-using CoreTransferReservationStore = KolArbitrage.Core.Markt.ITransferReservationStore;
-using CoreTransferVerificationRequest = KolArbitrage.Core.Markt.TransferVerificationRequest;
-using CoreTransferVerificationResult = KolArbitrage.Core.Markt.TransferVerificationResult;
-using KolArbitrage.Core.Markt;
+using CoreTransferApproval = KoLibri.Core.Markt.TransferApproval;
+using CoreTransferApprovalPolicy = KoLibri.Core.Markt.TransferApprovalPolicy;
+using CoreTransferApprovalRequest = KoLibri.Core.Markt.TransferApprovalRequest;
+using CoreTransferCommitRequest = KoLibri.Core.Markt.TransferCommitRequest;
+using CoreTransferCommitResult = KoLibri.Core.Markt.TransferCommitResult;
+using CoreTransferIdempotencyStore = KoLibri.Core.Markt.ITransferIdempotencyStore;
+using CoreTransferObservation = KoLibri.Core.Markt.TransferObservation;
+using CoreTransferPreview = KoLibri.Core.Markt.TransferPreview;
+using CoreTransferRequest = KoLibri.Core.Markt.TransferRequest;
+using CoreTransferReservationStore = KoLibri.Core.Markt.ITransferReservationStore;
+using CoreTransferVerificationRequest = KoLibri.Core.Markt.TransferVerificationRequest;
+using CoreTransferVerificationResult = KoLibri.Core.Markt.TransferVerificationResult;
+using KoLibri.Core.Markt;
 
 namespace LibKolibri;
 

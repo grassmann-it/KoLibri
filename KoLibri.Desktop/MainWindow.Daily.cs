@@ -4,9 +4,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 
 namespace KoLibri.Desktop;
@@ -59,9 +59,9 @@ public partial class MainWindow
         using var http = KoLLoginClient.CreateAuthenticatedClient(
             account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
         var readClient = new KoLAccountReadClient(http);
-        var doneStore = new KolArbitrage.Core.Spiel.DailyDoneStore();
+        var doneStore = new KoLibri.Core.Spiel.DailyDoneStore();
         var live = await new LiveDailySnapshotBuilder(readClient, doneStore)
-            .BuildAsync(new KolArbitrage.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
+            .BuildAsync(new KoLibri.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
                 role: account.Profile.Role);
         if (topUpBacon)
         {
@@ -78,12 +78,12 @@ public partial class MainWindow
                 _dailyNote += $" BACON top-up: bought {outcome.Quantity} of {needed} for {outcome.Spent} meat.";
                 if (outcome.Quantity > 0)
                     live = await new LiveDailySnapshotBuilder(readClient, doneStore)
-                        .BuildAsync(new KolArbitrage.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
+                        .BuildAsync(new KoLibri.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
                             role: account.Profile.Role);
             }
         }
         var snapshot = live.Snapshot with { HermitCloversWanted = hermitClovers };
-        var bridge = new KolArbitrage.Core.Spiel.AutoCombatDailyBridge();
+        var bridge = new KoLibri.Core.Spiel.AutoCombatDailyBridge();
         var plan = bridge.Plan(live.State, snapshot);
         // The desktop button authorizes this run. The token correlates its requests.
         var approval = new DelegateAdventureApprovalHook((_, _) =>
@@ -95,10 +95,10 @@ public partial class MainWindow
         await using var session = KoLAdventureSessionFactory.Create(account,
             KoLLoginClient.CreateAuthenticatedClient(account.Credentials, new Uri("https://www.kingdomofloathing.com/")),
             approval, verification);
-        var dispatcher = new KolArbitrage.Core.Spiel.FreePullDispatcher(
-            http, KolArbitrage.Core.Spiel.FreePullDispatcher.DefaultBaseUri);
-        using var audit = new KolArbitrage.Core.Spiel.BridgeAuditLog(
-            KolArbitrage.Core.Spiel.BridgeAuditLog.DefaultPath());
+        var dispatcher = new KoLibri.Core.Spiel.FreePullDispatcher(
+            http, KoLibri.Core.Spiel.FreePullDispatcher.DefaultBaseUri);
+        using var audit = new KoLibri.Core.Spiel.BridgeAuditLog(
+            KoLibri.Core.Spiel.BridgeAuditLog.DefaultPath());
         var result = await bridge.ExecuteAsync(
             plan.Steps, session.Gateway,
             freePullDispatcher: dispatcher,
@@ -111,7 +111,7 @@ public partial class MainWindow
         return result.Executed;
     }
 
-    private static KolArbitrage.Core.Spiel.KoLmafiaCatalog? TryLoadCatalog()
+    private static KoLibri.Core.Spiel.KoLmafiaCatalog? TryLoadCatalog()
     {
         var candidates = new[]
         {
@@ -123,7 +123,7 @@ public partial class MainWindow
             if (!Directory.Exists(candidate)) continue;
             try
             {
-                return new KolArbitrage.Core.Spiel.MafiaDataLoader().Load(candidate);
+                return new KoLibri.Core.Spiel.MafiaDataLoader().Load(candidate);
             }
             catch
             {

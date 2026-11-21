@@ -20,7 +20,7 @@ from the live data, plans the routine and runs it.
 
 | Project | Role | Package |
 |---|---|---|
-| `src/KolArbitrage.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
+| `src/KoLibri.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
 | `src/LibKolibri` | The public API façade over the core | [`KoLibri.LibKolibri`](https://github.com/grassmann-it/LibKolibri) |
 | `tools/KolLibri.Cli` | Command line front-end | — |
 | `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
@@ -104,7 +104,7 @@ The library:
 ```
 
 ```csharp
-using KolArbitrage.Core.Basis;
+using KoLibri.Core.Basis;
 using LibKolibri;
 
 using var kol = await KolibriClient.OpenAsync(AccountRole.Main);
@@ -264,8 +264,8 @@ Honest about what does not work yet:
 
 ```bash
 dotnet build KoLibri.slnx
-dotnet test tests/KolArbitrage.Core.Tests/KolArbitrage.Core.Tests.csproj
-dotnet pack src/KolArbitrage.Core/KolArbitrage.Core.csproj -c Release
+dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj
+dotnet pack src/KoLibri.Core/KoLibri.Core.csproj -c Release
 ```
 
 The `src/LibKolibri` submodule points at

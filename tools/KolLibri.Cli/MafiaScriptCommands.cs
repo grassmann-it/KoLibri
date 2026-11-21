@@ -1,4 +1,4 @@
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Spiel;
 
 internal static partial class KolibriCli
 {

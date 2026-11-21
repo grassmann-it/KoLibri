@@ -5,50 +5,50 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using CoreAuditEvent = KolArbitrage.Core.Basis.AuditEvent;
-using CoreAuditEventPhase = KolArbitrage.Core.Basis.AuditEventPhase;
-using CoreAuditEventQuery = KolArbitrage.Core.Basis.AuditEventQuery;
-using CoreAuditEventJournal = KolArbitrage.Core.Basis.IAuditEventJournal;
-using CoreItemMaster = KolArbitrage.Core.Spiel.ItemMaster;
-using CoreItemMasterRecord = KolArbitrage.Core.Spiel.ItemMasterRecord;
-using CoreItemVariantLink = KolArbitrage.Core.Spiel.ItemVariantLink;
-using CoreDurableSnapshotStore = KolArbitrage.Core.Basis.IDurableSnapshotStore;
-using CoreSnapshotKey = KolArbitrage.Core.Basis.SnapshotKey;
-using CoreSnapshotCachePolicy = KolArbitrage.Core.Basis.SnapshotCachePolicy;
-using CoreMallReadClient = KolArbitrage.Core.Markt.IMallReadClient;
-using CoreMallSnapshot = KolArbitrage.Core.Markt.MallSnapshot;
-using CoreOwnShopListing = KolArbitrage.Core.Markt.OwnShopListing;
-using CoreMallListing = KolArbitrage.Core.Markt.MallListing;
-using CoreShopMutationClient = KolArbitrage.Core.Markt.KoLShopMutationClient;
-using CoreShopPriceUpdate = KolArbitrage.Core.Markt.ShopPriceUpdate;
-using CoreShopMutationResult = KolArbitrage.Core.Markt.ShopMutationResult;
-using CoreShopPriceUpdateStatus = KolArbitrage.Core.Markt.ShopPriceUpdateStatus;
-using CorePriceEngine = KolArbitrage.Core.Markt.PricingEngine;
-using CorePriceSummary = KolArbitrage.Core.Markt.PriceSummary;
-using CorePricingRecommendation = KolArbitrage.Core.Markt.PricingRecommendation;
-using CorePriceObservation = KolArbitrage.Core.Markt.PriceObservation;
-using CoreQuoteSide = KolArbitrage.Core.Markt.QuoteSide;
-using CorePriceSource = KolArbitrage.Core.Markt.PriceSource;
-using CoreArbitrageQueryService = KolArbitrage.Core.Markt.CoreArbitrageQueryService;
-using CoreArbitrageObservation = KolArbitrage.Core.Markt.ArbitrageObservation;
-using CoreArbitrageQuery = KolArbitrage.Core.Markt.ArbitrageQuery;
-using CoreArbitrageCoreResult = KolArbitrage.Core.Markt.CoreArbitrageQueryResult;
-using CoreArbitrageCoreState = KolArbitrage.Core.Markt.CoreQueryState;
-using CoreMallPriceProvider = KolArbitrage.Core.Markt.KoLMallPriceProvider;
-using CoreTransferRequest = KolArbitrage.Core.Markt.TransferRequest;
-using CoreTransferObservation = KolArbitrage.Core.Markt.TransferObservation;
-using CoreTransferPreview = KolArbitrage.Core.Markt.TransferPreview;
-using CoreTransferApproval = KolArbitrage.Core.Markt.TransferApproval;
-using CoreTransferCommitRequest = KolArbitrage.Core.Markt.TransferCommitRequest;
-using CoreTransferCommitResult = KolArbitrage.Core.Markt.TransferCommitResult;
-using CoreTransferVerificationRequest = KolArbitrage.Core.Markt.TransferVerificationRequest;
-using CoreTransferVerificationResult = KolArbitrage.Core.Markt.TransferVerificationResult;
-using CoreTransferApprovalPolicy = KolArbitrage.Core.Markt.TransferApprovalPolicy;
-using CoreTransferIdempotencyStore = KolArbitrage.Core.Markt.ITransferIdempotencyStore;
-using CoreTransferReservationStore = KolArbitrage.Core.Markt.ITransferReservationStore;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using CoreAuditEvent = KoLibri.Core.Basis.AuditEvent;
+using CoreAuditEventPhase = KoLibri.Core.Basis.AuditEventPhase;
+using CoreAuditEventQuery = KoLibri.Core.Basis.AuditEventQuery;
+using CoreAuditEventJournal = KoLibri.Core.Basis.IAuditEventJournal;
+using CoreItemMaster = KoLibri.Core.Spiel.ItemMaster;
+using CoreItemMasterRecord = KoLibri.Core.Spiel.ItemMasterRecord;
+using CoreItemVariantLink = KoLibri.Core.Spiel.ItemVariantLink;
+using CoreDurableSnapshotStore = KoLibri.Core.Basis.IDurableSnapshotStore;
+using CoreSnapshotKey = KoLibri.Core.Basis.SnapshotKey;
+using CoreSnapshotCachePolicy = KoLibri.Core.Basis.SnapshotCachePolicy;
+using CoreMallReadClient = KoLibri.Core.Markt.IMallReadClient;
+using CoreMallSnapshot = KoLibri.Core.Markt.MallSnapshot;
+using CoreOwnShopListing = KoLibri.Core.Markt.OwnShopListing;
+using CoreMallListing = KoLibri.Core.Markt.MallListing;
+using CoreShopMutationClient = KoLibri.Core.Markt.KoLShopMutationClient;
+using CoreShopPriceUpdate = KoLibri.Core.Markt.ShopPriceUpdate;
+using CoreShopMutationResult = KoLibri.Core.Markt.ShopMutationResult;
+using CoreShopPriceUpdateStatus = KoLibri.Core.Markt.ShopPriceUpdateStatus;
+using CorePriceEngine = KoLibri.Core.Markt.PricingEngine;
+using CorePriceSummary = KoLibri.Core.Markt.PriceSummary;
+using CorePricingRecommendation = KoLibri.Core.Markt.PricingRecommendation;
+using CorePriceObservation = KoLibri.Core.Markt.PriceObservation;
+using CoreQuoteSide = KoLibri.Core.Markt.QuoteSide;
+using CorePriceSource = KoLibri.Core.Markt.PriceSource;
+using CoreArbitrageQueryService = KoLibri.Core.Markt.CoreArbitrageQueryService;
+using CoreArbitrageObservation = KoLibri.Core.Markt.ArbitrageObservation;
+using CoreArbitrageQuery = KoLibri.Core.Markt.ArbitrageQuery;
+using CoreArbitrageCoreResult = KoLibri.Core.Markt.CoreArbitrageQueryResult;
+using CoreArbitrageCoreState = KoLibri.Core.Markt.CoreQueryState;
+using CoreMallPriceProvider = KoLibri.Core.Markt.KoLMallPriceProvider;
+using CoreTransferRequest = KoLibri.Core.Markt.TransferRequest;
+using CoreTransferObservation = KoLibri.Core.Markt.TransferObservation;
+using CoreTransferPreview = KoLibri.Core.Markt.TransferPreview;
+using CoreTransferApproval = KoLibri.Core.Markt.TransferApproval;
+using CoreTransferCommitRequest = KoLibri.Core.Markt.TransferCommitRequest;
+using CoreTransferCommitResult = KoLibri.Core.Markt.TransferCommitResult;
+using CoreTransferVerificationRequest = KoLibri.Core.Markt.TransferVerificationRequest;
+using CoreTransferVerificationResult = KoLibri.Core.Markt.TransferVerificationResult;
+using CoreTransferApprovalPolicy = KoLibri.Core.Markt.TransferApprovalPolicy;
+using CoreTransferIdempotencyStore = KoLibri.Core.Markt.ITransferIdempotencyStore;
+using CoreTransferReservationStore = KoLibri.Core.Markt.ITransferReservationStore;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri;
 
@@ -379,9 +379,9 @@ public sealed class CoreArbitrageGateway : IArbitrageGateway, IKolibriModule
             IsStale = candidate.IsStale,
             Decision = candidate.Decision switch
             {
-                KolArbitrage.Core.Markt.CoreArbitrageDecision.Buy => ArbitrageDecision.Buy,
-                KolArbitrage.Core.Markt.CoreArbitrageDecision.Hold => ArbitrageDecision.Hold,
-                KolArbitrage.Core.Markt.CoreArbitrageDecision.Investigate => ArbitrageDecision.Investigate,
+                KoLibri.Core.Markt.CoreArbitrageDecision.Buy => ArbitrageDecision.Buy,
+                KoLibri.Core.Markt.CoreArbitrageDecision.Hold => ArbitrageDecision.Hold,
+                KoLibri.Core.Markt.CoreArbitrageDecision.Investigate => ArbitrageDecision.Investigate,
                 _ => ArbitrageDecision.Reject
             },
             RequiresApproval = candidate.RequiresApproval,
@@ -392,10 +392,10 @@ public sealed class CoreArbitrageGateway : IArbitrageGateway, IKolibriModule
             {
                 Freshness = candidate.Snapshot.Freshness switch
                 {
-                    KolArbitrage.Core.Markt.SnapshotFreshness.Fresh => SnapshotFreshness.Fresh,
-                    KolArbitrage.Core.Markt.SnapshotFreshness.Stale => SnapshotFreshness.Stale,
-                    KolArbitrage.Core.Markt.SnapshotFreshness.Expired => SnapshotFreshness.Expired,
-                    KolArbitrage.Core.Markt.SnapshotFreshness.Missing => SnapshotFreshness.Missing,
+                    KoLibri.Core.Markt.SnapshotFreshness.Fresh => SnapshotFreshness.Fresh,
+                    KoLibri.Core.Markt.SnapshotFreshness.Stale => SnapshotFreshness.Stale,
+                    KoLibri.Core.Markt.SnapshotFreshness.Expired => SnapshotFreshness.Expired,
+                    KoLibri.Core.Markt.SnapshotFreshness.Missing => SnapshotFreshness.Missing,
                     _ => SnapshotFreshness.Unknown
                 },
                 ObservedAt = candidate.Snapshot.ObservedAt,
@@ -416,9 +416,9 @@ public sealed class CoreArbitrageGateway : IArbitrageGateway, IKolibriModule
         {
             Freshness = result.Snapshot.Freshness switch
             {
-                KolArbitrage.Core.Markt.SnapshotFreshness.Fresh => SnapshotFreshness.Fresh,
-                KolArbitrage.Core.Markt.SnapshotFreshness.Stale => SnapshotFreshness.Stale,
-                KolArbitrage.Core.Markt.SnapshotFreshness.Missing => SnapshotFreshness.Missing,
+                KoLibri.Core.Markt.SnapshotFreshness.Fresh => SnapshotFreshness.Fresh,
+                KoLibri.Core.Markt.SnapshotFreshness.Stale => SnapshotFreshness.Stale,
+                KoLibri.Core.Markt.SnapshotFreshness.Missing => SnapshotFreshness.Missing,
                 _ => SnapshotFreshness.Unknown
             },
             ObservedAt = result.Snapshot.ObservedAt,

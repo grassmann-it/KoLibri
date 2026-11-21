@@ -23,7 +23,7 @@
          fresh clone builds without a NuGet feed. Outside the repository the
          published package is used instead. The path is resolved once, in
          MSBuild's own working directory. -->
-    <KolArbitrageCoreProject>$(MSBuildThisFileDirectory)../../../KolArbitrage.Core/KolArbitrage.Core.csproj</KolArbitrageCoreProject>
+    <KolArbitrageCoreProject>$(MSBuildThisFileDirectory)../../../KoLibri.Core/KoLibri.Core.csproj</KolArbitrageCoreProject>
     <HasKolArbitrageCoreProject Condition="Exists('$(KolArbitrageCoreProject)')">true</HasKolArbitrageCoreProject>
     <HasKolArbitrageCoreProject Condition="'$(HasKolArbitrageCoreProject)' == ''">false</HasKolArbitrageCoreProject>
   </PropertyGroup>

@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Spiel;
-using KolArbitrage.Core.Markt;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
+using KoLibri.Core.Markt;
 
 /// <summary>
 /// The market scan: what the arbitrage items cost right now, what they

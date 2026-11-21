@@ -1,7 +1,7 @@
 # LibKolibri architecture
 
 `LibKolibri` is the reusable adapter layer for KoL-facing projects. The
-current desktop app and CLI can keep using `KolArbitrage.Core` while they move
+current desktop app and CLI can keep using `KoLibri.Core` while they move
 behind the stable contracts in `src/LibKolibri`.
 
 The boundary is split into capabilities:

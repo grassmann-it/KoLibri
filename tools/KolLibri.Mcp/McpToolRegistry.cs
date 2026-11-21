@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
-using KolArbitrage.Core.Basis;
+using KoLibri.Core.Basis;
 
 namespace KolLibri.Mcp;
 

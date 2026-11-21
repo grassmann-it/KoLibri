@@ -1,7 +1,7 @@
 using System.Net;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 // Dependency-free smoke harness: no real account, credentials, or network.
 await OfflineChecks.RunAsync();

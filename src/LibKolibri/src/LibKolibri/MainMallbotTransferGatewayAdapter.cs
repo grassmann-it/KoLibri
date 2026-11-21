@@ -1,16 +1,16 @@
 #pragma warning disable CS1591
 
-using CoreTransferApproval = KolArbitrage.Core.Markt.TransferApproval;
-using CoreTransferApprovalPolicy = KolArbitrage.Core.Markt.TransferApprovalPolicy;
-using CoreTransferCommitRequest = KolArbitrage.Core.Markt.TransferCommitRequest;
-using CoreTransferCommitResult = KolArbitrage.Core.Markt.TransferCommitResult;
-using CoreTransferObservation = KolArbitrage.Core.Markt.TransferObservation;
-using CoreTransferPreview = KolArbitrage.Core.Markt.TransferPreview;
-using CoreTransferRequest = KolArbitrage.Core.Markt.TransferRequest;
-using CoreTransferVerificationRequest = KolArbitrage.Core.Markt.TransferVerificationRequest;
-using CoreTransferVerificationResult = KolArbitrage.Core.Markt.TransferVerificationResult;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using CoreTransferApproval = KoLibri.Core.Markt.TransferApproval;
+using CoreTransferApprovalPolicy = KoLibri.Core.Markt.TransferApprovalPolicy;
+using CoreTransferCommitRequest = KoLibri.Core.Markt.TransferCommitRequest;
+using CoreTransferCommitResult = KoLibri.Core.Markt.TransferCommitResult;
+using CoreTransferObservation = KoLibri.Core.Markt.TransferObservation;
+using CoreTransferPreview = KoLibri.Core.Markt.TransferPreview;
+using CoreTransferRequest = KoLibri.Core.Markt.TransferRequest;
+using CoreTransferVerificationRequest = KoLibri.Core.Markt.TransferVerificationRequest;
+using CoreTransferVerificationResult = KoLibri.Core.Markt.TransferVerificationResult;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri;
 

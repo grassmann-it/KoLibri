@@ -1,5 +1,5 @@
 using LibKolibri;
-using KolArbitrage.Core.Basis;
+using KoLibri.Core.Basis;
 
 // A minimal consumer of LibKolibri: open the stored session, read the account, look at the mall.
 //   dotnet run --project sample/KolLibri.Sample -- main

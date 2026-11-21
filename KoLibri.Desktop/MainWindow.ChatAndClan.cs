@@ -4,7 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Spiel;
 
 
 namespace KoLibri.Desktop;

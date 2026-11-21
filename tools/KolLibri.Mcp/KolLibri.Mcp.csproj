@@ -14,7 +14,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/KolArbitrage.Core/KolArbitrage.Core.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
     <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </ItemGroup>
 </Project>

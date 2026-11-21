@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using LibKolibri;
-using KolArbitrage.Core.Markt;
+using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 

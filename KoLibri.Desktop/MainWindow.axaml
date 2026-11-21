@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:KoLibri.Desktop"
-        xmlns:spiel="clr-namespace:KolArbitrage.Core.Spiel;assembly=KolArbitrage.Core"
+        xmlns:spiel="clr-namespace:KoLibri.Core.Spiel;assembly=KoLibri.Core"
         x:Class="KoLibri.Desktop.MainWindow"
         Title="KoLibri"
         Width="1200"

@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Basis;
+using KoLibri.Core.Basis;
 
 namespace KoLibri.Desktop;
 
@@ -66,14 +66,14 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
     private readonly DesktopLiveDataProvider _provider;
     private readonly AccountRole _role;
     private readonly Func<string, Task<long?>> _medianLookup;
-    private readonly KolArbitrage.Core.Spiel.KoLmafiaCatalog? _catalog;
+    private readonly KoLibri.Core.Spiel.KoLmafiaCatalog? _catalog;
     private ObservableCollection<string> _watchList = new(DefaultWatchList);
 
     public LiveArbitrageViewModel(
         AccountRole role = AccountRole.Main,
         DesktopLiveDataProvider? provider = null,
         Func<string, Task<long?>>? medianLookup = null,
-        KolArbitrage.Core.Spiel.KoLmafiaCatalog? catalog = null)
+        KoLibri.Core.Spiel.KoLmafiaCatalog? catalog = null)
     {
         _role = role;
         _provider = provider ?? new DesktopLiveDataProvider();
@@ -138,7 +138,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
     public void LoadRules()
     {
         Rules.Clear();
-        foreach (var rule in KolArbitrage.Core.Spiel.BuyPlanner.DefaultRules)
+        foreach (var rule in KoLibri.Core.Spiel.BuyPlanner.DefaultRules)
         {
             Rules.Add(new BuyRuleRow
             {
@@ -224,7 +224,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                 Rules[index] = row with { CandidateCount = 0, PlannedCost = 0, PlannedProfit = 0 };
                 continue;
             }
-            var rule = new KolArbitrage.Core.Spiel.BuyRule
+            var rule = new KoLibri.Core.Spiel.BuyRule
             {
                 ItemId = row.ItemId,
                 ItemName = row.ItemName,
@@ -232,7 +232,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                 ResalePrice = row.ResalePrice
             };
             var listings = search.Listings
-                .Select(x => new KolArbitrage.Core.Spiel.MallListingRow
+                .Select(x => new KoLibri.Core.Spiel.MallListingRow
                 {
                     StoreId = int.TryParse(x.StoreId, out var store) ? store : 0,
                     ItemId = row.ItemId,
@@ -242,7 +242,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                     DailyLimit = x.PurchaseLimit ?? 0
                 })
                 .ToArray();
-            var plan = new KolArbitrage.Core.Spiel.BuyPlanner().Plan(rule, listings, meat);
+            var plan = new KoLibri.Core.Spiel.BuyPlanner().Plan(rule, listings, meat);
             Rules[index] = row with
             {
                 CandidateCount = plan.Candidates.Count,

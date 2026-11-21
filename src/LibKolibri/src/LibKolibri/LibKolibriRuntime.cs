@@ -2,7 +2,7 @@ namespace LibKolibri;
 
 /// <summary>
 /// Dependency-injection friendly composition root for LibKolibri consumers.
-/// The first implementation delegates to KolArbitrage.Core; future adapters
+/// The first implementation delegates to KoLibri.Core; future adapters
 /// can replace individual gateways without changing CLI/UI/MCP contracts.
 /// </summary>
 public sealed class LibKolibriRuntime

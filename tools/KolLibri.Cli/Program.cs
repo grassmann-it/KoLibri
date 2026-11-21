@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
 using KoLibri.Cli.Repl;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 return await KolibriCli.RunAsync(args);
 
@@ -159,7 +159,7 @@ internal static partial class KolibriCli
     {
         try
         {
-            var loader = new KolArbitrage.Core.Spiel.MafiaDataLoader();
+            var loader = new KoLibri.Core.Spiel.MafiaDataLoader();
             var path = Path.Combine(
                 AppContext.BaseDirectory, "kolmafia-data");
             if (!Directory.Exists(path))

@@ -1,5 +1,5 @@
-using KolArbitrage.Core.Markt;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Markt;
+using KoLibri.Core.Spiel;
 
 namespace LibKolibri;
 

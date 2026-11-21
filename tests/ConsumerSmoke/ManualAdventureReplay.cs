@@ -1,7 +1,7 @@
 using System.Net;
 using LibKolibri;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 internal static class ManualAdventureReplay
 {

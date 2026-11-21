@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using KolArbitrage.Core.Basis;
-using KolArbitrage.Core.Spiel;
+using KoLibri.Core.Basis;
+using KoLibri.Core.Spiel;
 
 namespace KolLibri.Mcp;
 

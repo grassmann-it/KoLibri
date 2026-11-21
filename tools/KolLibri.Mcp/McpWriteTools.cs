@@ -1,5 +1,5 @@
 using System.Text.Json;
-using KolArbitrage.Core.Basis;
+using KoLibri.Core.Basis;
 using LibKolibri;
 using LibKolibri.Access;
 
@@ -56,8 +56,8 @@ public sealed class KolibriClientActions : IAccountActions
         using var client = await KolibriClient.OpenAsync(from, cancellationToken: ct).ConfigureAwait(false);
         var to = await client.OtherAccountNameAsync(ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("The other account is not stored; nothing was sent.");
-        IReadOnlyList<KolArbitrage.Core.Spiel.KoLMailAttachment> items = itemId is { } id
-            ? [new KolArbitrage.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
+        IReadOnlyList<KoLibri.Core.Spiel.KoLMailAttachment> items = itemId is { } id
+            ? [new KoLibri.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
         return await client.SendKMailAsync(to, "Sent with KoLibri.", items, meat, ct).ConfigureAwait(false);
     }
 
@@ -77,7 +77,7 @@ public sealed class KolibriClientActions : IAccountActions
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
         var result = await client.RepriceShopAsync(
-            changes.Select(c => new KolArbitrage.Core.Markt.ShopPriceUpdate(c.ItemId, c.ExpectedPrice, c.NewPrice)), commit, ct)
+            changes.Select(c => new KoLibri.Core.Markt.ShopPriceUpdate(c.ItemId, c.ExpectedPrice, c.NewPrice)), commit, ct)
             .ConfigureAwait(false);
         return result.Results.Select(r => new RepriceLine(r.ItemId, r.ExpectedCurrentPrice, r.ObservedCurrentPrice, r.NewPrice,
             r.Status.ToString(), r.Message)).ToArray();

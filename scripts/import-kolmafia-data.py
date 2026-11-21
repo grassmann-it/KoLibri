@@ -3,7 +3,7 @@
 into structured JSON Lines files under external/kolmafia-data/.
 
 This script is the bridge between Mafia's tab/whitespace files and the
-typed records the KolArbitrage.Core data layer expects. It is meant to
+typed records the KoLibri.Core data layer expects. It is meant to
 be re-run only when upstream KoLmafia changes; the JSONL output is
 checked into the repository so the rest of the build runs offline.
 """
