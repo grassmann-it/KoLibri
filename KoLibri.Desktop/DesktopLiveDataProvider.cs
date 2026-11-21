@@ -1,8 +1,6 @@
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Markt;
+using KolArbitrage.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

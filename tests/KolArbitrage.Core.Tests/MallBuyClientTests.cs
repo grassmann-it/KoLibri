@@ -1,5 +1,6 @@
-using KolArbitrage.Core.Daily;
 using Xunit;
+using KolArbitrage.Core.Spiel;
+using KolArbitrage.Core.Markt;
 
 namespace KolArbitrage.Core.Tests;
 
@@ -68,7 +69,7 @@ public sealed class BurningLeavesGuardTests
         var dispatcher = new FreePullDispatcher(new HttpClient(), FreePullDispatcher.DefaultBaseUri);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             dispatcher.BurnLeavesAsync(
-                new KolArbitrage.Core.Accounts.AccountCredentials { CookieHeader = "x" }, 5));
+                new KolArbitrage.Core.Basis.AccountCredentials { CookieHeader = "x" }, 5));
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public sealed class BurningLeavesGuardTests
         var dispatcher = new FreePullDispatcher(new HttpClient(), FreePullDispatcher.DefaultBaseUri);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             dispatcher.BurnLeavesAsync(
-                new KolArbitrage.Core.Accounts.AccountCredentials { CookieHeader = "x" }, 0));
+                new KolArbitrage.Core.Basis.AccountCredentials { CookieHeader = "x" }, 0));
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using KolArbitrage.Core.Adventure;
 using LibKolibri;
+using KolArbitrage.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

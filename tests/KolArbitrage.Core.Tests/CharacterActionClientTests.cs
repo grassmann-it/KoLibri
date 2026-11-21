@@ -1,8 +1,7 @@
-using KolArbitrage.Core.Data;
 using System.Net;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 

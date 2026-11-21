@@ -1,14 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Analytics;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
-using KolArbitrage.Core.Safety;
 using KoLibri.Cli.Repl;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 internal static partial class KolibriCli
 {
@@ -226,13 +221,13 @@ internal static partial class KolibriCli
         //   kolibri daily-audit [path] [--tail N] [--verify] [--role X]
         var path = args.Length > 0 && !args[0].StartsWith('-')
             ? args[0]
-            : KolArbitrage.Core.Daily.BridgeAuditLog.DefaultPath();
+            : KolArbitrage.Core.Spiel.BridgeAuditLog.DefaultPath();
         var tail = int.TryParse(GetOption(args, "--tail"), out var t) ? t : 0;
         var verify = args.Any(a => string.Equals(a, "--verify", StringComparison.OrdinalIgnoreCase));
         var roleFilter = GetOption(args, "--role");
         var accountFilter = GetOption(args, "--account");
 
-        await using var log = new KolArbitrage.Core.Daily.BridgeAuditLog(path);
+        await using var log = new KolArbitrage.Core.Spiel.BridgeAuditLog(path);
         var rows = log.ReadSealedEvents();
         if (verify)
         {
@@ -254,7 +249,7 @@ internal static partial class KolibriCli
             });
             return 1;
         }
-        IEnumerable<KolArbitrage.Core.Integration.SealedAuditEvent> filtered = rows;
+        IEnumerable<KolArbitrage.Core.Basis.SealedAuditEvent> filtered = rows;
         if (!string.IsNullOrWhiteSpace(roleFilter))
         {
             // legacy `role` filter maps Main/Mallbot to accountId values; we
@@ -292,8 +287,8 @@ internal static partial class KolibriCli
     private static async Task<int> TokenDispatchAsync(string[] args)
     {
         var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "show";
-        var store = new KolArbitrage.Core.Security.ApprovalTokenStore(
-            KolArbitrage.Core.Security.ApprovalTokenStore.DefaultRoot());
+        var store = new KolArbitrage.Core.Basis.ApprovalTokenStore(
+            KolArbitrage.Core.Basis.ApprovalTokenStore.DefaultRoot());
         switch (sub)
         {
             case "mint":
@@ -301,7 +296,7 @@ internal static partial class KolibriCli
             {
                 var label = GetOption(args[1..], "--label");
                 var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-                var record = new KolArbitrage.Core.Security.ApprovalToken(
+                var record = new KolArbitrage.Core.Basis.ApprovalToken(
                     Token: token,
                     CreatedAt: DateTimeOffset.UtcNow,
                     Label: label ?? "kolibri-cli");

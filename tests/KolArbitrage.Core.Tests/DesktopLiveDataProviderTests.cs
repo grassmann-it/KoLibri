@@ -1,6 +1,6 @@
-using KolArbitrage.Core.Accounts;
 using KoLibri.Desktop;
 using Xunit;
+using KolArbitrage.Core.Basis;
 
 namespace KolArbitrage.Core.Tests;
 
@@ -30,7 +30,7 @@ public sealed class DesktopLiveDataProviderTests
         var provider = new DesktopLiveDataProvider(new AccountSessionManager(
             new InMemoryAccountStore(), new InMemorySecretStore()));
         var snapshot = await provider.LoadDailySnapshotAsync(
-            AccountRole.Main, new KolArbitrage.Core.Daily.DailyRoutineSnapshot());
+            AccountRole.Main, new KolArbitrage.Core.Spiel.DailyRoutineSnapshot());
         Assert.Null(snapshot);
     }
 

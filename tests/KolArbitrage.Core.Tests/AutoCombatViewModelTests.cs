@@ -11,7 +11,7 @@ namespace KolArbitrage.Core.Tests;
 public sealed class AutoCombatViewModelTests
 {
     private static AutoCombatViewModel Build()
-        => new(new KolArbitrage.Core.Data.MafiaDataLoader()
+        => new(new KolArbitrage.Core.Spiel.MafiaDataLoader()
             .Load("external/kolmafia-data"));
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class LiveMallViewModelTests
     {
         var viewModel = new LiveMallViewModel(
             provider: new DesktopLiveDataProvider(
-                new KolArbitrage.Core.Accounts.AccountSessionManager(
+                new KolArbitrage.Core.Basis.AccountSessionManager(
                     new InMemoryAccountStore(), new InMemorySecretStore())));
         await viewModel.LoadAsync();
         Assert.Empty(viewModel.Rows);

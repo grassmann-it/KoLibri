@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
 using LibKolibri;
 using LibSnapshotFreshness = LibKolibri.SnapshotFreshness;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

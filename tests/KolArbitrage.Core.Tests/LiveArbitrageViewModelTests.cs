@@ -14,7 +14,7 @@ public sealed class LiveArbitrageViewModelTests
     {
         captured = new LiveArbitrageViewModel(
             provider: new DesktopLiveDataProvider(
-                new KolArbitrage.Core.Accounts.AccountSessionManager(
+                new KolArbitrage.Core.Basis.AccountSessionManager(
                     new InMemoryAccountStore(), new InMemorySecretStore())),
             medianLookup: _ => Task.FromResult(median));
         return captured;
@@ -47,7 +47,7 @@ public sealed class LiveGutsViewModelTests
     {
         var viewModel = new LiveGutsViewModel(
             provider: new DesktopLiveDataProvider(
-                new KolArbitrage.Core.Accounts.AccountSessionManager(
+                new KolArbitrage.Core.Basis.AccountSessionManager(
                     new InMemoryAccountStore(), new InMemorySecretStore())));
         await viewModel.LoadAsync();
         Assert.Equal(2, viewModel.Accounts.Count);

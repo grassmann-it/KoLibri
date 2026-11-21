@@ -1,6 +1,6 @@
 using System.Text.Json;
-using KolArbitrage.Core.Integration;
 using Xunit;
+using KolArbitrage.Core.Basis;
 
 namespace KolArbitrage.Core.Tests;
 

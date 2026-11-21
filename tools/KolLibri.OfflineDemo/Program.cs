@@ -1,10 +1,7 @@
 using System.Net;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Analytics;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
-using KolArbitrage.Core.Security;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Markt;
+using KolArbitrage.Core.Spiel;
 
 // Dependency-free smoke harness: no real account, credentials, or network.
 await OfflineChecks.RunAsync();

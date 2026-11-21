@@ -1,7 +1,6 @@
 using System.Text;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
 using Xunit;
+using KolArbitrage.Core.Basis;
 
 namespace KolArbitrage.Core.Tests;
 

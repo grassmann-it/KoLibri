@@ -1,14 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Analytics;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Pricing;
-using KolArbitrage.Core.Safety;
 using KoLibri.Cli.Repl;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Markt;
+using KolArbitrage.Core.Spiel;
 
 internal static partial class KolibriCli
 {

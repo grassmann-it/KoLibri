@@ -1,4 +1,3 @@
-using KolArbitrage.Core.Accounts;
 using KoLibri.Desktop;
 using Xunit;
 

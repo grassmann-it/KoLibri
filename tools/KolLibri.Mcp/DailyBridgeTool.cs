@@ -1,8 +1,6 @@
 using System.Text.Json;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KolLibri.Mcp;
 

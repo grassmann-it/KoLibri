@@ -1,8 +1,7 @@
 using System.Text.Json;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
 using KolLibri.Mcp;
 using Xunit;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 

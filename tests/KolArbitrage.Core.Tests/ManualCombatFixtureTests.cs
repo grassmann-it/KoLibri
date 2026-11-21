@@ -1,5 +1,5 @@
-using KolArbitrage.Core.Adventure;
 using Xunit;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 

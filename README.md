@@ -104,17 +104,15 @@ The library:
 ```
 
 ```csharp
+using KolArbitrage.Core.Basis;
 using LibKolibri;
-using KolArbitrage.Core.Integration;
 
-var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
-runtime.TryGet<IAccountReadClient>(AccountRole.Main, out var account);
-
-var status = await account.FetchStatusAsync();
+using var kol = await KolibriClient.OpenAsync(AccountRole.Main);
+var status = await kol.GetStatusAsync();
 Console.WriteLine($"{status.PlayerName}: {status.Meat} meat");
 ```
 
-The CLI and the MCP server build from source:
+The CLI and the MCP server install as dotnet tools (`KoLibri.Cli`, `KoLibri.Mcp`) or build from source:
 
 ```bash
 dotnet build KoLibri.slnx

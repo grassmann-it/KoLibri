@@ -1,10 +1,8 @@
 using LibKolibri;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Security;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 #pragma warning disable CA1822 // mark members static for testability where possible
 

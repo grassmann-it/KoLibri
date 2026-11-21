@@ -1,9 +1,8 @@
 using System.Net;
 using System.Net.Http;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Markt;
 
 namespace KolArbitrage.Core.Tests;
 

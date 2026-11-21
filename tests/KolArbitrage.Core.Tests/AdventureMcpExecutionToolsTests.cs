@@ -1,8 +1,8 @@
 using System.Text.Json;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
 using KolLibri.Mcp;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 
@@ -17,7 +17,7 @@ public sealed class AdventureMcpExecutionToolsTests
     public void Run_execute_without_execute_flag_returns_preview_only()
     {
         var transport = new AdventureExecutionFixtureTransport();
-        var store = new KolArbitrage.Core.Adventure.InMemoryAdventureRunCheckpointStore();
+        var store = new KolArbitrage.Core.Spiel.InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store);
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
         var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
@@ -46,7 +46,7 @@ public sealed class AdventureMcpExecutionToolsTests
                 AdventureId = "skeleton", Kind = AdventureEncounterKind.Reward,
                 CanContinue = false, ResponseHash = "reward"
             });
-        var store = new KolArbitrage.Core.Adventure.InMemoryAdventureRunCheckpointStore();
+        var store = new KolArbitrage.Core.Spiel.InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store, expectedToken: "allow-token");
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
         var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
@@ -66,7 +66,7 @@ public sealed class AdventureMcpExecutionToolsTests
     public async Task Run_execute_rejects_mismatched_token()
     {
         var transport = new AdventureExecutionFixtureTransport();
-        var store = new KolArbitrage.Core.Adventure.InMemoryAdventureRunCheckpointStore();
+        var store = new KolArbitrage.Core.Spiel.InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store, expectedToken: "allow-token");
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
         var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
@@ -87,7 +87,7 @@ public sealed class AdventureMcpExecutionToolsTests
     public void Choice_chain_execute_without_execute_flag_returns_preview_only()
     {
         var transport = new AdventureExecutionFixtureTransport();
-        var store = new KolArbitrage.Core.Adventure.InMemoryAdventureRunCheckpointStore();
+        var store = new KolArbitrage.Core.Spiel.InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store);
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
         var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
@@ -106,7 +106,7 @@ public sealed class AdventureMcpExecutionToolsTests
     public async Task Choice_chain_execute_with_token_runs_against_existing_checkpoint()
     {
         var transport = new AdventureExecutionFixtureTransport();
-        var store = new KolArbitrage.Core.Adventure.InMemoryAdventureRunCheckpointStore();
+        var store = new KolArbitrage.Core.Spiel.InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store, expectedToken: "allow-token");
         var allowlist = new AdventureActionAllowlist()
             .AddAdventure("skeleton")

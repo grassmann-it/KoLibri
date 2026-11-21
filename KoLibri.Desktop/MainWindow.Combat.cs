@@ -4,11 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Daily;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Data;
 
 
 namespace KoLibri.Desktop;

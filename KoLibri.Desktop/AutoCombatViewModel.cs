@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -33,14 +33,14 @@ public sealed record CombatTarget
 /// </summary>
 public sealed class AutoCombatViewModel : DesktopViewModel
 {
-    private readonly KolArbitrage.Core.Data.KoLmafiaCatalog? _catalog;
+    private readonly KolArbitrage.Core.Spiel.KoLmafiaCatalog? _catalog;
     private CombatTarget? _selectedTarget;
     private CombatOption? _selectedSkill;
     private CombatOption? _selectedItem;
     private int _abortHpPercent = 30;
     private int _maxRounds = 20;
 
-    public AutoCombatViewModel(KolArbitrage.Core.Data.KoLmafiaCatalog? catalog = null)
+    public AutoCombatViewModel(KolArbitrage.Core.Spiel.KoLmafiaCatalog? catalog = null)
     {
         _catalog = catalog;
         Targets = new ObservableCollection<CombatTarget>();
@@ -236,7 +236,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     /// skills come first in the order the operator picked them, the items
     /// follow, and attacking is the fallback.
     /// </summary>
-    public KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicy()
+    public KolArbitrage.Core.Spiel.AutoCombatPolicy BuildPolicy()
         => BuildPolicyCore(
             SelectedSkills.Select(s => s.Id).ToArray(),
             SelectedItems.Select(i => i.Id).ToArray());
@@ -253,19 +253,19 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     /// desktop does not depend on the core's internal assembly layout for
     /// something this small.
     /// </summary>
-    private static KolArbitrage.Core.Adventure.AutoCombatPolicy BuildPolicyCore(
+    private static KolArbitrage.Core.Spiel.AutoCombatPolicy BuildPolicyCore(
         IReadOnlyList<string> skillIds,
         IReadOnlyList<string> itemIds)
     {
-        var rules = new List<KolArbitrage.Core.Adventure.AutoCombatRule>();
+        var rules = new List<KolArbitrage.Core.Spiel.AutoCombatRule>();
         foreach (var skill in skillIds.Where(s => !string.IsNullOrWhiteSpace(s)))
         {
-            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            rules.Add(new KolArbitrage.Core.Spiel.AutoCombatRule
             {
-                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
-                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                When = new KolArbitrage.Core.Spiel.AutoCombatPredicate(),
+                Then = new KolArbitrage.Core.Spiel.AutoCombatAction
                 {
-                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Skill,
+                    Kind = KolArbitrage.Core.Spiel.AutoCombatActionKind.Skill,
                     Id = skill.Trim(),
                     Quantity = 1
                 },
@@ -274,24 +274,24 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         }
         foreach (var item in itemIds.Where(i => !string.IsNullOrWhiteSpace(i)))
         {
-            rules.Add(new KolArbitrage.Core.Adventure.AutoCombatRule
+            rules.Add(new KolArbitrage.Core.Spiel.AutoCombatRule
             {
-                When = new KolArbitrage.Core.Adventure.AutoCombatPredicate(),
-                Then = new KolArbitrage.Core.Adventure.AutoCombatAction
+                When = new KolArbitrage.Core.Spiel.AutoCombatPredicate(),
+                Then = new KolArbitrage.Core.Spiel.AutoCombatAction
                 {
-                    Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Item,
+                    Kind = KolArbitrage.Core.Spiel.AutoCombatActionKind.Item,
                     Id = item.Trim(),
                     Quantity = 1
                 },
                 MaxUses = 1
             });
         }
-        return new KolArbitrage.Core.Adventure.AutoCombatPolicy
+        return new KolArbitrage.Core.Spiel.AutoCombatPolicy
         {
             Rules = rules.ToArray(),
-            DefaultAction = new KolArbitrage.Core.Adventure.AutoCombatAction
+            DefaultAction = new KolArbitrage.Core.Spiel.AutoCombatAction
             {
-                Kind = KolArbitrage.Core.Adventure.AutoCombatActionKind.Attack,
+                Kind = KolArbitrage.Core.Spiel.AutoCombatActionKind.Attack,
                 Quantity = 1
             }
         };
@@ -336,7 +336,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             {
                 var gateway = await CreateCombatGatewayAsync(role, approvalToken, cancellationToken)
                     ;
-                var runner = new KolArbitrage.Core.Daily.AutoCombatRunner(gateway);
+                var runner = new KolArbitrage.Core.Spiel.AutoCombatRunner(gateway);
                 var result = await runner.RunAsync(
                     policy,
                     combatId: encounterId,
@@ -372,7 +372,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         return outcomes;
     }
 
-    private static async Task<KolArbitrage.Core.Adventure.ManualCombatGateway>
+    private static async Task<KolArbitrage.Core.Spiel.ManualCombatGateway>
         CreateCombatGatewayAsync(AccountRole role, string approvalToken, CancellationToken cancellationToken)
     {
         var accounts = AccountSessionManager.CreateDefault();
@@ -381,13 +381,13 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             ;
         if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
             throw new InvalidOperationException($"No valid session for {role}.");
-        var http = KolArbitrage.Core.Accounts.KoLLoginClient.CreateAuthenticatedClient(
+        var http = KolArbitrage.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var transport = new KolArbitrage.Core.Adventure.LiveManualCombatTransport(http);
-        var approval = new KolArbitrage.Core.Adventure.DelegateManualCombatApprovalHook(
+        var transport = new KolArbitrage.Core.Spiel.LiveManualCombatTransport(http);
+        var approval = new KolArbitrage.Core.Spiel.DelegateManualCombatApprovalHook(
             (context, _) => ValueTask.FromResult(
-                KolArbitrage.Core.Adventure.ManualCombatApprovalDecision.Allow(approvalToken)));
-        return new KolArbitrage.Core.Adventure.ManualCombatGateway(
+                KolArbitrage.Core.Spiel.ManualCombatApprovalDecision.Allow(approvalToken)));
+        return new KolArbitrage.Core.Spiel.ManualCombatGateway(
             transport,
             policy: null,
             approval: approval);
@@ -401,6 +401,6 @@ public sealed record CombatRunOutcome
     public required string Outcome { get; init; }
     public required string Rationale { get; init; }
     public int Rounds { get; init; }
-    public IReadOnlyList<KolArbitrage.Core.Daily.AutoCombatRound> RoundLog { get; init; }
-        = Array.Empty<KolArbitrage.Core.Daily.AutoCombatRound>();
+    public IReadOnlyList<KolArbitrage.Core.Spiel.AutoCombatRound> RoundLog { get; init; }
+        = Array.Empty<KolArbitrage.Core.Spiel.AutoCombatRound>();
 }

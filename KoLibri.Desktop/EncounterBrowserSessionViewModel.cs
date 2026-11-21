@@ -1,10 +1,7 @@
 using LibKolibri;
 using System.Collections.ObjectModel;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

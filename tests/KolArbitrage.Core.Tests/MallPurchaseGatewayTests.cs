@@ -1,5 +1,5 @@
-using KolArbitrage.Core.Integration;
 using Xunit;
+using KolArbitrage.Core.Markt;
 
 namespace KolArbitrage.Core.Tests;
 

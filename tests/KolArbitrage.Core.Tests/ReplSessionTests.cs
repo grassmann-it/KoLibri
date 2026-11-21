@@ -1,9 +1,7 @@
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
 using KoLibri.Cli.Repl;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 

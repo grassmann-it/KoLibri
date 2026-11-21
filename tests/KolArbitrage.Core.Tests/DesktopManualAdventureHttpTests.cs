@@ -3,14 +3,11 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using System.Net;
-using KolArbitrage.Core.Accounts;
-using KolArbitrage.Core.Adventure;
-using KolArbitrage.Core.Data;
-using KolArbitrage.Core.Integration;
-using KolArbitrage.Core.Security;
 using KoLibri.Desktop;
 using LibKolibri;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Spiel;
 
 namespace KolArbitrage.Core.Tests;
 

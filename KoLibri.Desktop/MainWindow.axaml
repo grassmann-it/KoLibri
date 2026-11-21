@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:KoLibri.Desktop"
-        xmlns:integration="clr-namespace:KolArbitrage.Core.Integration;assembly=KolArbitrage.Core"
+        xmlns:spiel="clr-namespace:KolArbitrage.Core.Spiel;assembly=KolArbitrage.Core"
         x:Class="KoLibri.Desktop.MainWindow"
         Title="KoLibri"
         Width="1200"
@@ -166,7 +166,7 @@
                 <ScrollViewer MaxHeight="360">
                   <ItemsControl x:Name="KoLChatRows">
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="integration:KoLChatMessage">
+                      <DataTemplate x:DataType="spiel:KoLChatMessage">
                         <StackPanel Spacing="3" Margin="0,3">
                           <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="{Binding Channel}" Classes="muted" />
@@ -183,7 +183,7 @@
                   <ComboBox x:Name="KoLChatContacts" PlaceholderText="Choose a contact"
                             SelectionChanged="KoLChatContactChanged" AutomationProperties.Name="Chat contacts">
                     <ComboBox.ItemTemplate>
-                      <DataTemplate x:DataType="integration:KoLChatContact">
+                      <DataTemplate x:DataType="spiel:KoLChatContact">
                         <TextBlock Text="{Binding Name}" />
                       </DataTemplate>
                     </ComboBox.ItemTemplate>
@@ -203,7 +203,7 @@
               <TextBlock x:Name="ClanProfileStatus" TextWrapping="Wrap" />
               <ItemsControl x:Name="ClanMembers">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="integration:KoLClanMember">
+                  <DataTemplate x:DataType="spiel:KoLClanMember">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                       <TextBlock Text="{Binding Level, StringFormat='Level {0}'}" />
@@ -219,7 +219,7 @@
                   <TextBlock x:Name="ClanLoungeStatus" TextWrapping="Wrap" />
                   <ItemsControl x:Name="ClanLoungeFacilities">
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="integration:KoLClanLoungeFacility">
+                      <DataTemplate x:DataType="spiel:KoLClanLoungeFacility">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <TextBlock Text="{Binding Name}" />
                           <TextBlock Text="{Binding FloorName}" Classes="muted" />
@@ -277,7 +277,7 @@
                   <TextBlock x:Name="ClanStashStatus" TextWrapping="Wrap" />
                   <ListBox x:Name="ClanStashItems">
                     <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="integration:KoLClanStashItem">
+                      <DataTemplate x:DataType="spiel:KoLClanStashItem">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <TextBlock Text="{Binding Name}" />
                           <TextBlock Text="{Binding Quantity}" />
@@ -317,7 +317,7 @@
               <TextBlock x:Name="KoLmailInboxStatus" TextWrapping="Wrap" />
               <ListBox x:Name="KoLmailInboxRows" SelectionChanged="KoLmailSelectionChanged">
                 <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="integration:KoLMailEntry">
+                  <DataTemplate x:DataType="spiel:KoLMailEntry">
                     <StackPanel Margin="0,4" Spacing="3">
                       <TextBlock Text="{Binding Correspondent}" FontWeight="SemiBold" />
                       <TextBlock Text="{Binding Date}" Classes="muted" />

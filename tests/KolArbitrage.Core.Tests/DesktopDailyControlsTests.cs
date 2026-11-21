@@ -2,9 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using KolArbitrage.Core.Accounts;
 using KoLibri.Desktop;
 using Xunit;
+using KolArbitrage.Core.Basis;
 
 namespace KolArbitrage.Core.Tests;
 

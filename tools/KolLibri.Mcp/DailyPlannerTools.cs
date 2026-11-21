@@ -1,5 +1,5 @@
 using System.Text.Json;
-using KolArbitrage.Core.Daily;
+using KolArbitrage.Core.Spiel;
 
 namespace KolLibri.Mcp;
 

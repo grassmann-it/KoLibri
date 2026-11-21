@@ -1,7 +1,8 @@
 using System.Net;
 using System.Text;
-using KolArbitrage.Core.Integration;
 using Xunit;
+using KolArbitrage.Core.Basis;
+using KolArbitrage.Core.Markt;
 
 namespace KolArbitrage.Core.Tests;
 
