@@ -31,6 +31,7 @@ jobs:
     name: package ${{ matrix.rid }}
     needs: build-test
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +54,13 @@ jobs:
         run: |
           d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
           "$d/kolibri" --help | head -3
-          "$d/kolibri-mcp" --port 8799 & pid=$!
+          # Detach the server from the step's output, otherwise Windows and macOS runners wait for it forever.
+          "$d/kolibri-mcp" --port 8799 > mcp.log 2>&1 < /dev/null &
+          pid=$!
           sleep 5
-          curl -fsS http://127.0.0.1:8799/.well-known/oauth-protected-resource
-          kill $pid
+          code=0
+          curl -fsS http://127.0.0.1:8799/.well-known/oauth-protected-resource || code=$?
+          kill $pid 2>/dev/null || true
+          taskkill //F //IM kolibri-mcp.exe 2>/dev/null || true
+          cat mcp.log
+          exit $code
