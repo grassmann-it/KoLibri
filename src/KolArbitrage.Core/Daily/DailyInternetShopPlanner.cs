@@ -72,6 +72,20 @@ public sealed class DailyInternetShopPlanner
     public const string BuyChoiceId = "meme-buy";
     public const int MachineYield = 100;
 
+    /// <summary>
+    /// BACON still missing for today's unclaimed daily items, counting the machine's yield when it
+    /// can still be pushed. Zero when the balance already covers everything.
+    /// </summary>
+    public static int BaconShortfall(
+        IReadOnlyCollection<string> alreadyPulledItemIds, int bacon, bool machineOwned, bool machineUsedToday)
+    {
+        var remaining = MemeShopCatalog.DailyItems
+            .Where(i => !alreadyPulledItemIds.Contains(i.Name, StringComparer.OrdinalIgnoreCase))
+            .Sum(i => i.Price);
+        var projected = bacon + (machineOwned && !machineUsedToday ? MachineYield : 0);
+        return Math.Max(0, remaining - projected);
+    }
+
     public DailyInternetShopPlannerOptions Options { get; }
 
     public DailyInternetShopPlanner(DailyInternetShopPlannerOptions? options = null)

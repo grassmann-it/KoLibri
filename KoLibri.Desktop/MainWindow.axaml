@@ -506,6 +506,15 @@
                         Click="DailyRunClick"
                         AutomationProperties.Name="Run the daily routine" />
               </StackPanel>
+              <WrapPanel>
+                <TextBlock Text="Hermit clovers to trade for" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <NumericUpDown x:Name="DailyHermitClovers" Value="0" Minimum="0" Maximum="20"
+                               Width="92" AutomationProperties.Name="Hermit clovers to trade for" />
+                <CheckBox x:Name="DailyBaconTopUp" Content="Top up BACON from the mall (max meat per BACON:)"
+                          IsChecked="False" Margin="16,0,8,0" />
+                <NumericUpDown x:Name="DailyBaconMaxPrice" Value="1500" Minimum="1" Maximum="100000"
+                               Width="110" AutomationProperties.Name="Maximum meat per BACON" />
+              </WrapPanel>
               <TextBlock x:Name="DailyStatusText"
                          Text="Nothing executed yet."
                          Classes="muted"

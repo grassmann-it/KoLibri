@@ -37,18 +37,26 @@ public partial class MainWindow
                     _dailyStatusText.Text = "No session for the selected account.";
                 return;
             }
-            var ok = await RunDailyRoutineAsync(account, token, cancellationToken);
+            var hermitClovers = (int)(this.FindControl<NumericUpDown>("DailyHermitClovers")?.Value ?? 0);
+            var topUp = this.FindControl<CheckBox>("DailyBaconTopUp")?.IsChecked == true;
+            var maxBaconPrice = (long)(this.FindControl<NumericUpDown>("DailyBaconMaxPrice")?.Value ?? 1500);
+            _dailyNote = string.Empty;
+            var ok = await RunDailyRoutineAsync(account, token, cancellationToken,
+                hermitClovers, topUp, maxBaconPrice);
             if (_dailyStatusText is not null)
-                _dailyStatusText.Text = ok
+                _dailyStatusText.Text = (ok
                     ? "Daily routine executed. Details are in the audit log."
-                    : "The daily routine could not be completed.";
+                    : "The daily routine could not be completed.") + _dailyNote;
         });
     }
 
     /// <summary>Runs the daily routine for the selected account through the
     /// same bridge the CLI uses.</summary>
+    private string _dailyNote = string.Empty;
+
     private async Task<bool> RunDailyRoutineAsync(
-        AccountSession account, string approvalToken, CancellationToken cancellationToken)
+        AccountSession account, string approvalToken, CancellationToken cancellationToken,
+        int hermitClovers = 0, bool topUpBacon = false, long maxBaconPrice = 1500)
     {
         using var http = KoLLoginClient.CreateAuthenticatedClient(
             account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
@@ -57,8 +65,28 @@ public partial class MainWindow
         var live = await new LiveDailySnapshotBuilder(readClient, doneStore)
             .BuildAsync(new KolArbitrage.Core.Daily.DailyRoutineSnapshot(), cancellationToken,
                 role: account.Profile.Role);
+        if (topUpBacon)
+        {
+            var needed = DailyInternetShopPlanner.BaconShortfall(
+                live.Snapshot.AlreadyPulledItemIds, live.Snapshot.Bacon,
+                live.Snapshot.BaconMachineOwned, live.Snapshot.BaconMachineUsedToday);
+            if (needed > 0)
+            {
+                var reserve = account.Profile.Role == AccountRole.Mallbot ? 1_000_000L : 200_000L;
+                var outcome = await new BaconArbitrageExecutor(
+                        new MallBuyClient(http, MallBuyClient.DefaultBaseUri), new KoLMallReadClient(http))
+                    .TopUpBaconAsync(account.Credentials, needed, live.Meat, maxBaconPrice, reserve,
+                        cancellationToken: cancellationToken);
+                _dailyNote += $" BACON top-up: bought {outcome.Quantity} of {needed} for {outcome.Spent} meat.";
+                if (outcome.Quantity > 0)
+                    live = await new LiveDailySnapshotBuilder(readClient, doneStore)
+                        .BuildAsync(new KolArbitrage.Core.Daily.DailyRoutineSnapshot(), cancellationToken,
+                            role: account.Profile.Role);
+            }
+        }
+        var snapshot = live.Snapshot with { HermitCloversWanted = hermitClovers };
         var bridge = new KolArbitrage.Core.Daily.AutoCombatDailyBridge();
-        var plan = bridge.Plan(live.State, live.Snapshot);
+        var plan = bridge.Plan(live.State, snapshot);
         // The desktop button authorizes this run. The token correlates its requests.
         var approval = new DelegateAdventureApprovalHook((_, _) =>
             ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));

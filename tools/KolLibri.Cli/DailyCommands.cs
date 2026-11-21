@@ -165,12 +165,9 @@ internal static partial class KolibriCli
         {
             // Fill BACON up to today's remaining set of daily items (machine yield counted),
             // paying at most --max-bacon-price per BACON and keeping a meat reserve.
-            var remaining = MemeShopCatalog.DailyItems
-                .Where(i => !live.Snapshot.AlreadyPulledItemIds.Contains(i.Name, StringComparer.OrdinalIgnoreCase))
-                .Sum(i => i.Price);
-            var projected = bacon + (live.Snapshot.BaconMachineOwned && !live.Snapshot.BaconMachineUsedToday
-                ? DailyInternetShopPlanner.MachineYield : 0);
-            var needed = Math.Max(0, remaining - projected);
+            var needed = DailyInternetShopPlanner.BaconShortfall(
+                live.Snapshot.AlreadyPulledItemIds, bacon,
+                live.Snapshot.BaconMachineOwned, live.Snapshot.BaconMachineUsedToday);
             if (needed > 0)
             {
                 var maxPrice = long.TryParse(GetOption(args, "--max-bacon-price"), out var mp) ? mp : 1_500;

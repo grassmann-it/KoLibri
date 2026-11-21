@@ -177,4 +177,15 @@ public sealed class MemeShopFlowTests
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
+
+    [Fact]
+    public void Bacon_shortfall_counts_unclaimed_items_and_the_machine_yield()
+    {
+        // All five daily items cost 455 BACON together.
+        Assert.Equal(455, DailyInternetShopPlanner.BaconShortfall(Array.Empty<string>(), 0, false, false));
+        Assert.Equal(355, DailyInternetShopPlanner.BaconShortfall(Array.Empty<string>(), 0, true, false));
+        Assert.Equal(455, DailyInternetShopPlanner.BaconShortfall(Array.Empty<string>(), 0, true, true));
+        Assert.Equal(0, DailyInternetShopPlanner.BaconShortfall(Array.Empty<string>(), 500, false, false));
+        Assert.Equal(361, DailyInternetShopPlanner.BaconShortfall(new[] { "viral video", "plus one" }, 0, false, false));
+    }
 }
