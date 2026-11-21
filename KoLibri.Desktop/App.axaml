@@ -102,6 +102,10 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
+    <!-- Buttons in wrapping rows get a small gap instead of touching. -->
+    <Style Selector="WrapPanel > Button">
+      <Setter Property="Margin" Value="0,0,6,6" />
+    </Style>
     <Style Selector="TextBlock.h2">
       <Setter Property="FontSize" Value="18" />
       <Setter Property="FontWeight" Value="SemiBold" />

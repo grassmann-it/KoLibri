@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private TextBlock? _shellPageDescription;
     private Border? _accountsPanel;
     private Border? _agentsPanel;
+    private Border? _browserPanel;
+    private Button? _navBrowser;
     private Button? _navAgents;
     private Border? _adventurePanel;
     private TextBlock? _adventureAccountLabel;
@@ -168,6 +170,8 @@ public partial class MainWindow : Window
         _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
         _agentsPanel = this.FindControl<Border>("AgentsPanel");
+        _browserPanel = this.FindControl<Border>("BrowserPanel");
+        _navBrowser = this.FindControl<Button>("NavBrowser");
         _navAgents = this.FindControl<Button>("NavAgents");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
         _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
@@ -313,6 +317,7 @@ public partial class MainWindow : Window
             (_navMall, "Mall & Shop"),
             (_navAdventure, "Adventure"),
             (_navCombat, "Combat"),
+            (_navBrowser, "Browser"),
             (_navAccounts, "Accounts"),
             (_navAgents, "Agents")
         };
@@ -659,6 +664,7 @@ public partial class MainWindow : Window
         if (_combatSection is not null) _combatSection.IsVisible = section == "Combat";
         if (_accountsPanel is not null) _accountsPanel.IsVisible = section == "Accounts";
         if (_agentsPanel is not null) _agentsPanel.IsVisible = section == "Agents";
+        if (_browserPanel is not null) _browserPanel.IsVisible = section == "Browser";
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = section == "Adventure" ? "Adventures" : section;
         if (_shellPageDescription is not null)
@@ -666,6 +672,7 @@ public partial class MainWindow : Window
             {
                 "Guts" => $"All accounts · {_selectedRole} store",
                 "Accounts" => "Main and Mallbot",
+                "Browser" => "Placeholder",
                 "Combat" => "Auto-combat · Main and Mallbot",
                 _ => _selectedRole.ToString()
             };
