@@ -340,7 +340,10 @@ public partial class MainWindow : Window
     }
 
     private async void RefreshClick(object? sender, RoutedEventArgs e)
-        => await RefreshSectionAsync(forceRefresh: true);
+    {
+        await RefreshSectionAsync(forceRefresh: true);
+        await RefreshSidebarAsync(forceRefresh: true);
+    }
 
     private Task RefreshSectionAsync(bool forceRefresh)
     {
@@ -440,6 +443,7 @@ public partial class MainWindow : Window
             if (ReferenceEquals(_refreshCancellation, cancellation))
                 _refreshCancellation = null;
             SetBusy(false);
+            _ = RefreshSidebarAsync();
         }
     }
 

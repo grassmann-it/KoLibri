@@ -15,13 +15,14 @@
         AutomationProperties.Name="KoLibri">
   <Grid x:Name="ShellRoot"
         RowDefinitions="Auto,*,Auto"
-        ColumnDefinitions="*"
+        ColumnDefinitions="Auto,*"
         Background="{DynamicResource CanvasBrush}">
 
     <!-- KoLmafia-style menu bar: the sections live in a row at the top,
          the way a KoL player expects them. -->
     <Border x:Name="MenuBar"
             Grid.Row="0"
+            Grid.ColumnSpan="2"
             Classes="shell-header"
             BorderThickness="0,0,0,1"
             Padding="14,8">
@@ -114,10 +115,58 @@
       </Grid>
     </Border>
 
-    <ScrollViewer x:Name="PageScroll" Grid.Row="1"
+    <!-- Character pane, like the KoL browser's left frame. -->
+    <Border x:Name="CharacterPane" Grid.Row="1" Grid.Column="0" Width="210"
+            Classes="shell-sidebar" BorderThickness="0,0,1,0">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="12" Spacing="10">
+          <StackPanel Spacing="2">
+            <TextBlock x:Name="SidebarName" Text="Not signed in" FontSize="16" FontWeight="Bold"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="SidebarRole" Classes="muted" FontSize="11" />
+          </StackPanel>
+          <Separator />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Vitals" Classes="muted" FontSize="10" />
+            <TextBlock x:Name="SidebarLevel" Text="Level —" />
+            <TextBlock x:Name="SidebarHp" Text="HP —" />
+            <ProgressBar x:Name="SidebarHpBar" Height="6" Minimum="0" Maximum="1" Value="0" />
+            <TextBlock x:Name="SidebarMp" Text="MP —" />
+            <ProgressBar x:Name="SidebarMpBar" Height="6" Minimum="0" Maximum="1" Value="0" />
+          </StackPanel>
+          <Separator />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Resources" Classes="muted" FontSize="10" />
+            <TextBlock x:Name="SidebarAdventures" Text="Adventures —" />
+            <TextBlock x:Name="SidebarMeat" Text="Meat —" />
+          </StackPanel>
+          <Separator />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Organs" Classes="muted" FontSize="10" />
+            <TextBlock x:Name="SidebarFullness" Text="Fullness —" />
+            <TextBlock x:Name="SidebarDrunk" Text="Drunkenness —" />
+            <TextBlock x:Name="SidebarSpleen" Text="Spleen —" />
+          </StackPanel>
+          <Separator />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Familiar" Classes="muted" FontSize="10" />
+            <TextBlock x:Name="SidebarFamiliar" Text="None" TextWrapping="Wrap" />
+          </StackPanel>
+          <Separator />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Active effects" Classes="muted" FontSize="10" />
+            <TextBlock x:Name="SidebarEffects" Text="None" TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <ScrollViewer x:Name="PageScroll" Grid.Row="1" Grid.Column="1"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ContentRoot"
+                  MaxWidth="1100"
+                  HorizontalAlignment="Center"
                   Margin="{DynamicResource ComfortableContentMargin}"
                   Spacing="12">
         <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
@@ -1057,6 +1106,7 @@
 
     <Border x:Name="StatusBar"
             Grid.Row="2"
+            Grid.ColumnSpan="2"
             Classes="shell-header"
             BorderThickness="0,1,0,0"
             Padding="14,6">
