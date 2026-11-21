@@ -5,7 +5,7 @@ KoLibri has four ways in. All of them use the same stored game sessions and the 
 | You are | Use | Command |
 |---|---|---|
 | a player at the keyboard | CLI | `kolibri` (alias `kolicli`) |
-| a player who prefers windows | Desktop app (early alpha) | `KoLibri` |
+| a player who prefers windows | Desktop app (early alpha) | `kolibri-desktop` |
 | an AI assistant (Claude, Codex, ...) | MCP server | `kolibri-mcp --http`, then add `http://127.0.0.1:8765/mcp` as a connector |
 | a .NET developer | Library | `dotnet add package KoLibri.LibKolibri` |
 

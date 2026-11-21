@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the self-contained single-file programs for one runtime and lays out a release folder:
-#   dist/KoLibri-<version>-<rid>/{kolibri, kolibri-mcp, KoLibri, external/kolmafia-data, README.md, LICENSE, NOTICE.md}
+#   dist/KoLibri-<version>-<rid>/{kolibri (+kolicli), kolibri-mcp, kolibri-desktop, external/kolmafia-data, README.md, LICENSE, NOTICE.md}
 # Usage: scripts/package.sh <rid> [version]     rid: win-x64 | linux-x64 | osx-arm64 | osx-x64
 set -euo pipefail
 rid="${1:?runtime identifier required, e.g. linux-x64}"
@@ -21,7 +21,7 @@ dotnet publish "$root/KoLibri.Desktop"     "${flags[@]}" -o "$tmp/desktop"
 
 cp "$tmp/cli/KolLibri.Cli$ext"        "$out/kolibri$ext"
 cp "$tmp/mcp/KolLibri.Mcp$ext"        "$out/kolibri-mcp$ext"
-cp "$tmp/desktop/KoLibri.Desktop$ext" "$out/KoLibri$ext"
+cp "$tmp/desktop/KoLibri.Desktop$ext" "$out/kolibri-desktop$ext"
 mkdir -p "$out/external"
 cp -R "$root/external/kolmafia-data" "$out/external/kolmafia-data"
 cp "$root/README.md" "$root/LICENSE" "$root/NOTICE.md" "$out/"
@@ -31,7 +31,7 @@ if [[ "$rid" == win-* ]]; then
   printf '@echo off\r\n"%%~dp0kolibri.exe" %%*\r\n' > "$out/kolicli.cmd"
 else
   ln -s kolibri "$out/kolicli"
-  chmod +x "$out/kolibri" "$out/kolibri-mcp" "$out/KoLibri"
+  chmod +x "$out/kolibri" "$out/kolibri-mcp" "$out/kolibri-desktop"
 fi
 rm -rf "$tmp"
 echo "$out"

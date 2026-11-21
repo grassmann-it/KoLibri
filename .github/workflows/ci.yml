@@ -53,19 +53,11 @@ jobs:
         shell: bash
         timeout-minutes: 4
         run: |
-          set -x
           d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
-          ls -l "$d"
-          COREHOST_TRACE=1 COREHOST_TRACE_VERBOSITY=4 "$d/kolibri" --help < /dev/null > help.txt 2>&1 &
-          hp=$!
-          for i in $(seq 1 3); do
-            sleep 10
-            if ! kill -0 $hp 2>/dev/null; then echo "kolibri --help finished after about $((i*10))s"; break; fi
-          done
-          echo "--- host trace (tail):"; tail -40 help.txt | cut -c1-220 || true
-          ps -p $hp || echo "kolibri --help already finished"
-          kill $hp 2>/dev/null || true
-          taskkill //F //IM kolibri.exe 2>/dev/null || true
+          ls "$d"
+          # The desktop app must not share a name with the CLI: Windows and macOS ignore letter case.
+          ls "$d" | grep -q '^kolibri-desktop' 
+          "$d/kolibri" --help < /dev/null | head -3
           # Detach the server from the step's output, otherwise Windows and macOS runners wait for it forever.
           "$d/kolibri-mcp" --port 8799 > mcp.log 2>&1 < /dev/null &
           pid=$!
