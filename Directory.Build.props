@@ -4,6 +4,9 @@
     <KoLibriVersion>0.4.0</KoLibriVersion>
     <Version>$(KoLibriVersion)</Version>
     <Authors>KoLibri contributors</Authors>
+    <RepositoryUrl>https://github.com/grassmann-it/KoLibri</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/grassmann-it/KoLibri</PackageProjectUrl>
     <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
   <ItemGroup>

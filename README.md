@@ -26,7 +26,7 @@ from the live data, plans the routine and runs it.
 | Project | Role | Package |
 |---|---|---|
 | `src/KoLibri.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
-| `src/LibKolibri` | The public API façade over the core | [`KoLibri.LibKolibri`](https://github.com/grassmann-it/LibKolibri) |
+| `src/LibKolibri` | The public API façade over the core | `KoLibri.LibKolibri` |
 | `tools/KolLibri.Cli` | Command line front-end | — |
 | `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
 | `KoLibri.Desktop` | Avalonia desktop client | — |
@@ -273,8 +273,7 @@ dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj
 dotnet pack src/KoLibri.Core/KoLibri.Core.csproj -c Release
 ```
 
-The `src/LibKolibri` submodule points at
-[grassmann-it/LibKolibri](https://github.com/grassmann-it/LibKolibri).
+Repository: [grassmann-it/KoLibri](https://github.com/grassmann-it/KoLibri).
 
 ## License
 

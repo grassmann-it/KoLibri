@@ -11,7 +11,6 @@
     <Description>Core domain layer for KoLibri: bounded adventure runner, adventure step spec, daily planners, hash-chain audit ledger, approval token store, KoLmafia data records.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolmafia;core;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/kolibri-collective/kolibri</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <TargetPackOnBuild>false</TargetPackOnBuild>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

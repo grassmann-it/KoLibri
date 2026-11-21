@@ -10,8 +10,6 @@
     <Description>Public KoL connector for .NET 8. Wraps the KoLmafia data snapshot, account reads, mall and pricing lookups, the daily routine planners, the mall-arbitrage executors, the bounded adventure runner and the hash-chain audit ledger. Drop-in library for tools that need to talk to Kingdom of Loathing.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolmafia;connector;automation;arbitrage;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/grassmann-it/LibKolibri</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <TargetPackOnBuild>false</TargetPackOnBuild>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

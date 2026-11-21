@@ -125,8 +125,8 @@ exactly what would happen before anything is submitted.
 ## Related
 
 - **[grassmann-it/KoLibri](https://github.com/grassmann-it/KoLibri)** — the
-  full application: CLI, MCP server and Avalonia desktop client built on
-  top of this package.
+  repository this package lives in, together with the CLI, the MCP server and
+  the Avalonia desktop client built on top of it.
 - **KoLmafia** — the original client whose data and behaviour this
   connector mirrors.
 
