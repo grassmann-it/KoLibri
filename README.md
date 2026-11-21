@@ -19,6 +19,7 @@ That single command reads both accounts, works out the day's numbers
 from the live data, plans the routine and runs it.
 
 > KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
+> Where this is going: [ROADMAP.md](ROADMAP.md).
 > New here? Start with [docs/quickstart.md](docs/quickstart.md); [docs/usage.md](docs/usage.md) shows CLI (`kolibri` / `kolicli`), desktop, MCP and library side by side.
 
 ## What is in here
