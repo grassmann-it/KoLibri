@@ -132,6 +132,26 @@ public sealed class AdventureHttpTransportTests
     }
 
     [Fact]
+    public async Task AdventureRedirectToFightPhpIsFollowedOnceWithGet()
+    {
+        var redirect = new HttpResponseMessage(HttpStatusCode.Found)
+        {
+            Headers = { Location = new Uri("https://adventure.test/fight.php?ireallymeanit=1") }
+        };
+        var handler = new RecordingHandler(redirect, Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        var result = await transport.StartAdventureAsync(Request(AdventureTransportOperation.Adventure));
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal(HttpMethod.Get, handler.Requests[1].Method);
+        Assert.Equal("/fight.php", handler.Requests[1].RequestUri!.AbsolutePath);
+        Assert.True(result.Accepted);
+    }
+
+    [Fact]
     public async Task OversizedResponseIsRejectedBeforeParserSeesIt()
     {
         using var client = new HttpClient(new RecordingHandler(

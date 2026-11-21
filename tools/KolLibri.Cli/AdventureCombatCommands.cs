@@ -473,6 +473,7 @@ internal static partial class KolibriCli
                 requestId = step.RequestId,
                 responseHash = step.Response?.ResponseHash,
                 abortReason = step.AbortReason?.ToString(),
+                messages = step.Messages,
                 requiresRefresh = step.RequiresRefresh,
                 complete = step.IsComplete
             }).ToArray(),

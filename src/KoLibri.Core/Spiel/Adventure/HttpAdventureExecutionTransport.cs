@@ -191,7 +191,40 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         {
             try
             {
-                EnsureNoRedirect(uri, response);
+                // KoL answers adventure.php with a redirect to fight.php or choice.php. Follow exactly
+                // that (GET, same host, at most two hops); any other redirect still stops the run.
+                var current = response;
+                var currentUri = uri;
+                HttpResponseMessage? followed = null;
+                try
+                {
+                    for (var hop = 0; IsRedirect(current); hop++)
+                    {
+                        var location = current.Headers.Location?.OriginalString;
+                        Uri? target = null;
+                        if (operation != AdventureTransportOperation.Refresh && hop < 2 && location is not null)
+                        {
+                            target = _security.ResolveRedirect(currentUri, location);
+                            if (!FollowableRoutes.Contains(target.AbsolutePath.TrimStart('/')))
+                                target = null;
+                        }
+                        if (target is null) { EnsureNoRedirect(currentUri, current); break; }
+                        using var follow = new HttpRequestMessage(HttpMethod.Get, target);
+                        Interlocked.Increment(ref _httpRequestCount);
+                        var next = await _http.SendAsync(follow, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                            .ConfigureAwait(false);
+                        followed?.Dispose();
+                        followed = next;
+                        current = next;
+                        currentUri = target;
+                    }
+                    EnsureNoRedirect(currentUri, current);
+                    return await BuildResultAsync(current, currentUri).ConfigureAwait(false);
+                }
+                finally { followed?.Dispose(); }
+
+                async Task<AdventureTransportResponse> BuildResultAsync(HttpResponseMessage response, Uri uri)
+                {
                 var responseUri = response.RequestMessage?.RequestUri ?? uri;
                 _security.EnsureResponseUri(uri, responseUri);
                 var html = await ReadBoundedBodyAsync(response.Content, timeout.Token).ConfigureAwait(false);
@@ -219,6 +252,7 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 };
                 LastResponse = result;
                 return result;
+                }
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -355,6 +389,21 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         return source;
     }
 
+    private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "fight.php", "choice.php"
+    };
+
+    private static string RedirectTarget(HttpResponseMessage response)
+    {
+        var raw = response.Headers.Location?.OriginalString ?? "?";
+        var cut = raw.IndexOfAny(['?', '#']);
+        return cut >= 0 ? raw[..cut] : raw;
+    }
+
+    private static bool IsRedirect(HttpResponseMessage response)
+        => (int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is not null;
+
     private static void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
     {
         var statusCode = (int)response.StatusCode;
@@ -364,7 +413,8 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
             || response.Headers.Location is not null
             || changedUri)
             throw new AdventureHttpTransportException(
-                "KoL adventure redirects are disabled; refresh the session manually.");
+                "KoL adventure redirects are disabled; refresh the session manually."
+                + $" (HTTP {statusCode} to '{RedirectTarget(response)}')");
     }
 
     private async Task<string> ReadBoundedBodyAsync(
