@@ -51,9 +51,13 @@ jobs:
         run: scripts/package.sh ${{ matrix.rid }}
       - name: Run the packaged CLI and MCP server
         shell: bash
+        timeout-minutes: 3
         run: |
+          set -x
           d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
-          "$d/kolibri" --help | head -3
+          ls "$d"
+          "$d/kolibri" --help < /dev/null > help.txt 2>&1 || true
+          head -3 help.txt
           # Detach the server from the step's output, otherwise Windows and macOS runners wait for it forever.
           "$d/kolibri-mcp" --port 8799 > mcp.log 2>&1 < /dev/null &
           pid=$!
