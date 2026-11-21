@@ -106,7 +106,7 @@ public sealed class BaconArbitrageExecutor
         long availableMeat,
         long maxPricePerBacon,
         long meatReserve,
-        int maxRounds = 5,
+        int maxRounds = 60,
         CancellationToken cancellationToken = default)
         => TopUpItemAsync(credentials, Ids.Bacon, needed, availableMeat, maxPricePerBacon,
             meatReserve, maxRounds, cancellationToken);
@@ -133,15 +133,24 @@ public sealed class BaconArbitrageExecutor
         var spent = 0L;
         var purchases = new List<MallBuyResult>();
         var last = "No purchase attempted.";
+        // Stores that have nothing more to give today (daily purchase limit or sold out).
+        var exhaustedStores = new HashSet<string>(StringComparer.Ordinal);
+        var failures = 0;
         for (var round = 0; round < maxRounds && bought < needed; round++)
         {
             var step = await TryBuyAsync(credentials, itemId, availableMeat - spent, meatReserve,
-                needed - bought, maxPricePerUnit, cancellationToken, itemName).ConfigureAwait(false);
+                needed - bought, maxPricePerUnit, cancellationToken, itemName, exhaustedStores).ConfigureAwait(false);
             last = step.Outcome.Rationale;
-            if (!step.Outcome.Bought) break;
-            bought += step.Outcome.Quantity;
-            spent += step.Outcome.Spent;
-            purchases.AddRange(step.Outcome.Purchases);
+            if (step.Outcome.Bought)
+            {
+                bought += step.Outcome.Quantity;
+                spent += step.Outcome.Spent;
+                purchases.AddRange(step.Outcome.Purchases);
+            }
+            if (step.Outcome.Bought) { failures = 0; continue; }
+            if (!step.MoveOn && !step.Outcome.Verdict.StartsWith("http-", StringComparison.Ordinal)) break;
+            // A refusing store is skipped for the rest of the run; three in a row end the run.
+            if (++failures >= 3) break;
         }
         return new Outcome
         {
@@ -154,7 +163,10 @@ public sealed class BaconArbitrageExecutor
         };
     }
 
-    private async Task<(Outcome Outcome, string Reason)> TryBuyAsync(
+    private static readonly System.Text.RegularExpressions.Regex DailyLimit = new(
+        @"only buy (\d+) of this item per day", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private async Task<(Outcome Outcome, string Reason, bool MoveOn)> TryBuyAsync(
         AccountCredentials credentials,
         int itemId,
         long availableMeat,
@@ -162,14 +174,16 @@ public sealed class BaconArbitrageExecutor
         int maximumQuantity,
         long priceCeiling,
         CancellationToken cancellationToken,
-        string? itemName = null)
+        string? itemName = null,
+        ISet<string>? exhaustedStores = null)
     {
+        exhaustedStores ??= new HashSet<string>(StringComparer.Ordinal);
         // Find the cheapest listing for the item. KoL's mall search runs on
         // the item name, not the id.
         var snapshot = await _mall.SearchAsync(
             itemName ?? itemNameFor(itemId), cancellationToken: cancellationToken).ConfigureAwait(false);
         var candidate = snapshot.Listings
-            .Where(l => l.Price > 0)
+            .Where(l => l.Price > 0 && !exhaustedStores.Contains(l.StoreId))
             .OrderBy(l => l.Price)
             .FirstOrDefault();
         if (candidate is null)
@@ -181,7 +195,7 @@ public sealed class BaconArbitrageExecutor
                 Quantity = 0,
                 Spent = 0,
                 Rationale = $"No mall listing for item {itemId}."
-            }, $"No mall listing for item {itemId}.");
+            }, $"No mall listing for item {itemId}.", false);
         }
         if (priceCeiling > 0 && candidate.Price > priceCeiling)
         {
@@ -193,11 +207,13 @@ public sealed class BaconArbitrageExecutor
                 Quantity = 0,
                 Spent = 0,
                 Rationale = reason
-            }, reason);
+            }, reason, false);
         }
 
         // How many can we buy while keeping the meat reserve?
         var quantity = Math.Max(1, maximumQuantity);
+        quantity = Math.Min(quantity, Math.Max(1, candidate.Quantity));
+        if (candidate.PurchaseLimit is > 0 and var limit) quantity = Math.Min(quantity, limit);
         var spend = candidate.Price * quantity;
         if (availableMeat - spend < meatReserve)
         {
@@ -214,7 +230,7 @@ public sealed class BaconArbitrageExecutor
                     Quantity = 0,
                     Spent = 0,
                     Rationale = reason
-                }, reason);
+                }, reason, false);
             }
         }
 
@@ -229,7 +245,7 @@ public sealed class BaconArbitrageExecutor
                 Quantity = 0,
                 Spent = 0,
                 Rationale = reason
-            }, reason);
+            }, reason, false);
         }
         var hash = await _buyClient.ReadPasswordHashAsync(
             credentials, storeId, cancellationToken).ConfigureAwait(false);
@@ -243,22 +259,46 @@ public sealed class BaconArbitrageExecutor
                 Quantity = 0,
                 Spent = 0,
                 Rationale = reason
-            }, reason);
+            }, reason, false);
         }
 
         var purchase = await _buyClient.BuyAsync(
             credentials, storeId, itemId, candidate.Price, quantity, hash, cancellationToken)
             .ConfigureAwait(false);
+        if (!purchase.Accepted && DailyLimit.Match(purchase.Message) is { Success: true } limitMatch)
+        {
+            // The store caps what one buyer may take per day; take the cap, then move on.
+            var cap = int.Parse(limitMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            exhaustedStores.Add(candidate.StoreId);
+            if (cap > 0 && cap < quantity)
+            {
+                var retry = await _buyClient.BuyAsync(
+                    credentials, storeId, itemId, candidate.Price, cap, hash, cancellationToken).ConfigureAwait(false);
+                if (retry.Accepted)
+                    return (new Outcome
+                    {
+                        Verdict = "Bought", Bought = true, Quantity = cap, Spent = candidate.Price * cap,
+                        Rationale = $"Bought {cap} of item {itemId} at {candidate.Price} meat each (daily limit).",
+                        Purchases = new[] { retry }
+                    }, retry.Message, true);
+            }
+            return (new Outcome
+            {
+                Verdict = "DailyLimit", Bought = false, Quantity = 0, Spent = 0,
+                Rationale = $"Store {storeId} allows no more of item {itemId} today."
+            }, "daily limit", true);
+        }
+        if (!purchase.Accepted || quantity >= candidate.Quantity) exhaustedStores.Add(candidate.StoreId);
         return (new Outcome
         {
             Verdict = purchase.Accepted ? "Bought" : $"http-{purchase.StatusCode}",
             Bought = purchase.Accepted,
             Quantity = purchase.Accepted ? quantity : 0,
-            Spent = purchase.Accepted ? spend : 0,
+            Spent = purchase.Accepted ? candidate.Price * quantity : 0,
             Rationale = purchase.Accepted
                 ? $"Bought {quantity} of item {itemId} at {candidate.Price} meat each."
                 : $"KoL rejected the purchase: {purchase.Message}",
             Purchases = new[] { purchase }
-        }, purchase.Message);
+        }, purchase.Message, purchase.Accepted);
     }
 }

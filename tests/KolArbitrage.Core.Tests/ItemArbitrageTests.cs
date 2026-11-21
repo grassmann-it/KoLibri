@@ -33,16 +33,17 @@ public sealed class ItemArbitrageTests
     private static MallListing Listing(long price, int quantity = 10)
         => new("10881", "4711", "Seller", price, quantity, null, DateTimeOffset.UtcNow, new Uri("https://kol.test/mall.php"));
 
-    private sealed class FakeStore(string buyResponse) : HttpMessageHandler
+    private sealed class FakeStore(string buyResponse, string? multiResponse = null) : HttpMessageHandler
     {
         public List<string> Requests { get; } = new();
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request.Method + " " + request.RequestUri!.PathAndQuery);
+            var form = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
             var body = request.Method == HttpMethod.Get
                 ? "<input type=hidden name=\"pwd\" value=\"storehash\">"
-                : buyResponse;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+                : multiResponse is not null && !form.Contains("quantity=1&") && !form.EndsWith("quantity=1") ? multiResponse : buyResponse;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
         }
     }
 
@@ -96,5 +97,23 @@ public sealed class ItemArbitrageTests
         // 129,000 - 50,000 reserve leaves room for three clovers at 25,000.
         Assert.Equal(3, outcome.Quantity);
         Assert.Equal(75_000, outcome.Spent);
+    }
+
+    [Fact]
+    public async Task A_daily_store_limit_buys_the_allowed_amount_and_moves_to_the_next_store()
+    {
+        var store = new FakeStore("You spent 1,000 Meat. You acquire an item: BACON",
+            multiResponse: "You may only buy 1 of this item per day from this store.");
+        var listings = new[]
+        {
+            Listing(1_000, 50) with { StoreId = "111" },
+            Listing(1_100, 50) with { StoreId = "222" },
+            Listing(1_200, 50) with { StoreId = "333" }
+        };
+        var outcome = await Executor(store, listings).TopUpItemAsync(
+            Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON");
+
+        Assert.Equal(3, outcome.Quantity);
+        Assert.Equal(3, outcome.Purchases.Count);
     }
 }

@@ -172,6 +172,21 @@ internal static partial class KolibriCli
         var role = ParseRole(roleValue);
         var username = GetOption(args, "--username");
         var password = GetOption(args, "--password");
+        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrEmpty(password))
+        {
+            // No flags: log in again with the password saved for this role. It is never printed.
+            var stored = AccountSessionManager.CreateDefault();
+            await stored.InitializeAsync();
+            var current = await stored.GetSessionAsync(role, includeExpired: true);
+            if (current is null)
+                throw new ArgumentException($"Kein gespeichertes Konto fuer {role}. Erst 'login {role.ToString().ToLowerInvariant()}' ausfuehren.");
+            var renewed = await stored.ReconnectAsync(current,
+                (user, pass, token) => new KoLLoginClient().LoginAsync(user, pass, true, token));
+            if (renewed is null)
+                throw new ArgumentException($"Kein Passwort fuer {role} gespeichert. Erst mit --username/--password anmelden.");
+            WriteJson(new { command = "login refresh", role = role.ToString(), ok = true, usedSavedPassword = true });
+            return 0;
+        }
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
             // Fall back to interactive prompt when neither flag was supplied.
