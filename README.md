@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/kolibri-icon.svg" width="96" alt="KoLibri"></p>
+
 # KoLibri
 
 **KoLmafia's automation, minus the clicking.**
@@ -15,6 +17,9 @@ dotnet run --project tools/KolLibri.Cli -- daily breakfast --role all --execute 
 
 That single command reads both accounts, works out the day's numbers
 from the live data, plans the routine and runs it.
+
+> KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
+> New here? Start with [docs/quickstart.md](docs/quickstart.md).
 
 ## What is in here
 
@@ -100,7 +105,7 @@ python3 scripts/import-kolmafia-data.py   # refresh from a KoLmafia checkout
 The library:
 
 ```xml
-<PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
+<PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
 ```
 
 ```csharp

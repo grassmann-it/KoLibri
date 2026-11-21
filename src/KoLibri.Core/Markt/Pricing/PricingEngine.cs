@@ -174,12 +174,12 @@ public sealed class PricingEngine
         bool stale,
         bool profitable)
     {
-        if (quotes.Count == 0) return "Keine verwertbaren Preisquellen im Cache oder Provider.";
+        if (quotes.Count == 0) return "No usable price sources in the cache or provider.";
         var freshness = stale ? "Stale-Cache verwendet." : "Aktuelle Cache-Daten verwendet.";
         if (buy is not null && sell is not null && profitable)
-            return $"Unterpreisiges Angebot bei {buy:0.##}; Zielverkauf {sell:0.##} mit Mindestmarge. {freshness}";
+            return $"Underpriced offer at {buy:0.##}; target sale {sell:0.##} with minimum margin. {freshness}";
         if (cost is not null && !profitable)
-            return $"Kein sicherer Verkauf mit Mindestmarge über Kosten {cost:0.##}. {freshness}";
+            return $"No safe sale with minimum margin above cost {cost:0.##}. {freshness}";
         return $"Marktpreis aus {quotes.Count} gewichteten Quellen. {freshness}";
     }
 }

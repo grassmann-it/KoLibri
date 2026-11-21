@@ -32,6 +32,8 @@ public partial class MainWindow : Window
     private TextBlock? _shellPageTitle;
     private TextBlock? _shellPageDescription;
     private Border? _accountsPanel;
+    private Border? _agentsPanel;
+    private Button? _navAgents;
     private Border? _adventurePanel;
     private TextBlock? _adventureAccountLabel;
     private TextBlock? _adventureTurnsLabel;
@@ -165,6 +167,8 @@ public partial class MainWindow : Window
         _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
         _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
         _accountsPanel = this.FindControl<Border>("AccountsPanel");
+        _agentsPanel = this.FindControl<Border>("AgentsPanel");
+        _navAgents = this.FindControl<Button>("NavAgents");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
         _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
         _encounterMonstersGrid = this.FindControl<ListBox>("EncounterMonstersGrid");
@@ -309,7 +313,8 @@ public partial class MainWindow : Window
             (_navMall, "Mall & Shop"),
             (_navAdventure, "Adventure"),
             (_navCombat, "Combat"),
-            (_navAccounts, "Accounts")
+            (_navAccounts, "Accounts"),
+            (_navAgents, "Agents")
         };
         foreach (var (button, tag) in entries)
         {
@@ -370,6 +375,9 @@ public partial class MainWindow : Window
                     break;
                 case "Accounts":
                     await LoadSavedAccountsAsync(cancellationToken);
+                    break;
+                case "Agents":
+                    LoadAgents();
                     break;
                 case "Adventure":
                     await RefreshAdventureAsync(forceRefresh, cancellationToken);
@@ -646,6 +654,7 @@ public partial class MainWindow : Window
         if (_adventurePanel is not null) _adventurePanel.IsVisible = section == "Adventure";
         if (_combatSection is not null) _combatSection.IsVisible = section == "Combat";
         if (_accountsPanel is not null) _accountsPanel.IsVisible = section == "Accounts";
+        if (_agentsPanel is not null) _agentsPanel.IsVisible = section == "Agents";
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = section == "Adventure" ? "Adventures" : section;
         if (_shellPageDescription is not null)
@@ -915,13 +924,13 @@ public partial class MainWindow : Window
         });
         _inventoryDetailPanel.Children.Add(new TextBlock
         {
-            Text = $"Verwendung: {detail.UsesText}",
+            Text = $"Uses: {detail.UsesText}",
             FontSize = 12,
             Margin = new Avalonia.Thickness(0, 8, 0, 0)
         });
         _inventoryDetailPanel.Children.Add(new TextBlock
         {
-            Text = $"Billigster Mall-Preis: {detail.MallPriceText}",
+            Text = $"Cheapest mall price: {detail.MallPriceText}",
             FontSize = 12
         });
         RenderInventoryActions(detail);

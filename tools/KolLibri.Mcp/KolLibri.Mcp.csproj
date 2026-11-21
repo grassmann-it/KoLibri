@@ -8,8 +8,6 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>kolibri-mcp</ToolCommandName>
     <PackageId>KoLibri.Mcp</PackageId>
-    <Version>0.1.0-preview</Version>
-    <Authors>grassmann-it</Authors>
     <Description>MCP server that lets an AI assistant read a Kingdom of Loathing account, search the mall, plan the daily routine and, with approval, adventure.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>

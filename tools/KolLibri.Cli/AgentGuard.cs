@@ -49,13 +49,13 @@ internal static class AgentGuard
         if (!IsWrite(args) || unattendedAllowed) return null;
         if (!LooksLikeAgent(env, stdinRedirected, stdoutRedirected)) return null;
 
-        var answer = confirm("Ein Agent/Skript will etwas im Spiel ändern: kolibri " + string.Join(' ', args.Select(Shorten))
-            + "\nZulassen? (ja/nein): ");
+        var answer = confirm("An agent/script wants to change something in the game: kolibri " + string.Join(' ', args.Select(Shorten))
+            + "\nAllow? (yes/no): ");
         if (answer is true) return null;
         error.WriteLine(answer is null
-            ? "Agent-Modus: Schreibaktionen brauchen eine Bestätigung am Terminal, hier ist keines erreichbar. Nichts wurde gesendet.\n"
-              + "Eigene Skripte: einmalig 'kolibri agent-mode allow' in einem echten Terminal."
-            : "Agent-Modus: nicht bestätigt. Nichts wurde gesendet.");
+            ? "Agent mode: write actions require confirmation at the terminal, but none is reachable here. Nothing was sent.\n"
+              + "Own scripts: run 'kolibri agent-mode allow' once in a real terminal."
+            : "Agent mode: not confirmed. Nothing was sent.");
         return 3;
     }
 
@@ -84,15 +84,15 @@ internal static class AgentGuard
         if (verb == "status")
         {
             Console.WriteLine(UnattendedAllowed()
-                ? "Agent-Modus aus: Skripte dürfen schreiben (agent-mode guard schaltet ihn wieder ein)."
-                : "Agent-Modus an: Schreibaktionen unter KI/Skript brauchen Bestätigung am Terminal.");
+                ? "Agent mode off: scripts may write (agent-mode guard turns it back on)."
+                : "Agent mode on: write actions by AI/scripts require confirmation at the terminal.");
             return 0;
         }
         if (verb is not ("allow" or "guard")) { Console.Error.WriteLine("agent-mode status|allow|guard"); return 2; }
         var ok = ConfirmOnTerminal(verb == "allow"
-            ? "Skripte und Agenten dürfen ohne Rückfrage schreiben. Das hebt den Schutz auf. Sicher? (ja/nein): "
-            : "Agent-Modus wieder einschalten? (ja/nein): ");
-        if (ok is not true) { Console.Error.WriteLine(ok is null ? "Kein Terminal erreichbar." : "Abgebrochen."); return 3; }
+            ? "Scripts and agents may write without asking. This removes the safeguard. Are you sure? (yes/no): "
+            : "Turn agent mode back on? (yes/no): ");
+        if (ok is not true) { Console.Error.WriteLine(ok is null ? "No terminal reachable." : "Cancelled."); return 3; }
         Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
         File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new { allowUnattended = verb == "allow" }));
         Console.WriteLine("ok");

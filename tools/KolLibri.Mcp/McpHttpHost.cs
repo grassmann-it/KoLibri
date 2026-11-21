@@ -174,7 +174,7 @@ public sealed class McpHttpHost : IDisposable
         var accounts = (q["kolibri_accounts"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var pending = _oauth.BeginConsent(client, redirect, q["code_challenge"]!, q["state"], resource, rights, limits, accounts, q["kolibri_reason"]);
         if (_requireCode)
-            _log.WriteLine($"Zustimmungscode für \"{pending.Client.ClientName}\": {pending.ConfirmationCode}");
+            _log.WriteLine($"Consent code for \"{pending.Client.ClientName}\": {pending.ConfirmationCode}");
         SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode));
     }
 
@@ -192,7 +192,7 @@ public sealed class McpHttpHost : IDisposable
             return Task.CompletedTask;
         }
         if (_requireCode && form["code"]?.Trim() != pending.ConfirmationCode)
-        { SendHtml(ctx, 200, McpConsentPage.Render(pending, true, "Bestätigungscode falsch.")); return Task.CompletedTask; }
+        { SendHtml(ctx, 200, McpConsentPage.Render(pending, true, "Confirmation code incorrect.")); return Task.CompletedTask; }
 
         var accounts = form.GetValues("account") ?? [];
         var rights = new Dictionary<string, RightLimit>();
@@ -208,7 +208,7 @@ public sealed class McpHttpHost : IDisposable
             };
         }
         if (accounts.Length == 0 || rights.Count == 0)
-        { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, "Mindestens ein Konto und ein Recht auswählen – oder ablehnen.")); return Task.CompletedTask; }
+        { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, "Select at least one account and one right – or deny.")); return Task.CompletedTask; }
 
         TimeSpan lifetime;
         try { lifetime = TimeSpan.FromHours(Math.Clamp(Num(form["hours"]) ?? 24, 1, 720)); }
@@ -225,7 +225,7 @@ public sealed class McpHttpHost : IDisposable
     {
         foreach (var (name, limit) in rights)
             if (OperationCatalog.All.Any(o => o.Right == name && o.Kind == OperationKind.Write) && limit.DailyBudget is null)
-                throw new ArgumentException($"Für „{name}“ ist ein Tageslimit nötig.");
+                throw new ArgumentException($"A daily limit is required for “{name}”.");
     }
 
     private async Task TokenAsync(HttpListenerContext ctx)

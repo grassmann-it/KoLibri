@@ -91,7 +91,7 @@ public partial class MainWindow
         var verification = new DelegateAdventureVerificationHook((context, _) =>
             ValueTask.FromResult(context.Response.Accepted != false
                 ? AdventureVerificationResult.Success()
-                : AdventureVerificationResult.Failed("Die Live-Antwort wurde von KoL abgelehnt.")));
+                : AdventureVerificationResult.Failed("The live response was rejected by KoL.")));
         await using var session = KoLAdventureSessionFactory.Create(account,
             KoLLoginClient.CreateAuthenticatedClient(account.Credentials, new Uri("https://www.kingdomofloathing.com/")),
             approval, verification);

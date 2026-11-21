@@ -49,7 +49,7 @@ purchase has a price ceiling and a meat reserve.
 ## Install
 
 ```xml
-<PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
+<PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
 ```
 
 The package targets `net8.0`. `KoLibri.Core` comes in as a dependency —

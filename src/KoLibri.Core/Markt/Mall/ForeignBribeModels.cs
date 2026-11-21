@@ -266,14 +266,14 @@ public sealed class ForeignBribePlanner
             && lowest is not null && median is not null && lowest.Value <= median.Value * 0.80m
             && currencyValue is not null && ticketPriced && afterTicket > 0;
         var rationale = candidate
-            ? "Mallboden liegt mindestens 20% unter dem Pricegun-Median; als Kaufkandidat prüfen."
+            ? "Mall floor is at least 20% below the Pricegun median; consider as a purchase candidate."
             : history.Sales.Count < 3
-                ? "Zu wenig Pricegun-Verkäufe für eine belastbare Nachfrageaussage."
+                ? "Too few Pricegun sales for a reliable demand statement."
                 : currencyValue is null
-                    ? "Währungswert fehlt; Opportunity Cost vor einem Kauf ergänzen."
+                    ? "Currency value is missing; add opportunity cost before a purchase."
                     : !ticketPriced
-                        ? "Ticketkosten fehlen; Opportunity Cost vor einem Kauf ergänzen."
-                    : "Kein ausreichender Abschlag oder keine positive Nettomarge.";
+                        ? "Ticket costs are missing; add opportunity cost before a purchase."
+                    : "Insufficient discount or no positive net margin.";
         return new ForeignBribeRanking(entry, lowest, median, weighted, history.Sales.Count, mall.Listings.Count,
             expected, resalePerCurrency, opportunity, net, ticketCost, historicalHigher, candidate, mall.IsStale, history.IsStale, rationale)
         {

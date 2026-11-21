@@ -116,7 +116,7 @@ public sealed class RotatingSalePlanner
                 Status = RotatingSaleStatus.HoldCooldown,
                 RequiresApproval = false,
                 PriceUpdate = null,
-                Rationale = $"Run-Limit {_policy.MaxOffersPerRun} erreicht; beim nächsten Rotationslauf erneut prüfen."
+                Rationale = $"Run limit {_policy.MaxOffersPerRun} reached; check again on the next rotation run."
             }
             : x).ToArray();
         return new RotatingSalePlan(timestamp, _policy.MaxOffersPerRun, bounded);
@@ -126,17 +126,17 @@ public sealed class RotatingSalePlanner
     {
         var displayName = candidate.DisplayName;
         if (candidate.OwnedQuantity <= 0)
-            return Hold(candidate, RotatingSaleStatus.HoldNoInventory, "Kein Bestand für eine einzelne Rotationslistung.");
+            return Hold(candidate, RotatingSaleStatus.HoldNoInventory, "No stock for a single rotation listing.");
         if (candidate.IsStale)
-            return Hold(candidate, RotatingSaleStatus.HoldStale, "Preisquelle ist stale; erst Mall/Pricegun aktualisieren.");
+            return Hold(candidate, RotatingSaleStatus.HoldStale, "Price source is stale; refresh mall/Pricegun first.");
         if (candidate.OwnStoreContaminatesMarket)
-            return Hold(candidate, RotatingSaleStatus.HoldOwnStoreContamination, "Eigene Listings verunreinigen den Mallboden; unabhängige Referenz fehlt.");
+            return Hold(candidate, RotatingSaleStatus.HoldOwnStoreContamination, "Own listings contaminate the mall floor; independent reference is missing.");
         if (candidate.LastRotatedAt is { } last && now - last < _policy.Cooldown)
-            return Hold(candidate, RotatingSaleStatus.HoldCooldown, "Cooldown seit der letzten Rotationslistung ist noch nicht abgelaufen.");
+            return Hold(candidate, RotatingSaleStatus.HoldCooldown, "Cooldown since the last rotation listing has not yet expired.");
 
         var reference = SelectReference(candidate);
         if (reference is null || reference <= 0)
-            return Hold(candidate, RotatingSaleStatus.HoldNoMarketReference, "Keine unabhängige Mall-/Pricegun-Referenz.");
+            return Hold(candidate, RotatingSaleStatus.HoldNoMarketReference, "No independent mall/Pricegun reference.");
         var cost = candidate.AcquisitionCost;
         var marginFloor = cost is null
             ? _policy.MinimumPrice
@@ -144,9 +144,9 @@ public sealed class RotatingSalePlanner
         var discounted = decimal.ToInt64(decimal.Floor(reference.Value * (1m - _policy.DiscountPercent)));
         var proposed = Math.Max(marginFloor, discounted);
         if (proposed >= candidate.CurrentAsk)
-            return Hold(candidate, RotatingSaleStatus.HoldAlreadyCompetitive, "Aktueller Ask ist bereits mindestens so günstig wie das Rotationsziel.", reference);
+            return Hold(candidate, RotatingSaleStatus.HoldAlreadyCompetitive, "Current ask is already at least as cheap as the rotation target.", reference);
         if (cost is not null && proposed < marginFloor)
-            return Hold(candidate, RotatingSaleStatus.HoldNoMargin, "Der Promo-Preis würde die Mindestmarge unterschreiten.", reference);
+            return Hold(candidate, RotatingSaleStatus.HoldNoMargin, "The promo price would fall below the minimum margin.", reference);
 
         var profit = cost is null ? (decimal?)null : (decimal)proposed - cost.Value;
         var update = new ShopPriceUpdate(candidate.ItemId, candidate.CurrentAsk, proposed);
@@ -161,7 +161,7 @@ public sealed class RotatingSalePlanner
             profit,
             update,
             RequiresApproval: true,
-            "Ein Stück auf den unabhängigen Referenzpreis minus Rotationsrabatt setzen; Commit erst nach frischem Shop-Read.");
+            "Price one unit at the independent reference price minus the rotation discount; commit only after a fresh shop read.");
     }
 
     private long? SelectReference(RotatingSaleCandidate candidate)

@@ -1,124 +1,121 @@
-# KoLibri-Arbitrage-Arbeitspakete
+# KoLibri Arbitrage Work Packages
 
-Dieses Dokument trennt sichere Beobachtung und Bewertung von späteren Käufen,
-Transfers und Mall-Änderungen. Jede Mutation braucht einen frischen Read,
-Budgetprüfung, Approval, Commit und Verifikation.
+This document separates safe observation and evaluation from later purchases,
+transfers and Mall changes. Every mutation needs a fresh read, a budget check,
+approval, commit and verification.
 
-## Bewertungsgrundlage
+## Evaluation basis
 
-Für jedes Item werden Item-ID, Tradeability, Giftability, Autosell-/NPC-Wert,
-Coinmaster-/Rezeptbeziehungen, Ausrüstungstyp, IotM-/Saisonstatus, Bestand,
-Umschlag und Quellenalter gespeichert. Der erwartete Nettoerlös ist:
+For each item, the item ID, tradeability, giftability, autosell/NPC value,
+Coinmaster/recipe relations, equipment type, IotM/seasonal status, stock,
+turnover and source age are stored. The expected net proceeds are:
 
 ```text
 netSell = expectedSellPrice * 0.99 - listingFees - packagingCost
 netSpread = netSell - acquisitionCost - transferCost - adventureCost
 ```
 
-`expectedSellPrice` darf nicht einfach der erste Mall-Eintrag sein. KoLibri
-vergleicht einen robusten Mall-Schätzer (Top-k, zweiter Preis, Mengen und
-eigene Listings ausgeschlossen) mit Pricegun-Median/gewichteten Verkäufen und
-historischem Preis. Eine Empfehlung braucht Mindestbetrag, Mindestmarge,
-Liquidität und eine nicht veraltete Quelle.
+`expectedSellPrice` must not simply be the first Mall entry. KoLibri compares
+a robust Mall estimator (top-k, second price, quantities, own listings
+excluded) with the Pricegun median/weighted sales and the historical price. A
+recommendation needs a minimum amount, a minimum margin, liquidity and a
+source that is not stale.
 
-## Priorität P0: Daten und Scanner
+## Priority P0: Data and scanner
 
-- **Item-Katalog:** Tradeable/giftable/bound, NPC, Autosell, Rezept, Fold-/Zap-
-  Gruppe, Coinmaster, Ausrüstungsslot, IotM und saisonale Tags.
-- **Mall-Snapshot:** Top 10 Listings, Mengen, Verkäufer, Preisalter und
-  `ownStoreContaminatesMarket`; die eigene Mall darf keine Kaufreferenz sein.
-- **Pricegun/Historie:** lange TTL für Übersicht, kurzer TTL für einen
-  Kaufentscheid; stale Fallback klar markieren.
-- **Farm-vs-Buy:** gleicher Zielbestand wird als Eigenfarm, Mallkauf, Crafting
-  oder Coinmaster-Ausgabe simuliert.
+- **Item catalog:** Tradeable/giftable/bound, NPC, autosell, recipe, fold/zap
+  group, Coinmaster, equipment slot, IotM and seasonal tags.
+- **Mall snapshot:** Top 10 listings, quantities, sellers, price age and
+  `ownStoreContaminatesMarket`; the own Mall store must not be a buy reference.
+- **Pricegun/history:** long TTL for the overview, short TTL for a purchase
+  decision; clearly mark a stale fallback.
+- **Farm-vs-Buy:** the same target stock is simulated as own farming, Mall
+  purchase, crafting or Coinmaster spend.
 
-## Priorität P1: Underprice-Sniper
+## Priority P1: Underprice sniper
 
-Der Worker scannt eine Kandidatenliste statt permanent den kompletten Mall zu
-abzufragen. Kandidaten entstehen aus eigenen Zielitems, historischen Gewinnern,
-Farm-/Coinmaster-Outputs, IotMs/Accessories und frischen Mall-Anomalien.
+The worker scans a candidate list instead of permanently querying the entire
+Mall. Candidates come from own target items, historical winners, farm/
+Coinmaster outputs, IotMs/accessories and fresh Mall anomalies.
 
-Ein Kaufvorschlag braucht:
+A purchase proposal needs:
 
-1. unabhängige Referenz (Pricegun oder zweiter/robuster Mallpreis),
-2. mindestens `minAbsoluteSpread` und `minMarginPercent`,
-3. ausreichende Verkaufsmengen oder ein bewusst akzeptiertes Haltefenster,
-4. Tradeability und keine Account-Bindung,
-5. Tagesbudget, Item-Limit und Reserve für Main/Mallbot.
+1. an independent reference (Pricegun or a second/robust Mall price),
+2. at least `minAbsoluteSpread` and `minMarginPercent`,
+3. sufficient sales volume or a deliberately accepted holding window,
+4. tradeability and no account binding,
+5. daily budget, item limit and reserve for Main/Mallbot.
 
-Vor dem Kauf werden Storepreis, Menge, Meat und Session erneut gelesen. Der
-Commit kauft höchstens einen kleinen Chunk und verifiziert danach Inventar und
-Meat. `priceChanged`, `soldOut`, `loginRedirect` und ein zu alter Snapshot
-brechen den Vorgang ab.
+Before the purchase, store price, quantity, Meat and session are re-read. The
+commit buys at most a small chunk and then verifies inventory and Meat.
+`priceChanged`, `soldOut`, `loginRedirect` and a snapshot that is too old abort
+the operation.
 
-## Priorität P1: IotM- und Accessory-Arbitrage
+## Priority P1: IotM and accessory arbitrage
 
-IotM-Items werden in drei Klassen geteilt: handelbare Utility-Items mit
-laufendem Ertrag, reine Ausrüstungs-/Sammlerobjekte und Verbrauchsitems. Für
-jede Klasse werden Mall-Wert, erwarteter Nutzen, Ersatzkosten, Haltedauer und
-Wiederverkaufsrisiko getrennt gerechnet. Mr. Accessory ist nur ein
-Numeraire/Opportunitätskostenwert; ein Preis unter einem Mr. A ist kein
-automatischer Kaufgrund.
+IotM items are split into three classes: tradeable utility items with ongoing
+yield, pure equipment/collectibles and consumables. For each class, Mall value,
+expected benefit, replacement cost, holding period and resale risk are
+calculated separately. Mr. Accessory is only a numeraire/opportunity-cost
+value; a price below one Mr. A is not an automatic reason to buy.
 
-Nicht kaufen, wenn das Item account-bound, nicht giftable, nur ein einzelner
-historischer Ausreißer oder ohne liquide Verkäufe ist. Bei Utility-IotMs wird
-`resale + retained utility` gegen das gebundene Meat verglichen.
+Do not buy if the item is account-bound, not giftable, only a single
+historical outlier or without liquid sales. For utility IotMs,
+`resale + retained utility` is compared against the Meat tied up.
 
-## Priorität P1: Farm- und Adventure-Arbitrage
+## Priority P1: Farm and adventure arbitrage
 
-Für jede Zone wird `expectedDropValue / adventure` aus aktuellen Drops,
-Pricegun/Mall und Verkaufsgeschwindigkeit berechnet. Davon gehen Ticket,
-Verbrauchsmaterial, Turn-Opportunity-Cost und Zielressourcen ab. Das Ergebnis
-wird mit einem direkten Mallkauf verglichen.
+For each zone, `expectedDropValue / adventure` is computed from current drops,
+Pricegun/Mall and sales velocity. Ticket, consumables, turn opportunity cost
+and target resources are subtracted. The result is compared with a direct Mall
+purchase.
 
-Die ersten Kandidaten sind Skeleton/Knucklebones, Glaciest-Bücher und Tickets,
-Volcano-Bücher/Tickets, Coinspiracy-Outputs, Pirate-Encryption-/Crimbo-
-Materialien, Elf-Guard-/Crimbuccaneer-Quellen und Hermit-Clovers. Daily limits,
-Semirares, Lucky Eggs und saisonale Fenster werden als eigene Ressourcen
-geführt; der Adventure-Runner stoppt bei unbekanntem Fight/Choice, stale Session,
-zu wenig HP/Turns oder erreichtem Ziel.
+The first candidates are Skeleton/Knucklebones, Glaciest books and tickets,
+Volcano books/tickets, Coinspiracy outputs, Pirate-Encryption/Crimbo
+materials, Elf-Guard/Crimbuccaneer sources and Hermit clovers. Daily limits,
+semirares, Lucky Eggs and seasonal windows are managed as their own resources;
+the adventure runner stops at an unknown fight/choice, a stale session, too
+little HP/turns or a reached goal.
 
-## Priorität P1: Coinmaster- und Event-Lager
+## Priority P1: Coinmaster and event stock
 
-Alle `coinmasters.txt`-/`shoprows.txt`-Zeilen werden als Graph gespeichert:
-Currency → Ticket/Item → erwarteter Nettoerlös. Currency bekommt einen
-Opportunity-Cost aus der besten alternativen Ausgabe. Käufe sind nur sinnvoll,
-wenn der Nettoerlös nach Ticketkosten, Transfer, Mall-Fee und Halte-/Saisonrisiko
-positiv ist. Crimbo-/Pirate-Bestände erhalten ein eigenes Reservekonto und
-werden nicht mit laufendem Mallbestand vermischt.
+All `coinmasters.txt`/`shoprows.txt` rows are stored as a graph: currency →
+ticket/item → expected net proceeds. A currency gets an opportunity cost from
+the best alternative spend. Purchases only make sense if the net proceeds are
+positive after ticket costs, transfer, Mall fee and holding/seasonal risk.
+Crimbo/Pirate stock gets its own reserve account and is not mixed with the
+running Mall inventory.
 
-## Priorität P2: Transformationen
+## Priority P2: Transformations
 
-Craft, fold, zap, pulverize, untinker und andere Rezeptpfade werden als
-gerichteter Graph bewertet. Inputs werden mit Eigenbestand-Opportunity-Cost
-oder Mallpreis angesetzt; hinzu kommen Meatpaste, tägliche Limits,
-Fehlerrisiko und Absatzgeschwindigkeit. Glücksspielpfade brauchen eine
-separate Verlustgrenze und bleiben standardmäßig Preview-only.
+Craft, fold, zap, pulverize, untinker and other recipe paths are evaluated as
+a directed graph. Inputs are valued at the own-stock opportunity cost or the
+Mall price; Meatpaste, daily limits, failure risk and sales velocity are added.
+Gambling paths need a separate loss limit and are preview-only by default.
 
-## Priorität P2: Shop, Überbestand und CRM
+## Priority P2: Shop, overstock and CRM
 
-- Bestandsalter und Menge erzeugen `hold`, `reprice`, `rotate-one`, `bundle`,
-  `transfer` oder `liquidate` Vorschläge.
-- Der Rotationsworker stellt höchstens ein Stück aus echtem Überschuss als
-  zeitlich begrenzte Promo vor; Cooldown, unabhängiger Preis und Mindestmarge
-  sind Pflicht.
-- Eigene Verkäufe liefern Durchsatz- und Wiederkäuferdaten. Loyalty-Punkte,
-  Blockliste und spätere Message/Gift-Intents bleiben lokal und approval-
-  gebunden.
+- Stock age and quantity produce `hold`, `reprice`, `rotate-one`, `bundle`,
+  `transfer` or `liquidate` proposals.
+- The rotation worker presents at most one piece of genuine surplus as a
+  time-limited promo; cooldown, independent price and minimum margin are
+  mandatory.
+- Own sales provide throughput and repeat-buyer data. Loyalty points, the
+  blocklist and later message/gift intents stay local and approval-bound.
 
-## Worker- und Approval-Grenze
+## Worker and approval boundary
 
 ```text
 observe -> cache -> score -> preview -> refresh -> approve -> commit -> verify
 ```
 
-Workers dürfen lesen, cachen und Vorschläge erzeugen. Kaufen, Transfer,
-Bag-Öffnen, Abenteuer, Geschenk, Nachricht und Preisänderung bleiben getrennte
-Capabilities mit Audit-ID. Ein Sniper darf nie aus einem stale Cache oder aus
-seinem eigenen Mall-Listing kaufen.
+Workers may read, cache and produce proposals. Buying, transfer, bag opening,
+adventure, gift, message and price change remain separate capabilities with an
+audit ID. A sniper must never buy from a stale cache or from its own Mall
+listing.
 
-KoLmafia-Referenzen: [CLI-/Acquire-Dokumentation](https://github.com/kolmafia/kolmafia.sourceforge.net/blob/main/scripting.html),
+KoLmafia references: [CLI/acquire documentation](https://github.com/kolmafia/kolmafia.sourceforge.net/blob/main/scripting.html),
 [InventoryManager](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/session/InventoryManager.java),
 [MallPurchaseRequest](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/request/MallPurchaseRequest.java),
 [ManageStoreRequest](https://github.com/kolmafia/kolmafia/blob/main/src/main/java/net/sourceforge/kolmafia/request/ManageStoreRequest.java),
-[Pricegun](https://pricegun.loathers.net/) und [Tradeability-Funktionen](https://wiki.kolmafia.us/index.php?title=Is_tradeable).
+[Pricegun](https://pricegun.loathers.net/) and [tradeability functions](https://wiki.kolmafia.us/index.php?title=Is_tradeable).

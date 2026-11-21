@@ -28,7 +28,7 @@ public partial class MainWindow
         }
         catch (Exception exception)
         {
-            UpdateEncounterStatus($"Catalog konnte nicht geladen werden: {exception.Message}");
+            UpdateEncounterStatus($"Catalog could not be loaded: {exception.Message}");
             return;
         }
 

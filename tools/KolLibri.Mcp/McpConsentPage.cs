@@ -26,46 +26,46 @@ public static class McpConsentPage
 
     private static readonly Dictionary<string, string> Titles = new()
     {
-        [Rights.AccountRead] = "Konto lesen (Status, Inventar, Pläne)",
-        [Rights.MarketRead] = "Markt lesen (Mall-Preise)",
-        [Rights.Adventure] = "Abenteuern",
-        [Rights.MallBuy] = "In der Mall kaufen",
-        [Rights.DailyRun] = "Tägliche Routine / Meme-Shop ausführen",
-        [Rights.TransferMeat] = "Meat zwischen eigenen Konten senden",
-        [Rights.TransferItems] = "Items zwischen eigenen Konten senden",
-        [Rights.MessageSend] = "Nachrichten senden",
-        [Rights.ShopReprice] = "Preise im eigenen Laden ändern",
-        [Rights.ItemUse] = "Items verbrauchen",
+        [Rights.AccountRead] = "Read account (status, inventory, plans)",
+        [Rights.MarketRead] = "Read market (Mall prices)",
+        [Rights.Adventure] = "Adventuring",
+        [Rights.MallBuy] = "Buy in the Mall",
+        [Rights.DailyRun] = "Run daily routine / meme shop",
+        [Rights.TransferMeat] = "Send Meat between own accounts",
+        [Rights.TransferItems] = "Send items between own accounts",
+        [Rights.MessageSend] = "Send messages",
+        [Rights.ShopReprice] = "Change prices in own shop",
+        [Rights.ItemUse] = "Use up items",
     };
 
     private static readonly Dictionary<string, string> BudgetUnit = new()
     {
-        [Rights.Adventure] = "Abenteuer pro Tag", [Rights.MallBuy] = "Meat pro Tag", [Rights.DailyRun] = "Läufe pro Tag",
-        [Rights.TransferMeat] = "Meat pro Tag", [Rights.TransferItems] = "Items pro Tag",
-        [Rights.MessageSend] = "Nachrichten pro Tag", [Rights.ShopReprice] = "Änderungen pro Tag", [Rights.ItemUse] = "Verbräuche pro Tag",
+        [Rights.Adventure] = "adventures per day", [Rights.MallBuy] = "Meat per day", [Rights.DailyRun] = "runs per day",
+        [Rights.TransferMeat] = "Meat per day", [Rights.TransferItems] = "items per day",
+        [Rights.MessageSend] = "messages per day", [Rights.ShopReprice] = "changes per day", [Rights.ItemUse] = "uses per day",
     };
 
     public static string Render(PendingConsent p, bool needsCode, string? error = null)
     {
         var sb = new StringBuilder();
-        sb.Append("<!doctype html><html lang=de><meta charset=utf-8><title>KoLibri – Zugriff freigeben</title>")
+        sb.Append("<!doctype html><html lang=en><meta charset=utf-8><title>KoLibri – Grant access</title>")
           .Append("<style>body{font:15px system-ui;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#222}")
           .Append("fieldset{border:1px solid #bbb;border-radius:6px;margin:.6rem 0;padding:.6rem .9rem}legend{font-weight:600}")
           .Append("input[type=number]{width:9rem}.warn{background:#fff3cd;padding:.6rem;border-radius:6px}")
           .Append(".err{background:#f8d7da;padding:.6rem;border-radius:6px}.said{color:#555;font-style:italic}")
           .Append("button{font:inherit;padding:.5rem 1.2rem;margin-right:.6rem}</style>");
-        sb.Append("<h1>Zugriff für einen KI-Client freigeben</h1>");
-        sb.Append("<p><b>").Append(H(p.Client.ClientName)).Append("</b> möchte auf deine KoL-Konten zugreifen.")
-          .Append(" Rückkehr an: <code>").Append(H(Host(p.RedirectUri))).Append("</code></p>");
-        if (p.Reason is not null) sb.Append("<p class=said>Der Client sagt: „").Append(H(p.Reason)).Append("“</p>");
-        sb.Append("<p class=warn>Du bestimmst Rechte und Limits. Alles, was du hier nicht anhakst, bleibt gesperrt. ")
-          .Append("Limits gelten pro KoL-Tag und zählen erst, wenn KoL die Aktion bestätigt hat.</p>");
+        sb.Append("<h1>Grant access to an AI client</h1>");
+        sb.Append("<p><b>").Append(H(p.Client.ClientName)).Append("</b> wants to access your KoL accounts.")
+          .Append(" Returns to: <code>").Append(H(Host(p.RedirectUri))).Append("</code></p>");
+        if (p.Reason is not null) sb.Append("<p class=said>The client says: “").Append(H(p.Reason)).Append("”</p>");
+        sb.Append("<p class=warn>You decide rights and limits. Anything you do not check here stays blocked. ")
+          .Append("Limits apply per KoL day and only count once KoL has confirmed the action.</p>");
         if (error is not null) sb.Append("<p class=err>").Append(H(error)).Append("</p>");
 
         sb.Append("<form method=post action=/authorize>");
         sb.Append("<input type=hidden name=session value=").Append(H(p.Id)).Append("><input type=hidden name=csrf value=").Append(H(p.Csrf)).Append('>');
 
-        sb.Append("<fieldset><legend>Konten</legend>");
+        sb.Append("<fieldset><legend>Accounts</legend>");
         foreach (var role in new[] { "Main", "Mallbot" })
             sb.Append("<label><input type=checkbox name=account value=").Append(role)
               .Append(p.RequestedAccounts.Count == 0 || p.RequestedAccounts.Contains(role, StringComparer.OrdinalIgnoreCase) ? " checked" : "")
@@ -78,26 +78,26 @@ public static class McpConsentPage
             p.RequestedLimits.TryGetValue(right, out var wanted);
             var def = Defaults[right];
             sb.Append("<fieldset><legend><label><input type=checkbox name=right value=").Append(right).Append(asked ? " checked" : "")
-              .Append("> ").Append(H(Titles[right])).Append("</label>").Append(asked ? "" : " <small>(nicht angefragt)</small>").Append("</legend>");
+              .Append("> ").Append(H(Titles[right])).Append("</label>").Append(asked ? "" : " <small>(not requested)</small>").Append("</legend>");
             if (BudgetUnit.TryGetValue(right, out var unit))
             {
                 sb.Append("Limit: <input type=number min=0 name=budget_").Append(right).Append(" value=").Append(wanted?.DailyBudget ?? def.DailyBudget).Append("> ").Append(unit).Append(' ');
                 if (right == Rights.MallBuy)
-                    sb.Append("<br>Höchstpreis pro Stück: <input type=number min=0 name=maxprice_").Append(right).Append(" value=").Append(wanted?.MaxUnitPrice ?? def.MaxUnitPrice)
-                      .Append("> Meat &nbsp; Meat-Reserve auf dem Konto: <input type=number min=0 name=reserve_").Append(right).Append(" value=").Append(wanted?.MeatReserve ?? def.MeatReserve).Append('>');
+                    sb.Append("<br>Max price per unit: <input type=number min=0 name=maxprice_").Append(right).Append(" value=").Append(wanted?.MaxUnitPrice ?? def.MaxUnitPrice)
+                      .Append("> Meat &nbsp; Meat reserve on the account: <input type=number min=0 name=reserve_").Append(right).Append(" value=").Append(wanted?.MeatReserve ?? def.MeatReserve).Append('>');
                 if (right == Rights.ShopReprice)
-                    sb.Append("<br>Größte Preisänderung: <input type=number min=0 max=100 name=pct_").Append(right).Append(" value=").Append(wanted?.MaxChangePercent ?? def.MaxChangePercent).Append("> %");
+                    sb.Append("<br>Largest price change: <input type=number min=0 max=100 name=pct_").Append(right).Append(" value=").Append(wanted?.MaxChangePercent ?? def.MaxChangePercent).Append("> %");
             }
-            else sb.Append("<small>nur lesen, ohne Limit</small>");
+            else sb.Append("<small>read-only, no limit</small>");
             sb.Append("</fieldset>");
         }
 
-        sb.Append("<fieldset><legend>Gültigkeit</legend><select name=hours>")
-          .Append("<option value=1>1 Stunde</option><option value=24 selected>1 Tag</option><option value=168>7 Tage</option><option value=720>30 Tage</option></select></fieldset>");
+        sb.Append("<fieldset><legend>Validity</legend><select name=hours>")
+          .Append("<option value=1>1 hour</option><option value=24 selected>1 day</option><option value=168>7 days</option><option value=720>30 days</option></select></fieldset>");
         if (needsCode)
-            sb.Append("<fieldset><legend>Bestätigungscode</legend>Der Code steht im Terminal, in dem <code>kolibri-mcp</code> läuft: ")
+            sb.Append("<fieldset><legend>Confirmation code</legend>The code is shown in the terminal where <code>kolibri-mcp</code> is running: ")
               .Append("<input name=code autocomplete=off inputmode=numeric size=8></fieldset>");
-        sb.Append("<p><button name=decision value=approve>Freigeben</button><button name=decision value=deny>Ablehnen</button></p></form>");
+        sb.Append("<p><button name=decision value=approve>Approve</button><button name=decision value=deny>Deny</button></p></form>");
         return sb.ToString();
     }
 

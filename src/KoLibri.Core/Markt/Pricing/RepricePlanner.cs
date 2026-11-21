@@ -319,12 +319,12 @@ public class RepricePlanner
         if (ownExcluded && _policy.ExcludeOwnStore)
         {
             codes.Add(RepriceReasonCode.OwnStoreExcluded);
-            texts.Add("Eigene Listings wurden aus der Markt-Referenz ausgeschlossen.");
+            texts.Add("Own listings were excluded from the market reference.");
         }
         if (estimate.IsStale)
         {
             codes.Add(RepriceReasonCode.StaleMarket);
-            texts.Add("Mindestens eine Preisquelle ist stale.");
+            texts.Add("At least one price source is stale.");
             if (!_policy.AllowStaleMarket) codes.Add(RepriceReasonCode.StaleReview);
         }
 
@@ -356,17 +356,17 @@ public class RepricePlanner
         if (string.IsNullOrWhiteSpace(itemId) || listing.Price < 0 || listing.Quantity <= 0)
         {
             codes.Insert(0, RepriceReasonCode.InvalidListing);
-            texts.Insert(0, "Listing enthält keine gültige Item-ID, Menge oder Preisangabe.");
+            texts.Insert(0, "Listing contains no valid item ID, quantity or price.");
             return Create(common, null, null, RepriceRecommendationStatus.Hold, codes, texts,
-                "Listing ist ungültig; keine Preisänderung vorgeschlagen.");
+                "Listing is invalid; no price change proposed.");
         }
 
         if (!string.Equals(itemId, estimate.ItemId.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             codes.Insert(0, RepriceReasonCode.ItemMismatch);
-            texts.Insert(0, $"Listing gehört zu {itemId}, die Markt-Referenz aber zu {estimate.ItemId}.");
+            texts.Insert(0, $"Listing belongs to {itemId}, but the market reference belongs to {estimate.ItemId}.");
             return Create(common, null, null, RepriceRecommendationStatus.Hold, codes, texts,
-                "Item-ID der Markt-Referenz stimmt nicht mit dem Listing überein.");
+                "Item ID of the market reference does not match the listing.");
         }
 
         var reference = SelectReference(floor, second, fifth, median, weightedMedian, estimate.MallReferencePrice,
@@ -380,9 +380,9 @@ public class RepricePlanner
         if (reference is null || reference <= 0m)
         {
             codes.Insert(0, RepriceReasonCode.NoMarketReference);
-            texts.Insert(0, "Keine verwertbare Mall-/Historien-Referenz vorhanden.");
+            texts.Insert(0, "No usable mall/history reference available.");
             return Create(common, null, null, RepriceRecommendationStatus.Hold, codes, texts,
-                "Keine Preisänderung ohne unabhängige Markt-Referenz.");
+                "No price change without an independent market reference.");
         }
 
         if (referenceCode is { } code) codes.Add(code);
@@ -395,7 +395,7 @@ public class RepricePlanner
         if (_policy.RequireIndependentReference && !hasIndependent)
         {
             codes.Add(RepriceReasonCode.MissingIndependentReference);
-            texts.Add("Nur ein einzelner Mallboden liegt vor; unabhängige Bestätigung fehlt.");
+            texts.Add("Only a single mall floor is available; independent confirmation is missing.");
         }
 
         // Historical premium follows the established compare semantics: use
@@ -421,7 +421,7 @@ public class RepricePlanner
         if (historicalPremium)
         {
             codes.Add(RepriceReasonCode.HistoricalPremium);
-            texts.Add($"Historischer Median liegt {historicalPremiumPercent:P0} über der aktuellen Referenz.");
+            texts.Add($"Historical median is {historicalPremiumPercent:P0} above the current reference.");
             if (_policy.RequireReviewForHistoricalPremium) codes.Add(RepriceReasonCode.ReviewRequired);
         }
         if (historical is not null) codes.Add(RepriceReasonCode.HistoricalReference);
@@ -436,7 +436,7 @@ public class RepricePlanner
             if (historicalTarget > target)
             {
                 target = historicalTarget;
-                texts.Add($"Historische Referenz {historicalPrice:0.##} Meat mit {_policy.HistoricalPremiumMarkupPercent:P0} Abschlag berücksichtigt.");
+                texts.Add($"Historical reference of {historicalPrice:0.##} meat taken into account with a {_policy.HistoricalPremiumMarkupPercent:P0} discount.");
             }
         }
         var feeFloor = FeeFloor(listing.Quantity);
@@ -444,7 +444,7 @@ public class RepricePlanner
         {
             target = feeFloor;
             codes.Add(RepriceReasonCode.FeesApplied);
-            texts.Add($"Gebühren erfordern mindestens {feeFloor:0.##} Meat pro Einheit.");
+            texts.Add($"Fees require at least {feeFloor:0.##} meat per unit.");
         }
         if (target < _policy.MinimumPrice)
         {
@@ -459,7 +459,7 @@ public class RepricePlanner
         {
             codes.Add(RepriceReasonCode.AlreadyCompetitive);
             codes.Add(RepriceReasonCode.PriceUnchanged);
-            texts.Add("Aktueller Ask ist bereits mindestens so günstig wie das Reprice-Ziel.");
+            texts.Add("Current ask is already at least as cheap as the reprice target.");
             status = RepriceRecommendationStatus.Keep;
         }
         else if (_policy.RequireIndependentReference && !hasIndependent)
@@ -477,7 +477,7 @@ public class RepricePlanner
         else
         {
             codes.Add(RepriceReasonCode.Ready);
-            texts.Add("Unabhängige Referenz und Mindestpreisgrenzen sind erfüllt.");
+            texts.Add("Independent reference and minimum price limits are satisfied.");
         }
 
         return Create(common, target, referenceKind, status, codes, texts,
@@ -487,7 +487,7 @@ public class RepricePlanner
     private RepriceRecommendation MissingEstimate(OwnShopListing listing, DateTimeOffset now)
     {
         var codes = new[] { RepriceReasonCode.NoMarketReference };
-        var texts = new[] { "Keine Markt-Referenz für dieses Item im Snapshot vorhanden." };
+        var texts = new[] { "No market reference for this item in the snapshot." };
         var common = new RecommendationValues
         {
             ItemId = (listing.ItemId ?? string.Empty).Trim(),
@@ -501,7 +501,7 @@ public class RepricePlanner
             PackagingCost = _policy.PackagingCost
         };
         return Create(common, null, null, RepriceRecommendationStatus.Hold, codes, texts,
-            "Keine Preisänderung ohne passende Markt-Referenz.");
+            "No price change without a matching market reference.");
     }
 
     private RepriceRecommendation Create(
@@ -648,11 +648,11 @@ public class RepricePlanner
         return status switch
         {
             RepriceRecommendationStatus.Ready => historicalPremium
-                ? $"Vorschlag {target:0.##} Meat gegen {referenceText}; historische Prämie bleibt als Review-Signal erhalten."
-                : $"Vorschlag {target:0.##} Meat gegen {referenceText} (aktuell {current} Meat).",
-            RepriceRecommendationStatus.Keep => $"Aktueller Preis {current} Meat bleibt unverändert; {referenceText}.",
-            RepriceRecommendationStatus.Review => $"Review erforderlich für Ziel {target:0.##} Meat gegen {referenceText}.",
-            _ => "Keine sichere Preisänderung vorgeschlagen."
+                ? $"Proposal {target:0.##} meat against {referenceText}; historical premium is kept as a review signal."
+                : $"Proposal {target:0.##} meat against {referenceText} (currently {current} meat).",
+            RepriceRecommendationStatus.Keep => $"Current price {current} meat stays unchanged; {referenceText}.",
+            RepriceRecommendationStatus.Review => $"Review required for target {target:0.##} meat against {referenceText}.",
+            _ => "No safe price change proposed."
         };
     }
 

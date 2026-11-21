@@ -27,7 +27,7 @@ public sealed class AgentGuardTests
     public void A_write_under_an_agent_without_terminal_is_refused_and_sends_nothing()
     {
         Assert.Equal(3, Run(["daily-go", "--execute"], ClaudeEnv, redirected: true, allowed: false, answer: null, out var message));
-        Assert.Contains("Nichts wurde gesendet", message);
+        Assert.Contains("Nothing was sent", message);
     }
 
     [Fact]

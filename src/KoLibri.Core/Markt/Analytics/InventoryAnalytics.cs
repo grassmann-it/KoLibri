@@ -131,7 +131,7 @@ public sealed class InventoryCategorizer
             if (delta >= _options.OverpricedThreshold)
             {
                 categories.Add(InventoryCategory.Overpriced);
-                reasons.Add($"{delta.Value:P0} über dem Referenzpreis.");
+                reasons.Add($"{delta.Value:P0} above the reference price.");
             }
             else if (delta <= -_options.UnderpricedThreshold)
             {
@@ -143,22 +143,22 @@ public sealed class InventoryCategorizer
         if (sold >= _options.MinimumSoldUnitsForFastSales || sellThrough >= _options.MinimumSellThroughRate)
         {
             categories.Add(InventoryCategory.SellsWell);
-            reasons.Add($"{sold} Verkäufe in 7 Tagen ({sellThrough:P0} Sell-through).");
+            reasons.Add($"{sold} sales in 7 days ({sellThrough:P0} sell-through).");
         }
         else if (observed > 0 && sellThrough <= _options.IlliquidSellThroughRate)
         {
             categories.Add(InventoryCategory.Illiquid);
-            reasons.Add($"Nur {sellThrough:P0} Sell-through in 7 Tagen.");
+            reasons.Add($"Only {sellThrough:P0} sell-through in 7 days.");
         }
 
         if (reference is null)
-            reasons.Add("Keine belastbare Markt-Referenz im Cache.");
+            reasons.Add("No reliable market reference in the cache.");
         if (current is null)
-            reasons.Add("Kein eigener Listing-Preis vorhanden.");
+            reasons.Add("No own listing price available.");
 
         var action = ChooseAction(categories, reference, current, snapshot.CostBasis);
         var score = Score(categories, sellThrough, reference is not null, current is not null);
-        if (reasons.Count == 0) reasons.Add("Noch keine ausreichenden Daten für eine Einstufung.");
+        if (reasons.Count == 0) reasons.Add("Not enough data yet for a classification.");
 
         return new InventoryCategorization
         {

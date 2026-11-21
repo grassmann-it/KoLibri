@@ -158,7 +158,7 @@ public sealed class McpHttpOAuthTests : IAsyncLifetime
     {
         var (token, html) = await FlowAsync("account.read", "{}", wrongCode: "000000");
         Assert.Equal("", token);
-        Assert.Contains("falsch", html);
+        Assert.Contains("incorrect", html);
         Assert.Empty(_grants.List());
     }
 

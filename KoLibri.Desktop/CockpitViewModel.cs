@@ -88,7 +88,7 @@ public class CockpitViewModel : DesktopViewModel
     private AccountCardProjection? _main;
     private AccountCardProjection? _mallbot;
     private int _openApprovalCount;
-    private string _dailyGoal = "Tagesziel wird nach dem ersten Snapshot angezeigt.";
+    private string _dailyGoal = "Daily goal is shown after the first snapshot.";
 
     public CockpitViewModel(
         IAccountGateway? mainGateway = null,

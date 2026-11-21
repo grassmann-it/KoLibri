@@ -35,7 +35,7 @@ server.EnableWriteTools(gate, new KolibriClientActions());
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
 Console.Error.WriteLine($"KoLibri MCP: {host.BaseUrl}/mcp  (nur lokal erreichbar)");
-Console.Error.WriteLine("Beim ersten Verbinden öffnet der Client eine Browserseite; dort gibst du Rechte und Limits frei.");
+Console.Error.WriteLine("On first connect the client opens a browser page where you grant rights and limits.");
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 await host.RunAsync(cts.Token);

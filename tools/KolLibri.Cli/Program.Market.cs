@@ -57,7 +57,7 @@ internal static partial class KolibriCli
     {
         var buyerKey = GetOption(args, "--key")
             ?? (args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null)
-            ?? throw new ArgumentException("--key BUYER_KEY fehlt.");
+            ?? throw new ArgumentException("--key BUYER_KEY is missing.");
         var blocked = !bool.TryParse(GetOption(args, "--blocked"), out var parsed) || parsed;
         var store = new BuyerCrmStore();
         var database = await store.LoadAsync();
@@ -69,7 +69,7 @@ internal static partial class KolibriCli
 
     private static async Task<int> MallAsync(string[] args)
     {
-        var itemId = GetOption(args, "--item") ?? throw new ArgumentException("--item ITEM_ID fehlt.");
+        var itemId = GetOption(args, "--item") ?? throw new ArgumentException("--item ITEM_ID is missing.");
         var client = await ReadClientAsync(ParseRole(GetOption(args, "--role") ?? "mallbot"));
         var result = await client.Mall.SearchAsync(itemId, forceRefresh: HasFlag(args, "--refresh"));
         WriteJson(result);
@@ -80,7 +80,7 @@ internal static partial class KolibriCli
     {
         var itemId = GetOption(args, "--item")
             ?? (args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null)
-            ?? throw new ArgumentException("--item ITEM_ID fehlt.");
+            ?? throw new ArgumentException("--item ITEM_ID is missing.");
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var client = new PricegunReadClient(http);
         var snapshot = await client.FetchAsync(itemId, forceRefresh: HasFlag(args, "--refresh"));
@@ -115,7 +115,7 @@ internal static partial class KolibriCli
     private static async Task<int> CompareAsync(string[] args)
     {
         var itemIds = GetOptions(args, "--item");
-        if (itemIds.Count == 0) throw new ArgumentException("Mindestens ein --item ITEM_ID ist erforderlich.");
+        if (itemIds.Count == 0) throw new ArgumentException("At least one --item ITEM_ID is required.");
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
         var client = await ReadClientAsync(role);
         var shop = await client.Mall.FetchOwnShopAsync(forceRefresh: HasFlag(args, "--refresh"));
@@ -179,7 +179,7 @@ internal static partial class KolibriCli
             var separator = spec.LastIndexOf(':');
             if (separator <= 0 || separator == spec.Length - 1 ||
                 !decimal.TryParse(spec[(separator + 1)..], System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var meat))
-                throw new ArgumentException($"Ungültiger --currency-value '{spec}'. Erwartet WÄHRUNG:MEAT.");
+                throw new ArgumentException($"Invalid --currency-value '{spec}'. Expected CURRENCY:MEAT.");
             values[spec[..separator].Trim()] = meat;
         }
         var client = await ReadClientAsync(role);
@@ -214,7 +214,7 @@ internal static partial class KolibriCli
             plannedSpend = floor is null ? 0 : affordable * floor.Price,
             openOn = "Main",
             purchaseExecuted = false,
-            rationale = floor is null ? "Kein aktueller Mallpreis." : "Nur Vorschau; Kauf und Öffnen bleiben getrennte Approval-Schritte."
+            rationale = floor is null ? "No current mall price." : "Preview only; buying and opening remain separate approval steps."
         });
         return 0;
     }
@@ -303,7 +303,7 @@ internal static partial class KolibriCli
             InventoryScanned = false
         };
         if (snapshotWarning is not null)
-            Console.Error.WriteLine($"Workflow-Snapshot nicht verfügbar; Plan ist blockiert: {snapshotWarning}");
+            Console.Error.WriteLine($"Workflow snapshot unavailable; plan is blocked: {snapshotWarning}");
         WriteJson(new KoLWorkflowPlanner().Build(snapshot));
         return 0;
     }
@@ -599,7 +599,7 @@ internal static partial class KolibriCli
             reserve,
             policy = new { minimumMargin, minimumProfit, minimumSpread, maxPerItem, maxProposals },
             results,
-            accepted = "Nur Vorschläge. Vor einem Kauf müssen Angebot, Preis und Seller erneut geprüft und explizit freigegeben werden."
+            accepted = "Suggestions only. Before any purchase, the offer, price and seller must be re-checked and explicitly approved."
         });
         return 0;
     }
@@ -609,7 +609,7 @@ internal static partial class KolibriCli
         var role = ParseRole(GetOption(args, "--role") ?? "mallbot");
         var specifications = GetOptions(args, "--set");
         if (specifications.Count == 0)
-            throw new ArgumentException("Mindestens ein --set ITEM_ID:ERWARTET:NEU ist erforderlich.");
+            throw new ArgumentException("At least one --set ITEM_ID:EXPECTED:NEW is required.");
 
         var updates = specifications.Select(ParsePriceUpdate).ToArray();
         using var http = await ReadAuthenticatedHttpAsync(role);
@@ -634,7 +634,7 @@ internal static partial class KolibriCli
             || !long.TryParse(fields[1], out var expected)
             || !long.TryParse(fields[2], out var proposed))
             throw new ArgumentException(
-                $"Ungültiges --set '{specification}'. Erwartet ITEM_ID:ERWARTETER_PREIS:NEUER_PREIS.");
+                $"Invalid --set '{specification}'. Expected ITEM_ID:EXPECTED_PRICE:NEW_PRICE.");
         return new ShopPriceUpdate(fields[0], expected, proposed);
     }
 }

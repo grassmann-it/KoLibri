@@ -1,18 +1,18 @@
-# Foreign-Bribe- und One-Day-Ticket-Recherche
+# Foreign-Bribe and One-Day-Ticket Research
 
-## Ziel
+## Goal
 
-Ein `Bag of Foreign Bribes` wird als Quelle für Charter-Währungen behandelt.
-Vor einem Kauf werden die handelbaren Shop-Ausgaben je Währung gegen Mall und
-Pricegun verglichen. Nicht handelbare Ausrüstung bleibt aus dem Arbitrage-Ranking.
+A `Bag of Foreign Bribes` is treated as a source of charter currencies.
+Before a purchase, the tradeable shop spends per currency are compared against
+Mall and Pricegun. Non-tradeable gear stays out of the arbitrage ranking.
 
-Die KoLmafia-Daten dienen hier als Katalogreferenz für Kosten und Item-IDs:
+The KoLmafia data serves here as the catalog reference for costs and item IDs:
 [`coinmasters.txt`](https://github.com/kolmafia/kolmafia/blob/main/src/main/resources/data/coinmasters.txt)
-und [`shoprows.txt`](https://github.com/kolmafia/kolmafia/blob/main/src/main/resources/data/shoprows.txt).
+and [`shoprows.txt`](https://github.com/kolmafia/kolmafia/blob/main/src/main/resources/data/shoprows.txt).
 
-## Handelbare Kandidaten
+## Tradeable Candidates
 
-| Währung | Kandidaten | Kosten |
+| Currency | Candidates | Cost |
 |---|---|---:|
 | Beach Buck | History's Most Offensive Jokes, Now You're Cooking With Grease, Sloppy Seconds Diner Employee Handbook | 300 |
 | Beach Buck | industrial strength anti-fungal spray | 15 |
@@ -40,7 +40,7 @@ dotnet run --project tools/KolLibri.Cli/KolLibri.Cli.csproj -- bribe-rank \
   --role mallbot --item 8691 --refresh
 ```
 
-Pass repeated `--currency-value WÄHRUNG:MEAT` options when a currency
+Pass repeated `--currency-value CURRENCY:MEAT` options when a currency
 opportunity cost is known. The live report is written to
 `reports/bribe-rank-2026-11-16.json`.
 

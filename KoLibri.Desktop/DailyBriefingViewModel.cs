@@ -10,7 +10,7 @@ public sealed record DailyBriefingRow
     public required string Surface { get; init; }
     public required string Description { get; init; }
     public required string Detail { get; init; }
-    /// <summary>offen, erledigt, übersprungen.</summary>
+    /// <summary>open, done, skipped.</summary>
     public required string State { get; init; }
     public bool IsOpen => string.Equals(State, "open", StringComparison.Ordinal);
 }
@@ -46,7 +46,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
 
     public string SummaryText => Rows.Count == 0
         ? "No steps for today."
-        : $"{Rows.Count(x => x.IsOpen)} offen · {Rows.Count - Rows.Count(x => x.IsOpen)} erledigt";
+        : $"{Rows.Count(x => x.IsOpen)} open · {Rows.Count - Rows.Count(x => x.IsOpen)} done";
 
     public bool HasPlan => Rows.Count > 0;
 
@@ -66,7 +66,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
                 return;
             }
 
-            SnapshotText = $"{live.Meat:N0} Meat · {live.Adventures} Abenteuer · Level {live.Level} · "
+            SnapshotText = $"{live.Meat:N0} Meat · {live.Adventures} adventures · Level {live.Level} · "
                 + $"{live.Leaves} Leaves · {live.Clovers} Clovers · {live.Permits} Permits · "
                 + $"{live.WorthlessItems} worthless items";
 
@@ -89,7 +89,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
                 "open"));
             Rows.Add(BuildRow("Bacons", "Buy BACON",
                 live.BaconMachines > 0
-                    ? $"{live.BaconMachines} Maschine(n), {live.Bacon} BACON im Inventar"
+                    ? $"{live.BaconMachines} machine(s), {live.Bacon} BACON in inventory"
                     : "no infinite BACON machine",
                 live.BaconMachines > 0 ? "open" : "skipped"));
 

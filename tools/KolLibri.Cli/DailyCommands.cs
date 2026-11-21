@@ -28,7 +28,7 @@ internal static partial class KolibriCli
             "daily-go" or "go" => DailyGoAsync(args[1..]),
             "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
             "breakfast" => await DailyBreakfastAsync(args[1..]),
-            _ => Fail($"Unbekannter daily-Befehl: {args[0]}")
+            _ => Fail($"Unknown daily command: {args[0]}")
         };
     }
 
@@ -535,7 +535,7 @@ internal static partial class KolibriCli
     {
         var roles = ResolveRoles(args);
         if (roles.Count == 0)
-            throw new ArgumentException("daily-go braucht mindestens eine Rolle (main, mallbot, all).");
+            throw new ArgumentException("daily-go requires at least one role (main, mallbot, all).");
 
         var defaultSnapshot = BuildDailySnapshot(args);
 
@@ -757,7 +757,7 @@ internal static partial class KolibriCli
         var roles = ResolveRoles(args);
         if (roles.Count == 0)
             throw new ArgumentException(
-                "breakfast braucht mindestens eine Rolle (main, mallbot, all).");
+                "breakfast requires at least one role (main, mallbot, all).");
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
         var baseline = BuildDailySnapshot(args);

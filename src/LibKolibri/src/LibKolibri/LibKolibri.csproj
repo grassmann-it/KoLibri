@@ -7,8 +7,6 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
 
     <PackageId>KoLibri.LibKolibri</PackageId>
-    <Version>0.1.0-preview</Version>
-    <Authors>grassmann-it</Authors>
     <Description>Public KoL connector for .NET 8. Wraps the KoLmafia data snapshot, account reads, mall and pricing lookups, the daily routine planners, the mall-arbitrage executors, the bounded adventure runner and the hash-chain audit ledger. Drop-in library for tools that need to talk to Kingdom of Loathing.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolmafia;connector;automation;arbitrage;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -30,7 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="$(KolArbitrageCoreProject)"
                      Condition="'$(HasKolArbitrageCoreProject)' == 'true'" />
-    <PackageReference Include="KoLibri.Core" Version="0.1.0-preview"
+    <PackageReference Include="KoLibri.Core" Version="$(KoLibriVersion)"
                      Condition="'$(HasKolArbitrageCoreProject)' != 'true'" />
   </ItemGroup>
   <ItemGroup>

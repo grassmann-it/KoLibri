@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- tail -->
+  <path d="M96 168 L48 214 L74 218 L58 236 L112 192 Z" fill="#e6fffa"/>
+  <!-- far wing -->
+  <path d="M120 120 C112 70 128 34 158 22 C156 56 156 86 150 124 Z" fill="#99f6e4" opacity=".85"/>
+  <!-- body -->
+  <path d="M82 150 C80 112 112 90 148 96 C176 100 192 118 186 140 C180 166 144 186 112 184 C96 183 84 170 82 150 Z" fill="#f0fdfa"/>
+  <!-- near wing -->
+  <path d="M124 124 C100 88 82 62 54 46 C64 82 80 114 108 140 Z" fill="#ffffff"/>
+  <!-- head -->
+  <circle cx="176" cy="104" r="22" fill="#f0fdfa"/>
+  <!-- beak -->
+  <path d="M194 98 L240 80 L196 110 Z" fill="#fde68a"/>
+  <!-- eye -->
+  <circle cx="180" cy="100" r="4.5" fill="#134e4a"/>
+  <!-- throat patch -->
+  <path d="M158 118 C166 128 178 128 188 118 C186 134 172 142 160 134 Z" fill="#fb7185"/>
+</svg>

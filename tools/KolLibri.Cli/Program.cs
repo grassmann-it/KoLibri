@@ -64,7 +64,7 @@ internal static partial class KolibriCli
                 "watchlist" or "scheduler" => await WatchlistSchedulerCommand.RunAsync(args[1..], ReadClientAsync, JsonOptions),
                 "repl" => await ReplMainAsync(args[1..]),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
-                _ => Fail($"Unbekannter Befehl: {args[0]}")
+                _ => Fail($"Unknown command: {args[0]}")
             };
         }
         catch (OperationCanceledException)
@@ -76,7 +76,7 @@ internal static partial class KolibriCli
         {
             // Exception messages from the core never include passwords or
             // cookie values. Keep CLI errors short and machine-readable.
-            Console.Error.WriteLine($"Fehler: {exception.Message}");
+            Console.Error.WriteLine($"Error: {exception.Message}");
             return 1;
         }
     }
@@ -184,9 +184,9 @@ internal static partial class KolibriCli
     {
         var accounts = AccountSessionManager.CreateDefault();
         var session = await accounts.GetSessionAsync(role)
-            ?? throw new InvalidOperationException($"{role} ist nicht angemeldet. Erst 'login --role {role.ToString().ToLowerInvariant()}'.");
+            ?? throw new InvalidOperationException($"{role} is not logged in. Run 'login --role {role.ToString().ToLowerInvariant()}'.");
         if (string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            throw new InvalidOperationException($"{role} hat keine gültige KoL-Session. Erneut einloggen.");
+            throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
 
         var http = KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials,
@@ -199,7 +199,7 @@ internal static partial class KolibriCli
         if (Console.IsInputRedirected)
             return (await Console.In.ReadToEndAsync()).TrimEnd('\r', '\n');
 
-        Console.Error.Write("Passwort (Eingabe bleibt unsichtbar): ");
+        Console.Error.Write("Password (input is hidden): ");
         var chars = new List<char>();
         while (true)
         {
@@ -220,7 +220,7 @@ internal static partial class KolibriCli
     {
         "main" => AccountRole.Main,
         "mallbot" => AccountRole.Mallbot,
-        _ => throw new ArgumentException("Role muss main oder mallbot sein.")
+        _ => throw new ArgumentException("Role must be main or mallbot.")
     };
 
     private static string? GetOption(string[] args, string name)
@@ -236,7 +236,7 @@ internal static partial class KolibriCli
         {
             if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase)) continue;
             if (index + 1 >= args.Length || args[index + 1].StartsWith('-'))
-                throw new ArgumentException($"{name} benötigt einen Wert.");
+                throw new ArgumentException($"{name} requires a value.");
             values.Add(args[++index]);
         }
         return values;
@@ -281,9 +281,9 @@ internal static partial class KolibriCli
     {
         var accounts = AccountSessionManager.CreateDefault();
         var session = await accounts.GetSessionAsync(role)
-            ?? throw new InvalidOperationException($"{role} ist nicht angemeldet. Erst 'login --role {role.ToString().ToLowerInvariant()}'.");
+            ?? throw new InvalidOperationException($"{role} is not logged in. Run 'login --role {role.ToString().ToLowerInvariant()}'.");
         if (string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            throw new InvalidOperationException($"{role} hat keine gültige KoL-Session. Erneut einloggen.");
+            throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
         return KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials,
             new Uri("https://www.kingdomofloathing.com/"));
@@ -293,22 +293,22 @@ internal static partial class KolibriCli
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
-        Console.WriteLine("  login status [--role main|mallbot|all]       zeigt gespeicherte Sessions + Cookies");
-        Console.WriteLine("  login clear --role main|mallbot|all          löscht gespeicherte Credentials");
-        Console.WriteLine("  login refresh --role main|mallbot [--username NAME --password PWD]   (ohne Flags: gespeichertes Passwort)");
-        Console.WriteLine("  login refresh --role main|mallbot             (interaktive Eingabe)");
-        Console.WriteLine("  token mint [--label TXT]                       erzeugt einen Approval-Token");
-        Console.WriteLine("  token show                                      zeigt den aktuellen Token");
+        Console.WriteLine("  login status [--role main|mallbot|all]       shows stored sessions + cookies");
+        Console.WriteLine("  login clear --role main|mallbot|all          deletes stored credentials");
+        Console.WriteLine("  login refresh --role main|mallbot [--username NAME --password PWD]   (without flags: stored password)");
+        Console.WriteLine("  login refresh --role main|mallbot             (interactive input)");
+        Console.WriteLine("  token mint [--label TXT]                       creates an approval token");
+        Console.WriteLine("  token show                                      shows the current token");
         Console.WriteLine("  status --role main|mallbot [--refresh]");
         Console.WriteLine("  inventory --role main|mallbot [--refresh]");
         Console.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         Console.WriteLine("  shop --role mallbot [--refresh]");
-        Console.WriteLine("  crm --role mallbot [--refresh]    eigener Shop: Käufer-/Sales-Analyse");
+        Console.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
         Console.WriteLine("  compare --role mallbot --item ITEM_ID [--item ITEM_ID] [--refresh]");
-        Console.WriteLine("  bribe-rank --role mallbot --item 8691 [--currency-value WÄHRUNG:MEAT] [--refresh]");
+        Console.WriteLine("  bribe-rank --role mallbot --item 8691 [--currency-value CURRENCY:MEAT] [--refresh]");
         Console.WriteLine("  bribe-plan --role mallbot [--quantity 40] [--reserve 1000000] [--refresh]");
         Console.WriteLine("  workflow-plan [--refresh] [--offline --main-ready --mallbot-ready]");
         Console.WriteLine("                [--meat N --bag-price N --bag-stock N --quantity N --reserve N]");
@@ -341,11 +341,11 @@ internal static partial class KolibriCli
         Console.WriteLine("  watchlist scan --role mallbot [--once|--periodic --interval SEC --iterations N] [--workers 8]");
         Console.WriteLine("              [--store PATH --watchlist-id ID --budget N --reserve N --transfer-cost N]");
         Console.WriteLine("              [--min-sales N --min-liquidity 0.05 --max-age-hours 6]");
-        Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:ERWARTET:NEU [--set ...] [--commit]");
-        Console.WriteLine("  repl [--role main|mallbot] [--data PATH]      startet das interaktive Read-Only-REPL");
+        Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:EXPECTED:NEW [--set ...] [--commit]");
+        Console.WriteLine("  repl [--role main|mallbot] [--data PATH]      starts the interactive read-only REPL");
         Console.WriteLine();
-        Console.WriteLine("apply-prices ist standardmäßig nur Vorschau; erst --commit sendet die Preisänderung.");
-        Console.WriteLine("Es gibt keine Kauf- oder Transfer-Befehle.");
-        Console.WriteLine("Adventure- und Combat-Befehle senden keine Live-POSTs; sie erzeugen nur Vorschauen.");
+        Console.WriteLine("apply-prices is preview-only by default; only --commit sends the price change.");
+        Console.WriteLine("There are no purchase or transfer commands.");
+        Console.WriteLine("Adventure and combat commands send no live POSTs; they only produce previews.");
     }
 }

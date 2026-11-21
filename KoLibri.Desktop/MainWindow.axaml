@@ -4,6 +4,7 @@
         xmlns:spiel="clr-namespace:KoLibri.Core.Spiel;assembly=KoLibri.Core"
         x:Class="KoLibri.Desktop.MainWindow"
         Title="KoLibri"
+        Icon="/Assets/kolibri.ico"
         Width="1200"
         Height="760"
         MinWidth="820"
@@ -79,6 +80,12 @@
                   Content="Accounts"
                   Tag="Accounts"
                   Click="SectionClick" />
+          <Button x:Name="NavAgents"
+                  Classes="menu-item"
+                  Content="Agents"
+                  Tag="Agents"
+                  Click="SectionClick"
+                  AutomationProperties.Name="Open AI agent access" />
         </WrapPanel>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -651,6 +658,15 @@
           </Grid>
 
         </StackPanel>
+
+        <Border x:Name="AgentsPanel" Classes="card" IsVisible="False">
+          <StackPanel Spacing="12">
+            <TextBlock Text="AI agent access" Classes="h2" />
+            <TextBlock Text="Clients that connected through kolibri-mcp and what you approved for them. Revoking cuts a client off immediately. Limits count per KoL day."
+                       Classes="muted" TextWrapping="Wrap" FontSize="12" />
+            <StackPanel x:Name="AgentsList" Spacing="10" />
+          </StackPanel>
+        </Border>
 
         <Border x:Name="AccountsPanel" Classes="card" IsVisible="False">
           <StackPanel Spacing="14">

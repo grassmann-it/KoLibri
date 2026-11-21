@@ -26,17 +26,17 @@ internal static partial class KolibriCli
     {
         var roleValue = GetOption(args, "--role")
             ?? (args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null)
-            ?? throw new ArgumentException("login main oder login mallbot verwenden.");
+            ?? throw new ArgumentException("Use login main or login mallbot.");
         var role = ParseRole(roleValue);
         var username = GetOption(args, "--username");
         if (string.IsNullOrWhiteSpace(username) && !Console.IsInputRedirected)
         {
-            Console.Error.Write("Benutzername: ");
+            Console.Error.Write("Username: ");
             username = Console.ReadLine()?.Trim();
         }
-        if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Benutzername fehlt.");
+        if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Username is missing.");
         var password = await ReadPasswordAsync();
-        if (string.IsNullOrEmpty(password)) throw new ArgumentException("Passwort fehlt.");
+        if (string.IsNullOrEmpty(password)) throw new ArgumentException("Password is missing.");
 
         var rememberPassword = !HasFlag(args, "--no-remember-password");
         var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword);
@@ -174,11 +174,11 @@ internal static partial class KolibriCli
             await stored.InitializeAsync();
             var current = await stored.GetSessionAsync(role, includeExpired: true);
             if (current is null)
-                throw new ArgumentException($"Kein gespeichertes Konto fuer {role}. Erst 'login {role.ToString().ToLowerInvariant()}' ausfuehren.");
+                throw new ArgumentException($"No stored account for {role}. Run 'login {role.ToString().ToLowerInvariant()}' first.");
             var renewed = await stored.ReconnectAsync(current,
                 (user, pass, token) => new KoLLoginClient().LoginAsync(user, pass, true, token));
             if (renewed is null)
-                throw new ArgumentException($"Kein Passwort fuer {role} gespeichert. Erst mit --username/--password anmelden.");
+                throw new ArgumentException($"No password stored for {role}. Log in with --username/--password first.");
             WriteJson(new { command = "login refresh", role = role.ToString(), ok = true, usedSavedPassword = true });
             return 0;
         }
@@ -189,7 +189,7 @@ internal static partial class KolibriCli
             {
                 if (string.IsNullOrWhiteSpace(username))
                 {
-                    Console.Error.Write($"login refresh {role} Benutzername: ");
+                    Console.Error.Write($"login refresh {role} Username: ");
                     username = Console.ReadLine()?.Trim();
                 }
                 if (string.IsNullOrEmpty(password))
@@ -199,7 +199,7 @@ internal static partial class KolibriCli
             }
         }
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-            throw new ArgumentException("login refresh braucht --username und --password.");
+            throw new ArgumentException("login refresh requires --username and --password.");
 
         var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword: true);
         var accounts = AccountSessionManager.CreateDefault();
@@ -331,7 +331,7 @@ internal static partial class KolibriCli
                 return 0;
             }
             default:
-                Console.Error.WriteLine("token: subcommand muss mint oder show sein.");
+                Console.Error.WriteLine("token: subcommand must be mint or show.");
                 return 2;
         }
     }

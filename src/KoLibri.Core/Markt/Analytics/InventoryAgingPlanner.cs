@@ -204,7 +204,7 @@ public class InventoryAgingPlanner
         int excessQuantity)
     {
         if (item.Quantity <= 0)
-            return (InventoryAction.Hold, 0, null, "Kein Bestand vorhanden; keine Aktion geplant.");
+            return (InventoryAction.Hold, 0, null, "No stock available; no action planned.");
 
         var stale = ageBucket is InventoryAgeBucket.Stale or InventoryAgeBucket.Critical;
         var noVelocity = velocity.IsZeroVelocity;
@@ -215,11 +215,11 @@ public class InventoryAgingPlanner
         // bounded and reviewable.
         if (excessQuantity > 0 && stale && (noVelocity || verySlow))
             return (InventoryAction.Liquidate, excessQuantity, null,
-                $"{ageBucket} Bestand ohne ausreichenden Durchsatz; {excessQuantity} Stück zur Liquidation oberhalb der Reserve.");
+                $"{ageBucket} stock without sufficient throughput; {excessQuantity} units to liquidate above the reserve.");
 
         if (excessQuantity > 0 && item.Craftable && item.CraftValue is > 0m)
             return (InventoryAction.Craft, excessQuantity, null,
-                $"{excessQuantity} Stück liegen über dem Zielbestand und haben einen positiven Craft-Wert von {item.CraftValue:0.##} Meat pro Stück.");
+                $"{excessQuantity} units exceed the target stock and have a positive craft value of {item.CraftValue:0.##} meat per unit.");
 
         var market = item.MarketReferencePrice;
         var current = item.CurrentListingPrice;
@@ -227,7 +227,7 @@ public class InventoryAgingPlanner
             && current.Value >= market.Value * (1m + _options.RepriceMarkupThreshold))
         {
             return (InventoryAction.Reprice, Math.Max(1, excessQuantity), market,
-                $"Listing {current:0.##} Meat liegt mindestens {_options.RepriceMarkupThreshold:P0} über der Markt-Referenz {market:0.##} Meat.");
+                $"Listing at {current:0.##} meat is at least {_options.RepriceMarkupThreshold:P0} above the market reference of {market:0.##} meat.");
         }
 
         var canRotate = item.CanRotate && excessQuantity > 0;
@@ -237,13 +237,13 @@ public class InventoryAgingPlanner
         {
             var rotateQuantity = Math.Min(1, excessQuantity);
             return (InventoryAction.Rotate, rotateQuantity, market,
-                $"{rotateQuantity} Stück als zeitlich begrenzte Rotation aus {excessQuantity} Stück Überschuss vorschlagen.");
+                $"Propose {rotateQuantity} units as a time-limited rotation from a surplus of {excessQuantity} units.");
         }
 
         var ageText = ageDays is null ? "unbekanntem Alter" : $"{ageDays:0.#} Tagen Alter";
-        var velocityText = noVelocity ? "ohne beobachtete Verkäufe" : $"{velocity.UnitsPerDay:0.##} Stück/Tag";
+        var velocityText = noVelocity ? "no observed sales" : $"{velocity.UnitsPerDay:0.##} units/day";
         return (InventoryAction.Hold, 0, null,
-            $"Bestand mit {ageText} und {velocityText} innerhalb der konfigurierten Haltewerte (Zielbestand {targetQuantity}).");
+            $"Stock with {ageText} and {velocityText} within the configured hold values (target stock {targetQuantity}).");
     }
 
     private (TimeSpan? Age, decimal? AgeDays, InventoryAgeBucket Bucket) GetAge(

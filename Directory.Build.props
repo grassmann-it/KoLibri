@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- One version for every package: KoLibri.Core, KoLibri.LibKolibri, KoLibri.Cli, KoLibri.Mcp. -->
+    <KoLibriVersion>0.4.0</KoLibriVersion>
+    <Version>$(KoLibriVersion)</Version>
+    <Authors>KoLibri contributors</Authors>
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)assets/kolibri-icon-512.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
+</Project>

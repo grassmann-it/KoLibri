@@ -9,7 +9,7 @@
   <ItemGroup>
     <!-- During development the sample builds against the library project so
          a change is visible immediately. For a published build swap this for
-         <PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />. -->
+         <PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />. -->
     <ProjectReference Include="../../src/LibKolibri/LibKolibri.csproj" />
   </ItemGroup>
 </Project>

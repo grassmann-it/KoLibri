@@ -7,6 +7,7 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Assets/**" />
     <ProjectReference Include="../src/KoLibri.Core/KoLibri.Core.csproj" />
     <ProjectReference Include="../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
     <PackageReference Include="Avalonia" Version="11.3.11" />

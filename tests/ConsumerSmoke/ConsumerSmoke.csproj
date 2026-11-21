@@ -7,8 +7,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="KoLibri.Core" Version="0.1.0-preview" />
-    <PackageReference Include="KoLibri.LibKolibri" Version="0.1.0-preview" />
+    <PackageReference Include="KoLibri.Core" Version="0.4.0" />
+    <PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)external/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external" />

@@ -1,54 +1,53 @@
-# KoLibri Desktop: Navigation, Shortcuts und Kontextaktionen
+# KoLibri Desktop: Navigation, Shortcuts and Context Actions
 
-KoLibri übernimmt aus MeowChan/oChan die Trennung zwischen Arbeitsbereich,
-Befehl und Darstellung. Die Sidebar beziehungsweise die kompakte obere Leiste
-wechselt nur den Arbeitsbereich; dieselben Befehle können später aus dem
-App-Menü, der Tastaturhilfe oder einem Kontextmenü ausgelöst werden.
+KoLibri adopts the separation between workspace, command and presentation from
+MeowChan/oChan. The sidebar or the compact top bar only switches the
+workspace; the same commands can later be triggered from the app menu, the
+keyboard help or a context menu.
 
-Der aktuelle Shell-Vertrag stellt dafür `ShellPageContract`,
-`ShellShortcutContract` und `ShellContextActionContract` bereit. Die Defaults
-sind bewusst klein:
+The current shell contract provides `ShellPageContract`,
+`ShellShortcutContract` and `ShellContextActionContract` for this. The defaults
+are deliberately small:
 
-| Befehl | Tastenkürzel | Zweck |
+| Command | Shortcut | Purpose |
 |---|---|---|
-| Übersicht, Arbitrage, Shop, Adventure, Combat | `Ctrl+1` … `Ctrl+5` | Arbeitsbereich wechseln |
-| Aktualisieren | `F5` | aktuellen read-only Snapshot laden |
-| Tastaturhilfe | `F1` | alle verfügbaren Bindings anzeigen |
-| Lauf stoppen | `Escape` | lokalen Adventure-/Combat-Lauf abbrechen |
+| Overview, Arbitrage, Shop, Adventure, Combat | `Ctrl+1` … `Ctrl+5` | Switch workspace |
+| Refresh | `F5` | Load the current read-only snapshot |
+| Keyboard help | `F1` | Show all available bindings |
+| Stop run | `Escape` | Cancel the local adventure/combat run |
 
-Kontextaktionen hängen vom ausgewählten Objekt ab. Für Adventures gehören
-Encounter inspizieren, Encounter aktualisieren und Lauf stoppen dazu. Für den
-Kampf gibt es eine manuelle Aktionsvorschau und Stoppen. Shopzeilen bieten
-Detailpreis und Reprice-Vorschau. Eine Aktion mit `RequiresApproval` darf erst
-nach dem bestehenden Preview → Approval → Commit-Vertrag mutieren.
+Context actions depend on the selected object. For adventures these include
+inspecting an encounter, refreshing an encounter and stopping the run. For
+combat there is a manual action preview and stop. Shop rows offer a detail
+price and a reprice preview. An action with `RequiresApproval` may only mutate
+after the existing Preview → Approval → Commit contract.
 
-Die Darstellung kann damit später zwischen Sidebar, Hamburger-/App-Menü und
-Kontextmenü wechseln, ohne Befehle doppelt zu implementieren. Eingabefelder,
-Dialoge und offene Overlays behalten ihre normalen Tasten; globale Bindings
-werden nur ausgeführt, wenn der aktive Bereich sie nicht konsumiert.
+The presentation can thus later switch between sidebar, hamburger/app menu and
+context menu without implementing commands twice. Input fields, dialogs and
+open overlays keep their normal keys; global bindings are only executed if the
+active area does not consume them.
 
-Auf breiten Fenstern ergänzt eine ausblendbare rechte Kontextleiste die
-Sidebar. Sie zeigt den Typ des aktiven Arbeitsbereichs und sichere
-Vorschau-/Refresh-Aktionen für eine ausgewählte Mall-Zeile, ein Encounter oder
-eine Combat-Observation. Unterhalb der Desktop-Breite verschwindet sie; die
-gleichen Aktionen bleiben über die kompakte obere Navigation und Kontextmenüs
-erreichbar.
+On wide windows, a collapsible right context bar complements the sidebar. It
+shows the type of the active workspace and safe preview/refresh actions for a
+selected Mall row, an encounter or a combat observation. Below desktop width
+it disappears; the same actions remain reachable via the compact top
+navigation and context menus.
 
-Die Avalonia-Shell routet diese Kernbelegung jetzt direkt am Fenster:
-`F1`, `F5`, `Ctrl+Escape`, `Shift+F10` und `Ctrl+1..7`. Textfelder behalten
-ihre normale Eingabe; die globalen Gesten werden nur für die ausdrücklich
-definierten Kombinationen konsumiert.
+The Avalonia shell now routes this core mapping directly at the window:
+`F1`, `F5`, `Ctrl+Escape`, `Shift+F10` and `Ctrl+1..7`. Text fields keep their
+normal input; the global gestures are only consumed for the explicitly defined
+combinations.
 
-## Nächste UI-Arbeitspakete
+## Next UI work packages
 
-1. Einen zentralen Shortcut-Router mit konfigurierbaren Profilen und
-   Konfliktprüfung anbinden.
-2. F1 als Tastaturhilfe-Fenster mit Suche und Bereichsfilter ausgeben.
-3. Avalonia-Kontextmenüs für Mall-, Adventure- und Combat-Panels sind an die
-   Shell-Verträge gebunden; die nächste Ausbaustufe kann einzelne Tabellenzeilen
-   und konkrete Encounter-Actions als Auswahl einhängen.
-4. Globales Stoppen an den gemeinsamen Cancellation-/Checkpoint-Store hängen;
-   ein Stop darf keinen neuen KoL-POST auslösen.
+1. Hook up a central shortcut router with configurable profiles and conflict
+   checking.
+2. Output F1 as a keyboard-help window with search and area filter.
+3. Avalonia context menus for the Mall, Adventure and Combat panels are bound
+   to the shell contracts; the next stage can attach individual table rows and
+   concrete encounter actions as the selection.
+4. Attach global stop to the shared cancellation/checkpoint store; a stop must
+   not trigger a new KoL POST.
 
-MeowChan/oChan bleibt dabei UX-Referenz für Navigation, Fokus und
-Kontextaktionen. KoLibri übernimmt keine Bildboard- oder Downloadlogik.
+MeowChan/oChan remains the UX reference for navigation, focus and context
+actions. KoLibri adopts no image-board or download logic.
