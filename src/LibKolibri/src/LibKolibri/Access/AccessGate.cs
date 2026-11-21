@@ -27,6 +27,13 @@ public sealed class AccessGate
         _grants = grants; _ledger = ledger; _clock = clock ?? TimeProvider.System;
     }
 
+    /// <summary>The usable grant behind a token, or null when unknown, revoked or expired.</summary>
+    public Grant? ActiveGrant(string token)
+    {
+        var grant = _grants.FindByToken(token);
+        return grant is null || grant.RevokedAt is not null || grant.ExpiresAt <= _clock.GetUtcNow() ? null : grant;
+    }
+
     public AccessDecision Authorize(string token, AccessRequest request)
     {
         var grant = _grants.FindByToken(token);

@@ -55,6 +55,10 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - The confirmation code and `/dev/tty` prompt stop AIs that only have a command channel or a browser tool. An
   AI that controls your terminal could also see the code.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
-- Current gap: over MCP the write tools for mall purchase, meme shop/daily run, transfer, messages, item use
-  and shop repricing are not exposed yet; the rights exist, the tools come next. The adventure execute
-  tools are only registered when an execution bridge is configured, which `kolibri-mcp` does not do yet.
+- Write tools over MCP today: `kol_mall_buy` (right `mall.buy`) and `kol_meme_shop` (right `daily.run`). Both are
+  two-step: the first call previews and returns a `planId`, the second call with the same arguments executes
+  once. Not exposed yet: transfer, messages, item use, shop repricing (rights exist, tools do not). BACON bought
+  during a meme-shop run is limited by `daily.run`'s price ceiling but not counted against the `mall.buy` budget.
+- The adventure execute tools are only registered when an execution bridge is configured, which `kolibri-mcp`
+  does not do yet.
+- Not yet verified against a real KoL session through MCP; the tools are covered by tests with a fake account.

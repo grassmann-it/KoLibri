@@ -14,7 +14,6 @@ namespace KolLibri.Mcp;
 public sealed class McpHttpHost : IDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private static readonly AsyncLocal<string?> CurrentToken = new();
     private readonly KolibriMcpServer _server;
     private readonly GrantStore _grants;
     private readonly McpOAuthServer _oauth;
@@ -29,7 +28,7 @@ public sealed class McpHttpHost : IDisposable
     {
         _server = server; _grants = grants; _oauth = oauth; _requestedPort = port; _requireCode = requireCode;
         _log = log ?? Console.Error; _clock = clock ?? TimeProvider.System;
-        _server.Authorizer = McpAccessPolicy.ForToken(gate, () => CurrentToken.Value, defaultRole);
+        _server.Authorizer = McpAccessPolicy.ForToken(gate, () => McpRequestContext.Token, defaultRole);
     }
 
     public int Port { get; private set; }
@@ -126,7 +125,7 @@ public sealed class McpHttpHost : IDisposable
         using (doc)
         {
             if (doc.RootElement.ValueKind != JsonValueKind.Object) { Send(ctx, 400, "text/plain", "single JSON-RPC object expected"); return; }
-            CurrentToken.Value = token;
+            McpRequestContext.Token = token;
             var response = await _server.HandleAsync(doc.RootElement.Clone(), ct).ConfigureAwait(false);
             if (response is null) { Send(ctx, 202, "text/plain", ""); return; }
             Send(ctx, 200, "application/json", response.Value.GetRawText());

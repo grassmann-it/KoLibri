@@ -25,6 +25,7 @@ var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
 var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
 var server = new KolibriMcpServer(runtime);
+server.EnableWriteTools(gate, new KolibriClientActions());
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
 Console.Error.WriteLine($"KoLibri MCP: {host.BaseUrl}/mcp  (nur lokal erreichbar)");

@@ -55,6 +55,8 @@ public static class McpAccessPolicy
         ["kol_plan_daily_adventures_execute"] = ["maxTurns", "maxSteps"],
     };
 
+    internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop" };
+
     /// <summary>Authorizer for the HTTP host: every call is checked against the token's grant.</summary>
     public static ToolAuthorizer ForToken(AccessGate gate, Func<string?> currentToken, string defaultRole)
         => (tool, args) =>
@@ -62,6 +64,9 @@ public static class McpAccessPolicy
             var token = currentToken();
             if (string.IsNullOrEmpty(token)) return ToolAuthorization.Deny("Authentication required.");
             var role = RoleOf(args, defaultRole);
+
+            // These tools run the gate themselves (preview, then execute with a plan id).
+            if (SelfGated.Contains(tool)) return ToolAuthorization.Ok();
 
             if (ReadTools.TryGetValue(tool, out var readOp))
                 return Convert(gate.Authorize(token, new AccessRequest(readOp, role)));
