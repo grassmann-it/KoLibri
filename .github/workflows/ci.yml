@@ -51,15 +51,18 @@ jobs:
         run: scripts/package.sh ${{ matrix.rid }}
       - name: Run the packaged CLI and MCP server
         shell: bash
-        timeout-minutes: 3
+        timeout-minutes: 6
         run: |
           set -x
           d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
           ls -l "$d"
           "$d/kolibri" --help < /dev/null > help.txt 2>&1 &
           hp=$!
-          sleep 20
-          echo "--- help.txt after 20s:"; head -5 help.txt || true
+          for i in $(seq 1 15); do
+            sleep 10
+            if ! kill -0 $hp 2>/dev/null; then echo "kolibri --help finished after about $((i*10))s"; break; fi
+          done
+          echo "--- help.txt:"; head -5 help.txt || true
           ps -p $hp || echo "kolibri --help already finished"
           kill $hp 2>/dev/null || true
           taskkill //F //IM kolibri.exe 2>/dev/null || true
