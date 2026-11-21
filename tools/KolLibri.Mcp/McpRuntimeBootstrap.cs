@@ -29,6 +29,10 @@ public static class McpRuntimeBootstrap
 
         foreach (var role in Enum.GetValues<AccountRole>())
         {
+            // Renew an expired session with the saved password before the readers capture its cookie.
+            try { using var _ = await KolibriClient.OpenAsync(role, sessions, cancellationToken).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is KolibriLoginRequiredException or HttpRequestException or KoLHtmlResponseException) { }
+
             var session = await sessions.GetSessionAsync(role, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))

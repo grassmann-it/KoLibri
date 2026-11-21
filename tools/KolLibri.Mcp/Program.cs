@@ -28,7 +28,9 @@ var gate = new AccessGate(grants, new UsageLedger());
 await using var adventures = new KoLAdventureGatewayFactory();
 using var bridge = new AdventureMcpExecutionBridge(adventures, new InMemoryAdventureRunCheckpointStore());
 var server = new KolibriMcpServer(runtime, executionBridge: bridge);
-server.Tools.Remove("kol_plan_daily_adventures_execute");   // runs on a mock transport, not live
+server.Tools.Remove("kol_plan_daily_adventures_execute");
+server.Tools.Remove("kol_login_clear");     // session management stays with the user
+server.Tools.Remove("kol_login_refresh");   // runs on a mock transport, not live
 server.EnableWriteTools(gate, new KolibriClientActions());
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
