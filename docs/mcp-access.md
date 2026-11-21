@@ -65,5 +65,6 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
   The adventure session is created once per account when first used; if KoL ends it, restart `kolibri-mcp`.
 - `kol_plan_daily_adventures_execute` is not offered over HTTP (it runs on a mock transport).
-- Not yet verified against a real KoL session through MCP; the tools are covered by tests with a fake account
-  and fixture transport.
+- Verified against a real KoL session on 21 Nov 2026: reading status, `kol_mall_buy` (1 BACON, 145 meat) and
+  `kol_transfer` (Mallbot to Main), each booked in the usage ledger after KoL confirmed it. The other write tools
+  are covered by tests with a fake account and fixture transport only.

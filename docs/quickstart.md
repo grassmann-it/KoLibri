@@ -61,6 +61,6 @@ Under an AI harness the CLI asks for a confirmation at the real terminal before 
 ## Known gaps in 0.4.0
 
 - The desktop client is early alpha.
-- Write tools over MCP are tested with fakes and fixtures; run a small purchase yourself before relying on them.
+- Verified live over MCP (21 Nov 2026): `kol_mall_buy` and `kol_transfer`, including the usage ledger. The other write tools (meme shop, item use, shop prices, messages, adventures) are covered by tests with fakes and fixtures only; try them with small limits first.
 - Foreign bribes are not part of this release.
 - Adventure limits count the requested turn cap, not the exact turns used.
