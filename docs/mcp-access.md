@@ -55,10 +55,15 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - The confirmation code and `/dev/tty` prompt stop AIs that only have a command channel or a browser tool. An
   AI that controls your terminal could also see the code.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
-- Write tools over MCP today: `kol_mall_buy` (right `mall.buy`) and `kol_meme_shop` (right `daily.run`). Both are
-  two-step: the first call previews and returns a `planId`, the second call with the same arguments executes
-  once. Not exposed yet: transfer, messages, item use, shop repricing (rights exist, tools do not). BACON bought
-  during a meme-shop run is limited by `daily.run`'s price ceiling but not counted against the `mall.buy` budget.
-- The adventure execute tools are only registered when an execution bridge is configured, which `kolibri-mcp`
-  does not do yet.
-- Not yet verified against a real KoL session through MCP; the tools are covered by tests with a fake account.
+- Write tools over MCP: `kol_mall_buy` (`mall.buy`), `kol_meme_shop` (`daily.run`), `kol_transfer`
+  (`transfer.items` / `transfer.meat`, only to the user's other account, both accounts must be approved),
+  `kol_send_message` (`message.send`, any KoL player, text shown in the preview), `kol_use_item` (`item.use`),
+  `kol_reprice_shop` (`shop.reprice`, preview reads the store page), and the adventure tools
+  `kol_adventure_run_execute` / `kol_choice_chain_execute` (`adventure`). All writes are two-step: the first
+  call previews and returns a `planId`, the second call with the same arguments executes once.
+- BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.
+- Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
+  The adventure session is created once per account when first used; if KoL ends it, restart `kolibri-mcp`.
+- `kol_plan_daily_adventures_execute` is not offered over HTTP (it runs on a mock transport).
+- Not yet verified against a real KoL session through MCP; the tools are covered by tests with a fake account
+  and fixture transport.

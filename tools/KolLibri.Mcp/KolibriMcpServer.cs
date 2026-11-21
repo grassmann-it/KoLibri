@@ -51,8 +51,9 @@ public partial class KolibriMcpServer
     public KolibriMcpServer(
         RoleScopedRuntime roleRuntime,
         KolibriMcpServerOptions? options = null,
-        TimeProvider? clock = null)
-        : this(roleRuntime?.Fallback, options, clock, roleRuntime)
+        TimeProvider? clock = null,
+        AdventureMcpExecutionBridge? executionBridge = null)
+        : this(roleRuntime?.Fallback, options, clock, roleRuntime, executionBridge)
     {
     }
 

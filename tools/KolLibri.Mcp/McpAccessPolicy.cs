@@ -52,7 +52,6 @@ public static class McpAccessPolicy
     {
         ["kol_adventure_run_execute"] = ["maxTurns", "maxGatewaySteps"],
         ["kol_choice_chain_execute"] = ["maxChoices"],
-        ["kol_plan_daily_adventures_execute"] = ["maxTurns", "maxSteps"],
     };
 
     internal static readonly HashSet<string> SelfGated = new(StringComparer.Ordinal) { "kol_mall_buy", "kol_meme_shop", "kol_transfer", "kol_send_message", "kol_use_item", "kol_reprice_shop" };

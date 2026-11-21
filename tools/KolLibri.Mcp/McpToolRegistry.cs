@@ -53,6 +53,9 @@ public sealed class McpToolRegistry
             throw new InvalidOperationException($"MCP tool '{definition.Name}' is already registered.");
     }
 
+    /// <summary>Removes a tool from the advertised list (for tools a host chooses not to offer).</summary>
+    public bool Remove(string name) => _tools.Remove(name);
+
     public bool TryGet(string name, out McpToolDefinition? definition)
         => _tools.TryGetValue(name, out definition);
 

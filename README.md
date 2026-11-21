@@ -213,8 +213,11 @@ kolibri-mcp --stdio            # read-only tools over stdio, no approval needed
 | `kol_price_summary` / `kol_price_recommendation` / `kol_underprice_preview` | Market reads |
 | `kol_run_daily_bridge` / `kol_daily_*` | Plans the daily routine without executing |
 | `kol_preview_purchase` / `kol_preview_transfer` | Validates a proposal without acting |
-| `kol_mall_buy` / `kol_meme_shop` | Buy under a price ceiling / run the meme shop; preview, then execute with a plan id |
-| `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`); not wired in `kolibri-mcp` yet, see docs/mcp-access.md |
+| `kol_mall_buy` / `kol_meme_shop` | Buy under a price ceiling / run the meme shop |
+| `kol_transfer` / `kol_send_message` / `kol_use_item` / `kol_reprice_shop` | Send to the other account / KMail / use items / change shop prices |
+| `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`) |
+
+Every write is two steps: preview returns a `planId`, the same call with that id executes once.
 
 Login management tools are not available to AI clients.
 

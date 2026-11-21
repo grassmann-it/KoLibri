@@ -1,4 +1,5 @@
 using KolLibri.Mcp;
+using KolArbitrage.Core.Spiel;
 using LibKolibri.Access;
 
 // kolibri-mcp                       HTTP on 127.0.0.1:8765 (default; AI access needs approval in the browser)
@@ -24,7 +25,10 @@ if (portIndex >= 0 && (portIndex + 1 >= args.Length || !int.TryParse(args[portIn
 var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
 var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
-var server = new KolibriMcpServer(runtime);
+await using var adventures = new KoLAdventureGatewayFactory();
+using var bridge = new AdventureMcpExecutionBridge(adventures, new InMemoryAdventureRunCheckpointStore());
+var server = new KolibriMcpServer(runtime, executionBridge: bridge);
+server.Tools.Remove("kol_plan_daily_adventures_execute");   // runs on a mock transport, not live
 server.EnableWriteTools(gate, new KolibriClientActions());
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
