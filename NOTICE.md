@@ -20,3 +20,7 @@ safe. Start with read-only access and small limits.
 | Avalonia and the other NuGet dependencies | their own licenses, see each package |
 
 The KoLibri icon (`assets/kolibri-icon.svg`) was drawn for this project and is covered by the repository license.
+
+## Pricegun
+
+Mall price history comes from [Pricegun](https://pricegun.loathers.net/). Thank you to its maintainers. KoLibri caches and rate-limits requests and shows where a price came from.
