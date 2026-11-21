@@ -25,6 +25,13 @@ internal static partial class KolibriCli
             return 0;
         }
 
+        if (args[0].Equals("agent-mode", StringComparison.OrdinalIgnoreCase))
+            return AgentGuard.Command(args[1..]);
+        var blocked = AgentGuard.Check(args, Environment.GetEnvironmentVariable,
+            Console.IsInputRedirected, Console.IsOutputRedirected, AgentGuard.UnattendedAllowed(),
+            AgentGuard.ConfirmOnTerminal, Console.Error);
+        if (blocked is { } code) return code;
+
         try
         {
             return args[0].ToLowerInvariant() switch

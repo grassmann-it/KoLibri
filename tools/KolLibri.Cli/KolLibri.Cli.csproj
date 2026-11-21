@@ -18,4 +18,7 @@
   <ItemGroup>
     <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KolArbitrage.Core.Tests" />
+  </ItemGroup>
 </Project>
