@@ -2,7 +2,7 @@ using System.Text.Json;
 
 /// <summary>
 /// Agent mode. When the CLI runs under an AI harness, commands that change the game
-/// need a confirmation typed at the real terminal (/dev/tty), which an AI that only
+/// need a confirmation typed at the real terminal (/dev/tty or the Windows console), which an AI that only
 /// has a command channel cannot give. This guards against mistakes and against an AI
 /// talking itself around the MCP limits through the CLI; it is not a security boundary
 /// against a hostile program with the same operating-system user (see docs/safety).
@@ -59,14 +59,19 @@ internal static class AgentGuard
         return 3;
     }
 
-    /// <summary>Reads yes/no from /dev/tty (not stdin, which an agent controls). Null when no terminal exists.</summary>
+    /// <summary>
+    /// Reads yes/no from the real terminal (/dev/tty on Linux and macOS, the console device on Windows),
+    /// not from stdin, which an agent controls. Null when no terminal exists.
+    /// </summary>
     public static bool? ConfirmOnTerminal(string question)
     {
         try
         {
-            using var tty = new FileStream("/dev/tty", FileMode.Open, FileAccess.ReadWrite);
-            using var writer = new StreamWriter(tty) { AutoFlush = true };
-            using var reader = new StreamReader(tty);
+            using var input = OpenTerminal(write: false);
+            using var output = OpenTerminal(write: true);
+            if (input is null || output is null) return null;
+            using var writer = new StreamWriter(output) { AutoFlush = true };
+            using var reader = new StreamReader(input);
             writer.Write(question);
             var line = reader.ReadLine()?.Trim().ToLowerInvariant();
             return line is "ja" or "j" or "yes" or "y";
@@ -75,6 +80,25 @@ internal static class AgentGuard
         {
             return null;
         }
+    }
+
+    private static Stream? OpenTerminal(bool write)
+    {
+        if (!OperatingSystem.IsWindows())
+            return new FileStream("/dev/tty", FileMode.Open, write ? FileAccess.Write : FileAccess.Read);
+
+        // CONIN$ / CONOUT$ are the console of this process even when stdin/stdout are redirected.
+        var handle = NativeMethods.CreateFileW(write ? "CONOUT$" : "CONIN$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        if (handle.IsInvalid) { handle.Dispose(); return null; }
+        return new FileStream(handle, write ? FileAccess.Write : FileAccess.Read, 1, false);
+    }
+
+    private static class NativeMethods
+    {
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        internal static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+            string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes,
+            uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
     }
 
     /// <summary><c>kolibri agent-mode status|allow|guard</c>; changing it always needs the real terminal.</summary>

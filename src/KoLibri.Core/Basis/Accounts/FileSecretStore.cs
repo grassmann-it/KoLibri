@@ -20,10 +20,13 @@ public sealed class FileSecretStore : ISecretStore
     private readonly string _keyPath;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly byte[] ProtectedMagic = "KLK1"u8.ToArray();
+    private readonly IKeyProtector? _protector;
     private byte[]? _key;
 
-    public FileSecretStore(string? directory = null, string? keyPath = null)
+    public FileSecretStore(string? directory = null, string? keyPath = null, IKeyProtector? keyProtector = null)
     {
+        _protector = keyProtector is NoProtection ? null : keyProtector ?? OsKeyProtector.ForCurrentOs();
         _directory = directory ?? DefaultDirectory();
         _keyPath = keyPath ?? Path.Combine(_directory, ".secret-key");
     }
@@ -199,10 +202,7 @@ public sealed class FileSecretStore : ISecretStore
         Directory.CreateDirectory(_directory);
         if (File.Exists(_keyPath))
         {
-            var existing = File.ReadAllBytes(_keyPath);
-            if (existing.Length != KeySize)
-                throw new CryptographicException("The local secret key has an invalid length.");
-            _key = existing;
+            _key = ReadKeyFile();
             return _key;
         }
 
@@ -210,7 +210,7 @@ public sealed class FileSecretStore : ISecretStore
         var temporaryPath = $"{_keyPath}.{Guid.NewGuid():N}.tmp";
         try
         {
-            File.WriteAllBytes(temporaryPath, key);
+            File.WriteAllBytes(temporaryPath, EncodeKey(key));
             RestrictFile(temporaryPath);
             File.Move(temporaryPath, _keyPath, overwrite: false);
             _key = key;
@@ -221,10 +221,7 @@ public sealed class FileSecretStore : ISecretStore
             // Another process initialized the key first. Use its key so all
             // processes can read the same account files.
             CryptographicOperations.ZeroMemory(key);
-            var existing = File.ReadAllBytes(_keyPath);
-            if (existing.Length != KeySize)
-                throw new CryptographicException("The local secret key has an invalid length.");
-            _key = existing;
+            _key = ReadKeyFile();
             return _key;
         }
         finally
@@ -232,6 +229,35 @@ public sealed class FileSecretStore : ISecretStore
             if (File.Exists(temporaryPath))
                 File.Delete(temporaryPath);
         }
+    }
+
+    /// <summary>Key file layout: 32 raw bytes (legacy / no OS protection) or "KLK1" + protected key.</summary>
+    private byte[] EncodeKey(byte[] key)
+        => _protector is null ? key : [.. ProtectedMagic, .. _protector.Protect(key)];
+
+    private byte[] ReadKeyFile()
+    {
+        var bytes = File.ReadAllBytes(_keyPath);
+        if (bytes.Length > ProtectedMagic.Length && bytes.AsSpan(0, ProtectedMagic.Length).SequenceEqual(ProtectedMagic))
+        {
+            if (_protector is null)
+                throw new CryptographicException("The secret key is protected by the operating system of another machine or user.");
+            var key = _protector.Unprotect(bytes[ProtectedMagic.Length..]);
+            if (key.Length != KeySize)
+                throw new CryptographicException("The local secret key has an invalid length.");
+            return key;
+        }
+        if (bytes.Length != KeySize)
+            throw new CryptographicException("The local secret key has an invalid length.");
+        if (_protector is not null)
+        {
+            // Migrate a key written before OS protection existed.
+            var temporary = $"{_keyPath}.{Guid.NewGuid():N}.tmp";
+            File.WriteAllBytes(temporary, EncodeKey(bytes));
+            RestrictFile(temporary);
+            File.Move(temporary, _keyPath, overwrite: true);
+        }
+        return bytes;
     }
 
     private static void ValidateAccountId(string accountId)

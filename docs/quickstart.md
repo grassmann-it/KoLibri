@@ -6,6 +6,14 @@ limits you approve.
 
 ## 1. Install
 
+**Download (no .NET needed).** Take the archive for your system from the GitHub releases page
+(`win-x64`, `linux-x64`, `osx-arm64`, `osx-x64`) and unpack it. It contains `kolibri` (CLI), `kolibri-mcp`
+(MCP server) and `KoLibri` (desktop, early alpha) plus the data folder next to them. Keep the `external` folder
+beside the programs. On macOS the programs are not signed yet: allow them once under
+System Settings, Privacy & Security. On Windows SmartScreen may warn for the same reason.
+
+**dotnet tools (needs the .NET 8 SDK or newer).**
+
 ```bash
 dotnet tool install -g KoLibri.Cli      # command: kolibri
 dotnet tool install -g KoLibri.Mcp      # command: kolibri-mcp
@@ -57,6 +65,13 @@ kolibri daily meme-shop --role main --execute   # Internet Meme Shop (BACON top-
 
 Under an AI harness the CLI asks for a confirmation at the real terminal before it writes (agent mode, see
 `kolibri agent-mode status`).
+
+## Platforms
+
+Linux is the reference platform and the one everything was tested on. Windows and macOS builds come from CI.
+Windows protects the local key file with DPAPI; on Linux and macOS it is an owner-only file (an OS keychain
+is not used yet). The agent-mode confirmation uses the console device on Windows, which has not been tried on a
+real machine yet.
 
 ## Known gaps in 0.4.0
 

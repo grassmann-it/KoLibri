@@ -7,7 +7,6 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
 
     <PackageId>KoLibri.Core</PackageId>
-    <Authors>KoLibri contributors</Authors>
     <Description>Core domain layer for KoLibri: bounded adventure runner, adventure step spec, daily planners, hash-chain audit ledger, approval token store, KoLmafia data records.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolmafia;core;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -15,4 +14,8 @@
     <TargetPackOnBuild>false</TargetPackOnBuild>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Windows only at run time (guarded by OperatingSystem.IsWindows); wraps the local secret key with DPAPI. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
 </Project>
