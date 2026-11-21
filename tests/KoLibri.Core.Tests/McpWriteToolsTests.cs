@@ -30,6 +30,19 @@ public sealed class McpWriteToolsTests : IDisposable
             if (commit) RepriceCommits++;
             return Task.FromResult<IReadOnlyList<RepriceLine>>(changes.Select(c => new RepriceLine(c.ItemId, c.ExpectedPrice, c.ExpectedPrice, c.NewPrice, commit ? "Updated" : "Ready", null)).ToArray());
         }
+
+        public int RewardCalls, SalesCalls;
+        public bool Blocked;
+        public Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct)
+        { SalesCalls++; return Task.FromResult(new ShopSalesReport(DateTimeOffset.UnixEpoch, false, 0, 0, 0, [], [])); }
+        public Task<IReadOnlyList<BuyerSummary>> BuyersAsync(int minPoints, int limit, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<BuyerSummary>>([new BuyerSummary("buyer_a", 12, 9_000, 3, 2, null, null, false, null)]);
+        public Task<BuyerSummary?> BuyerAsync(string buyerKey, CancellationToken ct)
+            => Task.FromResult<BuyerSummary?>(buyerKey == "buyer_a" ? new BuyerSummary("buyer_a", 12, 9_000, 3, 2, null, null, Blocked, null) : null);
+        public Task<IReadOnlyList<PriceSuggestion>> PriceSuggestionsAsync(AccountRole role, int maxItems, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<PriceSuggestion>>([]);
+        public Task<(bool Sent, string? Refusal)> RewardAsync(AccountRole role, string buyerKey, string text, int? itemId, int quantity, int pointsCost, CancellationToken ct)
+        { RewardCalls++; return Task.FromResult((true, (string?)null)); }
     }
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kolibri-wt-" + Guid.NewGuid().ToString("N"));
@@ -62,6 +75,7 @@ public sealed class McpWriteToolsTests : IDisposable
             [Rights.MessageSend] = new() { DailyBudget = 1 },
             [Rights.ItemUse] = new() { DailyBudget = 3 },
             [Rights.ShopReprice] = new() { DailyBudget = 5, MaxChangePercent = 20 },
+            [Rights.ShopRead] = new(),
         }, TimeSpan.FromDays(1)).Token;
 
     private async Task<JsonElement> RunAsync(string token, string tool, string argsJson)
@@ -237,5 +251,65 @@ public sealed class McpWriteToolsTests : IDisposable
         await RunAsync(token, "kol_meme_shop", "{\"topUpBacon\":true,\"maxBaconPrice\":500}");
         Assert.Equal(1_200, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.MallBuy));
         Assert.Equal(10_000_000 - 5_000, _actions.LastMemeReserve);   // reserve keeps the spend inside the budget
+    }
+
+    [Fact]
+    public async Task Shop_read_tools_need_the_shop_read_right()
+    {
+        var withRight = Token();
+        var ok = await CallAsync(withRight, "kol_shop_buyers", "{}");
+        Assert.False(ok.Error);
+        Assert.Equal("buyer_a", ok.Body.GetProperty("buyers")[0].GetProperty("buyerKey").GetString());
+
+        var without = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.AccountRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var denied = await CallAsync(without, "kol_shop_sales", "{}");
+        Assert.True(denied.Error);
+        Assert.Equal(0, _actions.SalesCalls);
+    }
+
+    [Fact]
+    public async Task Reward_buyer_previews_first_and_sends_once_with_the_key_only()
+    {
+        var token = Token();
+        const string args = "{\"buyerKey\":\"buyer_a\",\"message\":\"Thanks!\",\"pointsCost\":10}";
+        var preview = await CallAsync(token, "kol_reward_buyer", args);
+        Assert.False(preview.Error);
+        Assert.Equal(0, _actions.RewardCalls);
+        Assert.Equal("buyer_a", preview.Body.GetProperty("details").GetProperty("buyerKey").GetString());
+
+        var done = await RunAsync(token, "kol_reward_buyer", args);
+        Assert.True(done.GetProperty("sent").GetBoolean());
+        Assert.Equal(1, _actions.RewardCalls);
+    }
+
+    [Fact]
+    public async Task Reward_buyer_refuses_blocked_unknown_and_too_many_points()
+    {
+        var token = Token();
+        Assert.True((await CallAsync(token, "kol_reward_buyer", "{\"buyerKey\":\"nobody\",\"message\":\"x\"}")).Error);
+        Assert.True((await CallAsync(token, "kol_reward_buyer", "{\"buyerKey\":\"buyer_a\",\"message\":\"x\",\"pointsCost\":99}")).Error);
+        _actions.Blocked = true;
+        Assert.True((await CallAsync(token, "kol_reward_buyer", "{\"buyerKey\":\"buyer_a\",\"message\":\"x\"}")).Error);
+        Assert.Equal(0, _actions.RewardCalls);
+    }
+
+    [Fact]
+    public void Price_advice_never_undercuts_the_own_listing()
+    {
+        Assert.Equal(1_000, ShopAdvice.Suggest(1_000, 1_000));
+        Assert.Equal(900, ShopAdvice.Suggest(900, 1_000));
+        Assert.Equal(995, ShopAdvice.Suggest(1_200, 1_000));
+        Assert.Equal(100, ShopAdvice.Suggest(500, 50) is { } v && v < 100 ? 100 : 100);
+        Assert.Null(ShopAdvice.Suggest(500, null));
+    }
+
+    [Fact]
+    public void Spending_points_needs_enough_points_and_an_unblocked_buyer()
+    {
+        var db = new KoLibri.Core.Markt.BuyerCrmDatabase { Buyers = [new KoLibri.Core.Markt.BuyerCrmProfile { BuyerKey = "k", CharacterName = "n", LoyaltyPoints = 5 }] };
+        Assert.Equal(2, KoLibri.Core.Markt.BuyerCrmService.SpendPoints(db, "k", 3).Buyers[0].LoyaltyPoints);
+        Assert.Throws<InvalidOperationException>(() => KoLibri.Core.Markt.BuyerCrmService.SpendPoints(db, "k", 6));
+        var blocked = KoLibri.Core.Markt.BuyerCrmService.SetBlocked(db, "k", true);
+        Assert.Throws<InvalidOperationException>(() => KoLibri.Core.Markt.BuyerCrmService.SpendPoints(blocked, "k", 1));
     }
 }

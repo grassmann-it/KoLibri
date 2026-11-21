@@ -236,6 +236,22 @@ public sealed class KolibriClient : IDisposable
         IEnumerable<KoLibri.Core.Markt.ShopPriceUpdate> updates, bool commit, CancellationToken cancellationToken = default)
         => new KoLShopMutationClient(_http).ApplyPriceUpdatesAsync(updates, commit, cancellationToken);
 
+    /// <summary>The account's own mall store as KoL shows it now.</summary>
+    public Task<IReadOnlyList<KoLibri.Core.Markt.OwnShopListing>> GetOwnShopAsync(bool forceRefresh = true, CancellationToken cancellationToken = default)
+        => _mall.FetchOwnShopAsync(forceRefresh, cancellationToken);
+
+    /// <summary>
+    /// Reads the own store's sales log (read-only). Buyer names are replaced by the stable keys of
+    /// <paramref name="crm"/>; the raw name is only kept in memory for the local CRM sync.
+    /// </summary>
+    public Task<KoLibri.Core.Markt.ShopSalesSnapshot> GetShopSalesAsync(
+        KoLibri.Core.Markt.BuyerCrmStore crm, bool forceRefresh = true, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(crm);
+        return new KoLibri.Core.Markt.KoLShopSalesReadClient(_http, buyerHasher: crm.CreateHasher())
+            .FetchSalesAsync(forceRefresh, cancellationToken);
+    }
+
     /// <summary>Display name of the stored account for a role, or null when none is stored.</summary>
     public async Task<string?> OtherAccountNameAsync(CancellationToken cancellationToken = default)
     {

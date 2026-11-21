@@ -20,6 +20,7 @@ public static class Rights
 {
     public const string AccountRead = "account.read";
     public const string MarketRead = "market.read";
+    public const string ShopRead = "shop.read";
     public const string Adventure = "adventure";
     public const string MallBuy = "mall.buy";
     public const string DailyRun = "daily.run";
@@ -31,7 +32,7 @@ public static class Rights
 
     public static IReadOnlyList<string> All { get; } =
     [
-        AccountRead, MarketRead, Adventure, MallBuy, DailyRun,
+        AccountRead, MarketRead, ShopRead, Adventure, MallBuy, DailyRun,
         TransferMeat, TransferItems, MessageSend, ShopReprice, ItemUse,
     ];
 }
@@ -44,6 +45,7 @@ public static class OperationCatalog
         new("account.status", Rights.AccountRead, OperationKind.Read, "Character status, meat, adventures."),
         new("account.inventory", Rights.AccountRead, OperationKind.Read, "Inventory contents."),
         new("market.search", Rights.MarketRead, OperationKind.Read, "Mall listings and price history for an item."),
+        new("shop.read", Rights.ShopRead, OperationKind.Read, "Own store sales, buyer statistics and price suggestions."),
         new("daily.preview", Rights.AccountRead, OperationKind.Read, "Plan of the daily routine without executing it."),
         new("adventure.run", Rights.Adventure, OperationKind.Write, "Spend adventures at a location.", "adventures"),
         new("mall.buy", Rights.MallBuy, OperationKind.Write, "Buy items from mall stores.", "meat"),

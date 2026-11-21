@@ -95,6 +95,22 @@ public static class BuyerCrmService
         return database with { Buyers = buyers };
     }
 
+    /// <summary>Spends loyalty points on a reward. Blocked buyers and missing points are refused.</summary>
+    public static BuyerCrmDatabase SpendPoints(BuyerCrmDatabase database, string buyerKey, int points)
+    {
+        ArgumentNullException.ThrowIfNull(database);
+        if (points < 0) throw new ArgumentOutOfRangeException(nameof(points));
+        var profile = database.Buyers.FirstOrDefault(x => string.Equals(x.BuyerKey, buyerKey, StringComparison.Ordinal))
+            ?? throw new KeyNotFoundException($"Buyer key '{buyerKey}' is not in the CRM ledger.");
+        if (profile.IsBlocked) throw new InvalidOperationException("This buyer is blocked locally.");
+        if (profile.LoyaltyPoints < points)
+            throw new InvalidOperationException($"The buyer has {profile.LoyaltyPoints} points, {points} needed.");
+        return database with
+        {
+            Buyers = database.Buyers.Select(x => ReferenceEquals(x, profile) ? x with { LoyaltyPoints = x.LoyaltyPoints - points } : x).ToArray()
+        };
+    }
+
     public static BuyerCrmSyncResult ApplySales(
         BuyerCrmDatabase database,
         IEnumerable<ShopSale> sales,

@@ -25,10 +25,15 @@ public interface IAccountActions
     Task<bool> MessageAsync(AccountRole from, string recipient, string text, CancellationToken ct);
     Task<(int Used, string? Rejection)> UseItemAsync(AccountRole role, int itemId, int quantity, CancellationToken ct);
     Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct);
+    Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct);
+    Task<IReadOnlyList<BuyerSummary>> BuyersAsync(int minPoints, int limit, CancellationToken ct);
+    Task<BuyerSummary?> BuyerAsync(string buyerKey, CancellationToken ct);
+    Task<IReadOnlyList<PriceSuggestion>> PriceSuggestionsAsync(AccountRole role, int maxItems, CancellationToken ct);
+    Task<(bool Sent, string? Refusal)> RewardAsync(AccountRole role, string buyerKey, string text, int? itemId, int quantity, int pointsCost, CancellationToken ct);
 }
 
 /// <summary>Runs the actions through <see cref="KolibriClient"/> with the stored sessions.</summary>
-public sealed class KolibriClientActions : IAccountActions
+public sealed partial class KolibriClientActions : IAccountActions
 {
     public async Task<long> MeatAsync(AccountRole role, CancellationToken ct)
     {
@@ -124,6 +129,8 @@ public partial class KolibriMcpServer
             "Change prices in the own mall store (at most 20 items). Preview shows what KoL's store page currently has. Needs right 'shop.reprice'.",
             Sch("""{"type":"object","additionalProperties":false,"required":["updates"],"properties":{@ROLE@,"updates":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["itemId","expectedPrice","newPrice"],"properties":{"itemId":{"type":"integer","minimum":1},"expectedPrice":{"type":"integer","minimum":0},"newPrice":{"type":"integer","minimum":100}}}},@PLAN@}}"""),
             (a, ct) => RepriceAsync(gate, actions, a, ct));
+
+        EnableShopTools(gate, actions);
     }
 
     private static JsonElement Sch(string template)
