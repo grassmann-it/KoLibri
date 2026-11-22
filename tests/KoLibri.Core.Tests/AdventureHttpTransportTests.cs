@@ -160,10 +160,27 @@ public sealed class AdventureHttpTransportTests
             Fields = new Dictionary<string, string> { ["snarfblat"] = "123" }
         };
 
+    private const string Interstitial = "<html><body><b>Daily Reminders</b> you have things to do</body></html>";
+
+    [Theory]
+    [InlineData("<html>ordinary main page</html>")]
+    [InlineData("<html>Daily Reminders <form><input name=loginname></form></html>")]
+    [InlineData("")]
+    public async Task OrdinaryOrErrorMainPageDoesNotTriggerTheSecondStart(string mainBody)
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(mainBody), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post);
+    }
+
     [Fact]
     public async Task FirstStartInterstitialFetchesMainPhpOnceAndRetriesTheSameStart()
     {
-        var handler = new RecordingHandler(Found("/main.php"), Response("<html>reminders</html>"), Response(Html()));
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
         using var client = new HttpClient(handler);
         using var transport = new HttpAdventureExecutionTransport(client, Options());
 
@@ -195,7 +212,7 @@ public sealed class AdventureHttpTransportTests
     [Fact]
     public async Task RepeatedInterstitialRedirectStopsAfterTheRetry()
     {
-        var handler = new RecordingHandler(Found("/main.php"), Response(Html()), Found("/main.php"), Response(Html()));
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Found("/main.php"), Response(Html()));
         using var client = new HttpClient(handler);
         using var transport = new HttpAdventureExecutionTransport(client, Options());
 
