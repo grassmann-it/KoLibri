@@ -123,6 +123,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private ListBox? _arbitrageRules;
     private TextBlock? _arbitragePlanText;
     private Control? _dailyPanel;
+    private BrowserView? _browserPanel;
+    private Button? _navBrowser;
     private ListBox? _dailyRows;
     private TextBlock? _dailySnapshotText;
     private TextBlock? _dailySummaryText;
@@ -185,6 +187,10 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _navMall = this.FindControl<Button>("NavMall");
         _navAdventure = this.FindControl<Button>("NavAdventure");
         _navCommunication = this.FindControl<Button>("NavCommunication");
+        _navBrowser = this.FindControl<Button>("NavBrowser");
+        _browserPanel = this.FindControl<BrowserView>("BrowserPanel");
+        _browserPanel?.Attach(_accounts, () => _selectedRole, message => SetStatus(message),
+            message => _log.Add(SessionLogKind.Info, message));
         _navSettings = this.FindControl<Button>("NavSettings");
         _communicationPanel = this.FindControl<StackPanel>("CommunicationPanel");
         _settingsPanel = this.FindControl<StackPanel>("SettingsPanel");
@@ -248,6 +254,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         Opened += async (_, _) =>
         {
+            await StartupLoginAsync();
             await OpenSectionAsync(_activeSection);
             await OfferSignInIfNeededAsync();
         };
@@ -256,6 +263,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             _navigationVersion++;
             _refreshCancellation?.Cancel();
             _encounterBrowser?.Dispose();
+            _browserPanel?.Dispose();
             _live.Dispose();
         };
     }
@@ -368,6 +376,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             (_navInventory, "Inventory"),
             (_navMall, "Mall & Shop"),
             (_navDaily, "Daily"),
+            (_navBrowser, "Browser"),
             (_navCommunication, "Communication"),
             (_navSettings, "Settings")
         };
@@ -430,6 +439,9 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                     break;
                 case "Communication":
                     break;
+                case "Browser":
+                    if (_browserPanel is not null) await _browserPanel.OpenAsync();
+                    break;
                 case "Adventure":
                     await RefreshAdventureAsync(forceRefresh, cancellationToken);
                     break;
@@ -452,6 +464,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _selectedRole = ReadSelectedRole();
         if (_skillsEffectsModel is not null) _skillsEffectsModel.Role = _selectedRole.ToString();
         ResetAccountViews();
+        _browserPanel?.ResetForRoleChange();
         await OpenSectionAsync(_activeSection);
     }
 
@@ -703,6 +716,11 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (_mallSection is not null) _mallSection.IsVisible = section == "Mall & Shop";
         if (_adventurePanel is not null) _adventurePanel.IsVisible = section == "Adventure";
         if (_communicationPanel is not null) _communicationPanel.IsVisible = section == "Communication";
+        if (_browserPanel is not null)
+        {
+            _browserPanel.IsVisible = section == "Browser";
+            _browserPanel.Height = Math.Max(360, (Bounds.Height > 0 ? Bounds.Height : Height) - 230);
+        }
         if (_settingsPanel is not null) _settingsPanel.IsVisible = section == "Settings";
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = section switch

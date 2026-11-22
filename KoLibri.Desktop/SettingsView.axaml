@@ -7,7 +7,7 @@
 
       <TextBlock Text="Accounts and access" FontWeight="SemiBold"/>
       <TextBox Watermark="Default account" Text="{Binding DefaultAccount}"/>
-      <CheckBox IsChecked="{Binding ReloginAutomatically}" Content="Log in again automatically when the session expires"/>
+      <CheckBox IsChecked="{Binding ReloginAutomatically}" Content="Log in again automatically (at start and when the session expires)"/>
       <TextBlock Text="{Binding AgentRightsNote}" TextWrapping="Wrap" Opacity="0.7"/>
 
       <TextBlock Text="Market and budget" FontWeight="SemiBold"/>

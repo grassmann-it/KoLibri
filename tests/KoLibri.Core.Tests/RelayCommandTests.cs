@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using KoLibri.Core.Basis;
 using Xunit;
 
 namespace KoLibri.Core.Tests;

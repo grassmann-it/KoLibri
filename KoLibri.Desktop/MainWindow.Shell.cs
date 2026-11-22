@@ -108,6 +108,49 @@ public partial class MainWindow
         ShowLoadResult("Arbitrage", _arbitrage);
     }
 
+    /// <summary>
+    /// Auto-login at start: the selected role is renewed first (the window waits, with a status line), the other role
+    /// follows in the background. One attempt per role, one request at a time, no retry; the Sign in button stays.
+    /// </summary>
+    private async Task StartupLoginAsync()
+    {
+        try
+        {
+            var auto = _settings.ReloginAutomatically;
+            var other = _selectedRole == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
+            SetStatus($"Checking the saved {_selectedRole} session…");
+            var first = await StartupLogin.RunAsync(_accounts, _selectedRole, auto);
+            ReportStartupLogin(first);
+            _ = Task.Run(async () =>
+            {
+                var second = await StartupLogin.RunAsync(_accounts, other, auto);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (second.Outcome is StartupLoginOutcome.LoggedIn or StartupLoginOutcome.Failed) _log.Add(SessionLogKind.Info, second.Message);
+                });
+            });
+        }
+        catch (Exception exception)
+        {
+            _log.Error($"Could not check the saved session: {exception.GetType().Name}");
+        }
+    }
+
+    private void ReportStartupLogin(StartupLoginResult result)
+    {
+        switch (result.Outcome)
+        {
+            case StartupLoginOutcome.LoggedIn:
+                _log.Add(SessionLogKind.Info, result.Message);
+                SetStatus(result.Message);
+                break;
+            case StartupLoginOutcome.Failed or StartupLoginOutcome.AutoLoginOff:
+                _log.Add(SessionLogKind.Info, result.Message);
+                SetStatus(result.Message);
+                break;
+        }
+    }
+
     /// <summary>Without a session the sign-in is the first thing the user sees.</summary>
     private async Task OfferSignInIfNeededAsync()
     {

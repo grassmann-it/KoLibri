@@ -54,6 +54,8 @@ Ownership: each package names the files it may edit; packages in the same wave d
 
 ## In-app relay browser (package M7)
 
+> Implemented in package G1; see `docs/desktop-browser.md` for the engine decision and platform caveats. The notes below are the original design.
+
 Hosting the relay as the Browser page, keeping the relay's own security model:
 
 1. **Process model.** The Browser page starts `kolibri relay` in-process (class `RelayHost` that wraps
