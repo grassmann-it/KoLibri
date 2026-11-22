@@ -22,6 +22,31 @@ kolibri reprice --role mallbot      # price suggestions against the mall floor
 
 The CLI never changes the account without `--execute` or `--commit`.
 
+### Buying an item below its resale price (arbitrage)
+
+```bash
+kolibri mall --role mallbot --item 10881                       # real offers by item id: shop, price, stock, daily limit
+kolibri arbitrage plan --role mallbot --item 10881             # read-only plan
+kolibri arbitrage plan --role mallbot --item 10881 --max-price 27000 --budget 2000000 --margin 10
+kolibri arbitrage buy  --role mallbot --item 10881             # plan plus a preview of every purchase, sends nothing
+kolibri arbitrage buy  --role mallbot --item 10881 --execute --approval-token TOKEN
+kolibri arbitrage buy  ... --execute --approval-token TOKEN --then list --price 32995   # stock it in the own shop
+kolibri arbitrage buy  ... --execute --approval-token TOKEN --then send-to main         # KMail to your other account
+```
+
+The plan takes the resale reference as the lower of your own shop price and the Pricegun median (or
+`--reference-price`), and buys only up to `reference x (1 - margin)` (default margin 10 %, 0 to 90; `--tax` takes a
+mall tax off the resale price, default 0). Offers are taken cheapest first. Per shop it never plans more than the
+daily limit (an unreadable limit plans 1 unit; "no limit" is read from the page) and it stays inside `--budget`
+(default 2,000,000, up to 1,000,000,000), keeps `--reserve` meat back (default 0) and stops at `--units` per run
+(default 200). Every skipped offer says why (above the ceiling, own shop, no stock, budget, reserve, ...). The meat
+a shop's daily limit already used up today cannot be read, so run `plan` again after buying.
+
+`buy --execute` goes through the same single purchase path as the desktop Buy button (`MallPurchaseGateway`): each
+step is previewed first, sends at most one purchase POST, is checked against the meat and inventory change, and its
+meat is written to `arbitrage-ledger.json` (next to the KoLibri settings) before the POST. An unclear step ends the
+run and is never retried. `--then` only runs after verified purchases; `send-to` only goes to your own other account.
+
 ### Relay browser (debugging)
 
 ```bash

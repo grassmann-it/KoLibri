@@ -59,10 +59,23 @@ Read tools with right `shop.read`: `kol_shop_sales` (own store log per item, top
 identified by a stable key; the character name stays in the encrypted local CRM vault. `kol_reward_buyer`
 sends a KMail (optionally with an item and spending points) to a key from the ledger; blocked buyers are refused.
 
+## Arbitrage plan
+
+`kol_arbitrage_plan` (right `market.read`, read-only) plans buying an item below its resale price from live Mall
+offers: per shop quantity and total, the daily limit of each shop, budget, meat reserve and the reason for every
+skipped offer. It reads only market data and the granted account's own shop price; it does not read the account's
+meat (that needs `account.status`), so pass `availableMeat` if the reserve should limit the plan.
+
+There is no separate buy tool. An AI runs the plan step by step with `kol_mall_buy` (right `mall.buy`, with its
+grant, price limit and budget): for each step of `plan.steps` call `kol_mall_buy` with `itemId`, `itemName`,
+`quantity` at most `step.quantity` and `maxPricePerUnit = step.unitPrice`, show the preview, and only then confirm.
+Plan again after every purchase (stock, price and daily limits move), and never repeat a purchase whose result was
+reported as unclear.
+
 ## CLI agent mode
 
 If the CLI detects an AI harness (known environment variables, or input and output both redirected), commands
-with `--execute`, `--commit` or `--sell` ask for confirmation at `/dev/tty`. Without a terminal they refuse
+with `--execute`, `--commit` or `--sell` (so also `kolibri arbitrage buy --execute`) ask for confirmation at `/dev/tty`. Without a terminal they refuse
 and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your own scripts write again.
 
 ## Honest limits

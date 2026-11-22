@@ -15,6 +15,7 @@ All tools return JSON objects and include `fetchedAt` and `isStale` where the un
 | `kol_plan_daily_adventures` | `{ "inventory": [...] }` | Build the daily adventure plan from local state. | Pure computation; no KoL request. |
 | `kol_preview_purchase` | `{ "itemId": "...", "quantity": 1, "unitPrice": 0, "role": "Mallbot", "approvalToken": null }` | Validate a proposed purchase against `AutomationPolicy`; produce a preview only. | Never submits an order. |
 | `kol_preview_transfer` | `{ "itemId": "...", "quantity": 1, "from": "Main", "to": "Mallbot", "approvalToken": null }` | Validate a proposed transfer against policy; produce a preview only. | Never transfers an item. |
+| `kol_arbitrage_plan` | `{ "itemId": 10881, "budget": 2000000, "marginPercent": 10 }` | Plan buying an item below its resale price from live Mall offers (read-only). | Buys nothing; run the steps with `kol_mall_buy`. |
 
 The server should advertise only the first six tools unless the caller explicitly requests mutation workflows. `kol_preview_*` tools remain non-mutating and are useful for a human approval UI.
 

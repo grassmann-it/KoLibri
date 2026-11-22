@@ -49,6 +49,7 @@ internal static partial class KolibriCli
                 "relay" => await RelayAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
+                "arbitrage" => await ArbitrageAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
                 "compare" or "history" => await CompareAsync(args[1..]),
                 "bribe-rank" => await BribeRankAsync(args[1..]),
@@ -325,6 +326,7 @@ internal static partial class KolibriCli
         Console.WriteLine("              [--store PATH --watchlist-id ID --budget N --reserve N --transfer-cost N]");
         Console.WriteLine("              [--min-sales N --min-liquidity 0.05 --max-age-hours 6]");
         Console.WriteLine("  apply-prices --role mallbot --set ITEM_ID:EXPECTED:NEW [--set ...] [--commit]");
+        PrintArbitrageHelp();
         Console.WriteLine("  repl [--role main|mallbot] [--data PATH]      starts the interactive read-only REPL");
         Console.WriteLine();
         Console.WriteLine("apply-prices is preview-only by default; only --commit sends the price change.");
