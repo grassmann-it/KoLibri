@@ -42,8 +42,10 @@ public sealed record PricegunReadPolicy
 /// </summary>
 public static class PricegunRateLimit
 {
+    public const string IntervalEnvironmentVariable = "KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS";
+
     public static KoLRateLimiter Shared { get; } = new(KoLRateLimiter.ResolveInterval(
-        Environment.GetEnvironmentVariable("KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS")));
+        Environment.GetEnvironmentVariable(IntervalEnvironmentVariable)));
 }
 
 /// <summary>

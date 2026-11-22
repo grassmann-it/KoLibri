@@ -56,6 +56,11 @@ with `KOLIBRI_MIN_REQUEST_INTERVAL_MS` (never below 1000). Separate processes (f
 desktop app running at once) do not coordinate, so together they can exceed it. Pricegun is a different host with
 its own per-process limiter (2 s, `KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`); cached results send nothing.
 
+Both intervals, the cache duration, budgets and combat limits are also editable in the desktop **Settings** view
+(saved as `desktop-settings.json` in the KoLibri data folder, no secrets; every value has a default, minimum and
+maximum). An environment variable, when set, overrides the saved interval and the view says so. Intervals are
+applied at startup, so restart after changing them. The game itself ends a fight at 50 rounds; that ceiling is fixed.
+
 ## As a library
 
 ```csharp
