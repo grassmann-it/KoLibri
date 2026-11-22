@@ -339,8 +339,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public async Task<bool> UseClanLookingGlassAsync(AccountRole role, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the clan looking glass.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.UseClanLookingGlassAsync(hash, cancellationToken).ConfigureAwait(false);
     }
@@ -348,8 +349,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public async Task<KoLCrimboTreeResult> UseClanCrimboTreeAsync(AccountRole role, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to check the clan Crimbo Tree.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.UseClanCrimboTreeAsync(hash, cancellationToken).ConfigureAwait(false);
     }
@@ -357,8 +359,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public async Task<KoLClanKlawResult> PlayClanKlawAsync(AccountRole role, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to play the clan Klaw.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.PlayClanKlawAsync(hash, cancellationToken).ConfigureAwait(false);
     }
@@ -367,8 +370,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, bool allowRemovingCurse, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the clan Hot Tub.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.UseClanHotTubAsync(hash, allowRemovingCurse, cancellationToken).ConfigureAwait(false);
     }
@@ -377,8 +381,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, KoLClanPoolStance stance, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to play clan pool.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.PlayClanPoolAsync(hash, stance, cancellationToken).ConfigureAwait(false);
     }
@@ -387,8 +392,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, KoLClanShowerTemperature temperature, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the April Shower.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.TakeClanShowerAsync(hash, temperature, cancellationToken).ConfigureAwait(false);
     }
@@ -397,8 +403,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, KoLClanSwimWorkout workout, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the clan swimming pool.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.SwimInClanPoolAsync(hash, workout, cancellationToken).ConfigureAwait(false);
     }
@@ -410,8 +417,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, KoLClanPoolMove? move, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the clan swimming pool.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await (move is { } action
             ? clients.Account.MoveInClanPoolAsync(hash, action, cancellationToken)
@@ -424,8 +432,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public async Task<bool> TransferClanFaxAsync(AccountRole role, bool send, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to use the clan fax machine.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await clients.Account.TransferClanFaxAsync(hash, send, cancellationToken).ConfigureAwait(false);
     }
@@ -437,8 +446,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, string itemId, int quantity, bool deposit, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to transfer an item to or from the clan stash.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         return await (deposit
             ? clients.Account.DepositClanStashItemAsync(itemId, quantity, hash, cancellationToken)
@@ -455,8 +465,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, string target, string message, long cursor, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to send KoL chat.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
         return await clients.Account.SendChatAsync(hash, target, message, cursor, cancellationToken).ConfigureAwait(false);
     }
 
@@ -467,8 +478,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public async Task SaveInboxMessageAsync(AccountRole role, string id, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to save KoLmail.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         await clients.Account.SaveInboxMessageAsync(id, hash, cancellationToken).ConfigureAwait(false);
     }
@@ -477,8 +489,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, KoLMailFolder folder, string id, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to delete KoLmail.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         await clients.Account.DeleteMailboxMessageAsync(folder, id, hash, cancellationToken).ConfigureAwait(false);
     }
@@ -488,8 +501,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
         long meat, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients?.Session.Credentials.AccessToken is not { Length: > 0 } hash)
+        if (clients is null)
             throw new InvalidOperationException("Sign in to send KoLmail.");
+        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -545,13 +559,18 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountRole role, CancellationToken cancellationToken)
     {
         var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        return clients is null ? null : (clients.Http, clients.Session.Credentials.AccessToken);
+        if (clients is null) return null;
+        return (clients.Http, await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>True when a stored session exists for the role but is expired (no automatic log-in was attempted or it failed).</summary>
     public async Task<bool> HasExpiredSessionAsync(AccountRole role, CancellationToken cancellationToken = default)
         => await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken).ConfigureAwait(false) is null
            && await _accounts.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken).ConfigureAwait(false) is not null;
+
+    /// <summary>KoL's real request hash for this session (not the login cookie); throws instead of sending a wrong one.</summary>
+    private static Task<string> RequireHashAsync(AccountClients clients, CancellationToken cancellationToken)
+        => KoLPwdHashResolver.RequireAsync(clients.Http, clients.Session.Credentials.CookieHeader!, cancellationToken);
 
     private async Task<AccountClients?> GetClientsAsync(AccountRole role, CancellationToken cancellationToken)
     {

@@ -215,6 +215,9 @@ public partial class KolibriMcpServer
         return 0;
     }
 
+    /// <summary>Runs before every authorized tool call; used to rebind role clients to the current sessions.</summary>
+    public Func<CancellationToken, Task>? BeforeToolCall { get; set; }
+
     private async Task<JsonElement> CallToolAsync(
         JsonElement id,
         JsonElement parameters,
@@ -241,6 +244,13 @@ public partial class KolibriMcpServer
         var authorization = Authorizer?.Invoke(name, arguments) ?? ToolAuthorization.Ok();
         if (!authorization.Allowed)
             return ToolErrorResponse(id, authorization.Message ?? "Not allowed.");
+
+        if (BeforeToolCall is { } beforeCall)
+        {
+            // Let role clients follow a login/logout/renewal that happened while the server runs.
+            try { await beforeCall(cancellationToken).ConfigureAwait(false); }
+            catch (Exception exception) when (exception is not OperationCanceledException) { }
+        }
 
         if (authorization.Plan is { } plan)
         {

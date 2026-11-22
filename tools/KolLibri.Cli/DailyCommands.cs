@@ -229,11 +229,15 @@ internal static partial class KolibriCli
             WriteJson(new { command = "daily bribes-sample", error = "Both Mallbot and Main need a stored login." });
             return 1;
         }
-        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
-        var mainName = accounts.FirstOrDefault(a => a.Role == AccountRole.Main)?.DisplayName;
-        if (string.IsNullOrWhiteSpace(mainName))
+        string mainName;
+        try
         {
-            WriteJson(new { command = "daily bribes-sample", error = "No Main account name configured." });
+            mainName = AccountIdentityVerifier.VerifyRoleAsync(AccountSessionManager.CreateDefault(), AccountRole.Main)
+                .GetAwaiter().GetResult().Name;
+        }
+        catch (Exception exception) when (exception is AccountIdentityMismatchException or InvalidOperationException)
+        {
+            WriteJson(new { command = "daily bribes-sample", error = exception.Message });
             return 1;
         }
         var mallbot = ReadClientAsync(AccountRole.Mallbot).GetAwaiter().GetResult();
@@ -361,11 +365,21 @@ internal static partial class KolibriCli
             return 1;
         }
         var fromCredentials = TryGetCredentials(from);
-        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
-        var recipient = accounts.FirstOrDefault(a => a.Role == to)?.DisplayName;
-        if (fromCredentials is null || string.IsNullOrWhiteSpace(recipient))
+        if (fromCredentials is null)
         {
             WriteJson(new { command = "daily send-items", error = "Missing stored login or recipient account." });
+            return 1;
+        }
+        string recipient;
+        try
+        {
+            // The target is the player KoL reports for the target role's live session, not a stored name.
+            recipient = AccountIdentityVerifier.VerifyRoleAsync(AccountSessionManager.CreateDefault(), to)
+                .GetAwaiter().GetResult().Name;
+        }
+        catch (Exception exception) when (exception is AccountIdentityMismatchException or InvalidOperationException)
+        {
+            WriteJson(new { command = "daily send-items", error = exception.Message });
             return 1;
         }
         var sender = ReadClientAsync(from).GetAwaiter().GetResult();
