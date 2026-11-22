@@ -104,6 +104,14 @@ internal static class MarketScanCommands
                         candidate.Quantity,
                         pwd,
                         cancellationToken).ConfigureAwait(false);
+                    if (result.Unverified)
+                    {
+                        // Indeterminate: the POST may have bought. Do not go on to the next offer.
+                        Console.Error.WriteLine(
+                            $"  UNVERIFIED purchase of {candidate.ItemName} from store {candidate.StoreId}: "
+                            + "the receipt does not settle what was bought. Stopping; check the inventory before running again.");
+                        return 1;
+                    }
                     var bought = result.Message.Contains("You acquire an item", StringComparison.OrdinalIgnoreCase);
                     if (bought)
                     {

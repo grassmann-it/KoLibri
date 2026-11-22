@@ -90,6 +90,8 @@ public sealed class UsageLedger
     private readonly string _owner;
     private long _seq;
     private string _lastHash = Genesis;
+    /// <summary>True when the journal has a line that cannot be read (e.g. a write aborted before its newline). Nothing is booked or released then.</summary>
+    private bool _damaged;
 
     /// <summary>A hold that is written to disk before the action's POST, so a crash cannot lose it.</summary>
     internal sealed record Hold(string Id, string Key, string GrantId, string Right, string Operation, string? Account, string Day, long Amount, string Owner);
@@ -109,6 +111,8 @@ public sealed class UsageLedger
             using (FileLock())
             {
                 Refresh();
+                // A damaged journal is never appended to; the holds stay as they are (fail closed).
+                if (_damaged) return;
                 // Adopt: a hold left by a process that is gone (crash after the POST) becomes an unreconciled
                 // spend that counts against the budget until the user reconciles it.
                 var holds = ReadHolds();
@@ -158,7 +162,7 @@ public sealed class UsageLedger
     {
         _booked.Clear();
         _seq = 0; _lastHash = Genesis;
-        foreach (var entry in ReadAll())
+        foreach (var entry in ReadAll(out _damaged))
         {
             _seq = entry.Seq;
             _lastHash = entry.Hash;
@@ -211,6 +215,7 @@ public sealed class UsageLedger
                 {
                     // Check and reserve under one cross-process lock; the hold is on disk before the caller may POST.
                     Refresh();
+                    if (_damaged) return null;                 // damaged journal: refuse, no spend
                     var holds = ReadHolds();
                     var used = _booked.GetValueOrDefault(key) + HeldFor(holds, key);
                     if (amount < 0 || used + amount > dailyBudget) return null;
@@ -238,9 +243,22 @@ public sealed class UsageLedger
             using (FileLock())
             {
                 Refresh();
-                if (confirmed > 0) Append(key, reservation, reservation.Operation, confirmed, detail);
-                if (unclear > 0) Append(key, reservation, UnclearPrefix + reservation.Operation, unclear, detail);
-                // The hold goes last: a crash in between over-counts (safe) instead of losing the amount.
+                // Damaged journal: neither book nor release. The hold stays and keeps counting (fail closed).
+                if (_damaged) return;
+                var written = new List<UsageEntry>();
+                if (confirmed > 0) written.Add(Append(key, reservation, reservation.Operation, confirmed, detail));
+                if (unclear > 0) written.Add(Append(key, reservation, UnclearPrefix + reservation.Operation, unclear, detail));
+                // The hold goes last, and only once its replacement is fully readable: a crash in between
+                // over-counts (safe) instead of losing the amount.
+                if (written.Count > 0)
+                {
+                    var onDisk = ReadAll(out var broken);
+                    if (broken || written.Any(w => !onDisk.Any(e => e.Seq == w.Seq && e.Hash == w.Hash)))
+                    {
+                        _damaged = true;
+                        return;   // the booking is not readable: keep the hold, it keeps counting
+                    }
+                }
                 var holds = ReadHolds();
                 if (holds.RemoveAll(h => h.Id == reservation.Id) > 0) WriteHolds(holds);
                 _myHolds.Remove(reservation.Id);
@@ -260,11 +278,22 @@ public sealed class UsageLedger
         };
         entry = entry with { Hash = Hash(entry) };
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.AppendAllText(_path, JsonSerializer.Serialize(entry, Json) + "\n");
+        // Always start on a fresh line: a tail left by an aborted write must never get glued to this entry.
+        var prefix = EndsWithoutNewline() ? "\n" : "";
+        File.AppendAllText(_path, prefix + JsonSerializer.Serialize(entry, Json) + "\n");
         _seq = entry.Seq;
         _lastHash = entry.Hash;
         _booked[key] = _booked.GetValueOrDefault(key) + amount;
         return entry;
+    }
+
+    private bool EndsWithoutNewline()
+    {
+        if (!File.Exists(_path)) return false;
+        using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        if (fs.Length == 0) return false;
+        fs.Seek(-1, SeekOrigin.End);
+        return fs.ReadByte() != '\n';
     }
 
     /// <summary>Unclear spends that nobody has reconciled yet (also from before a restart).</summary>
@@ -292,7 +321,7 @@ public sealed class UsageLedger
         {
             Refresh();
             var entry = Unreconciled().FirstOrDefault(e => e.Seq == seq);
-            if (entry is null) return false;
+            if (entry is null || _damaged) return false;
             var delta = Math.Clamp(actualAmount, 0, entry.Amount) - entry.Amount;
             Append(Key(entry.GrantId, entry.Right, entry.KolDay), entry.GrantId, entry.Right, entry.KolDay,
                 ReconcilePrefix + seq.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Account, delta, note);
@@ -321,15 +350,18 @@ public sealed class UsageLedger
         }
     }
 
-    private List<UsageEntry> ReadAll()
+    private List<UsageEntry> ReadAll() => ReadAll(out _);
+
+    private List<UsageEntry> ReadAll(out bool damaged)
     {
+        damaged = false;
         var list = new List<UsageEntry>();
         if (!File.Exists(_path)) return list;
         foreach (var line in File.ReadAllLines(_path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            try { var e = JsonSerializer.Deserialize<UsageEntry>(line, Json); if (e is not null) list.Add(e); }
-            catch (JsonException) { /* a broken line breaks VerifyChain via the sequence check */ }
+            try { var e = JsonSerializer.Deserialize<UsageEntry>(line, Json); if (e is not null) list.Add(e); else damaged = true; }
+            catch (JsonException) { damaged = true; }   // an unreadable line: the journal cannot be trusted for booking
         }
         return list;
     }

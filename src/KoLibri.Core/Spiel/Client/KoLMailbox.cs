@@ -130,13 +130,15 @@ public static partial class KoLMailbox
         IReadOnlyList<KoLMailAttachment> attachments, long meat, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(http);
+        // Cancelled before anything went out: nothing was sent, so this is a plain cancellation.
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             return await SendAsync(http, sessionHash, recipient, message, attachments, meat, cancellationToken).ConfigureAwait(false)
                 ? KoLMailSendOutcome.Sent : KoLMailSendOutcome.Unconfirmed;
         }
         catch (ArgumentException) { throw; }                       // nothing was sent
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        // A cancel after the POST started is not "not sent": the mail may have arrived, so it falls through to Unconfirmed.
         catch (HttpRequestException e) when (e.StatusCode is { } code && (int)code is >= 400 and < 500 && (int)code != 408 && (int)code != 429)
         {
             return KoLMailSendOutcome.NotSent;                      // KoL answered with a client-error status: refused

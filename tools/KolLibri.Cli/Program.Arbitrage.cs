@@ -130,9 +130,11 @@ internal static partial class KolibriCli
             using var client = await KolibriClient.OpenAsync(role);
             var recipient = await client.OtherAccountNameAsync()
                 ?? throw new InvalidOperationException("The other account is not stored; nothing was sent.");
-            var sent = await client.SendKMailAsync(recipient, "Sent with KoLibri.",
+            var outcome = await client.SendKMailOutcomeAsync(recipient, "Sent with KoLibri.",
                 [new KoLMailAttachment(itemId, run.UnitsBought)], 0);
-            followUp = new { sendTo = to.ToString(), quantity = run.UnitsBought, sent };
+            // Unconfirmed: the mail may have arrived; never report it as not sent.
+            followUp = new { sendTo = to.ToString(), quantity = run.UnitsBought, sent = outcome == KoLMailSendOutcome.Sent,
+                unconfirmed = outcome == KoLMailSendOutcome.Unconfirmed };
         }
         WriteJson(new { command = "arbitrage buy", executed = true, role = role.ToString(), unitsBought = run.UnitsBought,
             meatSpent = run.MeatSpent, unclear = run.Unclear, steps = run.Steps, followUp });
