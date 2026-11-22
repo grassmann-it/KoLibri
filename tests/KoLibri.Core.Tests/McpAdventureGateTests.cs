@@ -39,10 +39,19 @@ public sealed class McpAdventureGateTests : IDisposable
     private async Task<(bool Error, string Text)> RunAsync(string token, int maxTurns)
     {
         McpRequestContext.Token = token;
+        var runId = "r-" + Guid.NewGuid().ToString("N");
+        var preview = await CallAsync(runId, maxTurns, null);
+        if (preview.Error || !preview.Text.Contains("planId")) return preview;
+        var planId = JsonDocument.Parse(preview.Text).RootElement.GetProperty("planId").GetString();
+        return await CallAsync(runId, maxTurns, planId);
+    }
+
+    private async Task<(bool Error, string Text)> CallAsync(string runId, int maxTurns, string? planId)
+    {
         _transport.EnqueueObservation(AdventureTransportOperation.Adventure,
             new AdventureKernelObservation { AdventureId = "skeleton", Kind = AdventureEncounterKind.Reward, CanContinue = false, ResponseHash = "reward" });
         var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_adventure_run_execute\",\"arguments\":"
-            + "{\"role\":\"Main\",\"locationId\":\"skeleton\",\"runId\":\"r-" + Guid.NewGuid().ToString("N") + "\",\"execute\":true,\"maxTurns\":" + maxTurns
+            + "{\"role\":\"Main\",\"locationId\":\"skeleton\",\"runId\":\"" + runId + "\",\"execute\":true," + (planId is null ? "" : "\"planId\":\"" + planId + "\",") + "\"maxTurns\":" + maxTurns
             + ",\"maxRuns\":1,\"maxGatewaySteps\":3,\"maxDurationSeconds\":30,\"snapshot\":{\"turnsRemaining\":" + maxTurns + "}}}}";
         var res = (await _server.HandleAsync(JsonDocument.Parse(json).RootElement))!.Value.GetProperty("result");
         return (res.GetProperty("isError").GetBoolean(), res.GetProperty("content")[0].GetProperty("text").GetString()!);
@@ -60,6 +69,21 @@ public sealed class McpAdventureGateTests : IDisposable
         var second = await RunAsync(token, 3);   // 3 + 3 > 5
         Assert.True(second.Error);
         Assert.Contains("BudgetExhausted", second.Text);
+    }
+
+    [Fact]
+    public async Task Execute_without_plan_only_previews_and_sends_nothing()
+    {
+        var token = Token(adventures: 5);
+        McpRequestContext.Token = token;
+        var res = await CallAsync("r-p", 3, null);
+        Assert.False(res.Error, res.Text);
+        Assert.Contains("\"preview\":true", res.Text.Replace(" ", ""));
+        Assert.Equal(0, _transport.RequestCount);
+        Assert.Equal(0, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.Adventure));
+        var replay = await CallAsync("r-p", 3, "does-not-exist");
+        Assert.True(replay.Error);
+        Assert.Contains("PlanInvalid", replay.Text);
     }
 
     [Fact]

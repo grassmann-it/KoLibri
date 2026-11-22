@@ -29,8 +29,10 @@ public partial class KolibriMcpServer
     private async Task<object?> DailyBridgeAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var roles = ResolveRoles(arguments);
-        var execute = OptionalBool(arguments, "execute") == true;
+        var roles = McpArgs.Roles(arguments, _options.DefaultRole);
+        if (McpArgs.Execute(arguments))
+            throw new McpInvalidParamsException("kol_run_daily_bridge only previews over MCP; execute=true is not available.");
+        var execute = false;
         var approvalToken = OptionalString(arguments, "approvalToken");
         var baseline = BuildBaseline(arguments);
 
@@ -87,29 +89,6 @@ public partial class KolibriMcpServer
         };
     }
 
-    private static List<AccountRole> ResolveRoles(JsonElement arguments)
-    {
-        if (!arguments.TryGetProperty("roles", out var rolesElement)
-            || rolesElement.ValueKind != JsonValueKind.Array)
-            return new() { AccountRole.Main };
-        var roles = new List<AccountRole>();
-        foreach (var entry in rolesElement.EnumerateArray())
-        {
-            if (entry.ValueKind != JsonValueKind.String) continue;
-            var value = entry.GetString();
-            if (string.IsNullOrWhiteSpace(value)) continue;
-            if (value.Equals("all", StringComparison.OrdinalIgnoreCase))
-            {
-                roles.Add(AccountRole.Main);
-                roles.Add(AccountRole.Mallbot);
-                continue;
-            }
-            if (Enum.TryParse<AccountRole>(value, true, out var role)) roles.Add(role);
-        }
-        if (roles.Count == 0) roles.Add(AccountRole.Main);
-        return roles;
-    }
-
     private static DailyRoutineSnapshot BuildBaseline(JsonElement arguments)
     {
         return new DailyRoutineSnapshot
@@ -131,6 +110,7 @@ public partial class KolibriMcpServer
 
     private static JsonElement DailyBridgeSchema()
         => Schema("{\"type\":\"object\",\"properties\":{"
+            + "\"role\":{\"enum\":[\"Main\",\"Mallbot\",\"all\"]},"
             + "\"roles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},"
             + "\"execute\":{\"type\":\"boolean\"},"
             + "\"approvalToken\":{\"type\":\"string\"},"

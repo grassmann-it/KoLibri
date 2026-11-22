@@ -40,6 +40,17 @@ when the action went through, in a hash-chained journal (`usage.jsonl`). A refus
 
 Manage grants: `kolibri-mcp grants list`, `kolibri-mcp grants revoke <id>`.
 
+## How arguments are bound to rights
+
+The policy and the tool handlers use the same strict parser. `execute` must be a JSON boolean (a string such as
+`"true"` is refused); `role` and every entry of `roles` (`"all"` = both) are authorized, so a grant for Main alone
+cannot read or touch Mallbot. Read tools never execute: `kol_run_daily_bridge` refuses `execute=true`.
+`kol_login_status` lists only accounts the grant covers. `kol_daily_audit` reads the fixed bridge audit store
+(no `path` argument) and returns only rows whose account id equals a granted role name.
+`kol_adventure_run_execute` / `kol_choice_chain_execute` with `execute=true` and no `planId` only preview and return
+a single-use `planId`; the second call with the same arguments plus `planId` runs, charged against the `adventure`
+budget by the largest of `maxTurns` / `maxGatewaySteps` (or `maxChoices`; steps and choices default to 20).
+
 ## Shop analytics and customer rewards
 
 Read tools with right `shop.read`: `kol_shop_sales` (own store log per item, top buyers by Meat),
