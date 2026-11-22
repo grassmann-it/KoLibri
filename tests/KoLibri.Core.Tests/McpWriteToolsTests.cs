@@ -34,7 +34,9 @@ public sealed class McpWriteToolsTests : IDisposable
         public int RewardCalls, SalesCalls, ConsumeCalls, RestCalls;
         public Task<(int Consumed, string? Rejection)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct)
         { ConsumeCalls++; return Task.FromResult((Math.Min(quantity, 3), quantity > 3 ? "too full" : (string?)null)); }
-        public Task<int> RestAsync(AccountRole role, int times, CancellationToken ct) { RestCalls++; return Task.FromResult(times); }
+        public (int Done, int Spent, string? Problem) RestResult = (-1, 0, null);
+        public Task<(int Done, int AdventuresSpent, string? Problem)> RestAsync(AccountRole role, int times, CancellationToken ct)
+        { RestCalls++; return Task.FromResult(RestResult.Done < 0 ? (times, 0, (string?)null) : RestResult); }
         public bool Blocked;
         public Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct)
         { SalesCalls++; return Task.FromResult(new ShopSalesReport(DateTimeOffset.UnixEpoch, false, 0, 0, 0, [], [])); }
@@ -77,6 +79,7 @@ public sealed class McpWriteToolsTests : IDisposable
             [Rights.TransferMeat] = new() { DailyBudget = 1_000 },
             [Rights.MessageSend] = new() { DailyBudget = 1 },
             [Rights.ItemUse] = new() { DailyBudget = 3 },
+            [Rights.Adventure] = new() { DailyBudget = 5 },
             [Rights.ShopReprice] = new() { DailyBudget = 5, MaxChangePercent = 20 },
             [Rights.ShopRead] = new(),
         }, TimeSpan.FromDays(1)).Token;
@@ -270,6 +273,40 @@ public sealed class McpWriteToolsTests : IDisposable
         var rest = await RunAsync(token, "kol_rest", "{\"times\":1}");
         Assert.Equal(1, rest.GetProperty("rested").GetInt32());
         Assert.Equal(1, _actions.RestCalls);
+    }
+
+    [Fact]
+    public async Task Consume_reports_partial_quantity_and_books_only_what_was_consumed()
+    {
+        var token = Token();
+        var done = await RunAsync(token, "kol_consume", "{\"itemId\":995,\"kind\":\"food\",\"quantity\":5}");
+        Assert.Equal(3, done.GetProperty("consumed").GetInt32());
+        Assert.False(done.GetProperty("complete").GetBoolean());
+        Assert.Equal(3, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.ItemUse));
+    }
+
+    [Fact]
+    public async Task Rest_books_only_confirmed_rests_and_adventures_actually_spent()
+    {
+        var token = Token();
+        _actions.RestResult = (1, 2, "KoL did not confirm the rest: HP, MP and adventures are unchanged.");
+        var done = await RunAsync(token, "kol_rest", "{\"times\":3}");
+        Assert.Equal(1, done.GetProperty("rested").GetInt32());
+        Assert.False(done.GetProperty("complete").GetBoolean());
+        Assert.Contains("did not confirm", done.GetProperty("problem").GetString());
+        var id = _grants.FindByToken(token)!.Id;
+        Assert.Equal(1, _ledger.UsedToday(id, Rights.ItemUse));
+        Assert.Equal(2, _ledger.UsedToday(id, Rights.Adventure));
+    }
+
+    [Fact]
+    public async Task Rest_without_the_adventure_right_is_denied_and_does_nothing()
+    {
+        var token = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit>
+            { [Rights.ItemUse] = new() { DailyBudget = 3 } }, TimeSpan.FromDays(1)).Token;
+        var denied = await CallAsync(token, "kol_rest", "{\"times\":1}");
+        Assert.True(denied.Error);
+        Assert.Equal(0, _actions.RestCalls);
     }
 
     [Fact]

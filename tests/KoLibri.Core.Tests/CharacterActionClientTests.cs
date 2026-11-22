@@ -260,6 +260,94 @@ public sealed class CharacterActionClientTests
         }
     }
 
+    private static CharacterActionClient Client(RecordingHandler handler, out HttpClient http)
+    {
+        http = new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri("https://fixture.test/") };
+        return new CharacterActionClient(http, "fixture-pwd", new KoLSecurityPolicy { AllowedHosts = new[] { "fixture.test" } });
+    }
+
+    private static string St(int hp, int mp, int adv) => $$"""{"hp":{{hp}},"mp":{{mp}},"adventures":{{adv}}}""";
+
+    [Fact]
+    public async Task Cast_with_unchanged_mp_is_unconfirmed_and_carries_the_page_excerpt()
+    {
+        using var handler = new RecordingHandler(new[] { St(40, 20, 10), "{}", St(40, 20, 10), "{}" }, new[] { "<p>Nothing special happens.</p>" });
+        var outcome = await Client(handler, out var http).CastAsync(7185, 1);
+        http.Dispose();
+        Assert.False(outcome.Confirmed);
+        Assert.Contains("did not confirm", outcome.Problem);
+        Assert.Contains("Nothing special happens.", outcome.Problem);
+    }
+
+    [Fact]
+    public async Task Cast_refused_for_missing_soulsauce_is_reported()
+    {
+        using var handler = new RecordingHandler(new[] { St(40, 20, 10), "{}", St(40, 20, 10), "{}" },
+            new[] { "<p>You don't have enough soulsauce to cast that.</p>" });
+        var outcome = await Client(handler, out var http).CastAsync(7185, 1);
+        http.Dispose();
+        Assert.False(outcome.Confirmed);
+        Assert.Contains("not enough mana or soulsauce", outcome.Problem);
+        Assert.Contains("soulsauce", outcome.Problem);
+    }
+
+    [Fact]
+    public async Task Cast_confirmed_by_changed_mp_or_by_kols_gain_message()
+    {
+        using var handler = new RecordingHandler(new[] { St(40, 20, 10), "{}", St(40, 35, 10), "{}" }, new[] { "You gain 15 Mana Points" });
+        var ok = await Client(handler, out var http).CastAsync(7185, 1);
+        http.Dispose();
+        Assert.True(ok.Confirmed);
+        Assert.Null(ok.Problem);
+        Assert.Equal(35, ok.After.Status.CurrentMp);
+
+        using var capped = new RecordingHandler(new[] { St(40, 50, 10), "{}", St(40, 50, 10), "{}" }, new[] { "You gain 0 Mana Points" });
+        var gained = await Client(capped, out var http2).CastAsync(7185, 1);
+        http2.Dispose();
+        Assert.True(gained.Confirmed);
+    }
+
+    [Fact]
+    public async Task Free_rest_series_counts_each_confirmed_rest_and_spends_no_adventures()
+    {
+        using var handler = new RecordingHandler(new[]
+        {
+            St(10, 5, 20), "{}", St(60, 30, 20), "{}", St(90, 50, 20), "{}"
+        }, new[] { "You rest.", "You rest." });
+        var outcome = await Client(handler, out var http).RestAsync(2);
+        http.Dispose();
+        Assert.Equal(2, outcome.Rests.Count);
+        Assert.Equal(0, outcome.AdventuresSpent);
+        Assert.Null(outcome.Problem);
+    }
+
+    [Fact]
+    public async Task Costly_rest_books_the_adventure_and_an_unchanged_second_rest_stops_the_series()
+    {
+        using var handler = new RecordingHandler(new[]
+        {
+            St(10, 5, 20), "{}", St(60, 30, 19), "{}", St(60, 30, 19), "{}"
+        }, new[] { "You rest.", "Nothing." });
+        var outcome = await Client(handler, out var http).RestAsync(3);
+        http.Dispose();
+        Assert.Single(outcome.Rests);
+        Assert.Equal(1, outcome.AdventuresSpent);
+        Assert.Contains("did not confirm the rest", outcome.Problem);
+        Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));   // stopped after the unclear one
+    }
+
+    [Fact]
+    public async Task Refused_rest_is_not_counted()
+    {
+        using var handler = new RecordingHandler(new[] { St(10, 5, 0), "{}", St(10, 5, 0), "{}" },
+            new[] { "<p>You don't have enough adventures to rest.</p>" });
+        var outcome = await Client(handler, out var http).RestAsync(2);
+        http.Dispose();
+        Assert.Empty(outcome.Rests);
+        Assert.Contains("refused the rest", outcome.Problem);
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post);
+    }
+
     private sealed class RecordingHandler(
         IReadOnlyList<string>? observations = null, IReadOnlyList<string>? posts = null) : HttpMessageHandler
     {
