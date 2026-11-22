@@ -104,7 +104,7 @@ public partial class MainWindow : IInventoryItemActions
                     ReportInventoryResult($"{kind} {row.Name}: KoL shows {heldBefore} in your inventory now (the list said {row.Quantity}); nothing was sent. Refresh the list.", error: true);
                     return;
                 }
-                var state = new OrganState(before.Status.Fullness, before.Status.Inebriety, before.Status.Spleen);
+                var state = OrganState.From(before.Status);
                 inventory.Organs = state;
                 // Every organ cost of the item counts, also for plain "Use" items; an unknown cost or fill asks first.
                 var check = InventoryActionPlanner.CheckOverfill(classification, quantity, state);
@@ -151,7 +151,7 @@ public partial class MainWindow : IInventoryItemActions
 
                 var projected = DesktopLiveDataProvider.ProjectInventory(role, after.Inventory, _catalog);
                 inventory.ApplyLiveSnapshot(projected);
-                inventory.Organs = new OrganState(after.Status.Fullness, after.Status.Inebriety, after.Status.Spleen);
+                inventory.Organs = OrganState.From(after.Status);
                 var held = HeldOf(after.Inventory, id);
                 var verdict = InventoryActionPlanner.JudgeConsume(verb, kind.ToString(), row.Name, quantity,
                     heldBefore, held, classification.IsReusable, after.RejectionReason,

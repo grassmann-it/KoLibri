@@ -121,7 +121,7 @@ public static class DailyStepRunner
         if (c.Known && c.Organ != wanted)
             return $"{c.Name ?? "item " + consume.ItemId} is not {wanted.ToString().ToLowerInvariant()} in the catalog; nothing was sent";
 
-        var state = new OrganState(current.Status.Fullness, current.Status.Inebriety, current.Status.Spleen);
+        var state = OrganState.From(current.Status);
         var check = InventoryActionPlanner.CheckOverfill(c, consume.Quantity, state);
         if (!InventoryActionPlanner.NeedsConfirmation(check)) return null;
         var name = c.Name ?? $"item {consume.ItemId}";

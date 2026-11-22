@@ -3,28 +3,29 @@ using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;
 
-/// <summary>Current organ fill and the limits it is compared with.</summary>
-public sealed record OrganState(int? Fullness, int? Inebriety, int? Spleen)
+/// <summary>Current organ fill and the limits it is compared with. A limit is null when the status read did not
+/// report it: real limits vary per character (path, skills, items), so no constant is assumed.</summary>
+public sealed record OrganState(int? Fullness, int? Inebriety, int? Spleen,
+    int? FullnessLimit = null, int? InebrietyLimit = null, int? SpleenLimit = null)
 {
-    /// <summary>Standard KoL limits. The status page does not report the real ones (they grow with
-    /// stomach/liver/spleen items), so they are the default assumption and are labelled as such.</summary>
-    public const int FullnessLimit = 15;
-    public const int InebrietyLimit = 14;
-    public const int SpleenLimit = 15;
-
     public static readonly OrganState Unknown = new(null, null, null);
 
-    public (int? Current, int Limit, string Label) For(ItemOrgan organ) => organ switch
+    public static OrganState From(KoLibri.Core.Spiel.KoLStatusSnapshot s) => new(
+        s.Fullness, s.Inebriety, s.Spleen, Positive(s.FullnessLimit), Positive(s.InebrietyLimit), Positive(s.SpleenLimit));
+
+    private static int? Positive(int? v) => v is > 0 ? v : null;
+
+    public (int? Current, int? Limit, string Label) For(ItemOrgan organ) => organ switch
     {
         ItemOrgan.Food => (Fullness, FullnessLimit, "fullness"),
         ItemOrgan.Drink => (Inebriety, InebrietyLimit, "inebriety"),
         ItemOrgan.Spleen => (Spleen, SpleenLimit, "spleen"),
-        _ => (null, 0, "")
+        _ => (null, null, "")
     };
 
-    /// <summary>"Fullness 3/15 · Inebriety 0/14 · Spleen 5/15" with "?" for unobserved values.</summary>
+    /// <summary>"Fullness 3/15 · Inebriety 0/? · Spleen 5/15" with "?" for unobserved values and limits.</summary>
     public string Summary =>
-        $"Fullness {Show(Fullness)}/{FullnessLimit} · Inebriety {Show(Inebriety)}/{InebrietyLimit} · Spleen {Show(Spleen)}/{SpleenLimit}";
+        $"Fullness {Show(Fullness)}/{Show(FullnessLimit)} · Inebriety {Show(Inebriety)}/{Show(InebrietyLimit)} · Spleen {Show(Spleen)}/{Show(SpleenLimit)}";
 
     private static string Show(int? value) => value?.ToString() ?? "?";
 }
@@ -128,12 +129,19 @@ public static class InventoryActionPlanner
                 if (first) { added = add; first = false; }
                 continue;
             }
-            var left = limit - now;
+            if (limit is not { } lim)
+            {
+                known = false;
+                messages.Add($"Adds {add} {label}; your {label} limit is not known (KoL did not report it), so overfilling is unverified.");
+                if (first) { added = add; first = false; }
+                continue;
+            }
+            var left = lim - now;
             var over = add > left;
             overfills |= over;
             messages.Add(over
-                ? $"{qty} × {c.Name} adds {add} {label}, but only {Math.Max(0, left)} of {limit} {label} remain (assumed limit). KoL may refuse it or you may overfill."
-                : $"Adds {add} {label}; {left - add} of {limit} {label} would remain.");
+                ? $"{qty} × {c.Name} adds {add} {label}, but only {Math.Max(0, left)} of {lim} {label} remain. KoL may refuse it or you may overfill."
+                : $"Adds {add} {label}; {left - add} of {lim} {label} would remain.");
             if (first || over) { added = add; remaining = left; first = false; }
         }
         return new(known, overfills, added, remaining, string.Join(" ", messages));
@@ -149,8 +157,8 @@ public static class InventoryActionPlanner
         foreach (var cost in costs)
         {
             var (current, limit, _) = state.For(cost.Organ);
-            if (cost.Size is not { } size || size <= 0 || current is not { } now) continue;
-            best = Math.Min(best, Math.Max(0, (limit - now) / size));
+            if (cost.Size is not { } size || size <= 0 || current is not { } now || limit is not { } lim) continue;
+            best = Math.Min(best, Math.Max(0, (lim - now) / size));
         }
         return best;
     }

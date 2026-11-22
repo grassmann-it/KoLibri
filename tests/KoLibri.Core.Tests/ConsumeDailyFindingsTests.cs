@@ -23,11 +23,11 @@ public sealed class ConsumeDailyFindingsTests
         Assert.Contains(bear.OrganCosts, c => c.Organ == ItemOrgan.Food);
         Assert.Contains(bear.OrganCosts, c => c.Organ == ItemOrgan.Drink);
         // Empty stomach, liver at 13/14: only the liver blocks it.
-        var check = InventoryActionPlanner.CheckOverfill(bear, 1, new OrganState(0, 13, 0));
+        var check = InventoryActionPlanner.CheckOverfill(bear, 1, new OrganState(0, 13, 0, 15, 14, 15));
         Assert.True(check.Known);
         Assert.True(check.Overfills);
         Assert.Contains("inebriety", check.Message);
-        Assert.Equal(0, InventoryActionPlanner.MaxFitting(bear, new OrganState(0, 13, 0)));
+        Assert.Equal(0, InventoryActionPlanner.MaxFitting(bear, new OrganState(0, 13, 0, 15, 14, 15)));
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public sealed class ConsumeDailyFindingsTests
     {
         var stein = Classifier.Classify("1618");
         Assert.Equal(ItemUseKind.Use, InventoryActionPlanner.UseKindOf(stein));
-        Assert.True(InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 10, 0)).Overfills);
-        Assert.False(InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 0, 0)).Overfills);
+        Assert.True(InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 10, 0, 15, 14, 15)).Overfills);
+        Assert.False(InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 0, 0, 15, 14, 15)).Overfills);
     }
 
     [Fact]
@@ -392,5 +392,20 @@ public sealed class ConsumeDailyFindingsTests
             Assert.False(b.IsDone(keyB, DailyDoneStore.BaconMachine));   // another player on the same role
         }
         finally { foreach (var f in Directory.GetFiles(Path.GetTempPath(), Path.GetFileName(path) + "*")) File.Delete(f); }
+    }
+
+    [Fact]
+    public void Overfill_uses_the_reported_limit_and_is_unverified_when_the_limit_is_unknown()
+    {
+        var stein = Classifier.Classify("1618");
+        // A character with a bigger liver (limit 19) is not warned at 15.
+        Assert.False(InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 10, 0, 15, 19, 15)).Overfills);
+        // No reported limit: neither a block nor a silent allow, an unverified check that asks.
+        var unknown = InventoryActionPlanner.CheckOverfill(stein, 1, new OrganState(0, 10, 0));
+        Assert.False(unknown.Known);
+        Assert.False(unknown.Overfills);
+        Assert.Contains("not known", unknown.Message);
+        Assert.True(InventoryActionPlanner.NeedsConfirmation(unknown));
+        Assert.Contains("Inebriety 10/?", new OrganState(0, 10, 0).Summary);
     }
 }
