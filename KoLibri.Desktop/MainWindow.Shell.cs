@@ -310,7 +310,9 @@ public partial class MainWindow
             new WindowMallPurchasePrompt(this),
             _log,
             _spendLedger,
-            message => Dispatcher.UIThread.Post(() => SetStatus(message)));
+            message => Dispatcher.UIThread.Post(() => SetStatus(message)),
+            new WindowMallReconcilePrompt(this),
+            ct => MallUnclearEvidence.ReadAsync(new LiveMallPurchaseReads(_live, role), ct));
     }
 
     /// <summary>A skill is chosen by name or by ID.</summary>

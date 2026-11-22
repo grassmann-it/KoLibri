@@ -9,7 +9,7 @@ using System.Text.Json;
 /// </summary>
 internal static class AgentGuard
 {
-    private static readonly string[] WriteFlags = ["--execute", "--commit", "--sell"];
+    private static readonly string[] WriteFlags = ["--execute", "--commit", "--sell", "--settle", "--release"];
 
     /// <summary>Commands that change the game even without a write flag.</summary>
     private static readonly string[] AlwaysWriteCommands = ["relay"];

@@ -150,35 +150,30 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
 
         CompareExpected(preview.Observation, before, preview.Request, reasons);
 
-        var expectedMeat = before.Account.Meat - preview.TotalCost;
-        if (after.Account.Meat != expectedMeat)
+        // Inventory is the proof; Meat only has to be plausible (extra income, e.g. shop sales, is fine).
+        var settlement = MallPurchaseSettlement.Evaluate(preview.Request, before, after);
+        switch (settlement.Kind)
         {
-            Add(reasons, MallPurchaseAbortReason.MeatVerificationFailed);
-            Add(reasons, MallPurchaseAbortReason.MeatChanged);
-            messages.Add($"Expected {expectedMeat} Meat after purchase but observed {after.Account.Meat}.");
-        }
-
-        var beforeQuantity = before.InventoryQuantity(preview.Request.ItemId);
-        var afterQuantity = after.InventoryQuantity(preview.Request.ItemId);
-        var delta = afterQuantity - beforeQuantity;
-        if (delta < preview.Request.Quantity)
-        {
-            Add(reasons, MallPurchaseAbortReason.ItemNotReceived);
-            Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-            messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {delta}.");
-        }
-        else if (delta != preview.Request.Quantity)
-        {
-            Add(reasons, MallPurchaseAbortReason.UnexpectedQuantity);
-            Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-            messages.Add($"Expected exactly {preview.Request.Quantity} new item(s) but observed {delta}.");
-        }
-
-        var expectedDailySpent = before.Account.DailySpent + preview.TotalCost;
-        if (after.Account.DailySpent != expectedDailySpent)
-        {
-            Add(reasons, MallPurchaseAbortReason.DailySpendChanged);
-            messages.Add($"Expected daily spend {expectedDailySpent} but observed {after.Account.DailySpent}.");
+            case MallPurchaseSettlementKind.NotReceived:
+                Add(reasons, MallPurchaseAbortReason.ItemNotReceived);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed 0.");
+                break;
+            case MallPurchaseSettlementKind.Partial:
+                Add(reasons, MallPurchaseAbortReason.PartialQuantity);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {settlement.Received}.");
+                break;
+            case MallPurchaseSettlementKind.Excess:
+                Add(reasons, MallPurchaseAbortReason.UnexpectedQuantity);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected exactly {preview.Request.Quantity} new item(s) but observed {settlement.Received}.");
+                break;
+            case MallPurchaseSettlementKind.MeatDropped:
+                Add(reasons, MallPurchaseAbortReason.MeatVerificationFailed);
+                Add(reasons, MallPurchaseAbortReason.MeatChanged);
+                messages.Add(settlement.Message);
+                break;
         }
 
         if (reasons.Count > 0)
@@ -186,6 +181,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             if (reasons.Any(x => x is MallPurchaseAbortReason.MeatVerificationFailed
                 or MallPurchaseAbortReason.InventoryVerificationFailed
                 or MallPurchaseAbortReason.ItemNotReceived
+                or MallPurchaseAbortReason.PartialQuantity
                 or MallPurchaseAbortReason.UnexpectedQuantity))
                 Add(reasons, MallPurchaseAbortReason.VerificationFailed);
 
@@ -195,7 +191,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 AbortReasons = reasons,
                 Messages = messages,
                 Before = before,
-                After = after
+                After = after,
+                ReceivedQuantity = settlement.Received
             };
         }
 
@@ -203,7 +200,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         {
             Status = MallPurchaseVerificationStatus.Verified,
             Before = before,
-            After = after
+            After = after,
+            ReceivedQuantity = settlement.Received
         };
     }
 
@@ -304,7 +302,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 [exception.Message], before);
         }
 
-        if (!receipt.Accepted)
+        if (!receipt.MaybeSent)
         {
             return new MallPurchaseCommitResult
             {
@@ -322,7 +320,52 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             };
         }
 
-        var verified = Verify(preview, receipt.Before, receipt.After, commitAcknowledged: true);
+        // KoL confirmed the purchase or the outcome is unknown: the inventory decides. When the item is not
+        // visible yet (or the read was stale), re-read a bounded number of times before giving up.
+        var after = receipt.After;
+        var verified = Verify(preview, receipt.Before, after, commitAcknowledged: true);
+        var rereads = 0;
+        while (!verified.Verified && rereads < _policy.ReconcileReads && CanRereadFor(verified))
+        {
+            rereads++;
+            if (_policy.ReconcileDelay > TimeSpan.Zero)
+                await Task.Delay(_policy.ReconcileDelay, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                after = await _transport.RefreshAsync(request, cancellationToken).ConfigureAwait(false);
+                after.Validate();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                continue;   // keep the last proof; the next read may work
+            }
+            verified = Verify(preview, receipt.Before, after, commitAcknowledged: true);
+        }
+
+        if (!receipt.Accepted && !verified.Verified)
+        {
+            // Unknown outcome that no read proved: it may still have been applied.
+            return new MallPurchaseCommitResult
+            {
+                ActionId = actionId,
+                Status = MallPurchaseVerificationStatus.Aborted,
+                Accepted = false,
+                Committed = false,
+                AbortReasons = verified.AbortReasons.Count > 0 ? verified.AbortReasons : [MallPurchaseAbortReason.CommitRejected],
+                Messages = (string.IsNullOrWhiteSpace(receipt.Message)
+                    ? Array.Empty<string>() : [receipt.Message]).Concat(verified.Messages).ToList(),
+                Before = receipt.Before,
+                After = after,
+                Receipt = receipt,
+                ReceivedQuantity = verified.ReceivedQuantity,
+                RereadCount = rereads
+            };
+        }
+
         return new MallPurchaseCommitResult
         {
             ActionId = actionId,
@@ -333,9 +376,17 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             Messages = verified.Messages,
             Before = verified.Before,
             After = verified.After,
-            Receipt = receipt
+            Receipt = receipt,
+            ReceivedQuantity = verified.ReceivedQuantity,
+            RereadCount = rereads
         };
     }
+
+    /// <summary>Only a missing item or an unusable read can still change with time; a wrong quantity or Meat cannot.</summary>
+    private static bool CanRereadFor(MallPurchaseVerificationResult verified)
+        => verified.AbortReasons.Contains(MallPurchaseAbortReason.ItemNotReceived)
+           || verified.AbortReasons.Contains(MallPurchaseAbortReason.StaleAccount)
+           || verified.AbortReasons.Contains(MallPurchaseAbortReason.SessionInvalid);
 
     private MallPurchasePreview BuildPreview(
         MallPurchaseRequest request,

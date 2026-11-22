@@ -123,8 +123,10 @@ public sealed class DesktopMallPurchaseServiceTests
         var good = State(100, 9_800, 3, 2, spent: 200);
         Assert.Equal(DesktopMallPurchaseStatus.Purchased, await Run(before, good));
 
-        // KoL says "You bought" but meat did not move.
-        Assert.Equal(DesktopMallPurchaseStatus.Unclear, await Run(before, State(100, 10_000, 3, 2, spent: 200)));
+        // The item arrived; Meat only has to be plausible (income may cancel the price), so this settles.
+        Assert.Equal(DesktopMallPurchaseStatus.Purchased, await Run(before, State(100, 10_000, 3, 2, spent: 200)));
+        // The item arrived but Meat fell by more than the price: unclear.
+        Assert.Equal(DesktopMallPurchaseStatus.Unclear, await Run(before, State(100, 9_000, 3, 2, spent: 200)));
         // Meat moved but the item never arrived.
         Assert.Equal(DesktopMallPurchaseStatus.Unclear, await Run(before, State(100, 9_800, 3, 0, spent: 200)));
 
@@ -144,7 +146,7 @@ public sealed class DesktopMallPurchaseServiceTests
 
     private static DesktopMallPurchaseService Service(
         IMallPurchaseTransport transport, DesktopMallPurchaseOptions? options = null)
-        => new(transport, options, null, new FixedTime());
+        => new(transport, (options ?? new DesktopMallPurchaseOptions()) with { ReconcileDelay = TimeSpan.Zero }, null, new FixedTime());
 
     private static FixtureMallPurchaseTransport Fixture(long price, long meat, int qty, long dailySpent = 0)
         => new(State("42", "item-1", price, meat, qty, 0, dailySpent, 1_000_000));

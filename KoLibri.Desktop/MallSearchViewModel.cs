@@ -181,6 +181,23 @@ public sealed class MallSearchViewModel : DesktopViewModel
     /// <summary>Set by the host once the purchase flow exists.</summary>
     public IMallPurchaseRequest? PurchaseRequest { get; set; }
 
+    /// <summary>Resolves unclear purchase meat by explicit user action (see <see cref="MallPurchaseCoordinator.ReconcileUnclearAsync"/>).</summary>
+    public MallPurchaseCoordinator? Reconciler => PurchaseRequest as MallPurchaseCoordinator;
+
+    private long _unclearAmount;
+    public long UnclearAmount { get => _unclearAmount; private set { if (SetProperty(ref _unclearAmount, value)) { OnPropertyChanged(nameof(HasUnclear)); OnPropertyChanged(nameof(UnclearText)); } } }
+    public bool HasUnclear => _unclearAmount > 0;
+    public string UnclearText => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"{_unclearAmount:N0} Meat of today's purchases are counted as unclear against the daily budget.");
+
+    public void RefreshUnclear() => UnclearAmount = Reconciler?.UnclearAmount ?? 0;
+
+    public async Task ReconcileUnclearAsync()
+    {
+        if (Reconciler is { } r) await r.ReconcileUnclearAsync(CancellationToken.None).ConfigureAwait(true);
+        RefreshUnclear();
+    }
+
     public string SearchText { get => _searchText; set => SetProperty(ref _searchText, value); }
     public string StatusText { get => _status; private set => SetProperty(ref _status, value); }
     public string? SearchError
@@ -258,6 +275,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         var hook = PurchaseRequest;
         if (hook is null || !hook.CanRequest(row)) return;
         await hook.RequestAsync(row, CancellationToken.None).ConfigureAwait(true);
+        RefreshUnclear();
     }
 
     /// <summary>Resolves what the user typed: an item id or an exact name becomes an exact (quoted) search.</summary>

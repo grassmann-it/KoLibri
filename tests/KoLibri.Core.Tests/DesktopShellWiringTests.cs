@@ -152,7 +152,7 @@ public sealed class DesktopShellWiringTests
         Assert.Equal(1, fixture.CommitCount);
         Assert.Equal(2, prompt.Quantity);
         Assert.Equal(200, ledger.SpentToday("Mallbot"));
-        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.Contains("Purchased"));
+        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.StartsWith("Settled:"));
     }
 
     [Fact]

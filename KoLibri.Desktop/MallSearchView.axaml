@@ -34,6 +34,11 @@
           <TextBlock Text="{Binding SearchError}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"
                      AutomationProperties.Name="Search error" />
         </Border>
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasUnclear}">
+          <Button x:Name="ReconcileButton" Content="Reconcile unclear purchases" Classes="secondary"
+                  Click="ReconcileClick" AutomationProperties.Name="Reconcile unclear purchases" />
+          <TextBlock Text="{Binding UnclearText}" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" />
+        </StackPanel>
         <TextBlock Text="{Binding Notice}" IsVisible="{Binding HasNotice}"
                    Classes="muted" TextWrapping="Wrap" FontSize="12" />
       </StackPanel>

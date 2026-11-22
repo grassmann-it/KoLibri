@@ -12,6 +12,7 @@ and the **desktop UI** (an early example client). It is usable but not stable; i
 - **Choice policy and `needsDecision`:** choice adventures follow a configurable policy; when no rule applies the run stops and asks (CLI and MCP) instead of guessing.
 - **MCP rights binding:** write tools need granted rights with daily limits, are two-step (preview returns a `planId`, the second call executes once), and `kol_consume` / `kol_rest` are covered by `item.use`. The handshake reports the real package version and an accurate server description.
 - **Item classification:** item data and classification used by inventory, mall and planners.
+- **Mall purchase reconciliation:** a purchase settles when a fresh inventory read shows exactly the ordered quantity; Meat is only a one-way plausibility check, so shop income no longer turns a successful buy into "unclear". Unclear entries can be resolved by explicit user action (`kolibri mall-reconcile`, Mall page button).
 - **11-leaf clover arbitrage:** plan and buy from live Mall offers with per-shop limits, budget and meat reserve.
 - **Desktop browser and auto-login:** a Browser page runs the relay in-process in an embedded web view (own cookie jar, relay origin only); "Log in again automatically" is on by default and renews stale sessions once at start.
 - **Desktop tabs:** live character pane, inventory, skills (gated Cast), adventures, mall and daily tabs.

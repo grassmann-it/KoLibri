@@ -129,6 +129,37 @@ public interface IMallPurchasePrompt
         CancellationToken cancellationToken);
 }
 
+/// <summary>The user's decision about unclear purchase meat.</summary>
+public enum MallUnclearDecision { Cancel, WasSpent, NotSpent }
+
+/// <summary>Dialog seam for reconciling unclear meat: shows the amount and fresh evidence, returns the explicit decision.</summary>
+public interface IMallReconcilePrompt
+{
+    Task<MallUnclearDecision> AskAsync(string account, long amount, string evidence, CancellationToken cancellationToken);
+}
+
+/// <summary>Fresh Meat and inventory size as text, so the user can judge an unclear purchase. Never throws for read problems.</summary>
+public static class MallUnclearEvidence
+{
+    public static async Task<string> ReadAsync(IMallPurchaseReads reads, CancellationToken ct)
+    {
+        try
+        {
+            var status = await reads.StatusAsync(ct).ConfigureAwait(false);
+            var inventory = await reads.InventoryAsync(ct).ConfigureAwait(false);
+            var meat = status is null ? "Meat unknown" : string.Create(CultureInfo.InvariantCulture, $"Meat now {status.Meat:N0}");
+            var items = inventory.IsStale || !inventory.HasSession
+                ? "inventory could not be read fresh"
+                : string.Create(CultureInfo.InvariantCulture, $"{inventory.Items.Sum(i => (long)i.Quantity):N0} items in inventory");
+            return $"{meat}; {items}.";
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return "Fresh Meat and inventory could not be read: " + MallPurchaseMessages.Describe(exception);
+        }
+    }
+}
+
 public sealed record MallPurchasePromptContext(string Account, MallOfferRow Offer, int MaxQuantity);
 
 /// <summary>
@@ -143,6 +174,8 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
     private readonly SessionLogViewModel _log;
     private readonly MallSpendLedger _ledger;
     private readonly Action<string>? _report;
+    private readonly IMallReconcilePrompt? _reconcilePrompt;
+    private readonly Func<CancellationToken, Task<string>>? _evidence;
     private int _busy;
 
     public MallPurchaseCoordinator(
@@ -151,8 +184,12 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
         IMallPurchasePrompt prompt,
         SessionLogViewModel log,
         MallSpendLedger ledger,
-        Action<string>? report = null)
+        Action<string>? report = null,
+        IMallReconcilePrompt? reconcilePrompt = null,
+        Func<CancellationToken, Task<string>>? evidence = null)
     {
+        _reconcilePrompt = reconcilePrompt;
+        _evidence = evidence;
         _account = account;
         _open = open;
         _prompt = prompt;
@@ -162,6 +199,66 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
     }
 
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
+
+    /// <summary>Meat of today still counted as unclear for this account (0 when none or unreadable).</summary>
+    public long UnclearAmount => Math.Max(0, _ledger.UnclearAmount(_account));
+
+    /// <summary>
+    /// Resolves unclear meat by explicit user action: shows the amount and fresh Meat/inventory, then either
+    /// settles it (it was bought) or releases it (it was not). Cancel changes nothing. Never silent.
+    /// Returns the decision (Cancel when nothing was changed).
+    /// </summary>
+    public async Task<MallUnclearDecision> ReconcileUnclearAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return MallUnclearDecision.Cancel;
+        try
+        {
+            var amount = _ledger.UnclearAmount(_account);
+            if (amount < 0)
+            {
+                Say(SessionLogKind.Error, $"Reconcile: the spend ledger cannot be read ({_ledger.Problem}). Nothing was changed.");
+                return MallUnclearDecision.Cancel;
+            }
+            if (amount == 0)
+            {
+                Say(SessionLogKind.Purchase, "Reconcile: no unclear purchases for today.");
+                return MallUnclearDecision.Cancel;
+            }
+            if (_reconcilePrompt is null) return MallUnclearDecision.Cancel;
+            var evidence = _evidence is null ? "" : await _evidence(cancellationToken).ConfigureAwait(true);
+            var decision = await _reconcilePrompt.AskAsync(_account, amount, evidence, cancellationToken).ConfigureAwait(true);
+            if (decision == MallUnclearDecision.Cancel)
+            {
+                Say(SessionLogKind.Purchase, string.Create(CultureInfo.InvariantCulture,
+                    $"Reconcile cancelled: {amount:N0} Meat stays counted as unclear."));
+                return decision;
+            }
+            var spent = decision == MallUnclearDecision.WasSpent;
+            if (!_ledger.ResolveUnclear(_account, amount, spent))
+            {
+                Say(SessionLogKind.Error, "Reconcile: the unclear amount changed meanwhile. Nothing was changed; try again.");
+                return MallUnclearDecision.Cancel;
+            }
+            var shown = amount.ToString("N0", CultureInfo.InvariantCulture);
+            Say(SessionLogKind.Purchase, spent
+                ? $"Reconciled: {shown} Meat counted as spent."
+                : $"Reconciled: {shown} Meat released (not bought).");
+            return decision;
+        }
+        catch (OperationCanceledException)
+        {
+            return MallUnclearDecision.Cancel;
+        }
+        catch (Exception exception)
+        {
+            Say(SessionLogKind.Error, $"Reconcile failed: {MallPurchaseMessages.Describe(exception)}");
+            return MallUnclearDecision.Cancel;
+        }
+        finally
+        {
+            Volatile.Write(ref _busy, 0);
+        }
+    }
 
     public bool CanRequest(MallOfferRow offer)
         => !IsBusy && !offer.IsStale && offer.UnitPrice > 0 && offer.Stock != 0 && long.TryParse(offer.ShopId, out _);
@@ -206,8 +303,9 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
                 return;
             }
 
+            // A progress line only; the outcome gets exactly one final line below (Settled, Unclear, Rejected, ...).
             _log.Purchase(string.Create(CultureInfo.InvariantCulture,
-                $"Confirmed: {chosen.Quantity} x {offer.ItemName} at {chosen.UnitPrice:N0}, total {chosen.TotalPrice:N0}."));
+                $"Sending purchase: {chosen.Quantity} x {offer.ItemName} at {chosen.UnitPrice:N0}, total {chosen.TotalPrice:N0}."));
             // Reserved (and written to disk) before the POST; settled only once meat and inventory prove it.
             // A save failure, an invalid ledger or an exceeded daily budget stops the purchase here.
             if (!_ledger.TryReserve(_account, chosen.TotalPrice, session.Service.Options.MaxDailySpend, out var ledgerError))
@@ -229,11 +327,18 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             switch (result.Status)
             {
                 case DesktopMallPurchaseStatus.Purchased: _ledger.Settle(_account, chosen.TotalPrice); break;
+                case DesktopMallPurchaseStatus.Partial:
+                    _ledger.SettlePartial(_account, chosen.TotalPrice, chosen.UnitPrice * result.ReceivedQuantity); break;
                 case DesktopMallPurchaseStatus.Unclear: _ledger.MarkUnclear(_account, chosen.TotalPrice); break;
                 default: _ledger.Release(_account, chosen.TotalPrice); break;
             }
-            Say(result.Succeeded ? SessionLogKind.Purchase : SessionLogKind.Error,
-                $"{result.Status}: {result.Message}");
+            var label = result.Status switch
+            {
+                DesktopMallPurchaseStatus.Purchased => "Settled",
+                DesktopMallPurchaseStatus.NotSent => "Not sent",
+                _ => result.Status.ToString()
+            };
+            Say(result.Succeeded ? SessionLogKind.Purchase : SessionLogKind.Error, $"{label}: {result.Message}");
         }
         catch (OperationCanceledException)
         {

@@ -49,6 +49,7 @@ internal static partial class KolibriCli
                 "relay" => await RelayAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
+                "mall-reconcile" => await MallReconcileAsync(args[1..]),
                 "arbitrage" => await ArbitrageAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
                 "compare" or "history" => await CompareAsync(args[1..]),
@@ -294,6 +295,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests are free; other rests can cost adventures)");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
+        Console.WriteLine("  mall-reconcile --role mallbot [--settle|--release]   resolve unclear Mall purchase Meat (asks to confirm the amount)");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
         Console.WriteLine("  compare --role mallbot --item ITEM_ID [--item ITEM_ID] [--refresh]");
         Console.WriteLine("  bribe-rank --role mallbot --item 8691 [--currency-value CURRENCY:MEAT] [--refresh]");

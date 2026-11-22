@@ -267,9 +267,17 @@ public sealed record MallPurchasePolicy
     public int? MaxQuantityPerPurchase { get; init; } = 10;
     /// <summary>Meat that must stay on the account after the purchase, checked against the fresh commit-time reading (0 .. 1 000 000 000, default 0).</summary>
     public long MeatReserve { get; init; }
+    /// <summary>How often the inventory is re-read after a confirmed or indeterminate purchase when the item is not visible yet (0 .. 5, default 2).</summary>
+    public int ReconcileReads { get; init; } = 2;
+    /// <summary>Wait before each such re-read (default 3 s).</summary>
+    public TimeSpan ReconcileDelay { get; init; } = TimeSpan.FromSeconds(3);
 
     public void Validate()
     {
+        if (ReconcileReads is < 0 or > 5)
+            throw new ArgumentOutOfRangeException(nameof(ReconcileReads));
+        if (ReconcileDelay < TimeSpan.Zero || ReconcileDelay > TimeSpan.FromMinutes(1))
+            throw new ArgumentOutOfRangeException(nameof(ReconcileDelay));
         if (PreviewLifetime <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(PreviewLifetime));
         if (MaxObservationAge <= TimeSpan.Zero)
@@ -335,7 +343,9 @@ public enum MallPurchaseAbortReason
     MeatVerificationFailed,
     InventoryVerificationFailed,
     ItemNotReceived,
-    UnexpectedQuantity
+    UnexpectedQuantity,
+    /// <summary>Fewer units than ordered arrived (a partial purchase).</summary>
+    PartialQuantity
 }
 
 public enum MallPurchaseVerificationStatus
@@ -508,6 +518,8 @@ public sealed record MallPurchaseVerificationResult
     public IReadOnlyList<string> Messages { get; init; } = Array.Empty<string>();
     public MallPurchaseObservation? Before { get; init; }
     public MallPurchaseObservation? After { get; init; }
+    /// <summary>Units the inventory read proves arrived (0 when none or unknown).</summary>
+    public int ReceivedQuantity { get; init; }
     public MallPurchaseAbortReason? PrimaryAbortReason
         => AbortReasons.Count == 0 ? null : AbortReasons[0];
 }
@@ -528,6 +540,10 @@ public sealed record MallPurchaseCommitResult
     public MallPurchaseObservation? Before { get; init; }
     public MallPurchaseObservation? After { get; init; }
     public MallPurchaseTransportReceipt? Receipt { get; init; }
+    /// <summary>Units the inventory read proves arrived (0 when none or unknown).</summary>
+    public int ReceivedQuantity { get; init; }
+    /// <summary>Fresh inventory re-reads that were needed before the outcome was known.</summary>
+    public int RereadCount { get; init; }
     public MallPurchaseAbortReason? PrimaryAbortReason
         => AbortReasons.Count == 0 ? null : AbortReasons[0];
 }
