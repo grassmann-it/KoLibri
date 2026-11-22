@@ -297,7 +297,7 @@ internal static partial class KolibriCli
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
         Console.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
-        Console.WriteLine("  relay --role main|mallbot [--port 8765] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
+        Console.WriteLine("  relay --role main|mallbot [--port 8766] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
         Console.WriteLine("  login status [--role main|mallbot|all]       shows stored sessions + cookies");
         Console.WriteLine("  login clear --role main|mallbot|all          deletes stored credentials");
