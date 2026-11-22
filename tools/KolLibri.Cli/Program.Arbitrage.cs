@@ -6,15 +6,9 @@ using LibKolibri;
 
 internal static partial class KolibriCli
 {
-    /// <summary>Inventory and meat reads for the purchase gateway, from the account read client.</summary>
-    private sealed class CliArbitrageReads(KoLAccountReadClient api) : IArbitrageAccountReads
-    {
-        public async Task<long> MeatAsync(CancellationToken ct) => (await api.FetchStatusAsync(true, ct).ConfigureAwait(false)).Meat;
-
-        public async Task<IReadOnlyDictionary<string, int>> InventoryAsync(CancellationToken ct)
-            => (await api.FetchInventoryAsync(true, ct).ConfigureAwait(false)).Items
-                .GroupBy(i => i.ItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity), StringComparer.Ordinal);
-    }
+    /// <summary>Live Meat or an error: a cached value must never decide a purchase.</summary>
+    private static Task<long> FreshMeatAsync(KoLAccountReadClient api, CancellationToken ct)
+        => new LiveArbitrageAccountReads(api).MeatAsync(ct);
 
     private static async Task<int> ArbitrageAsync(string[] args)
     {
@@ -73,6 +67,8 @@ internal static partial class KolibriCli
                 case "list":
                     listPrice = ArbitrageNumber<long>(args, "--price", 0);
                     if (listPrice < 1) throw new ArgumentException("--then list needs --price N.");
+                    if (listPrice > int.MaxValue)
+                        throw new ArgumentException($"--price {listPrice:N0} is too high: the shop API takes at most {int.MaxValue:N0}. Nothing was bought.");
                     break;
                 case "send-to":
                     var target = thenIndex + 2 < args.Length ? args[thenIndex + 2] : null;
@@ -92,7 +88,7 @@ internal static partial class KolibriCli
         var api = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver());
         var mall = new KoLMallReadClient(http, itemNameResolver: BuildItemNameResolver());
         using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var meat = (await api.FetchStatusAsync(true)).Meat;
+        var meat = await FreshMeatAsync(api, CancellationToken.None);
         var plan = await ItemArbitrageService.PlanAsync(mall, new PricegunReadClient(pricegunHttp), itemId, settings, meat,
             forceRefresh: refresh);
         if (!buy)
@@ -104,7 +100,7 @@ internal static partial class KolibriCli
         var credentials = (await AccountSessionManager.CreateDefault().GetSessionAsync(role))?.Credentials
             ?? throw new InvalidOperationException($"{role} is not logged in.");
         var ledger = new ArbitrageSpendLedger(ArbitrageSpendLedger.DefaultPath());
-        var executor = ItemArbitrageExecutor.Create(http, credentials, mall, new CliArbitrageReads(api), ledger,
+        var executor = ItemArbitrageExecutor.Create(http, credentials, mall, new LiveArbitrageAccountReads(api), ledger,
             role.ToString(), plan, settings);
         if (!execute)
         {
@@ -125,8 +121,8 @@ internal static partial class KolibriCli
                 followUp = new { list = "skipped", reason = $"Already listed at {listed.Price:N0}; KoL only lists items that are not listed yet." };
             else
             {
-                var result = await lister.ListAsync(credentials, itemId, (int)Math.Min(int.MaxValue, listPrice), run.UnitsBought);
-                followUp = new { list = result.Accepted ? "listed" : "not listed", quantity = run.UnitsBought, price = listPrice, result.Message };
+                var result = await lister.ListAsync(credentials, itemId, (int)listPrice, run.UnitsBought);
+                followUp = new { list = result.Accepted ? "listed" : "not listed", quantity = run.UnitsBought, price = (int)listPrice, result.Message };
             }
         }
         else if (run.UnitsBought > 0 && sendTo is { } to)

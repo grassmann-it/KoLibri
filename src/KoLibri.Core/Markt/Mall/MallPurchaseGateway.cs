@@ -427,7 +427,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 : MallPurchaseAbortReason.StaleAccount);
 
         var total = request.TotalCost;
-        if (observation.Account.Meat < total)
+        if (observation.Account.Meat < total
+            || (_policy.MeatReserve > 0 && observation.Account.Meat - total < _policy.MeatReserve))
             Add(reasons, MallPurchaseAbortReason.InsufficientMeat);
         if (observation.Account.DailySpent + total > observation.Account.DailyLimit)
             Add(reasons, MallPurchaseAbortReason.DailyLimitExceeded);

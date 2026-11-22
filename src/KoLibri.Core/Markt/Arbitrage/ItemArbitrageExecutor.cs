@@ -45,6 +45,30 @@ public interface IArbitrageAccountReads
 }
 
 /// <summary>
+/// Meat and inventory reads that only accept live data: a stale (cached) status or inventory throws, so a
+/// purchase is refused with a readable message instead of being decided on an old copy.
+/// </summary>
+public sealed class LiveArbitrageAccountReads(IAccountReadClient api) : IArbitrageAccountReads
+{
+    public async Task<long> MeatAsync(CancellationToken cancellationToken)
+    {
+        var status = await api.FetchStatusAsync(true, cancellationToken).ConfigureAwait(false);
+        if (status.IsStale)
+            throw new InvalidOperationException("Meat could not be read live (only an old copy is available); nothing is bought until it can.");
+        return status.Meat;
+    }
+
+    public async Task<IReadOnlyDictionary<string, int>> InventoryAsync(CancellationToken cancellationToken)
+    {
+        var inventory = await api.FetchInventoryAsync(true, cancellationToken).ConfigureAwait(false);
+        if (inventory.IsStale)
+            throw new InvalidOperationException("The inventory could not be read live (only an old copy is available); nothing is bought until it can.");
+        return inventory.Items.GroupBy(i => i.ItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity), StringComparer.Ordinal);
+    }
+}
+
+/// <summary>
 /// Runs the steps of an <see cref="ItemArbitragePlan"/> through the one existing purchase path:
 /// <see cref="MallPurchaseGateway"/> with <see cref="HttpMallPurchaseTransport"/> (which builds the form with
 /// <see cref="MallBuyClient.BuildPurchaseForm"/>). Each step is previewed first, sends at most one purchase POST,
@@ -58,9 +82,12 @@ public sealed class ItemArbitrageExecutor
     private readonly IMallPurchaseGateway _gateway;
     private readonly ArbitrageSpendLedger _ledger;
     private readonly string _account;
+    private readonly long? _dailyBudget;
 
-    public ItemArbitrageExecutor(IMallPurchaseGateway gateway, ArbitrageSpendLedger ledger, string account)
+    /// <param name="dailyBudget">When set, the reservation itself checks this daily limit against everything the ledger counts (also other processes).</param>
+    public ItemArbitrageExecutor(IMallPurchaseGateway gateway, ArbitrageSpendLedger ledger, string account, long? dailyBudget = null)
     {
+        _dailyBudget = dailyBudget;
         _gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
         _account = string.IsNullOrWhiteSpace(account) ? "default" : account;
@@ -96,10 +123,11 @@ public sealed class ItemArbitrageExecutor
             DryRun = false,
             RequireApproval = false,   // --execute / the MCP grant is the approval
             MaxDailySpend = settings.Budget,
+            MeatReserve = settings.MeatReserve,   // re-checked against the fresh meat right before the POST
             MaxMeatPerPurchase = Math.Max(1, plan.Steps.Select(s => s.Total).DefaultIfEmpty(1).Max()),
             MaxQuantityPerPurchase = Math.Max(1, plan.Steps.Select(s => s.Quantity).DefaultIfEmpty(1).Max())
         });
-        return new ItemArbitrageExecutor(gateway, ledger, account);
+        return new ItemArbitrageExecutor(gateway, ledger, account, settings.Budget);
     }
 
     /// <summary>Previews every step against fresh reads. Sends nothing.</summary>
@@ -148,7 +176,11 @@ public sealed class ItemArbitrageExecutor
         if (!preview.IsReady) return NotSent(step, preview);
 
         // Reserved (and written to disk) before the POST; settled only once meat and inventory prove it.
-        _ledger.Reserve(_account, step.Total);
+        // The reservation checks the budget and is saved in one cross-process transaction; if it cannot be
+        // stored (invalid ledger, lock, write failure) nothing is sent.
+        if (!_ledger.TryReserve(_account, step.Total, _dailyBudget, out var ledgerError))
+            return new(step, ArbitrageStepStatus.NotSent, 0, 0, ledgerError ?? "The spend ledger refused the reservation.",
+                [MallPurchaseAbortReason.DailyLimitExceeded]);
         MallPurchaseCommitResult commit;
         try
         {

@@ -7,210 +7,18 @@ namespace KoLibri.Desktop;
 
 /// <summary>
 /// Meat spent through the desktop mall purchase per account and KoL day, kept in a small JSON file next to
-/// the settings (never credentials) so the budget survives a restart. A purchase is reserved before the POST,
-/// settled once meat and inventory are verified, released when nothing was sent, and stays reserved
-/// ("unclear") until <see cref="Reconcile"/> when the outcome is not proven. A reservation still open at
-/// startup counts as unclear. Without a path the ledger is in memory only.
+/// the settings (never credentials). It shares the cross-process, fail-closed transaction rules of
+/// <see cref="FileSpendLedger"/>: a purchase is reserved (limit checked, reservation saved) before the POST,
+/// settled once meat and inventory are verified, released when nothing was sent, and stays counted
+/// ("unclear") until <see cref="FileSpendLedger.Reconcile"/> when the outcome is not proven.
+/// Without a path the ledger is in memory only.
 /// </summary>
-public sealed class MallSpendLedger
+public sealed class MallSpendLedger(TimeProvider? clock = null, string? path = null) : FileSpendLedger(path, clock)
 {
-    private sealed class Entry
-    {
-        public string Day { get; set; } = "";
-        public long Settled { get; set; }
-        public long Unclear { get; set; }
-        public long Reserved { get; set; }
-    }
-
-    private readonly object _gate = new();
-    private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
-    private readonly TimeProvider _clock;
-    private readonly string? _path;
-
-    public MallSpendLedger(TimeProvider? clock = null, string? path = null)
-    {
-        _clock = clock ?? TimeProvider.System;
-        _path = path;
-        Load();
-    }
-
     /// <summary>The ledger file that sits next to the given settings file.</summary>
     public static string PathNextTo(DesktopSettingsStore store)
         => System.IO.Path.Combine(
             System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(store.Path))!, "mall-spend-ledger.json");
-
-    /// <summary>The KoL day: it rolls over at 03:30 Eastern time (fixed UTC-5 where the zone is unknown).</summary>
-    private string Today
-    {
-        get
-        {
-            var utc = _clock.GetUtcNow();
-            TimeSpan offset;
-            try { offset = TimeZoneInfo.FindSystemTimeZoneById("America/New_York").GetUtcOffset(utc); }
-            catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException)
-            { offset = TimeSpan.FromHours(-5); }
-            return DateOnly.FromDateTime((utc + offset - TimeSpan.FromHours(3.5)).DateTime)
-                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        }
-    }
-
-    private Entry Current(string account)
-    {
-        var today = Today;
-        if (!_entries.TryGetValue(account, out var e) || e.Day != today)
-            _entries[account] = e = new Entry { Day = today };
-        return e;
-    }
-
-    /// <summary>Settled plus unclear spending today. A reservation of a purchase that is being sent right now is not
-    /// included: the gateway adds that purchase itself.</summary>
-    public long SpentToday(string account)
-    {
-        lock (_gate)
-        {
-            var e = Current(account);
-            // An unreadable ledger file must not unlock the budget: it counts as fully spent until fixed or removed.
-            return e.Settled + e.Unclear + (_unreadable ? long.MaxValue / 4 : 0);
-        }
-    }
-
-    /// <summary>Meat reserved for outcomes that were never proven.</summary>
-    public long UnclearToday(string account)
-    {
-        lock (_gate) return Current(account).Unclear;
-    }
-
-    /// <summary>Written before the POST so a crash in between still counts the meat.</summary>
-    public void Reserve(string account, long meat)
-    {
-        if (meat <= 0) return;
-        lock (_gate)
-        {
-            Current(account).Reserved += meat;
-            Save();
-        }
-    }
-
-    /// <summary>The reservation turned out verified: it becomes spending.</summary>
-    public void Settle(string account, long meat)
-    {
-        if (meat <= 0) return;
-        lock (_gate)
-        {
-            var e = Current(account);
-            e.Reserved = Math.Max(0, e.Reserved - meat);
-            e.Settled += meat;
-            Save();
-        }
-    }
-
-    /// <summary>Nothing was sent: the reservation is dropped.</summary>
-    public void Release(string account, long meat)
-    {
-        if (meat <= 0) return;
-        lock (_gate)
-        {
-            var e = Current(account);
-            e.Reserved = Math.Max(0, e.Reserved - meat);
-            Save();
-        }
-    }
-
-    /// <summary>The outcome is not proven: the reservation stays counted until reconciled.</summary>
-    public void MarkUnclear(string account, long meat)
-    {
-        if (meat <= 0) return;
-        lock (_gate)
-        {
-            var e = Current(account);
-            e.Reserved = Math.Max(0, e.Reserved - meat);
-            e.Unclear += meat;
-            Save();
-        }
-    }
-
-    /// <summary>The user checked inventory and meat: unclear meat is either spent or not.</summary>
-    public void Reconcile(string account, long actuallySpent)
-    {
-        lock (_gate)
-        {
-            var e = Current(account);
-            e.Settled += Math.Max(0, actuallySpent);
-            e.Unclear = 0;
-            Save();
-        }
-    }
-
-    /// <summary>Records meat that was spent and verified without a reservation.</summary>
-    public void Add(string account, long meat)
-    {
-        if (meat <= 0) return;
-        lock (_gate)
-        {
-            Current(account).Settled += meat;
-            Save();
-        }
-    }
-
-    private void Load()
-    {
-        if (_path is null) return;
-        try
-        {
-            if (!File.Exists(_path)) return;
-            if (System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(_path)) is not System.Text.Json.Nodes.JsonObject root
-                || root["accounts"] is not System.Text.Json.Nodes.JsonObject accounts) return;
-            var today = Today;
-            foreach (var (name, node) in accounts)
-            {
-                if (node is not System.Text.Json.Nodes.JsonObject o
-                    || (string?)o["day"] != today) continue;
-                var e = new Entry
-                {
-                    Day = today,
-                    Settled = Math.Max(0, (long?)o["settled"] ?? 0),
-                    // A reservation that never settled may have been sent: it stays counted.
-                    Unclear = Math.Max(0, (long?)o["unclear"] ?? 0) + Math.Max(0, (long?)o["reserved"] ?? 0)
-                };
-                _entries[name] = e;
-            }
-        }
-        catch (Exception e) when (e is IOException or System.Text.Json.JsonException or UnauthorizedAccessException
-                                      or InvalidOperationException or FormatException)
-        {
-            // An unreadable ledger must not unlock the budget: treat the whole limit as spent today.
-            _unreadable = true;
-        }
-    }
-
-    private bool _unreadable;
-
-    /// <summary>True when the ledger file existed but could not be read.</summary>
-    public bool Unreadable => _unreadable;
-
-    private void Save()
-    {
-        if (_path is null) return;
-        try
-        {
-            var accounts = new System.Text.Json.Nodes.JsonObject();
-            foreach (var (name, e) in _entries)
-                accounts[name] = new System.Text.Json.Nodes.JsonObject
-                {
-                    ["day"] = e.Day, ["settled"] = e.Settled, ["unclear"] = e.Unclear, ["reserved"] = e.Reserved
-                };
-            var json = new System.Text.Json.Nodes.JsonObject { ["version"] = 1, ["accounts"] = accounts }
-                .ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(_path))!);
-            var tmp = _path + ".tmp";
-            File.WriteAllText(tmp, json);
-            File.Move(tmp, _path, overwrite: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // The in-memory counters still hold for this run.
-        }
-    }
 }
 
 /// <summary>The three reads a purchase needs; the live implementation goes through <see cref="DesktopLiveDataProvider"/>.</summary>
@@ -401,7 +209,12 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             _log.Purchase(string.Create(CultureInfo.InvariantCulture,
                 $"Confirmed: {chosen.Quantity} x {offer.ItemName} at {chosen.UnitPrice:N0}, total {chosen.TotalPrice:N0}."));
             // Reserved (and written to disk) before the POST; settled only once meat and inventory prove it.
-            _ledger.Reserve(_account, chosen.TotalPrice);
+            // A save failure, an invalid ledger or an exceeded daily budget stops the purchase here.
+            if (!_ledger.TryReserve(_account, chosen.TotalPrice, session.Service.Options.MaxDailySpend, out var ledgerError))
+            {
+                Say(SessionLogKind.Error, $"Nothing was bought: {ledgerError}");
+                return;
+            }
             DesktopMallPurchaseResult result;
             try
             {
