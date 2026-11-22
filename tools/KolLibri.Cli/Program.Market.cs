@@ -258,7 +258,7 @@ internal static partial class KolibriCli
             {
                 using var http = await ReadAuthenticatedHttpAsync(AccountRole.Mallbot);
                 var api = new KoLAccountReadClient(http);
-                var mall = new KoLMallReadClient(http);
+                var mall = new KoLMallReadClient(http, itemNameResolver: BuildItemNameResolver());
                 meat = (await api.FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"))).Meat;
                 var bags = await mall.SearchAsync("bag of foreign bribes", forceRefresh: HasFlag(args, "--refresh"));
                 if (bags.Listings.Count > 0)

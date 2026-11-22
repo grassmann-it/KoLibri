@@ -311,6 +311,7 @@ public partial class KolibriMcpServer
         Register("kol_plan_daily_adventures", "Build a daily adventure plan from a read-only state snapshot.", AdventureSchema(), AdventureAsync);
         Register("kol_preview_purchase", "Validate a proposed purchase and return a review object only.", PurchaseSchema(), PurchasePreviewAsync);
         Register("kol_preview_transfer", "Validate a proposed cross-account transfer and return a review object only.", TransferSchema(), TransferPreviewAsync);
+        RegisterArbitrageTool();
         RegisterAdventurePreviewTools();
         if (_executionBridge is not null) RegisterAdventureExecutionTools();
         RegisterDailyPlannerTools();

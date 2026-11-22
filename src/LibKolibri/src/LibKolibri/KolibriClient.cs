@@ -39,7 +39,7 @@ public sealed class KolibriClient : IDisposable
         _session = session;
         _http = KoLLoginClient.CreateAuthenticatedClient(session.Credentials, KolBase);
         _read = new KoLAccountReadClient(_http);
-        _mall = new KoLMallReadClient(_http);
+        _mall = new KoLMallReadClient(_http, itemNameResolver: KoLibri.Core.Spiel.BundledItemNames.Resolver);
     }
 
     public AccountRole Role => _session.Profile.Role;
@@ -333,7 +333,7 @@ public sealed class KolibriClient : IDisposable
         _session = renewed;
         _http = KoLLoginClient.CreateAuthenticatedClient(renewed.Credentials, KolBase);
         _read = new KoLAccountReadClient(_http);
-        _mall = new KoLMallReadClient(_http);
+        _mall = new KoLMallReadClient(_http, itemNameResolver: KoLibri.Core.Spiel.BundledItemNames.Resolver);
     }
 
     public void Dispose() => _http.Dispose();

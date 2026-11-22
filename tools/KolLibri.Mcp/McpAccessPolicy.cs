@@ -31,6 +31,7 @@ public static class McpAccessPolicy
         ["kol_price_recommendation"] = "market.search",
         ["kol_underprice_preview"] = "market.search",
         ["kol_preview_purchase"] = "market.search",
+        ["kol_arbitrage_plan"] = "market.search",
         ["kol_preview_transfer"] = "account.status",
         ["kol_shop_sales"] = "shop.read",
         ["kol_shop_buyers"] = "shop.read",
