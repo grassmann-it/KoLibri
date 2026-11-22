@@ -89,21 +89,14 @@ public sealed class KoLibriUxCatalog
 
     private static KoLibriUxCatalog CreateDefault()
     {
-        var shortcuts = new[]
-        {
-            new KoLibriShortcut("shell.shortcut-help", "Keyboard shortcuts", "F1", Scope: "application", IsConfigurable: false),
-            new KoLibriShortcut("shell.context-menu", "Open context menu", "Shift+F10", Scope: "selection"),
-            new KoLibriShortcut("shell.dismiss-overlay", "Dismiss overlay", "Escape", Scope: "application", IsConfigurable: false),
-            new KoLibriShortcut("navigation.cockpit", "Cockpit", "Ctrl+1", ShellPage.Cockpit),
-            new KoLibriShortcut("navigation.arbitrage", "Arbitrage", "Ctrl+2", ShellPage.Arbitrage),
-            new KoLibriShortcut("navigation.shop", "Shop", "Ctrl+3", ShellPage.Shop),
-            new KoLibriShortcut("navigation.adventure", "Adventure", "Ctrl+4", ShellPage.Adventure),
-            new KoLibriShortcut("navigation.combat", "Combat", "Ctrl+5", ShellPage.Combat),
-            new KoLibriShortcut("navigation.approvals", "Approvals", "Ctrl+6", ShellPage.Approvals),
-            new KoLibriShortcut("navigation.operations", "Operations", "Ctrl+7", ShellPage.Operations),
-            new KoLibriShortcut("adventure.refresh", "Refresh encounter", "F5", ShellPage.Adventure, "adventure"),
-            new KoLibriShortcut("adventure.stop", "Stop local run", "Ctrl+Escape", ShellPage.Adventure, "adventure")
-        };
+        // One catalog: the gestures come from DesktopShortcuts (Cmd on macOS, Ctrl elsewhere).
+        var mac = OperatingSystem.IsMacOS();
+        var shortcuts = DesktopShortcuts.All
+            .Select(item => new KoLibriShortcut(item.Id, item.Label, item.Display(mac),
+                Scope: item.Command == DesktopCommand.ContextMenu ? "selection" : "application",
+                IsConfigurable: false))
+            .Append(new KoLibriShortcut("shell.dismiss-overlay", "Dismiss overlay", "Escape", Scope: "application", IsConfigurable: false))
+            .ToArray();
         var actions = new[]
         {
             new KoLibriContextAction("adventure.inspect", "Inspect encounter", "search", "adventure"),

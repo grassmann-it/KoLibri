@@ -87,7 +87,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         BoundedChoiceChainOptions options,
         bool execute,
         string? approvalToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<(string ChoiceId, string OptionId)>? choiceRules = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
         ArgumentNullException.ThrowIfNull(allowlist);
@@ -96,6 +97,15 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
             return PreviewResult(BoundedChoiceChainStopReason.Complete.ToString(), Array.Empty<object>());
 
         var gateway = await ResolveGatewayAsync(role, approvalToken, cancellationToken).ConfigureAwait(false);
+
+        if (choiceRules is { Count: > 0 }
+            && await gateway.CheckpointStore.LoadAsync(runId.Trim(), cancellationToken).ConfigureAwait(false) is { } stored)
+        {
+            // The user's decision applies to the run being resumed, whatever its location id was.
+            allowlist.AddAdventure(stored.AdventureId);
+            foreach (var (choiceId, optionId) in choiceRules)
+                allowlist.AddChoiceOption(stored.AdventureId, choiceId, optionId);
+        }
 
         var runner = new BoundedChoiceChainRunner(gateway);
         var result = await runner.RunAsync(runId.Trim(), allowlist, options, cancellationToken).ConfigureAwait(false);
@@ -124,7 +134,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         string stopReason,
         NeedsDecisionInfo? needsDecision = null)
         => new(
-            Executed: true,
+            // A run that sent nothing (unknown run, aborted before any step) did not execute anything.
+            Executed: steps.Count > 0,
             StopReason: stopReason,
             Steps: steps.Select(step => new
             {

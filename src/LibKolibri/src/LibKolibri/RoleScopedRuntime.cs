@@ -59,6 +59,12 @@ public sealed class RoleScopedRuntime
         return this;
     }
 
+    /// <summary>Drops a role's overlay, for example when its session was cleared.</summary>
+    public bool ClearRole(AccountRole role)
+    {
+        lock (_gate) return _scopes.Remove(role);
+    }
+
     /// <summary>Registers a complete runtime overlay for a role.</summary>
     public RoleScopedRuntime Register(AccountRole role, LibKolibriRuntime runtime)
     {

@@ -70,7 +70,7 @@ public sealed class CharacterActionOutcomeUnknownException(CharacterAction actio
 
 /// <summary>Outcome of a rest series. Only rests with an observed effect are in <see cref="Rests"/>.</summary>
 public sealed record CharacterRestOutcome(
-    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem);
+    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem, bool Unclear = false);
 
 /// <summary>Submits one explicit character action and returns fresh account observations.</summary>
 public sealed class CharacterActionClient
@@ -133,8 +133,15 @@ public sealed class CharacterActionClient
         var plain = System.Text.RegularExpressions.Regex.Replace(
             System.Text.RegularExpressions.Regex.Replace(responseText, @"(?is)<(script|style).*?</\1>", " "), "<[^>]+>", " ");
         plain = System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(plain), @"\s+", " ").Trim();
+        // KoL answers a refused action with HTTP 200 and a short error page. Show its exact text
+        // instead of reporting a silent success.
+        rejection ??= LooksLikeKoLError(plain) ? $"KoL rejected the action: \"{(plain.Length > 300 ? plain[..300] : plain)}\"" : null;
         return snapshot with { RejectionReason = rejection, ResponseExcerpt = plain.Length > 300 ? plain[..300] : plain };
     }
+
+    private static bool LooksLikeKoLError(string plain)
+        => plain.Length is > 0 and < 400 && System.Text.RegularExpressions.Regex.IsMatch(plain,
+            @"(?i)\b(invalid|bad|wrong|missing)\b.{0,30}\b(pwd|password|hash|session)\b|\b(you|i) (can't|cannot|don't have|do not have|aren't|are not)\b|\bnot (a )?valid\b|\bno such\b|\bnot allowed\b|\byou need\b|\bsomething went wrong\b");
 
     private static int CountItem(KoLInventorySnapshot inventory, int id)
         => inventory.Items.Where(item => item.ItemId == id.ToString(CultureInfo.InvariantCulture))
@@ -241,13 +248,17 @@ public sealed class CharacterActionClient
         var seen = new List<(int, int)>();
         var spent = 0;
         string? problem = null;
+        var unclear = false;
         for (var i = 0; i < times; i++)
         {
             CharacterActionSnapshot after;
             try { after = await ExecuteAsync(new RestAtCampground(), cancellationToken).ConfigureAwait(false); }
-            catch (CharacterActionOutcomeUnknownException unknown) when (seen.Count > 0)
+            catch (Exception e)
             {
-                problem = unknown.Message;
+                // Rests confirmed so far stay in the result; this one was possibly sent, so it is unclear, and
+                // the remaining ones are not started.
+                problem = $"The answer to a rest was lost ({e.Message}); check the account before resting again.";
+                unclear = true;
                 break;
             }
             if (after.RejectionReason is { } refused) { problem = refused + Excerpt(after); break; }
@@ -261,7 +272,7 @@ public sealed class CharacterActionClient
             seen.Add((after.Status.CurrentHp, after.Status.CurrentMp));
             current = after;
         }
-        return new(seen, spent, problem);
+        return new(seen, spent, problem, unclear);
     }
 
     public async Task<CharacterActionSnapshot> ReadAsync(CancellationToken cancellationToken = default)

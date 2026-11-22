@@ -29,7 +29,7 @@ public sealed class AccountAdventureConditionSnapshotProviderTests
     {
         Assert.Throws<ArgumentException>(() => new AccountAdventureConditionSnapshotProvider(
             new FakeAccountReadClient(),
-            new[] { new AdventureCondition { Kind = AdventureConditionKind.HitPoints, Target = 1 } }));
+            new[] { new AdventureCondition { Kind = AdventureConditionKind.ChoiceCount, Target = 1 } }));
     }
 
     private sealed class FakeAccountReadClient(KoLStatusSnapshot? status = null, KoLInventorySnapshot? inventory = null) : IAccountReadClient

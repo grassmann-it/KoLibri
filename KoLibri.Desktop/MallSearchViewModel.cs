@@ -12,6 +12,9 @@ public interface IMallSearchBackend
 {
     Task<MallSearchPage> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken);
     Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken);
+    /// <summary>Pricegun median; <paramref name="forceRefresh"/> skips the cache (explicit refresh).</summary>
+    Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
+        => LoadPricegunAsync(itemId, cancellationToken);
 }
 
 /// <summary>
@@ -58,6 +61,9 @@ public sealed record MallOfferRow
     };
     public string PricegunText => PricegunMedian is { } m ? $"{m:N0}" : "—";
 }
+
+/// <summary>Columns of the offer list that can be sorted.</summary>
+public enum MallOfferSort { Rank, Shop, Price, Stock, Limit, Median }
 
 /// <summary>An item a partial search matched, offered in the "pick item" list.</summary>
 public sealed record MallItemChoice(string ItemId, string Name, int OfferCount, long? CheapestPrice)
@@ -109,6 +115,67 @@ public sealed class MallSearchViewModel : DesktopViewModel
     }
 
     public ObservableCollection<MallOfferRow> Offers { get; } = new();
+
+    // All offers of the current search in price order; Offers shows them sorted and filtered.
+    private readonly List<MallOfferRow> _allOffers = new();
+    private MallOfferSort _sort = MallOfferSort.Rank;
+    private bool _sortDescending;
+    private bool _onlyBuyable;
+
+    /// <summary>Column the list is sorted by; defaults to the unit price rank KoL's own order gives.</summary>
+    public MallOfferSort Sort => _sort;
+    public bool SortDescending => _sortDescending;
+
+    /// <summary>Hide offers that cannot be bought (stale page, own shop, limit used up, no purchase flow).</summary>
+    public bool OnlyBuyable
+    {
+        get => _onlyBuyable;
+        set { if (SetProperty(ref _onlyBuyable, value)) ApplyOfferView(); }
+    }
+
+    /// <summary>Header text of a sortable column, with an arrow on the active one.</summary>
+    public string SortHeader(MallOfferSort column, string label)
+        => column == _sort ? label + (_sortDescending ? " ▼" : " ▲") : label;
+
+    public string RankHeader => SortHeader(MallOfferSort.Rank, "Rank");
+    public string ShopHeader => SortHeader(MallOfferSort.Shop, "Shop");
+    public string PriceHeader => SortHeader(MallOfferSort.Price, "Meat / unit");
+    public string StockHeader => SortHeader(MallOfferSort.Stock, "Stock");
+    public string LimitHeader => SortHeader(MallOfferSort.Limit, "Limit");
+    public string MedianHeader => SortHeader(MallOfferSort.Median, "Median");
+
+    /// <summary>Sorts by a column; the same column again flips the direction.</summary>
+    public void SortBy(MallOfferSort column)
+    {
+        if (column == _sort) _sortDescending = !_sortDescending;
+        else { _sort = column; _sortDescending = false; }
+        ApplyOfferView();
+    }
+
+    private void ApplyOfferView()
+    {
+        IEnumerable<MallOfferRow> rows = _allOffers;
+        if (_onlyBuyable) rows = rows.Where(r => r.CanBuy);
+        Func<MallOfferRow, IComparable> key = _sort switch
+        {
+            MallOfferSort.Shop => r => r.ShopName.ToLowerInvariant(),
+            MallOfferSort.Price => r => r.UnitPrice,
+            MallOfferSort.Stock => r => r.Stock ?? -1,
+            MallOfferSort.Limit => r => r.LimitKind == MallLimitKind.Limited ? r.DailyLimit ?? 0 : int.MaxValue,
+            MallOfferSort.Median => r => r.PricegunMedian ?? -1L,
+            _ => r => r.Rank
+        };
+        var ordered = _sortDescending ? rows.OrderByDescending(key) : rows.OrderBy(key);
+        // Ties keep the price order, so equal stocks do not shuffle.
+        var list = ordered.ThenBy(r => r.Rank).ToList();
+        Offers.Clear();
+        foreach (var r in list) Offers.Add(r);
+        foreach (var n in new[] { nameof(RankHeader), nameof(ShopHeader), nameof(PriceHeader), nameof(StockHeader), nameof(LimitHeader), nameof(MedianHeader), nameof(HasOffers), nameof(Sort), nameof(SortDescending), nameof(HiddenOfferCount), nameof(HasHiddenOffers) })
+            OnPropertyChanged(n);
+    }
+
+    public int HiddenOfferCount => _allOffers.Count - Offers.Count;
+    public bool HasHiddenOffers => HiddenOfferCount > 0;
     public ObservableCollection<MallItemChoice> Choices { get; } = new();
 
     /// <summary>Set by the host once the purchase flow exists.</summary>
@@ -142,7 +209,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
     }
     public bool CanCancel => IsSearching;
     public bool NeedsPick => Choices.Count > 1 && _selectedItemId is null;
-    public bool HasOffers => Offers.Count > 0;
+    public bool HasOffers => _allOffers.Count > 0;
     public bool HasSearched => _page is not null;
 
     /// <summary>Starts a search for <see cref="SearchText"/>. A search that is still running is replaced, never ignored.</summary>
@@ -244,6 +311,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
             OnPropertyChanged(nameof(CanRefresh));
 
             _selectedItemId = null;
+            _allOffers.Clear();
             Offers.Clear();
             if (page.Items.Count == 0)
             {
@@ -252,17 +320,17 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 PricegunNote = null;
             }
             else if (preferred is not null)
-                await ShowItemAsync(page, preferred, cancellation.Token).ConfigureAwait(true);
+                await ShowItemAsync(page, preferred, cancellation.Token, forceRefresh).ConfigureAwait(true);
             else if (page.Items.Count == 1)
             {
-                await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token).ConfigureAwait(true);
+                await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
             }
             else
             {
                 var bare = term.Trim('"');
                 var exact = page.Items.Where(i => string.Equals(i.ItemName, bare, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (exact.Length == 1)
-                    await ShowItemAsync(page, exact[0].ItemId, cancellation.Token).ConfigureAwait(true);
+                    await ShowItemAsync(page, exact[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
                 else
                 {
                     Notice = $"“{typed.Trim()}” matches {page.Items.Count} items. Pick one.";
@@ -289,7 +357,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private async Task ShowItemAsync(MallSearchPage page, string itemId, CancellationToken cancellationToken)
+    private async Task ShowItemAsync(MallSearchPage page, string itemId, CancellationToken cancellationToken, bool forceRefresh = false)
     {
         var group = page.Items.First(i => i.ItemId == itemId);
         _selectedItemId = itemId;
@@ -306,12 +374,15 @@ public sealed class MallSearchViewModel : DesktopViewModel
         OnPropertyChanged(nameof(NeedsPick));
         OnPropertyChanged(nameof(HasOffers));
 
-        // Pricegun is loaded once per item; a failure only adds a note.
+        // Only a request that is still running is shared; a finished one is dropped, so each search (and an
+        // explicit refresh) asks again and the Pricegun client's own cache decides what is still fresh.
         PricegunNote = null;
         if (group.Listings.Count == 0) return;
+        if (forceRefresh) _pricegun.Remove(itemId);
         if (!_pricegun.TryGetValue(itemId, out var task))
-            _pricegun[itemId] = task = LoadPricegunQuietAsync(itemId, cancellationToken);
+            _pricegun[itemId] = task = LoadPricegunQuietAsync(itemId, forceRefresh, cancellationToken);
         var info = await task.ConfigureAwait(true);
+        if (_pricegun.TryGetValue(itemId, out var current) && ReferenceEquals(current, task)) _pricegun.Remove(itemId);
         if (_selectedItemId != itemId) return;
         if (info is not null)
         {
@@ -323,9 +394,9 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private async Task<PricegunInfo?> LoadPricegunQuietAsync(string itemId, CancellationToken cancellationToken)
+    private async Task<PricegunInfo?> LoadPricegunQuietAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
     {
-        try { return await _backend.LoadPricegunAsync(itemId, cancellationToken).ConfigureAwait(true); }
+        try { return await _backend.LoadPricegunAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(true); }
         catch (Exception exception)
         {
             PricegunNote = cancellationToken.IsCancellationRequested ? null : $"Pricegun unavailable: {exception.Message}";
@@ -336,7 +407,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
 
     private void FillOffers(MallItemOffers group, string name, long? median, bool stale)
     {
-        Offers.Clear();
+        _allOffers.Clear();
         var rank = 0;
         foreach (var l in group.Listings.OrderBy(l => l.Price))
         {
@@ -356,9 +427,9 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 IsStale = stale,
                 UnderThreshold = _threshold is { } limit && l.Price <= limit
             };
-            Offers.Add(row with { CanBuy = !stale && (PurchaseRequest?.CanRequest(row) ?? false) });
+            _allOffers.Add(row with { CanBuy = !stale && (PurchaseRequest?.CanRequest(row) ?? false) });
         }
-        OnPropertyChanged(nameof(HasOffers));
+        ApplyOfferView();
     }
 
     private static string FormatAge(TimeSpan age) =>
@@ -387,4 +458,7 @@ public sealed class LiveMallSearchBackend(DesktopLiveDataProvider provider, KoLi
 
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
         => provider.LoadPricegunAsync(itemId, cancellationToken);
+
+    public Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
+        => provider.LoadPricegunAsync(itemId, forceRefresh, cancellationToken);
 }

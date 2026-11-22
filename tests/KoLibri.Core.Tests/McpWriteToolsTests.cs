@@ -37,8 +37,9 @@ public sealed class McpWriteToolsTests : IDisposable
         public Task<(int Consumed, string? Rejection)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct)
         { ConsumeCalls++; return Task.FromResult((Math.Min(quantity, 3), quantity > 3 ? "too full" : (string?)null)); }
         public (int Done, int Spent, string? Problem) RestResult = (-1, 0, null);
+        public bool RestUnclear;
         public Task<(int Done, int AdventuresSpent, string? Problem)> RestAsync(AccountRole role, int times, CancellationToken ct)
-        { RestCalls++; return Task.FromResult(RestResult.Done < 0 ? (times, 0, (string?)null) : RestResult); }
+        { RestCalls++; if (RestUnclear) throw new UnreconciledPurchaseException("answer lost", [1, 2], [1, 1]); return Task.FromResult(RestResult.Done < 0 ? (times, 0, (string?)null) : RestResult); }
         public bool Blocked;
         public Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct)
         { SalesCalls++; return Task.FromResult(new ShopSalesReport(DateTimeOffset.UnixEpoch, false, 0, 0, 0, [], [])); }
@@ -188,6 +189,44 @@ public sealed class McpWriteToolsTests : IDisposable
         var done = await CallAsync(token, "kol_mall_buy", Buy + $",\"planId\":\"{plan}\"}}");
         Assert.True(done.Error);
         Assert.Equal(500, _ledger.UsedToday(id, Rights.MallBuy));   // still held, not released
+    }
+
+    [Fact]
+    public async Task An_unclear_buy_stays_reserved_after_a_restart_until_it_is_reconciled()
+    {
+        var token = Token();
+        var id = _grants.FindByToken(token)!.Id;
+        _actions.BuyUnclear = true;
+        var plan = (await CallAsync(token, "kol_mall_buy", Buy + "}")).Body.GetProperty("planId").GetString();
+        Assert.True((await CallAsync(token, "kol_mall_buy", Buy + $",\"planId\":\"{plan}\"}}")).Error);
+
+        var restarted = new UsageLedger(Path.Combine(_dir, "u.jsonl"));
+        Assert.Equal(500, restarted.UsedToday(id, Rights.MallBuy));
+        Assert.True(restarted.VerifyChain());
+        var open = Assert.Single(restarted.Unreconciled(id));
+        Assert.StartsWith("unclear:", open.Operation);
+
+        // Only an explicit reconciliation releases it; KoL charged 100 in the end.
+        Assert.True(restarted.Reconcile(open.Seq, 100, "checked"));
+        Assert.Equal(100, restarted.UsedToday(id, Rights.MallBuy));
+        Assert.Empty(restarted.Unreconciled(id));
+        Assert.False(restarted.Reconcile(open.Seq, 0));
+        Assert.Equal(100, new UsageLedger(Path.Combine(_dir, "u.jsonl")).UsedToday(id, Rights.MallBuy));
+        Assert.True(restarted.VerifyChain());
+    }
+
+    [Fact]
+    public async Task An_aborted_rest_stack_books_the_confirmed_rests_and_keeps_the_lost_one_reserved()
+    {
+        var token = Token();
+        var id = _grants.FindByToken(token)!.Id;
+        _actions.RestUnclear = true;
+        var plan = (await CallAsync(token, "kol_rest", "{\"times\":3}")).Body.GetProperty("planId").GetString();
+        Assert.True((await CallAsync(token, "kol_rest", $"{{\"times\":3,\"planId\":\"{plan}\"}}")).Error);
+        // item.use: 1 confirmed + 1 unclear of 3 reserved; adventure.run: 2 confirmed + 1 unclear.
+        Assert.Equal(2, _ledger.UsedToday(id, Rights.ItemUse));
+        Assert.Equal(3, _ledger.UsedToday(id, Rights.Adventure));
+        Assert.Equal(2, _ledger.Unreconciled(id).Count);
     }
 
     [Fact]

@@ -281,8 +281,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
         Console.WriteLine("  login status [--role main|mallbot|all]       shows stored sessions + cookies");
         Console.WriteLine("  login clear --role main|mallbot|all          deletes stored credentials");
-        Console.WriteLine("  login refresh --role main|mallbot [--username NAME --password PWD]   (without flags: stored password)");
-        Console.WriteLine("  login refresh --role main|mallbot             (interactive input)");
+        Console.WriteLine("  login refresh --role main|mallbot [--username NAME --password PWD]   (without flags: stored password; asks if none is stored; --no-remember-password keeps none)");
+        Console.WriteLine("  login refresh --role main|mallbot             (asks for username/password when none is stored)");
         Console.WriteLine("  token mint [--label TXT]                       creates an approval token");
         Console.WriteLine("  token show                                      shows the current token");
         Console.WriteLine("  status --role main|mallbot [--refresh]");

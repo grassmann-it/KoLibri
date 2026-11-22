@@ -4,7 +4,12 @@ using KoLibri.Core.Basis;
 
 namespace KoLibri.Core.Spiel;
 
-public enum OpenChoiceKind { None, Choice, Fight }
+public enum OpenChoiceKind
+{
+    None, Choice, Fight,
+    /// <summary>The question could not be answered (connection error, HTTP error, expired session); never "free".</summary>
+    Unavailable
+}
 
 /// <summary>A choice adventure that is currently open on the account.</summary>
 public sealed record OpenChoiceState(string ChoiceId, string? Title, IReadOnlyList<ChoiceOptionInfo> Options)
@@ -17,9 +22,17 @@ public sealed record OpenChoiceState(string ChoiceId, string? Title, IReadOnlyLi
 public sealed record OpenChoiceDetection(OpenChoiceKind Kind, OpenChoiceState? Choice)
 {
     public static OpenChoiceDetection NoneOpen { get; } = new(OpenChoiceKind.None, null);
-    public bool IsOpen => Kind != OpenChoiceKind.None;
+
+    /// <summary>The state could not be read (connection, HTTP error or login page); not the same as "nothing open".</summary>
+    public static OpenChoiceDetection Unavailable(string reason)
+        => new(OpenChoiceKind.Unavailable, null) { Reason = reason };
+
+    public string? Reason { get; init; }
+    public bool IsOpen => Kind is OpenChoiceKind.Choice or OpenChoiceKind.Fight;
+    public bool IsUnavailable => Kind == OpenChoiceKind.Unavailable;
     public string Message => Kind switch
     {
+        OpenChoiceKind.Unavailable => $"The open choice could not be read: {Reason ?? "unknown error"}. Nothing is assumed to be free.",
         OpenChoiceKind.Choice => "A choice adventure is open. Continue there (or decide with `kolibri choice submit`).",
         OpenChoiceKind.Fight => "A fight is open. Continue there.",
         _ => "No choice or fight is open."
@@ -100,18 +113,44 @@ public sealed class OpenChoiceClient
     /// <summary>Read only: requests main.php, follows a redirect to choice.php/fight.php, and parses the choice page.</summary>
     public async Task<OpenChoiceDetection> DetectAsync(CancellationToken cancellationToken = default)
     {
-        using var main = await GetAsync("main.php", cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var main = await GetAsync("main.php", cancellationToken).ConfigureAwait(false);
+            return await ClassifyMainAsync(main, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException
+            || e is TaskCanceledException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return OpenChoiceDetection.Unavailable(e.Message);
+        }
+    }
+
+    private async Task<OpenChoiceDetection> ClassifyMainAsync(HttpResponseMessage main, CancellationToken cancellationToken)
+    {
         var kind = OpenChoiceRedirect.Classify(main);
         if (kind == OpenChoiceKind.Fight) return new OpenChoiceDetection(OpenChoiceKind.Fight, null);
         if (kind == OpenChoiceKind.Choice) return await ReadChoicePageAsync(cancellationToken).ConfigureAwait(false);
+        if ((int)main.StatusCode is >= 300 and <= 399)
+            return OpenChoiceDetection.Unavailable(IsLoginLocation(main.Headers.Location?.OriginalString)
+                ? "the session expired (redirect to the login page)"
+                : $"unexpected redirect (HTTP {(int)main.StatusCode})");
+        if (!main.IsSuccessStatusCode)
+            return OpenChoiceDetection.Unavailable($"KoL answered HTTP {(int)main.StatusCode}");
         // Some pages answer 200 with a choice form directly.
-        if (main.IsSuccessStatusCode)
-        {
-            var html = await ReadAsync(main, cancellationToken).ConfigureAwait(false);
-            if (LooksLikeChoicePage(html)) return Parse(html);
-        }
+        var html = await ReadAsync(main, cancellationToken).ConfigureAwait(false);
+        if (LooksLikeChoicePage(html)) return Parse(html);
+        if (LooksLikeLoginPage(html)) return OpenChoiceDetection.Unavailable("the session expired (login page)");
         return OpenChoiceDetection.NoneOpen;
     }
+
+    private static bool IsLoginLocation(string? location)
+        => !string.IsNullOrWhiteSpace(location)
+        && location.Split('?', '#')[0].TrimEnd('/').EndsWith("login.php", StringComparison.OrdinalIgnoreCase);
+
+    public static bool LooksLikeLoginPage(string html)
+        => html.Contains("name=loginname", StringComparison.OrdinalIgnoreCase)
+        || html.Contains("name=\"loginname\"", StringComparison.OrdinalIgnoreCase)
+        || html.Contains("action=\"login.php", StringComparison.OrdinalIgnoreCase);
 
     public async Task<OpenChoiceSubmitResult> SubmitAsync(string choiceId, int option, CancellationToken cancellationToken = default)
     {
@@ -134,12 +173,49 @@ public sealed class OpenChoiceClient
         {
             Content = new FormUrlEncodedContent(fields)
         };
-        using var response = await _http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        var redirect = OpenChoiceRedirect.Classify(response);
-        if (!response.IsSuccessStatusCode && redirect == OpenChoiceKind.None)
-            return new OpenChoiceSubmitResult(false, $"KoL answered HTTP {(int)response.StatusCode}.", open);
-        var next = await DetectAsync(cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is HttpRequestException or IOException
+            || e is TaskCanceledException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            // The POST may or may not have reached KoL: report it as not confirmed.
+            return new OpenChoiceSubmitResult(false, $"The submit could not be confirmed ({e.Message}). Check the open choice before retrying.", open);
+        }
+        using (response)
+        {
+            var redirect = OpenChoiceRedirect.Classify(response);
+            var code = (int)response.StatusCode;
+            if (code is >= 300 and <= 399 && redirect == OpenChoiceKind.None)
+            {
+                if (IsLoginLocation(response.Headers.Location?.OriginalString))
+                    return new OpenChoiceSubmitResult(false, "The session expired; the option was not confirmed.", open);
+                // A redirect to main.php (or any other game page) is how KoL ends a choice successfully.
+                var done = await DetectAsync(cancellationToken).ConfigureAwait(false);
+                return AfterSubmit(state, done, open);
+            }
+            if (!response.IsSuccessStatusCode && redirect == OpenChoiceKind.None)
+                return new OpenChoiceSubmitResult(false, $"KoL answered HTTP {code}.", open);
+            var next = await DetectAsync(cancellationToken).ConfigureAwait(false);
+            return AfterSubmit(state, next, open);
+        }
+    }
+
+    // KoL answers a refused option with HTTP 200 and the same choice still open, so the follow-up
+    // state decides: the same choice with the same options is "not accepted", not "chosen".
+    private static OpenChoiceSubmitResult AfterSubmit(OpenChoiceState sent, OpenChoiceDetection next, OpenChoiceDetection before)
+    {
+        if (next.IsUnavailable)
+            return new OpenChoiceSubmitResult(false,
+                $"The submit could not be confirmed ({next.Reason}). Check the open choice before retrying.", next);
+        if (next.Kind == OpenChoiceKind.Choice && next.Choice is { } again
+            && string.Equals(again.ChoiceId, sent.ChoiceId, StringComparison.Ordinal)
+            && again.Options.Select(o => o.Number).SequenceEqual(sent.Options.Select(o => o.Number)))
+            return new OpenChoiceSubmitResult(false,
+                "KoL did not accept the option: the same choice is still open.", next);
         return new OpenChoiceSubmitResult(true,
             next.IsOpen ? "Submitted. Another choice or fight is now open." : "Submitted. No choice is open any more.", next);
     }

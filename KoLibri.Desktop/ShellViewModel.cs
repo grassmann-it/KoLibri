@@ -87,18 +87,9 @@ public class ShellViewModel : DesktopViewModel
             new ShellPageContract(ShellPage.Adventure, "Adventure", "Daily plan, encounter and safe resume actions.", "Open adventure"),
             new ShellPageContract(ShellPage.Combat, "Combat", "Manual single action and auto-combat policy preview.", "Open combat")
         });
-        Shortcuts = new ReadOnlyCollection<ShellShortcutContract>(new[]
-        {
-            new ShellShortcutContract("navigation.overview", "Guts", "Ctrl+1", ShellPage.Cockpit),
-            new ShellShortcutContract("navigation.inventory", "Inventory", "Ctrl+2", ShellPage.Inventory),
-            new ShellShortcutContract("navigation.arbitrage", "Arbitrage", "Ctrl+3", ShellPage.Arbitrage),
-            new ShellShortcutContract("navigation.shop", "Shop", "Ctrl+4", ShellPage.Shop),
-            new ShellShortcutContract("navigation.adventure", "Adventure", "Ctrl+5", ShellPage.Adventure),
-            new ShellShortcutContract("navigation.combat", "Combat", "Ctrl+6", ShellPage.Combat),
-            new ShellShortcutContract("shell.refresh", "Refresh data", "F5", ShellPage.Cockpit),
-            new ShellShortcutContract("shell.shortcut-help", "Keyboard help", "F1", ShellPage.Cockpit),
-            new ShellShortcutContract("shell.stop", "Stop run", "Escape", ShellPage.Adventure)
-        });
+        Shortcuts = new ReadOnlyCollection<ShellShortcutContract>(DesktopShortcuts.All
+            .Select(item => new ShellShortcutContract(item.Id, item.Label, item.Display(OperatingSystem.IsMacOS()), ShellPage.Cockpit))
+            .ToArray());
         ContextActions = new ReadOnlyCollection<ShellContextActionContract>(new[]
         {
             new ShellContextActionContract("adventure.inspect", "Inspect encounter", ShellPage.Adventure),

@@ -16,26 +16,44 @@ namespace KoLibri.Desktop;
 public partial class MainWindow
 {
     private readonly HashSet<string> _loggedSteps = new();
+    private SettingsViewModel? _settingsModel;
 
     private void InitializeShell()
     {
         if (this.FindControl<ListBox>("SessionLogList") is { } list)
         {
-            list.ItemsSource = _log.Entries;
-            _log.Entries.CollectionChanged += (_, _) =>
+            list.ItemsSource = _log.Visible;
+            _log.Visible.CollectionChanged += (_, _) =>
             {
-                if (_log.Entries.Count > 0) list.ScrollIntoView(_log.Entries[^1]);
+                if (_log.Visible.Count > 0) list.ScrollIntoView(_log.Visible[^1]);
             };
         }
+        if (this.FindControl<ComboBox>("SessionLogLevelBox") is { } levelBox)
+        {
+            levelBox.ItemsSource = _log.LevelChoices;
+            levelBox.SelectedIndex = 0;
+            levelBox.SelectionChanged += (_, _) => { if (levelBox.SelectedItem is string c) _log.LevelChoice = c; };
+        }
+        if (this.FindControl<ComboBox>("SessionLogRoleBox") is { } roleBox)
+        {
+            roleBox.ItemsSource = _log.RoleChoices;
+            roleBox.SelectedIndex = 0;
+            roleBox.SelectionChanged += (_, _) => { if (roleBox.SelectedItem is string c) _log.RoleFilter = c; };
+        }
+        _log.LoadToday();
         _log.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(SessionLogViewModel.Summary)
                 && this.FindControl<Expander>("SessionLogExpander") is { } expander)
                 expander.Header = _log.Summary;
+            if (args.PropertyName == nameof(SessionLogViewModel.FilterSummary)
+                && this.FindControl<TextBlock>("SessionLogFilterText") is { } filterText)
+                filterText.Text = _log.FilterSummary;
         };
 
         var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems,
             classifier: _catalog is null ? null : new KoLibri.Core.Spiel.ItemClassifier(_catalog));
+        _settingsModel = model;
         model.PropertyChanged += (_, args) =>
         {
             // The settings model reports a saved state through Status.
@@ -72,7 +90,7 @@ public partial class MainWindow
         };
         if (Application.Current is not null) Application.Current.RequestedThemeVariant = variant;
         _isOpsDark = variant == ThemeVariant.Dark;
-        if (_themeToggleButton is not null) _themeToggleButton.Content = _isOpsDark ? "☀" : "☾";
+        UpdateThemeButton();
         if (this.FindControl<NumericUpDown>("EncounterBatchTurns") is { } turns)
         {
             turns.Maximum = Math.Max(turns.Maximum, (decimal)_settings.Get("turnBudget"));
@@ -153,6 +171,42 @@ public partial class MainWindow
     }
 
     /// <summary>Without a session the sign-in is the first thing the user sees.</summary>
+    /// <summary>Neither a default nor a last-used role: if exactly one role has an account, open that one.</summary>
+    private async Task ChooseSingleConfiguredRoleAsync()
+    {
+        if (StartupRole.IsSettled(_settings.DefaultAccount, StartupRole.ReadLast(_settingsStore))) return;
+        try
+        {
+            await _accounts.InitializeAsync(CancellationToken.None);
+            var configured = new List<AccountRole>();
+            foreach (var role in new[] { AccountRole.Main, AccountRole.Mallbot })
+                if (await _accounts.GetSessionAsync(role, includeExpired: true) is not null) configured.Add(role);
+            var chosen = StartupRole.Resolve(null, null, configured);
+            if (chosen == _selectedRole || _accountRoleSelector is null) return;
+            _selectedRole = chosen;                       // set first: the selection handler then sees no change
+            _accountRoleSelector.SelectedIndex = chosen == AccountRole.Main ? 0 : 1;
+            if (_skillsEffectsModel is not null) _skillsEffectsModel.Role = chosen.ToString();
+            ResetAccountViews();
+            UpdatePageState(_activeSection);
+        }
+        catch (Exception exception)
+        {
+            _log.Error($"Could not choose the start account: {exception.GetType().Name}");
+        }
+    }
+
+    /// <summary>The page the user came from when Sign in opened Settings; null when none.</summary>
+    private string? _signInReturnSection;
+
+    /// <summary>After a successful sign-in of the active role, goes back to the page the sign-in started from.</summary>
+    private async Task ReturnAfterSignInAsync(AccountRole role)
+    {
+        if (_signInReturnSection is not { } back) return;
+        if (role != _selectedRole) return;
+        _signInReturnSection = null;
+        await OpenSectionAsync(back);
+    }
+
     private async Task OfferSignInIfNeededAsync()
     {
         if (_signInOffered) return;
@@ -162,8 +216,10 @@ public partial class MainWindow
             await _accounts.InitializeAsync(CancellationToken.None);
             var session = await _accounts.GetSessionAsync(_selectedRole);
             if (session is not null && !string.IsNullOrWhiteSpace(session.Credentials.CookieHeader)) return;
+            _signInReturnSection = _activeSection == "Settings" ? "Adventure" : _activeSection;
             await OpenSectionAsync("Settings");
             if (this.FindControl<Expander>("AccountsExpander") is { } accounts) accounts.IsExpanded = true;
+            FocusSignInField(_selectedRole);
             SetStatus($"Sign in as {_selectedRole} to load the charpane, adventures and mall.");
         }
         catch (Exception exception)
@@ -175,14 +231,36 @@ public partial class MainWindow
     /// <summary>Always-visible way to sign in: opens Settings with the Accounts group expanded.</summary>
     private async void SignInClick(object? sender, RoutedEventArgs e)
     {
+        if (_activeSection != "Settings") _signInReturnSection = _activeSection;
         await OpenSectionAsync("Settings");
         if (this.FindControl<Expander>("AccountsExpander") is { } accounts) accounts.IsExpanded = true;
+        FocusSignInField(_selectedRole);
         SetStatus($"Sign in as {_selectedRole} (or the other account) below.");
+    }
+
+    /// <summary>Puts the cursor in the field the user has to fill: the password if the name is known, else the name.</summary>
+    private void FocusSignInField(AccountRole role)
+    {
+        var prefix = role == AccountRole.Main ? "Main" : "Mallbot";
+        Dispatcher.UIThread.Post(() =>
+        {
+            var user = this.FindControl<TextBox>(prefix + "Username");
+            var pass = this.FindControl<TextBox>(prefix + "Password");
+            var target = string.IsNullOrWhiteSpace(user?.Text) ? user : pass;
+            target?.BringIntoView();
+            target?.Focus();
+        }, DispatcherPriority.Background);
     }
 
     private async void SessionLogCopyClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(_log.ToText());
+    }
+
+    private void SessionLogSaveClick(object? sender, RoutedEventArgs e)
+    {
+        var path = _log.SaveSelection();
+        SetStatus(path is null ? "The log could not be saved." : $"Log saved to {path}");
     }
 
     private void SessionLogClearClick(object? sender, RoutedEventArgs e) => _log.Clear();

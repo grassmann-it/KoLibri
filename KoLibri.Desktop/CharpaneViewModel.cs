@@ -17,7 +17,7 @@ public sealed record EffectRow(string Name, int TurnsRemaining)
 /// </summary>
 public sealed record CharpaneState
 {
-    /// <summary>Default organ limits of an unrestricted character; KoL's status read does not report them.</summary>
+    /// <summary>Default organ limits of an unrestricted character, used (and labelled "assumed") when the status read does not report them.</summary>
     public const int DefaultFullnessLimit = 15, DefaultDrunkLimit = 14, DefaultSpleenLimit = 15;
 
     public string Name { get; init; } = "Not signed in";
@@ -56,9 +56,9 @@ public sealed record CharpaneState
             MpFraction = Fraction(status.CurrentMp, status.MaximumMp),
             Adventures = $"Adventures {status.Adventures:N0}",
             Meat = $"Meat {status.Meat:N0}",
-            Fullness = Organ("Fullness", status.Fullness, DefaultFullnessLimit),
-            Drunk = Organ("Drunkenness", status.Inebriety, DefaultDrunkLimit),
-            Spleen = Organ("Spleen", status.Spleen, DefaultSpleenLimit),
+            Fullness = Organ("Fullness", status.Fullness, status.FullnessLimit, DefaultFullnessLimit),
+            Drunk = Organ("Drunkenness", status.Inebriety, status.InebrietyLimit, DefaultDrunkLimit),
+            Spleen = Organ("Spleen", status.Spleen, status.SpleenLimit, DefaultSpleenLimit),
             Familiar = DescribeFamiliar(status),
             Effects = effects,
             EffectsText = effects.Count == 0 ? "None" : string.Join(Environment.NewLine, effects.Select(e => e.Display)),
@@ -98,11 +98,15 @@ public sealed record CharpaneState
     {
         if (string.IsNullOrWhiteSpace(status.FamiliarId) || status.FamiliarId == "0") return "None";
         var weight = status.FamiliarWeight is { } w ? $" · {w} lb" : "";
-        return $"Familiar #{status.FamiliarId}{weight}";
+        var name = string.IsNullOrWhiteSpace(status.FamiliarName) ? $"Familiar #{status.FamiliarId}" : status.FamiliarName.Trim();
+        return $"{name}{weight}";
     }
 
-    private static string Organ(string label, int? value, int limit)
-        => value is { } v ? $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / {limit}" : $"{label} —";
+    /// <summary>"Fullness 3 / 15". A limit the status did not report is the unrestricted default and says so: "3 / 15 (assumed)".</summary>
+    private static string Organ(string label, int? value, int? reported, int assumed)
+        => value is not { } v ? $"{label} —"
+            : reported is > 0 ? $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / {reported}"
+            : $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / {assumed} (assumed)";
 
     private static double Fraction(int current, int maximum)
         => maximum > 0 ? Math.Clamp((double)current / maximum, 0, 1) : 0;

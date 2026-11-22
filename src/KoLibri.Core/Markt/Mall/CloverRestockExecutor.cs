@@ -131,10 +131,10 @@ public sealed class CloverRestockExecutor
         {
             Verdict = purchase.Accepted ? "Bought" : $"http-{purchase.StatusCode}",
             Bought = purchase.Accepted,
-            Quantity = purchase.Accepted ? plan.Quantity : 0,
-            Spent = purchase.Accepted ? plan.EstimatedSpend : 0,
+            Quantity = purchase.Accepted ? purchase.Quantity : 0,
+            Spent = purchase.Accepted ? purchase.Quantity * candidate.UnitPrice : 0,
             Rationale = purchase.Accepted
-                ? $"Bought {plan.Quantity} clovers at {candidate.UnitPrice} meat each."
+                ? $"Bought {purchase.Quantity} clovers at {candidate.UnitPrice} meat each."
                 : $"KoL rejected the purchase: {purchase.Message}",
             Plan = plan,
             Purchases = new[] { purchase }
@@ -147,7 +147,7 @@ public sealed class CloverRestockExecutor
         var snapshot = await _mall.SearchAsync(
             "11-leaf clover", cancellationToken: cancellationToken).ConfigureAwait(false);
         var listing = snapshot.Listings
-            .Where(l => l.Price > 0)
+            .Where(l => l.Price > 0 && BaconArbitrageExecutor.ListingMatchesItem(l, ElevenLeafClover))
             .OrderBy(l => l.Price)
             .FirstOrDefault();
         if (listing is null) return null;

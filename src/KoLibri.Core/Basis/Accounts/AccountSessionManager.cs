@@ -227,6 +227,78 @@ public sealed class AccountSessionManager
         }
     }
 
+    /// <summary>
+    /// Stores a fresh login for a role after the live session's player was verified. The profile
+    /// (DisplayName, PlayerId) and the credentials change together: when the verified player differs
+    /// from the stored one and <paramref name="allowAccountChange"/> is false nothing is written and
+    /// <see cref="AccountIdentityMismatchException"/> is thrown.
+    /// </summary>
+    public async Task<AccountIdentityChange> ApplyVerifiedLoginAsync(
+        AccountRole role, KoLPlayerIdentity identity, AccountCredentials credentials,
+        bool allowAccountChange, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(credentials);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var accounts = _configuration!.Accounts.ToList();
+            var index = accounts.FindIndex(account => account.Role == role);
+            var change = AccountIdentityChange.Unchanged;
+            AccountProfile profile;
+            if (index < 0)
+            {
+                profile = new AccountProfile
+                {
+                    Id = role == AccountRole.Main ? "main" : "mallbot",
+                    DisplayName = identity.Name, Role = role, PlayerId = identity.PlayerId, Enabled = true
+                };
+                accounts.Add(profile);
+                change = AccountIdentityChange.Created;
+            }
+            else
+            {
+                var current = accounts[index];
+                var same = current.PlayerId is { Length: > 0 } stored
+                    ? string.Equals(stored, identity.PlayerId, StringComparison.Ordinal)
+                    : string.Equals(current.DisplayName, identity.Name, StringComparison.OrdinalIgnoreCase);
+                if (!same)
+                {
+                    if (!allowAccountChange)
+                        throw new AccountIdentityMismatchException(
+                            $"The {role} role belongs to '{current.DisplayName}', but this login is '{identity.Name}'. " +
+                            "Nothing was saved. Use the explicit account switch to replace the role.");
+                    change = AccountIdentityChange.Switched;
+                }
+                else if (current.PlayerId is null || !string.Equals(current.DisplayName, identity.Name, StringComparison.Ordinal))
+                    change = AccountIdentityChange.Adopted;
+                profile = current with { DisplayName = identity.Name, PlayerId = identity.PlayerId };
+                accounts[index] = profile;
+            }
+
+            var previousConfiguration = _configuration;
+            var updated = previousConfiguration with { Accounts = accounts };
+            JsonFileAccountStore.Validate(updated);
+            await _accountStore.SaveAsync(updated, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _secretStore.SetAsync(profile.Id, credentials, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                await _accountStore.SaveAsync(previousConfiguration, CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
+            _configuration = updated;
+            return change;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task ClearCredentialsAsync(AccountRole role, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);

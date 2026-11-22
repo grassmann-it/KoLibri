@@ -50,7 +50,15 @@ public sealed class BaconArbitrageExecutor
         /// <summary>True when a purchase POST was sent but its result is not known (transport
         /// failure or non-2xx answer). Callers must not treat the spend as released until reconciled.</summary>
         public bool Unclear { get; init; }
+        /// <summary>Worst-case meat of the purchase POST whose result is unknown (0 when none). Stays reserved until reconciled.</summary>
+        public long UnclearSpend { get; init; }
     }
+
+    /// <summary>True when the listing may be for <paramref name="itemId"/>: a numeric listing id must match.
+    /// A name search with several partial matches can return offers of other items.</summary>
+    public static bool ListingMatchesItem(MallListing listing, int itemId)
+        => !int.TryParse(listing.ItemId, System.Globalization.NumberStyles.None,
+               System.Globalization.CultureInfo.InvariantCulture, out var id) || id == itemId;
 
     /// <summary>Runs the bacon flow for one account.</summary>
     public async Task<Outcome> RunAsync(
@@ -139,6 +147,7 @@ public sealed class BaconArbitrageExecutor
         // One confirmed single buy sends at most one purchase POST: one round, no daily-limit retry.
         if (singlePurchase) maxRounds = 1;
         var unclear = false;
+        var unclearSpend = 0L;
         var bought = 0;
         var spent = 0L;
         var purchases = new List<MallBuyResult>();
@@ -162,13 +171,14 @@ public sealed class BaconArbitrageExecutor
                 break;
             }
             last = step.Outcome.Rationale;
-            if (step.Outcome.Unclear) { unclear = true; break; }
             if (step.Outcome.Bought)
             {
                 bought += step.Outcome.Quantity;
                 spent += step.Outcome.Spent;
                 purchases.AddRange(step.Outcome.Purchases);
             }
+            // An unclear POST ends the run for every merchant: it may already be booked at KoL.
+            if (step.Outcome.Unclear) { unclear = true; unclearSpend += step.Outcome.UnclearSpend; break; }
             if (step.Outcome.Bought) { failures = 0; continue; }
             if (!step.MoveOn && !step.Outcome.Verdict.StartsWith("http-", StringComparison.Ordinal)) break;
             // A refusing store is skipped for the rest of the run; three in a row end the run.
@@ -178,6 +188,7 @@ public sealed class BaconArbitrageExecutor
         {
             Verdict = unclear ? "Unclear" : bought >= needed ? "Complete" : bought > 0 ? "Partial" : "NotBought",
             Unclear = unclear,
+            UnclearSpend = unclearSpend,
             Bought = bought > 0,
             Quantity = bought,
             Spent = spent,
@@ -210,7 +221,7 @@ public sealed class BaconArbitrageExecutor
         var snapshot = await _mall.SearchAsync(
             itemName ?? itemNameFor(itemId), cancellationToken: cancellationToken).ConfigureAwait(false);
         var candidate = snapshot.Listings
-            .Where(l => l.Price > 0 && !exhaustedStores.Contains(l.StoreId))
+            .Where(l => l.Price > 0 && !exhaustedStores.Contains(l.StoreId) && ListingMatchesItem(l, itemId))
             .OrderBy(l => l.Price)
             .FirstOrDefault();
         if (candidate is null)
@@ -303,10 +314,11 @@ public sealed class BaconArbitrageExecutor
         catch (Exception e)
         {
             // The POST may have reached KoL; the outcome is unknown until reconciled.
-            return (UnclearOutcome(itemId, e.Message), e.Message, false);
+            return (UnclearOutcome(itemId, e.Message, null, candidate.Price * quantity), e.Message, false);
         }
-        if (!purchase.StatusCode.IsSuccess())
-            return (UnclearOutcome(itemId, $"HTTP {purchase.StatusCode}: {purchase.Message}", purchase), purchase.Message, false);
+        var worstCase = candidate.Price * quantity;
+        if (!purchase.StatusCode.IsSuccess() || purchase.Unverified)
+            return (UnclearOutcome(itemId, $"HTTP {purchase.StatusCode}: {purchase.Message}", purchase, worstCase), purchase.Message, false);
         if (!purchase.Accepted && allowDailyLimitRetry && DailyLimit.Match(purchase.Message) is { Success: true } limitMatch)
         {
             // The store caps what one buyer may take per day; take the cap, then move on.
@@ -322,13 +334,17 @@ public sealed class BaconArbitrageExecutor
                 }
                 catch (Exception e)
                 {
-                    return (UnclearOutcome(itemId, e.Message), e.Message, false);
+                    return (UnclearOutcome(itemId, e.Message, null, candidate.Price * cap), e.Message, false);
                 }
+                // The reduced POST counts like the first one: anything but a clean answer is unclear and
+                // must not send us on to the next merchant.
+                if (!retry.StatusCode.IsSuccess() || retry.Unverified)
+                    return (UnclearOutcome(itemId, $"HTTP {retry.StatusCode}: {retry.Message}", retry, candidate.Price * cap), retry.Message, false);
                 if (retry.Accepted)
                     return (new Outcome
                     {
-                        Verdict = "Bought", Bought = true, Quantity = cap, Spent = candidate.Price * cap,
-                        Rationale = $"Bought {cap} of item {itemId} at {candidate.Price} meat each (daily limit).",
+                        Verdict = "Bought", Bought = true, Quantity = retry.Quantity, Spent = candidate.Price * retry.Quantity,
+                        Rationale = $"Bought {retry.Quantity} of item {itemId} at {candidate.Price} meat each (daily limit).",
                         Purchases = new[] { retry }
                     }, retry.Message, true);
             }
@@ -338,23 +354,26 @@ public sealed class BaconArbitrageExecutor
                 Rationale = $"Store {storeId} allows no more of item {itemId} today."
             }, "daily limit", true);
         }
-        if (!purchase.Accepted || quantity >= candidate.Quantity) exhaustedStores.Add(candidate.StoreId);
+        // Book what the receipt confirmed; a partial receipt also ends this store for today.
+        var confirmedQuantity = purchase.Accepted ? purchase.Quantity : 0;
+        if (!purchase.Accepted || purchase.Partial || quantity >= candidate.Quantity) exhaustedStores.Add(candidate.StoreId);
         return (new Outcome
         {
             Verdict = purchase.Accepted ? "Bought" : $"http-{purchase.StatusCode}",
             Bought = purchase.Accepted,
-            Quantity = purchase.Accepted ? quantity : 0,
-            Spent = purchase.Accepted ? candidate.Price * quantity : 0,
+            Quantity = confirmedQuantity,
+            Spent = candidate.Price * confirmedQuantity,
             Rationale = purchase.Accepted
-                ? $"Bought {quantity} of item {itemId} at {candidate.Price} meat each."
+                ? $"Bought {confirmedQuantity} of item {itemId} at {candidate.Price} meat each."
+                    + (purchase.Partial ? $" Only {confirmedQuantity} of {quantity} were confirmed." : "")
                 : $"KoL rejected the purchase: {purchase.Message}",
             Purchases = new[] { purchase }
         }, purchase.Message, purchase.Accepted);
     }
 
-    private static Outcome UnclearOutcome(int itemId, string message, MallBuyResult? purchase = null) => new()
+    private static Outcome UnclearOutcome(int itemId, string message, MallBuyResult? purchase, long worstCaseSpend) => new()
     {
-        Verdict = "Unclear", Bought = false, Quantity = 0, Spent = 0, Unclear = true,
+        Verdict = "Unclear", Bought = false, Quantity = 0, Spent = 0, Unclear = true, UnclearSpend = worstCaseSpend,
         Rationale = $"The purchase of item {itemId} was sent but its result is unknown ({message}). Check the account before retrying.",
         Purchases = purchase is null ? Array.Empty<MallBuyResult>() : new[] { purchase }
     };

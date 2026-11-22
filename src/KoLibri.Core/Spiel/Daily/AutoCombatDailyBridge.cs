@@ -86,8 +86,23 @@ public sealed class AutoCombatDailyBridge
         string accountKey,
         CancellationToken cancellationToken)
     {
+        var r = await ExecuteMemeStepDetailedAsync(step, dispatcher, credentials, doneStore, accountKey, cancellationToken).ConfigureAwait(false);
+        return (r.Accepted, r.Message);
+    }
+
+    /// <summary>Like <see cref="ExecuteMemeStepAsync"/>; <c>Unclear</c> is true when the POST was sent but its answer is
+    /// unknown (transport error or a 5xx answer), so the caller must not continue as if nothing happened.</summary>
+    public static async Task<(bool Accepted, string Message, bool Unclear)> ExecuteMemeStepDetailedAsync(
+        ChoiceStepSpec step,
+        FreePullDispatcher? dispatcher,
+        AccountCredentials? credentials,
+        DailyDoneStore? doneStore,
+        string accountKey,
+        CancellationToken cancellationToken)
+    {
         if (dispatcher is null || credentials is null)
-            return (false, "No free-pull dispatcher or stored credentials for this role.");
+            return (false, "No free-pull dispatcher or stored credentials for this role.", false);
+        var sent = false;
         try
         {
             var page = await dispatcher.ReadMemeShopAsync(credentials, cancellationToken).ConfigureAwait(false);
@@ -97,10 +112,11 @@ public sealed class AutoCombatDailyBridge
             if (string.IsNullOrWhiteSpace(pwd) && step.ChoiceId == DailyInternetShopPlanner.MachineChoiceId)
                 pwd = await dispatcher.ReadSessionHashAsync(credentials, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(pwd))
-                return (false, "No request hash available (the meme shop is closed without BACON, or the session expired).");
+                return (false, "No request hash available (the meme shop is closed without BACON, or the session expired).", false);
 
             if (step.ChoiceId == DailyInternetShopPlanner.MachineChoiceId)
             {
+                sent = true;
                 var pushed = await dispatcher.UseBaconMachineAsync(credentials, pwd, cancellationToken).ConfigureAwait(false);
                 var spent = pushed.BodySnippet.Contains("nothing happens", StringComparison.OrdinalIgnoreCase)
                     || pushed.BodySnippet.Contains("no more bacon", StringComparison.OrdinalIgnoreCase)
@@ -112,25 +128,26 @@ public sealed class AutoCombatDailyBridge
                     && (pushed.Location?.Contains("inventory.php", StringComparison.OrdinalIgnoreCase) ?? false);
                 var ok = pushed.Accepted || redirected;
                 if (ok || spent) doneStore?.MarkDone(accountKey, DailyDoneStore.BaconMachine);
-                return (ok, pushed.BodySnippet);
+                return (ok, pushed.BodySnippet, !ok && !spent && pushed.StatusCode >= 500);
             }
 
             var item = step.OptionId;
             var price = MemeShopCatalog.DailyItems.FirstOrDefault(
                 i => string.Equals(i.Name, item, StringComparison.OrdinalIgnoreCase)).Price;
-            if (price <= 0) return (false, $"'{item}' is not a known daily meme shop item.");
+            if (price <= 0) return (false, $"'{item}' is not a known daily meme shop item.", false);
             var row = page.Find(item);
             if (row is null)
             {
                 // KoL removes a daily item from the shop once it was bought.
                 doneStore?.MarkDone(accountKey, DailyDoneStore.MemeBuy(item));
-                return (false, $"'{item}' is not on offer; already bought today.");
+                return (false, $"'{item}' is not on offer; already bought today.", false);
             }
             if (page.Bacon is { } bacon && bacon < price)
-                return (false, $"Only {bacon} BACON for '{item}' ({price} needed).");
+                return (false, $"Only {bacon} BACON for '{item}' ({price} needed).", false);
+            sent = true;
             var bought = await dispatcher.BuyMemeShopRowAsync(credentials, row.RowId, pwd, cancellationToken).ConfigureAwait(false);
             if (bought.Accepted) doneStore?.MarkDone(accountKey, DailyDoneStore.MemeBuy(item));
-            return (bought.Accepted, bought.BodySnippet);
+            return (bought.Accepted, bought.BodySnippet, !bought.Accepted && bought.StatusCode >= 500);
         }
         catch (OperationCanceledException)
         {
@@ -138,7 +155,7 @@ public sealed class AutoCombatDailyBridge
         }
         catch (Exception ex)
         {
-            return (false, ex.Message);
+            return (false, ex.Message, sent);
         }
     }
 

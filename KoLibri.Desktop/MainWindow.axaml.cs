@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -145,7 +146,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _log = new SessionLogViewModel(post: action =>
         {
             if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action);
-        });
+        }, directory: Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_settingsStore.Path))!, "logs"));
+        _log.RoleProvider = () => _selectedRole.ToString();
         _spendLedger = new MallSpendLedger(path: MallSpendLedger.PathNextTo(_settingsStore));
         _live = new DesktopLiveDataProvider(_accounts, createAccountHttp, _settings,
             () => _settingsStore.Load().ReloginAutomatically);
@@ -240,10 +242,9 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
         _cancelRefreshButton = this.FindControl<Button>("CancelRefreshButton");
-        if (Enum.TryParse<AccountRole>(_settings.DefaultAccount, ignoreCase: true, out var defaultRole)
-            && _accountRoleSelector is not null)
-            _accountRoleSelector.SelectedIndex = defaultRole == AccountRole.Main ? 0 : 1;
-        _selectedRole = ReadSelectedRole();
+        _selectedRole = StartupRole.Resolve(_settings.DefaultAccount, StartupRole.ReadLast(_settingsStore), null);
+        if (_accountRoleSelector is not null)
+            _accountRoleSelector.SelectedIndex = _selectedRole == AccountRole.Main ? 0 : 1;
         _autoCombat = new AutoCombatViewModel(_catalog);
         InitializeShell();
         ResetAccountViews();
@@ -254,6 +255,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
         Opened += async (_, _) =>
         {
+            await ChooseSingleConfiguredRoleAsync();
             await StartupLoginAsync();
             await OpenSectionAsync(_activeSection);
             await OfferSignInIfNeededAsync();
@@ -272,63 +274,70 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
 
     private void WindowKeyDown(object? sender, KeyEventArgs e)
     {
-        // Let text editors keep ordinary typing and only consume the explicit
-        // application gestures defined by the shared UX catalog.
-        if (e.Key == Key.F1 && e.KeyModifiers == KeyModifiers.None)
+        var isMac = OperatingSystem.IsMacOS();
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsShortcutHelpOpen)
         {
-            ShowShortcutHelp();
+            CloseShortcutHelp();
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.F5 && e.KeyModifiers == KeyModifiers.None)
+        // One catalog (DesktopShortcuts) drives the handler, the help panel and the tooltips. Plain typing
+        // stays with the focused editor: every entry is a function key or needs the command key.
+        if (DesktopShortcuts.Find(e.Key, e.KeyModifiers, isMac) is not { } shortcut) return;
+        if (shortcut.Command == DesktopCommand.ContextMenu) return;   // handled by the focused list itself
+        e.Handled = true;
+        switch (shortcut.Command)
         {
-            RefreshClick(sender, new RoutedEventArgs());
-            e.Handled = true;
-            return;
-        }
-
-        var command = ShortcutModifier;
-        if (e.Key == Key.OemPeriod && e.KeyModifiers == command)
-        {
-            CancelRefreshClick(sender, new RoutedEventArgs());
-            e.Handled = true;
-            return;
-        }
-
-        if (e.KeyModifiers == command && TryNavigateShortcut(e.Key))
-        {
-            e.Handled = true;
+            case DesktopCommand.Help: ShowShortcutHelp(); break;
+            case DesktopCommand.Refresh: RefreshClick(sender, new RoutedEventArgs()); break;
+            case DesktopCommand.CancelLoad: CancelRefreshClick(sender, new RoutedEventArgs()); break;
+            case DesktopCommand.OpenAdventures: _ = OpenSectionAsync("Adventure"); break;
+            case DesktopCommand.OpenInventory: _ = OpenSectionAsync("Inventory"); break;
+            case DesktopCommand.OpenMall: _ = OpenSectionAsync("Mall & Shop"); break;
+            case DesktopCommand.OpenDaily: _ = OpenSectionAsync("Daily"); break;
+            case DesktopCommand.OpenChat: _ = OpenSectionAsync("Communication"); break;
+            case DesktopCommand.OpenBrowser: _ = OpenSectionAsync("Browser"); break;
+            case DesktopCommand.OpenSettings: _ = OpenSectionAsync("Settings"); break;
         }
     }
 
-    /// <summary>Command on macOS, Control elsewhere: Ctrl+number is taken by the system on a Mac.</summary>
-    private static KeyModifiers ShortcutModifier
-        => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+    private bool IsShortcutHelpOpen => this.FindControl<Border>("ShortcutHelpOverlay")?.IsVisible == true;
 
-    private bool TryNavigateShortcut(Key key)
-    {
-        var section = key switch
-        {
-            Key.D1 or Key.NumPad1 => "Adventure",
-            Key.D2 or Key.NumPad2 => "Inventory",
-            Key.D3 or Key.NumPad3 => "Mall & Shop",
-            Key.D4 or Key.NumPad4 => "Daily",
-            Key.D5 or Key.NumPad5 => "Communication",
-            Key.OemComma => "Settings",
-            _ => null
-        };
-        if (section is null)
-            return false;
-
-        _ = OpenSectionAsync(section);
-        return true;
-    }
-
+    /// <summary>Opens the help panel with every shortcut of the catalog for this platform.</summary>
     private void ShowShortcutHelp()
     {
-        var key = OperatingSystem.IsMacOS() ? "Cmd" : "Ctrl";
-        SetStatus($"Keyboard: {key}+1–4 Adventures, Inventory, Mall, Daily · {key}+5 Chat & Mail · {key}+, Settings · F5 refresh · {key}+. cancel · F1 help.");
+        if (this.FindControl<Border>("ShortcutHelpOverlay") is not { } overlay) return;
+        var isMac = OperatingSystem.IsMacOS();
+        if (this.FindControl<ItemsControl>("ShortcutHelpList") is { } list)
+            list.ItemsSource = DesktopShortcuts.All.Select(s => new ShortcutHelpRow(s.Display(isMac), s.Label)).ToArray();
+        if (this.FindControl<TextBlock>("ShortcutHelpIntro") is { } intro)
+            intro.Text = isMac
+                ? "Cmd is the command key. Typing in a text field is never taken over. Escape closes this panel."
+                : "Ctrl is the control key. Typing in a text field is never taken over. Escape closes this panel.";
+        overlay.IsVisible = true;
+        this.FindControl<Button>("ShortcutHelpClose")?.Focus();
+    }
+
+    /// <summary>Lets the offline QA tool open the help panel without a key press.</summary>
+    public void ShowShortcutHelpForQa() => ShowShortcutHelp();
+
+    private void SettingsHeaderSaveClick(object? sender, RoutedEventArgs e)
+    {
+        _settingsModel?.Save.Execute(null);
+        if (_settingsModel is { } m) SetStatus(m.Status);
+    }
+
+    private void CloseShortcutHelp()
+    {
+        if (this.FindControl<Border>("ShortcutHelpOverlay") is { } overlay) overlay.IsVisible = false;
+    }
+
+    private void ShortcutHelpCloseClick(object? sender, RoutedEventArgs e) => CloseShortcutHelp();
+    private void ShortcutHelpButtonClick(object? sender, RoutedEventArgs e) => ShowShortcutHelp();
+    private void ShortcutHelpKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { CloseShortcutHelp(); e.Handled = true; }
     }
 
     private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -346,14 +355,35 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private void ThemeToggleClick(object? sender, RoutedEventArgs e)
     {
         _isOpsDark = !_isOpsDark;
+        var name = _isOpsDark ? "Dark" : "Light";
         if (Application.Current is not null)
             Application.Current.RequestedThemeVariant = _isOpsDark ? ThemeVariant.Dark : ThemeVariant.Light;
+        // The shown theme and the saved theme are one value: save it now, and keep the Settings page in step.
+        try
+        {
+            var stored = _settingsStore.Load();
+            stored.Theme = name;
+            _settingsStore.Save(stored);
+            _settings.Theme = name;
+            _settingsModel?.SetTheme(name);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"{name} theme shown, but it could not be saved: {exception.Message}");
+            UpdateThemeButton();
+            return;
+        }
+        UpdateThemeButton();
+        SetStatus($"{name} theme saved.");
+    }
 
-        var themeName = _isOpsDark ? "Ops Dark" : "Stickman Standard";
-        var buttonText = _isOpsDark ? "☀" : "☾";
-        if (_themeToggleButton is not null)
-            _themeToggleButton.Content = buttonText;
-        SetStatus($"Theme “{themeName}” activated.");
+    /// <summary>The button shows what a click switches to (sun while dark, moon while light).</summary>
+    private void UpdateThemeButton()
+    {
+        if (_themeToggleButton is null) return;
+        _themeToggleButton.Content = _isOpsDark ? "☀" : "☾";
+        ToolTip.SetTip(_themeToggleButton, _isOpsDark ? "Dark theme is on. Click for the light theme (saved)." : "Light theme is on. Click for the dark theme (saved).");
+        AutomationProperties.SetName(_themeToggleButton, _isOpsDark ? "Switch to the light theme" : "Switch to the dark theme");
     }
 
     private void Navigate(string section)
@@ -462,6 +492,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             return;
 
         _selectedRole = ReadSelectedRole();
+        StartupRole.WriteLast(_settingsStore, _selectedRole);
         if (_skillsEffectsModel is not null) _skillsEffectsModel.Role = _selectedRole.ToString();
         ResetAccountViews();
         _browserPanel?.ResetForRoleChange();
@@ -651,10 +682,25 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
     }
 
+    /// <summary>Enter in a user name or password field signs in that role, like the button.</summary>
+    private async void AccountFieldKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.Return) || e.KeyModifiers != KeyModifiers.None) return;
+        if (sender is not TextBox { Tag: string tag } || !Enum.TryParse<AccountRole>(tag, out var role)) return;
+        e.Handled = true;
+        if (this.FindControl<Button>(role == AccountRole.Main ? "MainSignInButton" : "MallbotSignInButton") is { IsEnabled: true } button)
+            await SignInRoleAsync(role, button);
+    }
+
     private async void SaveAccountClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button || !Enum.TryParse<AccountRole>(button.Tag?.ToString(), out var role))
             return;
+        await SignInRoleAsync(role, button);
+    }
+
+    private async Task SignInRoleAsync(AccountRole role, Button button)
+    {
 
         var usernameBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainUsername" : "MallbotUsername");
         var passwordBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainPassword" : "MallbotPassword");
@@ -700,6 +746,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             status.Text = "Connected";
             status.Foreground = ThemeBrush("SuccessBrush", Brushes.LightGreen);
             SetStatus($"{role} is logged in at KoL. Read-only data can be loaded now.");
+            await ReturnAfterSignInAsync(role);
         }
         catch (KoLLoginException exception)
         {
@@ -735,6 +782,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             _browserPanel.Height = Math.Max(360, (Bounds.Height > 0 ? Bounds.Height : Height) - 230);
         }
         if (_settingsPanel is not null) _settingsPanel.IsVisible = section == "Settings";
+        if (this.FindControl<Button>("SettingsHeaderSave") is { } headerSave) headerSave.IsVisible = section == "Settings";
         if (_shellPageTitle is not null)
             _shellPageTitle.Text = section switch
             {

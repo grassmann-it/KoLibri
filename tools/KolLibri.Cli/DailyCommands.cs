@@ -229,11 +229,15 @@ internal static partial class KolibriCli
             WriteJson(new { command = "daily bribes-sample", error = "Both Mallbot and Main need a stored login." });
             return 1;
         }
-        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
-        var mainName = accounts.FirstOrDefault(a => a.Role == AccountRole.Main)?.DisplayName;
-        if (string.IsNullOrWhiteSpace(mainName))
+        string mainName;
+        try
         {
-            WriteJson(new { command = "daily bribes-sample", error = "No Main account name configured." });
+            mainName = AccountIdentityVerifier.VerifyRoleAsync(AccountSessionManager.CreateDefault(), AccountRole.Main)
+                .GetAwaiter().GetResult().Name;
+        }
+        catch (Exception exception) when (exception is AccountIdentityMismatchException or InvalidOperationException)
+        {
+            WriteJson(new { command = "daily bribes-sample", error = exception.Message });
             return 1;
         }
         var mallbot = ReadClientAsync(AccountRole.Mallbot).GetAwaiter().GetResult();
@@ -351,7 +355,10 @@ internal static partial class KolibriCli
     /// Sends items from one account to the other by KMail attachment and checks that they arrived.
     /// Without --execute it only prints what would be sent. Meat is never sent.
     /// </summary>
-    private static int DailySendItemsAsync(string[] args)
+    private static int DailySendItemsAsync(string[] args) => DailySendItemsCore(args, WriteJson);
+
+    /// <summary>The transfer itself; the JSON result goes to <paramref name="emit"/> so a caller can embed it.</summary>
+    private static int DailySendItemsCore(string[] args, Action<object> emit)
     {
         var from = ParseRole(GetOption(args, "--from") ?? "main");
         var to = ParseRole(GetOption(args, "--to") ?? (from == AccountRole.Main ? "mallbot" : "main"));
@@ -360,15 +367,25 @@ internal static partial class KolibriCli
         var execute = HasFlag(args, "--execute");
         if (from == to || itemId <= 0 || quantity <= 0)
         {
-            WriteJson(new { command = "daily send-items", error = "Need two different roles, --item ID and --qty N." });
+            emit(new { command = "daily send-items", error = "Need two different roles, --item ID and --qty N." });
             return 1;
         }
         var fromCredentials = TryGetCredentials(from);
-        var accounts = AccountSessionManager.CreateDefault().GetAccountsAsync().GetAwaiter().GetResult();
-        var recipient = accounts.FirstOrDefault(a => a.Role == to)?.DisplayName;
-        if (fromCredentials is null || string.IsNullOrWhiteSpace(recipient))
+        if (fromCredentials is null)
         {
-            WriteJson(new { command = "daily send-items", error = "Missing stored login or recipient account." });
+            emit(new { command = "daily send-items", error = "Missing stored login or recipient account." });
+            return 1;
+        }
+        string recipient;
+        try
+        {
+            // The target is the player KoL reports for the target role's live session, not a stored name.
+            recipient = AccountIdentityVerifier.VerifyRoleAsync(AccountSessionManager.CreateDefault(), to)
+                .GetAwaiter().GetResult().Name;
+        }
+        catch (Exception exception) when (exception is AccountIdentityMismatchException or InvalidOperationException)
+        {
+            WriteJson(new { command = "daily send-items", error = exception.Message });
             return 1;
         }
         var sender = ReadClientAsync(from).GetAwaiter().GetResult();
@@ -377,7 +394,7 @@ internal static partial class KolibriCli
         var receiverBefore = CountItem(receiver.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
         if (!execute || senderHas < quantity)
         {
-            WriteJson(new
+            emit(new
             {
                 command = "daily send-items", readOnly = !execute, from = from.ToString(), to = to.ToString(), recipient,
                 itemId, quantity, senderHas, receiverBefore,
@@ -389,7 +406,7 @@ internal static partial class KolibriCli
         var hash = CreateFreePullDispatcher(from)!.ReadSessionHashAsync(fromCredentials).GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(hash))
         {
-            WriteJson(new { command = "daily send-items", error = "No request hash for the sender; nothing sent." });
+            emit(new { command = "daily send-items", error = "No request hash for the sender; nothing sent." });
             return 1;
         }
         var http = ReadAuthenticatedHttpAsync(from).GetAwaiter().GetResult();
@@ -397,7 +414,7 @@ internal static partial class KolibriCli
             new[] { new KoLMailAttachment(itemId, quantity) }, 0).GetAwaiter().GetResult();
         var senderAfter = CountItem(sender.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
         var receiverAfter = CountItem(receiver.Api.FetchInventoryAsync(true).GetAwaiter().GetResult(), itemId);
-        WriteJson(new
+        emit(new
         {
             command = "daily send-items", executed = true, confirmed, from = from.ToString(), to = to.ToString(),
             itemId, quantity, senderBefore = senderHas, senderAfter, receiverBefore, receiverAfter,
@@ -439,8 +456,10 @@ internal static partial class KolibriCli
             return 1;
         }
         var maxPrice = maxPriceOrNull.Value;
+        // A partial name can match other items: only offers of the requested item id count.
         var cheapest = client.Mall.SearchAsync(itemName).GetAwaiter().GetResult()
-            .Listings.Where(l => l.Price > 0).OrderBy(l => l.Price).FirstOrDefault();
+            .Listings.Where(l => l.Price > 0 && BaconArbitrageExecutor.ListingMatchesItem(l, itemId))
+            .OrderBy(l => l.Price).FirstOrDefault();
         var meat = client.Api.FetchStatusAsync(true).GetAwaiter().GetResult().Meat;
         var reserve = long.TryParse(GetOption(args, "--reserve"), out var rv) ? rv : buyOn == AccountRole.Mallbot ? 1_000_000 : 200_000;
         var worthBuying = cheapest is not null && cheapest.Price <= maxPrice;
@@ -458,17 +477,19 @@ internal static partial class KolibriCli
         var buy = new BaconArbitrageExecutor(CreateMallBuyClient(buyOn), client.Mall)
             .TopUpItemAsync(credentials, itemId, qty, meat, maxPrice, reserve, itemName: itemName).GetAwaiter().GetResult();
         string? transfer = null;
+        object? transferResult = null;
         if (buy.Quantity > 0 && sendTo is { } target && target != buyOn)
         {
-            var code = DailySendItemsAsync(new[]
+            var code = DailySendItemsCore(new[]
             {
                 "--from", buyOn.ToString().ToLowerInvariant(), "--to", target.ToString().ToLowerInvariant(),
                 "--item", itemId.ToString(CultureInfo.InvariantCulture), "--qty", buy.Quantity.ToString(CultureInfo.InvariantCulture), "--execute"
-            });
+            }, doc => transferResult = doc);
             transfer = code == 0 ? "sent" : "send-failed";
         }
-        WriteJson(new { decision, bought = buy.Quantity, spent = buy.Spent, buy.Verdict, buy.Rationale, transfer });
-        return 0;
+        // One JSON document; a failed transfer or an unclear purchase is a non-zero exit.
+        WriteJson(new { decision, bought = buy.Quantity, spent = buy.Spent, buy.Verdict, buy.Rationale, unclear = buy.Unclear, transfer, transferResult });
+        return transfer == "send-failed" || buy.Unclear ? 1 : 0;
     }
 
     private static int DailyInternetShopAsync(string[] args)

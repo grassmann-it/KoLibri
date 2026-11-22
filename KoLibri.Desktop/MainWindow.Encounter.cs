@@ -37,6 +37,7 @@ public partial class MainWindow
             _encounterLocationsGrid.ItemsSource = _encounterBrowser.Browser.Locations;
             _encounterMonstersGrid!.ItemsSource = _encounterBrowser.Browser.Monsters;
             _encounterActionsGrid!.ItemsSource = _encounterBrowser.Browser.Actions;
+            _adventuresView?.SetZones(_encounterBrowser.Browser.ZoneGroups);
         }
 
         if (_encounterFilterBox is not null)
@@ -91,22 +92,17 @@ public partial class MainWindow
                     UpdateEncounterStatus("Select a location in the list first.");
                     return;
                 }
-                var budget = (int)(this.FindControl<NumericUpDown>("EncounterBatchTurns")?.Value ?? 1);
-                var item = this.FindControl<TextBox>("EncounterBatchItem")?.Text?.Trim();
-                if (!string.IsNullOrEmpty(item) && (!int.TryParse(item, out var id) || id <= 0))
-                {
-                    UpdateEncounterStatus("Enter a positive item ID or leave it blank.");
-                    return;
-                }
+                if (ReadAdventureJob() is not { } job) return;
                 _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
-                await _encounterBrowser.RunTurnsAsync(row, budget, item);
+                await _encounterBrowser.RunJobAsync(row, job);
                 RefreshEncounterStepLog();
             };
 
         if (this.FindControl<Button>("EncounterBatchContinue") is { } continueTurns)
             continueTurns.Click += async (_, _) =>
             {
-                await _encounterBrowser.RunTurnsAsync(null);
+                await _encounterBrowser.RunJobAsync(null, new AdventureJob(
+                    0, null, _autoCombat.MaxRounds, _autoCombat.AbortHpPercent));
                 RefreshEncounterStepLog();
             };
 
@@ -136,16 +132,41 @@ public partial class MainWindow
 
         WireDecisionPanel();
         if (_adventuresView is not null)
+        {
             _adventuresView.AdventureHere = (target, turns) => _ = AdventureAtAsync(target, turns);
+            _adventuresView.CurrentJob = () => AdventureJob.TryCreate(
+                this.FindControl<NumericUpDown>("EncounterBatchTurns")?.Value,
+                this.FindControl<TextBox>("EncounterBatchItem")?.Text, 0, 0, out _);
+        }
     }
 
-    /// <summary>Starts one adventure (turns = 1) or a bounded batch at a location.</summary>
+    /// <summary>The job the form currently describes (turns, item stop, combat limits); null with a status message when invalid.</summary>
+    private AdventureJob? ReadAdventureJob()
+    {
+        var job = AdventureJob.TryCreate(
+            this.FindControl<NumericUpDown>("EncounterBatchTurns")?.Value,
+            this.FindControl<TextBox>("EncounterBatchItem")?.Text,
+            _autoCombat.MaxRounds, _autoCombat.AbortHpPercent, out var error);
+        if (job is null) UpdateEncounterStatus(error ?? "The adventure settings are not valid.");
+        return job;
+    }
+
+    /// <summary>
+    /// Starts one adventure (turns = 1, "Adventure here") or the form's job at a location. The
+    /// location menu and the Run turns button both end up here, so they run the same job.
+    /// </summary>
     private async Task StartLocationAsync(EncounterBrowserLocationRow row, int turns)
     {
         if (_encounterBrowser is null) { UpdateEncounterStatus("The adventure catalog is not loaded."); return; }
+        if (turns <= 1) 
+        {
+            _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
+            await _encounterBrowser.StartAdventureAsync(row);
+            return;
+        }
+        if (ReadAdventureJob() is not { } job) return;
         _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
-        if (turns <= 1) await _encounterBrowser.StartAdventureAsync(row);
-        else await _encounterBrowser.RunTurnsAsync(row, turns, null);
+        await _encounterBrowser.RunJobAsync(row, job);
     }
 
     private async Task AdventureAtAsync(ContextMenus.LocationMenuTarget target, int turns)

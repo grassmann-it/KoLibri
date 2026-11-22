@@ -9,12 +9,12 @@ public sealed class CharacterSession : IDisposable
     private readonly HttpClient _http;
     private readonly CharacterActionClient _actions;
 
-    private CharacterSession(AccountSession account, HttpClient http)
+    private CharacterSession(AccountSession account, HttpClient http, string pwdHash)
     {
         _http = http;
         Role = account.Profile.Role;
         AccountId = account.Profile.Id;
-        _actions = new CharacterActionClient(http, account.Credentials.AccessToken!);
+        _actions = new CharacterActionClient(http, pwdHash);
     }
 
     public AccountRole Role { get; }
@@ -26,13 +26,16 @@ public sealed class CharacterSession : IDisposable
     {
         var manager = accounts ?? AccountSessionManager.CreateDefault();
         var account = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(account.Credentials.AccessToken))
-            throw new InvalidOperationException("Sign in again to obtain the character action token.");
+        if (string.IsNullOrWhiteSpace(account.Credentials.CookieHeader))
+            throw new InvalidOperationException("Sign in again to obtain a KoL session.");
         var http = KoLLoginClient.CreateAuthenticatedClient(account.Credentials,
             new Uri("https://www.kingdomofloathing.com/"), innerHandler: innerHandler);
         try
         {
-            return new CharacterSession(account, http);
+            // The login cookie is not KoL's request hash; resolve the real one and refuse without it.
+            var pwd = await KoLPwdHashResolver.RequireAsync(http, account.Credentials.CookieHeader!, cancellationToken)
+                .ConfigureAwait(false);
+            return new CharacterSession(account, http, pwd);
         }
         catch
         {

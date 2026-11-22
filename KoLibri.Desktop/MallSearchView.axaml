@@ -57,13 +57,22 @@
 
     <Border Classes="card" Padding="0" IsVisible="{Binding HasOffers}">
       <StackPanel>
-        <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="14,12,14,6">
-          <TextBlock Grid.Column="0" Text="Rank" Classes="muted" FontSize="11" />
-          <TextBlock Grid.Column="1" Text="Shop" Classes="muted" FontSize="11" />
-          <TextBlock Grid.Column="2" Text="Meat / unit" Classes="muted" FontSize="11" TextAlignment="Right" />
-          <TextBlock Grid.Column="3" Text="Stock" Classes="muted" FontSize="11" />
-          <TextBlock Grid.Column="4" Text="Limit / day" Classes="muted" FontSize="11" />
-          <TextBlock Grid.Column="5" Text="Median" Classes="muted" FontSize="11" TextAlignment="Right" />
+        <!-- Sortable columns: one click sorts, a second click flips the direction. -->
+        <WrapPanel Margin="14,10,14,4">
+          <TextBlock Text="Sort by" Classes="muted" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <Button Content="{Binding RankHeader}" Tag="Rank" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by rank" />
+          <Button Content="{Binding ShopHeader}" Tag="Shop" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by shop" />
+          <Button Content="{Binding PriceHeader}" Tag="Price" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by price" />
+          <Button Content="{Binding StockHeader}" Tag="Stock" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by stock" />
+          <Button Content="{Binding LimitHeader}" Tag="Limit" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by daily limit" />
+          <Button Content="{Binding MedianHeader}" Tag="Median" Click="SortClick" Classes="secondary" Padding="8,2" Margin="0,0,4,4" AutomationProperties.Name="Sort by median" />
+        </WrapPanel>
+        <Grid ColumnDefinitions="*,Auto" Margin="14,0,14,4">
+          <CheckBox x:Name="OnlyBuyableBox" IsChecked="{Binding OnlyBuyable, Mode=TwoWay}" Content="Only buyable offers"
+                    AutomationProperties.Name="Only buyable offers" />
+          <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="muted" FontSize="12"
+                     IsVisible="{Binding HasHiddenOffers}"
+                     Text="{Binding HiddenOfferCount, StringFormat='{}{0:N0} hidden'}" />
         </Grid>
         <TextBlock Text="{Binding HighlightThreshold, StringFormat='Highlighted: offers at or under {0:N0} Meat'}"
                    IsVisible="{Binding HasThreshold}" Classes="muted" FontSize="12" Margin="14,0,14,4" />
@@ -71,19 +80,24 @@
                  AutomationProperties.Name="Market offers">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="local:MallOfferRow">
-              <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="0,2"
+              <!-- Two lines per offer, so shop, unit price and Buy stay together at 820 px:
+                   shop name wraps instead of being cut, the numbers sit under it. -->
+              <Grid ColumnDefinitions="30,*,Auto,58" ColumnSpacing="8" Margin="0,3"
                     Classes.bargain="{Binding UnderThreshold}">
-                <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="muted" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="{Binding ShopName}" TextTrimming="CharacterEllipsis"
-                           VerticalAlignment="Center" />
-                <TextBlock Grid.Column="2" Text="{Binding PriceText}" TextAlignment="Right" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="3" Text="{Binding StockText}" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="4" Text="{Binding LimitText}" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="{Binding PricegunText}" TextAlignment="Right"
-                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="muted" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="{Binding ShopName}" TextWrapping="Wrap" ToolTip.Tip="{Binding ShopName}" />
+                  <TextBlock Classes="muted" FontSize="11" TextWrapping="Wrap">
+                    <Run Text="{Binding StockText}" /><Run Text="  ·  " /><Run Text="{Binding LimitText}" /><Run Text="  ·  median " /><Run Text="{Binding PricegunText}" />
+                  </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="2" VerticalAlignment="Top">
+                  <TextBlock Text="{Binding PriceText}" TextAlignment="Right" FontWeight="SemiBold" />
+                  <TextBlock Text="Meat / unit" Classes="muted" FontSize="10" TextAlignment="Right" />
+                </StackPanel>
                 <!-- Disabled when the row cannot be bought. -->
-                <Button Grid.Column="6" Content="Buy" Classes="secondary" IsEnabled="{Binding CanBuy}"
-                        Click="BuyClick" Padding="8,2"
+                <Button Grid.Column="3" Content="Buy" Classes="secondary" IsEnabled="{Binding CanBuy}"
+                        Click="BuyClick" Padding="8,2" VerticalAlignment="Top"
                         ToolTip.Tip="Opens a confirmation first; nothing is bought until you confirm." />
               </Grid>
             </DataTemplate>

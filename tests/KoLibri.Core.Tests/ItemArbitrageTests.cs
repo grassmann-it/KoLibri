@@ -43,6 +43,14 @@ public sealed class ItemArbitrageTests
             var body = request.Method == HttpMethod.Get
                 ? "<input type=hidden name=\"pwd\" value=\"storehash\">"
                 : multiResponse is not null && !form.Contains("quantity=1&") && !form.EndsWith("quantity=1") ? multiResponse : buyResponse;
+            if (request.Method == HttpMethod.Post && body.Contains("You acquire", StringComparison.Ordinal))
+            {
+                // A real receipt covers what was ordered: meat for quantity x unit price and the count.
+                var fields = form.Split('&').Select(p => p.Split('=')).Where(p => p.Length == 2).ToDictionary(p => p[0], p => p[1]);
+                var qty = long.Parse(fields["quantity"]);
+                var price = long.Parse(fields["whichitem"][^9..]);
+                body = $"You spent {price * qty:N0} Meat. You acquire an item: BACON" + (qty > 1 ? $" ({qty})" : "");
+            }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
         }
     }
@@ -106,9 +114,9 @@ public sealed class ItemArbitrageTests
             multiResponse: "You may only buy 1 of this item per day from this store.");
         var listings = new[]
         {
-            Listing(1_000, 50) with { StoreId = "111" },
-            Listing(1_100, 50) with { StoreId = "222" },
-            Listing(1_200, 50) with { StoreId = "333" }
+            Listing(1_000, 50) with { StoreId = "111", ItemId = "8763" },
+            Listing(1_100, 50) with { StoreId = "222", ItemId = "8763" },
+            Listing(1_200, 50) with { StoreId = "333", ItemId = "8763" }
         };
         var outcome = await Executor(store, listings).TopUpItemAsync(
             Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON");
@@ -135,7 +143,7 @@ public sealed class ItemArbitrageTests
     {
         var store = new FakeStore("You spent 1,000 Meat. You acquire an item: BACON",
             multiResponse: "You may only buy 1 of this item per day from this store.");
-        var listings = new[] { Listing(1_000, 50) with { StoreId = "111" }, Listing(1_100, 50) with { StoreId = "222" } };
+        var listings = new[] { Listing(1_000, 50) with { StoreId = "111", ItemId = "8763" }, Listing(1_100, 50) with { StoreId = "222", ItemId = "8763" } };
         var outcome = await Executor(store, listings).TopUpItemAsync(
             Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON", singlePurchase: true);
         Assert.Equal(1, store.Requests.Count(r => r.StartsWith("POST")));
@@ -147,7 +155,7 @@ public sealed class ItemArbitrageTests
     public async Task A_confirmed_partial_survives_when_a_later_round_fails()
     {
         var store = new FakeStore("You spent 1,000 Meat. You acquire an item: BACON");
-        var listings = new[] { Listing(1_000, 1) with { StoreId = "111" }, Listing(1_100, 5) with { StoreId = "222" } };
+        var listings = new[] { Listing(1_000, 1) with { StoreId = "111", ItemId = "8763" }, Listing(1_100, 5) with { StoreId = "222", ItemId = "8763" } };
         var outcome = await ExecutorWithMall(store, new ThrowingAfterFirstMall(listings)).TopUpItemAsync(
             Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON");
         Assert.Equal(1, outcome.Quantity);

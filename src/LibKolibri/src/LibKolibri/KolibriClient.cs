@@ -8,13 +8,14 @@ namespace LibKolibri;
 public sealed class KolibriLoginRequiredException(string message) : InvalidOperationException(message);
 
 /// <summary>One step of the Internet Meme Shop run and what KoL answered.</summary>
-public sealed record MemeShopStepResult(string Description, bool Accepted, string Message);
+public sealed record MemeShopStepResult(string Description, bool Accepted, string Message, bool Unclear = false);
 
 /// <summary>Outcome of <see cref="KolibriClient.RunMemeShopAsync"/>.</summary>
 public sealed record MemeShopRunResult(
     string Verdict,
     IReadOnlyList<MemeShopStepResult> Steps,
-    BaconArbitrageExecutor.Outcome? BaconTopUp);
+    BaconArbitrageExecutor.Outcome? BaconTopUp,
+    bool Unclear = false);
 
 /// <summary>
 /// The front door of LibKolibri: sign in, read the account, search and buy in the mall, run the
@@ -58,14 +59,25 @@ public sealed class KolibriClient : IDisposable
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var login = await new KoLLoginClient()
             .LoginAsync(username, password, rememberPassword, cancellationToken).ConfigureAwait(false);
-        await manager.SetProfileAsync(new AccountProfile
+        using (var probe = KoLLoginClient.CreateAuthenticatedClient(login.Credentials, KolBase))
         {
-            Id = role == AccountRole.Main ? "main" : "mallbot",
-            DisplayName = login.UserName,
-            Role = role,
-            Enabled = true
-        }, cancellationToken).ConfigureAwait(false);
-        await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+            var verified = await KoLPwdHashResolver.TryReadIdentityAsync(probe, cancellationToken).ConfigureAwait(false);
+            if (verified is not null)
+                // An explicit login with a name and password is the user's decision to (re)bind the role.
+                await manager.ApplyVerifiedLoginAsync(role, verified, login.Credentials, allowAccountChange: true, cancellationToken)
+                    .ConfigureAwait(false);
+            else
+            {
+                await manager.SetProfileAsync(new AccountProfile
+                {
+                    Id = role == AccountRole.Main ? "main" : "mallbot",
+                    DisplayName = login.UserName,
+                    Role = role,
+                    Enabled = true
+                }, cancellationToken).ConfigureAwait(false);
+                await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+            }
+        }
         var session = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
         return new KolibriClient(manager, session);
     }
@@ -148,6 +160,9 @@ public sealed class KolibriClient : IDisposable
                 topUp = await BuyCheapAsync(BaconArbitrageExecutor.Ids.Bacon, "BACON", needed,
                     maxBaconPrice, meatReserve, cancellationToken).ConfigureAwait(false);
                 bacon += topUp.Quantity;
+                // A BACON purchase whose answer is unknown may be booked: stop before the shop steps.
+                if (topUp.Unclear)
+                    return new MemeShopRunResult("Unclear", Array.Empty<MemeShopStepResult>(), topUp, Unclear: true);
             }
         }
         var plan = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
@@ -159,14 +174,16 @@ public sealed class KolibriClient : IDisposable
         });
         var dispatcher = new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri);
         var results = new List<MemeShopStepResult>();
+        var unclear = false;
         foreach (var step in plan.Steps)
         {
-            var (accepted, message) = await AutoCombatDailyBridge.ExecuteMemeStepAsync(
+            var (accepted, message, stepUnclear) = await AutoCombatDailyBridge.ExecuteMemeStepDetailedAsync(
                 new ChoiceStepSpec(step.ChoiceId, step.OptionId), dispatcher, _session.Credentials,
                 store, Role.ToString(), cancellationToken).ConfigureAwait(false);
-            results.Add(new MemeShopStepResult(step.Description, accepted, message));
+            results.Add(new MemeShopStepResult(step.Description, accepted, message, stepUnclear));
+            if (stepUnclear) { unclear = true; break; }
         }
-        return new MemeShopRunResult(plan.Verdict.ToString(), results, topUp);
+        return new MemeShopRunResult(unclear ? "Unclear" : plan.Verdict.ToString(), results, topUp, unclear);
     }
 
     /// <summary>
@@ -308,13 +325,16 @@ public sealed class KolibriClient : IDisposable
             .FetchSalesAsync(forceRefresh, cancellationToken);
     }
 
-    /// <summary>Display name of the stored account for a role, or null when none is stored.</summary>
+    /// <summary>
+    /// Name of the other role's player as KoL itself reports it for that role's live session, or throws
+    /// (mismatch with the stored profile, no session, no identity). A transfer must never use a stale stored name.
+    /// </summary>
     public async Task<string?> OtherAccountNameAsync(CancellationToken cancellationToken = default)
     {
         var other = Role == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
-        var session = await _accounts.GetSessionAsync(other, includeExpired: true, cancellationToken: cancellationToken)
+        var identity = await AccountIdentityVerifier.VerifyRoleAsync(_accounts, other, cancellationToken)
             .ConfigureAwait(false);
-        return session?.Profile.DisplayName;
+        return identity.Name;
     }
 
     private async Task<bool> SessionWorksAsync(CancellationToken cancellationToken)

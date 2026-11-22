@@ -178,13 +178,14 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
             {
                 var form = await request.Content!.ReadAsStringAsync(token);
                 Assert.Contains("whichitem=995", form);
+                Assert.Contains("pwd=0123456789abcdef", form);   // the real hash, not the login token
                 EatPosts++; Quantity--; Fullness++;
                 body = "You eat the egg.";
             }
             else if (request.RequestUri!.Query.Contains("what=inventory"))
                 body = "{\"995\":" + Quantity + "}";
             else
-                body = "{\"full\":\"" + Fullness + "\",\"drunk\":0,\"spleen\":0,\"familiar\":\"0\",\"equipment\":{}}";
+                body = "{\"pwd\":\"0123456789abcdef\",\"full\":\"" + Fullness + "\",\"drunk\":0,\"spleen\":0,\"familiar\":\"0\",\"equipment\":{}}";
             return new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request, Content = new StringContent(body) };
         }
     }
