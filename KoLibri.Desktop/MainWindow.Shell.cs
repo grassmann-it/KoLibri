@@ -128,6 +128,14 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>Always-visible way to sign in: opens Settings with the Accounts group expanded.</summary>
+    private async void SignInClick(object? sender, RoutedEventArgs e)
+    {
+        await OpenSectionAsync("Settings");
+        if (this.FindControl<Expander>("AccountsExpander") is { } accounts) accounts.IsExpanded = true;
+        SetStatus($"Sign in as {_selectedRole} (or the other account) below.");
+    }
+
     private async void SessionLogCopyClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(_log.ToText());

@@ -52,6 +52,11 @@
               <ComboBoxItem Content="Mallbot" />
             </ComboBox>
           </StackPanel>
+          <Button x:Name="SignInButton"
+                  Classes="primary"
+                  Content="Sign in"
+                  Click="SignInClick"
+                  AutomationProperties.Name="Sign in to the selected account" />
           <Button x:Name="GlobalRefreshButton"
                   Classes="secondary"
                   Content="⟳"
@@ -298,7 +303,7 @@
         <StackPanel x:Name="SettingsPanel" Spacing="16" IsVisible="False">
           <ContentControl x:Name="SettingsHost" />
           <Border Classes="card">
-            <Expander x:Name="AccountsExpander" Header="Accounts: sign in to Main and Mallbot">
+            <Expander x:Name="AccountsExpander" Header="Accounts: sign in to Main and Mallbot" IsExpanded="True">
         <Border x:Name="AccountsPanel" Classes="card">
           <StackPanel Spacing="14">
             <StackPanel Spacing="3">
