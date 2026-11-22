@@ -135,11 +135,17 @@ public partial class MainWindow
     {
         if (_encounterStatusText is null) return;
         _encounterStatusText.Text = $"{DateTime.Now:HH:mm:ss} · {message}";
+        _log.Adventure(message);
     }
 
     private void RefreshEncounterStepLog()
     {
         if (_encounterStepLogText is null || _encounterBrowser?.Session is not { } session) return;
+        foreach (var entry in session.StepLog.OrderBy(entry => entry.At))
+        {
+            var line = $"{entry.Kind} {entry.Status} {entry.StopReason}";
+            if (_loggedSteps.Add($"{entry.At:O}|{line}")) _log.Adventure(line);
+        }
         var lines = session.StepLog.Take(10).Select(entry =>
             $"{entry.At:HH:mm:ss} {entry.Kind} {entry.Status} {entry.StopReason}");
         _encounterStepLogText.Text = string.Join("\n",

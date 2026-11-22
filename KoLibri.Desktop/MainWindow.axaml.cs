@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
 
@@ -16,14 +17,23 @@ public partial class MainWindow : Window
     private bool _isOpsDark;
     private TextBlock? _statusText;
     private Border? _statusBar;
-    private Button? _navOverview;
     private Button? _navInventory;
     private Button? _navDaily;
-    private Button? _navArbitrage;
     private Button? _navMall;
+    private Button? _navCommunication;
+    private Button? _navSettings;
+    private StackPanel? _communicationPanel;
+    private StackPanel? _settingsPanel;
+    private Expander? _arbitrageExpander;
+    private readonly DesktopSettingsStore _settingsStore;
+    private DesktopSettings _settings;
+    private readonly SessionLogViewModel _log;
+    private readonly MallSpendLedger _spendLedger = new();
+    private object _accountToken = new();
+    private bool _combatCatalogLoaded;
+    private bool _arbitrageLoaded;
+    private bool _signInOffered;
     private Button? _navAdventure;
-    private Button? _navCombat;
-    private Button? _navAccounts;
     private ScrollViewer? _pageScroll;
     private readonly DesktopLiveDataProvider _live;
     private readonly KoLmafiaCatalog? _catalog;
@@ -31,11 +41,6 @@ public partial class MainWindow : Window
     private int _navigationVersion;
     private TextBlock? _shellPageTitle;
     private TextBlock? _shellPageDescription;
-    private Border? _accountsPanel;
-    private Border? _agentsPanel;
-    private Border? _browserPanel;
-    private Button? _navBrowser;
-    private Button? _navAgents;
     private Border? _adventurePanel;
     private TextBlock? _adventureAccountLabel;
     private TextBlock? _adventureTurnsLabel;
@@ -47,7 +52,7 @@ public partial class MainWindow : Window
     private ProgressBar? _busyIndicator;
     private Button? _cancelRefreshButton;
     private CancellationTokenSource? _refreshCancellation;
-    private string _activeSection = "Guts";
+    private string _activeSection = "Adventure";
     private AccountRole _selectedRole = AccountRole.Mallbot;
     private readonly AccountSessionManager _accounts;
     private readonly KoLLoginClient _loginClient = new();
@@ -72,13 +77,11 @@ public partial class MainWindow : Window
     private StackPanel? _inventoryDetailPanel;
     private InventoryViewModel _inventory = null!;
     private DailyBriefingViewModel _daily = null!;
-    private LiveGutsViewModel _guts = null!;
     private LiveArbitrageViewModel _arbitrage = null!;
     private LiveMallViewModel _mall = null!;
     private MallSearchViewModel _mallSearchModel = null!;
     private AutoCombatViewModel _autoCombat = null!;
     private StackPanel? _mallSection;
-    private StackPanel? _combatSection;
     private MallSearchView? _mallSearch;
     private ListBox? _combatTargetList;
     private ComboBox? _combatSkillPicker;
@@ -89,12 +92,7 @@ public partial class MainWindow : Window
     private NumericUpDown? _combatMaxRounds;
     private TextBlock? _combatPreviewText;
     private TextBlock? _combatRunStatusText;
-    private StackPanel? _gutsPanel;
     private StackPanel? _arbitragePanel;
-    private ItemsControl? _gutsAccountCards;
-    private TextBlock? _gutsSummaryText;
-    private TextBlock? _storeSummaryText;
-    private ListBox? _storeRows;
     private ListBox? _arbitrageRows;
     private TextBlock? _arbitrageSummaryText;
     private ListBox? _arbitrageRules;
@@ -110,14 +108,21 @@ public partial class MainWindow : Window
     }
 
     public MainWindow(Func<Action<string>, EncounterBrowserPane>? createEncounterPane, string? tokenDirectory = null,
-        AccountSessionManager? accounts = null, Func<AccountSession, HttpClient>? createAccountHttp = null)
+        AccountSessionManager? accounts = null, Func<AccountSession, HttpClient>? createAccountHttp = null,
+        DesktopSettingsStore? settingsStore = null, bool applySettingsToLimiters = true)
     {
         _accounts = accounts ?? AccountSessionManager.CreateDefault();
-        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp);
+        _settingsStore = settingsStore ?? new DesktopSettingsStore();
+        _settings = _settingsStore.Load();
+        if (applySettingsToLimiters) _settings.ApplyToLimiters();
+        _log = new SessionLogViewModel(post: action =>
+        {
+            if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action);
+        });
+        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp, _settings);
         _catalog = TryLoadCatalog();
         InitializeComponent();
         _pageScroll = this.FindControl<ScrollViewer>("PageScroll");
-        _navAccounts = this.FindControl<Button>("NavAccounts");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
         _inventoryPanel = this.FindControl<StackPanel>("InventoryPanel");
         _inventorySearchBox = this.FindControl<TextBox>("InventorySearchBox");
@@ -128,26 +133,22 @@ public partial class MainWindow : Window
         _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
         if (this.FindControl<ComboBox>("CharacterSlotPicker") is { } slotPicker)
             slotPicker.ItemsSource = Enum.GetValues<CharacterEquipmentSlot>();
-        _navOverview = this.FindControl<Button>("NavOverview");
         _navInventory = this.FindControl<Button>("NavInventory");
         _navDaily = this.FindControl<Button>("NavDaily");
-        _navArbitrage = this.FindControl<Button>("NavArbitrage");
         _navMall = this.FindControl<Button>("NavMall");
         _navAdventure = this.FindControl<Button>("NavAdventure");
-        _navCombat = this.FindControl<Button>("NavCombat");
+        _navCommunication = this.FindControl<Button>("NavCommunication");
+        _navSettings = this.FindControl<Button>("NavSettings");
+        _communicationPanel = this.FindControl<StackPanel>("CommunicationPanel");
+        _settingsPanel = this.FindControl<StackPanel>("SettingsPanel");
+        _arbitrageExpander = this.FindControl<Expander>("ArbitrageExpander");
         _dailyPanel = this.FindControl<StackPanel>("DailyPanel");
-        _gutsPanel = this.FindControl<StackPanel>("GutsPanel");
         _arbitragePanel = this.FindControl<StackPanel>("ArbitragePanel");
-        _gutsAccountCards = this.FindControl<ItemsControl>("GutsAccountCards");
-        _gutsSummaryText = this.FindControl<TextBlock>("GutsSummaryText");
-        _storeSummaryText = this.FindControl<TextBlock>("StoreSummaryText");
-        _storeRows = this.FindControl<ListBox>("StoreRows");
         _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
         _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
         _arbitrageRules = this.FindControl<ListBox>("ArbitrageRules");
         _arbitragePlanText = this.FindControl<TextBlock>("ArbitragePlanText");
         _mallSection = this.FindControl<StackPanel>("MallSection");
-        _combatSection = this.FindControl<StackPanel>("CombatSection");
         _mallSearch = this.FindControl<MallSearchView>("MallSearch");
         _combatTargetList = this.FindControl<ListBox>("CombatTargetList");
         _combatSkillPicker = this.FindControl<ComboBox>("CombatSkillPicker");
@@ -167,11 +168,6 @@ public partial class MainWindow : Window
         _statusBar = this.FindControl<Border>("StatusBar");
         _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
         _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
-        _accountsPanel = this.FindControl<Border>("AccountsPanel");
-        _agentsPanel = this.FindControl<Border>("AgentsPanel");
-        _browserPanel = this.FindControl<Border>("BrowserPanel");
-        _navBrowser = this.FindControl<Button>("NavBrowser");
-        _navAgents = this.FindControl<Button>("NavAgents");
         _adventurePanel = this.FindControl<Border>("AdventurePanel");
         _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
         _encounterMonstersGrid = this.FindControl<ListBox>("EncounterMonstersGrid");
@@ -191,15 +187,23 @@ public partial class MainWindow : Window
         _globalRefreshButton = this.FindControl<Button>("GlobalRefreshButton");
         _busyIndicator = this.FindControl<ProgressBar>("BusyIndicator");
         _cancelRefreshButton = this.FindControl<Button>("CancelRefreshButton");
+        if (Enum.TryParse<AccountRole>(_settings.DefaultAccount, ignoreCase: true, out var defaultRole)
+            && _accountRoleSelector is not null)
+            _accountRoleSelector.SelectedIndex = defaultRole == AccountRole.Main ? 0 : 1;
         _selectedRole = ReadSelectedRole();
         _autoCombat = new AutoCombatViewModel(_catalog);
+        InitializeShell();
         ResetAccountViews();
         WireEncounterBrowser(createEncounterPane, tokenDirectory);
         SetActiveNavigation(_activeSection);
         UpdatePageState(_activeSection);
         SizeChanged += WindowSizeChanged;
         UpdateResponsiveLayout(Bounds.Width > 0 ? Bounds.Width : Width);
-        Opened += async (_, _) => await OpenSectionAsync("Guts");
+        Opened += async (_, _) =>
+        {
+            await OpenSectionAsync(_activeSection);
+            await OfferSignInIfNeededAsync();
+        };
         Closed += (_, _) =>
         {
             _navigationVersion++;
@@ -229,31 +233,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.Control)
+        var command = ShortcutModifier;
+        if (e.Key == Key.OemPeriod && e.KeyModifiers == command)
         {
             CancelRefreshClick(sender, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
 
-        if (e.KeyModifiers == KeyModifiers.Control && TryNavigateShortcut(e.Key))
+        if (e.KeyModifiers == command && TryNavigateShortcut(e.Key))
         {
             e.Handled = true;
         }
     }
 
+    /// <summary>Command on macOS, Control elsewhere: Ctrl+number is taken by the system on a Mac.</summary>
+    private static KeyModifiers ShortcutModifier
+        => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+
     private bool TryNavigateShortcut(Key key)
     {
         var section = key switch
         {
-            Key.D1 or Key.NumPad1 => "Guts",
+            Key.D1 or Key.NumPad1 => "Adventure",
             Key.D2 or Key.NumPad2 => "Inventory",
-            Key.D3 or Key.NumPad3 => "Daily",
-            Key.D4 or Key.NumPad4 => "Arbitrage",
-            Key.D5 or Key.NumPad5 => "Mall & Shop",
-            Key.D6 or Key.NumPad6 => "Adventure",
-            Key.D7 or Key.NumPad7 => "Combat",
-            Key.D8 or Key.NumPad8 => "Accounts",
+            Key.D3 or Key.NumPad3 => "Mall & Shop",
+            Key.D4 or Key.NumPad4 => "Daily",
+            Key.D5 or Key.NumPad5 => "Communication",
+            Key.OemComma => "Settings",
             _ => null
         };
         if (section is null)
@@ -265,7 +272,8 @@ public partial class MainWindow : Window
 
     private void ShowShortcutHelp()
     {
-        SetStatus("Keyboard: Ctrl+1–8 switch tabs · F5 refresh · Ctrl+Esc cancel · F1 help.");
+        var key = OperatingSystem.IsMacOS() ? "Cmd" : "Ctrl";
+        SetStatus($"Keyboard: {key}+1–4 Adventures, Inventory, Mall, Daily · {key}+5 Chat & Mail · {key}+, Settings · F5 refresh · {key}+. cancel · F1 help.");
     }
 
     private void WindowSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -309,16 +317,12 @@ public partial class MainWindow : Window
     {
         var entries = new (Button? Button, string Section)[]
         {
-            (_navOverview, "Guts"),
-            (_navInventory, "Inventory"),
-            (_navDaily, "Daily"),
-            (_navArbitrage, "Arbitrage"),
-            (_navMall, "Mall & Shop"),
             (_navAdventure, "Adventure"),
-            (_navCombat, "Combat"),
-            (_navBrowser, "Browser"),
-            (_navAccounts, "Accounts"),
-            (_navAgents, "Agents")
+            (_navInventory, "Inventory"),
+            (_navMall, "Mall & Shop"),
+            (_navDaily, "Daily"),
+            (_navCommunication, "Communication"),
+            (_navSettings, "Settings")
         };
         foreach (var (button, tag) in entries)
         {
@@ -356,10 +360,6 @@ public partial class MainWindow : Window
         {
             switch (section)
             {
-                case "Guts":
-                    await _guts.LoadAsync(forceRefresh, cancellationToken);
-                    ShowLoadResult(section, _guts);
-                    break;
                 case "Inventory":
                     await _inventory.LoadAsync(forceRefresh, cancellationToken);
                     ShowLoadResult(section, _inventory);
@@ -367,10 +367,8 @@ public partial class MainWindow : Window
                 case "Daily":
                     await _daily.LoadAsync(forceRefresh, cancellationToken);
                     ShowLoadResult(section, _daily);
-                    break;
-                case "Arbitrage":
-                    await _arbitrage.LoadAsync(forceRefresh, cancellationToken);
-                    ShowLoadResult(section, _arbitrage);
+                    if (_arbitrageExpander is { IsExpanded: true } && (forceRefresh || !_arbitrageLoaded))
+                        await LoadArbitrageAsync(forceRefresh, cancellationToken);
                     break;
                 case "Mall & Shop":
                     // Search first: the own shop loads only when its section is opened.
@@ -380,15 +378,10 @@ public partial class MainWindow : Window
                         else _mallSearch.FocusSearch();
                     }
                     break;
-                case "Combat":
-                    await LoadCombatCatalogAsync(cancellationToken);
-                    ShowLoadResult(section, _autoCombat);
+                case "Settings":
+                    await LoadSettingsSectionAsync(cancellationToken);
                     break;
-                case "Accounts":
-                    await LoadSavedAccountsAsync(cancellationToken);
-                    break;
-                case "Agents":
-                    LoadAgents();
+                case "Communication":
                     break;
                 case "Adventure":
                     await RefreshAdventureAsync(forceRefresh, cancellationToken);
@@ -399,9 +392,9 @@ public partial class MainWindow : Window
 
     private void ShowLoadResult(string section, DesktopViewModel viewModel)
     {
-        SetStatus(viewModel.LoadState == DesktopLoadState.Error
-            ? $"{section}: {viewModel.ErrorMessage}"
-            : $"{section} updated.");
+        var failed = viewModel.LoadState == DesktopLoadState.Error;
+        SetStatus(failed ? $"{section}: {viewModel.ErrorMessage}" : $"{section} updated.");
+        if (failed) _log.Error($"{section}: {viewModel.ErrorMessage}");
     }
 
     private async void AccountRoleSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -445,6 +438,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             SetStatus($"{operation} failed: {exception.Message}");
+            _log.Error($"{operation} failed: {exception.Message}");
         }
         finally
         {
@@ -495,18 +489,16 @@ public partial class MainWindow : Window
         {
             _adventureTurnsLabel.Text = "—";
             _adventureKnucklebonesLabel.Text = "— / 100";
-            _adventurePlanSummary.Text = $"Log {role} in through Accounts first.";
+            _adventurePlanSummary.Text = $"Sign {role} in under Settings → Accounts first.";
             _adventurePlanAdvisories.Text = "No session snapshot available.";
-            SetStatus($"Sign in as {role} under Accounts to load the farm plan.");
+            SetStatus($"Sign in as {role} under Settings → Accounts to load the farm plan.");
             return;
         }
 
-        using var http = KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials,
-            new Uri("https://www.kingdomofloathing.com/"));
-        var account = new KoLAccountReadClient(http);
-        var status = await account.FetchStatusAsync(forceRefresh, cancellationToken);
-        var inventory = await account.FetchInventoryAsync(forceRefresh, cancellationToken);
+        // The charpane reads the same cached status through the provider: one fetch, not two.
+        var status = await _live.LoadStatusAsync(role, forceRefresh, cancellationToken);
+        var inventory = await _live.LoadInventoryAsync(role, forceRefresh, null, cancellationToken);
+        if (status is null) return;
         if (role != _selectedRole) return;
         if (!status.IsStale && _encounterBrowser?.ObserveAscension(role, session.Profile.Id, status.Ascensions) == true)
         {
@@ -658,25 +650,24 @@ public partial class MainWindow : Window
 
     private void UpdatePageState(string section)
     {
-        if (_gutsPanel is not null) _gutsPanel.IsVisible = section == "Guts";
         if (_inventoryPanel is not null) _inventoryPanel.IsVisible = section == "Inventory";
         if (_dailyPanel is not null) _dailyPanel.IsVisible = section == "Daily";
-        if (_arbitragePanel is not null) _arbitragePanel.IsVisible = section == "Arbitrage";
         if (_mallSection is not null) _mallSection.IsVisible = section == "Mall & Shop";
         if (_adventurePanel is not null) _adventurePanel.IsVisible = section == "Adventure";
-        if (_combatSection is not null) _combatSection.IsVisible = section == "Combat";
-        if (_accountsPanel is not null) _accountsPanel.IsVisible = section == "Accounts";
-        if (_agentsPanel is not null) _agentsPanel.IsVisible = section == "Agents";
-        if (_browserPanel is not null) _browserPanel.IsVisible = section == "Browser";
+        if (_communicationPanel is not null) _communicationPanel.IsVisible = section == "Communication";
+        if (_settingsPanel is not null) _settingsPanel.IsVisible = section == "Settings";
         if (_shellPageTitle is not null)
-            _shellPageTitle.Text = section == "Adventure" ? "Adventures" : section;
+            _shellPageTitle.Text = section switch
+            {
+                "Adventure" => "Adventures",
+                "Mall & Shop" => "Mall",
+                "Communication" => "Chat & Mail",
+                _ => section
+            };
         if (_shellPageDescription is not null)
             _shellPageDescription.Text = section switch
             {
-                "Guts" => $"All accounts · {_selectedRole} store",
-                "Accounts" => "Main and Mallbot",
-                "Browser" => "Placeholder",
-                "Combat" => "Auto-combat · Main and Mallbot",
+                "Settings" => "Budgets, pacing, accounts, agent rights, combat rules",
                 _ => _selectedRole.ToString()
             };
     }
@@ -757,17 +748,17 @@ public partial class MainWindow : Window
         _mall = new LiveMallViewModel(_selectedRole, _live);
         _mallSearchModel = new MallSearchViewModel(
             new LiveMallSearchBackend(_live, _selectedRole), LookupCatalogItems);
+        _mallSearchModel.PurchaseRequest = CreatePurchaseCoordinator();
+        WatchMallSearch(_mallSearchModel);
         _mallSearch?.Attach(_mallSearchModel, _mall);
-        _guts = new LiveGutsViewModel(_selectedRole, _live);
+        _accountToken = new object();
+        _arbitrageLoaded = false;
         _daily = new DailyBriefingViewModel(_selectedRole, _live);
 
-        if (_gutsAccountCards is not null) _gutsAccountCards.ItemsSource = _guts.Accounts;
-        if (_storeRows is not null) _storeRows.ItemsSource = _guts.StoreRows;
         if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
         if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;
         if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
 
-        _guts.PropertyChanged += (_, _) => RenderAccountSummaries();
         _arbitrage.PropertyChanged += (_, _) => RenderAccountSummaries();
         _daily.PropertyChanged += (_, _) => RenderAccountSummaries();
         RenderAccountSummaries();
@@ -782,8 +773,6 @@ public partial class MainWindow : Window
 
     private void RenderAccountSummaries()
     {
-        if (_gutsSummaryText is not null) _gutsSummaryText.Text = _guts.GutsSummary;
-        if (_storeSummaryText is not null) _storeSummaryText.Text = _guts.StoreSummary;
         if (_arbitrageSummaryText is not null) _arbitrageSummaryText.Text = _arbitrage.SummaryText;
         if (_arbitragePlanText is not null) _arbitragePlanText.Text = _arbitrage.PlanText;
         if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;

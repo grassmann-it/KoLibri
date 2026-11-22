@@ -76,12 +76,13 @@ public sealed class DesktopLiveDataProvider : IDisposable
         AccountSession Session, HttpClient Http, KoLAccountReadClient Account, IMallReadClient Mall);
 
     public DesktopLiveDataProvider(AccountSessionManager? accounts = null,
-        Func<AccountSession, HttpClient>? createAccountHttp = null)
+        Func<AccountSession, HttpClient>? createAccountHttp = null,
+        DesktopSettings? settings = null)
     {
         _accounts = accounts ?? AccountSessionManager.CreateDefault();
         _createAccountHttp = createAccountHttp ?? (session => KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/")));
-        _pricegun = new PricegunReadClient(_pricegunHttp);
+        _pricegun = new PricegunReadClient(_pricegunHttp, policy: settings?.ToPricegunPolicy());
     }
 
     /// <summary>The live inventory of the given account.</summary>
@@ -527,6 +528,17 @@ public sealed class DesktopLiveDataProvider : IDisposable
 
     private async Task<IMallReadClient?> CreateMallClientAsync(AccountRole role, CancellationToken cancellationToken)
         => (await GetClientsAsync(role, cancellationToken).ConfigureAwait(false))?.Mall;
+
+    /// <summary>
+    /// The signed-in HTTP client and password hash for an explicit user-confirmed
+    /// purchase; null without a session. The client stays owned by this provider.
+    /// </summary>
+    public async Task<(HttpClient Http, string? PasswordHash)?> OpenPurchaseSessionAsync(
+        AccountRole role, CancellationToken cancellationToken)
+    {
+        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
+        return clients is null ? null : (clients.Http, clients.Session.Credentials.AccessToken);
+    }
 
     private async Task<AccountClients?> GetClientsAsync(AccountRole role, CancellationToken cancellationToken)
     {
