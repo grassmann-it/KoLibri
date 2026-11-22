@@ -114,12 +114,12 @@ public sealed class KolibriClient : IDisposable
     /// </summary>
     public async Task<BaconArbitrageExecutor.Outcome> BuyCheapAsync(
         int itemId, string itemName, int quantity, long maxPricePerUnit, long meatReserve = 0,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool singlePurchase = false)
     {
         var status = await GetStatusAsync(true, cancellationToken).ConfigureAwait(false);
         return await new BaconArbitrageExecutor(new MallBuyClient(_http, MallBuyClient.DefaultBaseUri), _mall)
             .TopUpItemAsync(_session.Credentials, itemId, quantity, status.Meat, maxPricePerUnit,
-                meatReserve, maxRounds: 60, cancellationToken: cancellationToken, itemName: itemName)
+                meatReserve, maxRounds: 60, cancellationToken: cancellationToken, itemName: itemName, singlePurchase: singlePurchase)
             .ConfigureAwait(false);
     }
 

@@ -133,4 +133,48 @@ public sealed class McpAccessPolicyTests : IDisposable
         Assert.False(authorize("kol_adventure_run_execute", Args("{\"execute\":true,\"maxTurns\":\"3\"}")).Allowed);
         Assert.False(authorize("kol_adventure_run_execute", Args("{\"execute\":true,\"maxTurns\":-1}")).Allowed);
     }
+
+    [Fact]
+    public void Single_role_tools_authorize_the_role_they_use_and_reject_roles()
+    {
+        var (_, _, authorize) = Setup(["Mallbot"]);
+        // No role: the handler uses the default (Main), which this grant does not cover.
+        Assert.False(authorize("kol_status", Args("{}")).Allowed);
+        Assert.False(authorize("kol_inventory", Args("{\"roles\":[\"Mallbot\"]}")).Allowed);   // 'roles' is not accepted here
+        Assert.False(authorize("kol_status", Args("{\"role\":\"Main\",\"roles\":[\"Mallbot\"]}")).Allowed);
+        Assert.True(authorize("kol_status", Args("{\"role\":\"Mallbot\"}")).Allowed);
+        Assert.True(authorize("kol_inventory", Args("{\"role\":\"Mallbot\"}")).Allowed);
+    }
+
+    [Fact]
+    public void Purchase_preview_needs_the_account_read_right_besides_market_read()
+    {
+        var grants = new GrantStore(Path.Combine(_dir, "g.json"));
+        var gate = new AccessGate(grants, new UsageLedger(Path.Combine(_dir, "u.jsonl")));
+        var market = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.MarketRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var both = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.MarketRead] = new(), [Rights.AccountRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var current = market;
+        var authorize = McpAccessPolicy.ForToken(gate, () => current, "Main");
+
+        var denied = authorize("kol_preview_purchase", Args("{}"));
+        Assert.False(denied.Allowed);
+        Assert.Contains("account.read", denied.Message);
+        Assert.True(authorize("kol_price_summary", Args("{}")).Allowed);
+        current = both;
+        Assert.True(authorize("kol_preview_purchase", Args("{}")).Allowed);
+    }
+
+    [Fact]
+    public void Buyer_ranking_needs_shop_read_on_every_account()
+    {
+        var grants = new GrantStore(Path.Combine(_dir, "g.json"));
+        var gate = new AccessGate(grants, new UsageLedger(Path.Combine(_dir, "u.jsonl")));
+        var one = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.ShopRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var two = grants.Create("ai", ["Main", "Mallbot"], new Dictionary<string, RightLimit> { [Rights.ShopRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var current = one;
+        var authorize = McpAccessPolicy.ForToken(gate, () => current, "Main");
+        Assert.False(authorize("kol_shop_buyers", Args("{}")).Allowed);
+        current = two;
+        Assert.True(authorize("kol_shop_buyers", Args("{}")).Allowed);
+    }
 }

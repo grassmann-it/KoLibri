@@ -53,6 +53,18 @@ public static class McpAccessPolicy
         ["kol_choice_options"] = "account.status",
     };
 
+    /// <summary>Read tools whose handler really works on several roles (<c>roles</c>, "all"). Every other read tool uses one role.</summary>
+    private static readonly HashSet<string> MultiRoleTools = new(StringComparer.Ordinal) { "kol_login_status", "kol_daily_audit", "kol_run_daily_bridge" };
+
+    /// <summary>Extra rights a read tool needs on the same role because its answer contains private account data.</summary>
+    private static readonly Dictionary<string, string[]> ExtraReadRights = new(StringComparer.Ordinal)
+    {
+        ["kol_preview_purchase"] = ["account.status", "account.inventory"],
+    };
+
+    /// <summary>Tools that read the buyer CRM, which is shared by both accounts: they need the right on every account.</summary>
+    private static readonly HashSet<string> AllAccountTools = new(StringComparer.Ordinal) { "kol_shop_buyers" };
+
     /// <summary>Tools that spend adventures when <c>execute</c> is true; otherwise they only preview.</summary>
     private static readonly Dictionary<string, string[]> AdventureTools = new(StringComparer.Ordinal)
     {
@@ -91,11 +103,26 @@ public static class McpAccessPolicy
             // kol_login_status without an explicit role lists whatever the grant covers; the handler filters.
             if (tool == "kol_login_status" && !HasRoleArgument(args))
                 return AnyRole(gate, token, readOp);
-            // Every role the handler will touch must be granted (role and roles, same parser as the handler).
-            foreach (var role in McpArgs.Roles(args, fallback))
+            IReadOnlyList<AccountRole> roles;
+            if (AllAccountTools.Contains(tool)) roles = Enum.GetValues<AccountRole>();
+            else if (MultiRoleTools.Contains(tool)) roles = McpArgs.Roles(args, fallback);
+            else
+            {
+                // Single-role handler: authorize exactly the role it will use, and refuse 'roles'.
+                if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("roles", out var many) && many.ValueKind != JsonValueKind.Null)
+                    throw new McpInvalidParamsException("This tool takes a single 'role'; 'roles' is not supported.");
+                roles = [McpArgs.Role(args, fallback)];
+            }
+            foreach (var role in roles)
             {
                 var d = gate.Authorize(token, new AccessRequest(readOp, role.ToString()));
                 if (!d.Allowed) return Convert(d);
+                if (ExtraReadRights.TryGetValue(tool, out var extras))
+                    foreach (var extra in extras)
+                    {
+                        var e = gate.Authorize(token, new AccessRequest(extra, role.ToString()));
+                        if (!e.Allowed) return Convert(e);
+                    }
             }
             return ToolAuthorization.Ok();
         }

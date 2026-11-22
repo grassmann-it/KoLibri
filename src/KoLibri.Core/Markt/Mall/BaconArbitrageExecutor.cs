@@ -47,6 +47,9 @@ public sealed class BaconArbitrageExecutor
         public required string Rationale { get; init; }
         public IReadOnlyList<MallBuyResult> Purchases { get; init; }
             = Array.Empty<MallBuyResult>();
+        /// <summary>True when a purchase POST was sent but its result is not known (transport
+        /// failure or non-2xx answer). Callers must not treat the spend as released until reconciled.</summary>
+        public bool Unclear { get; init; }
     }
 
     /// <summary>Runs the bacon flow for one account.</summary>
@@ -124,11 +127,18 @@ public sealed class BaconArbitrageExecutor
         long meatReserve,
         int maxRounds = 5,
         CancellationToken cancellationToken = default,
-        string? itemName = null)
+        string? itemName = null,
+        bool singlePurchase = false)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         if (needed <= 0)
             return new Outcome { Verdict = "NothingNeeded", Bought = false, Quantity = 0, Spent = 0, Rationale = "Nothing needed." };
+        // A price limit is mandatory: zero or negative never means "no limit".
+        if (maxPricePerUnit <= 0)
+            return new Outcome { Verdict = "InvalidCeiling", Bought = false, Quantity = 0, Spent = 0, Rationale = "A positive maximum price per unit is required." };
+        // One confirmed single buy sends at most one purchase POST: one round, no daily-limit retry.
+        if (singlePurchase) maxRounds = 1;
+        var unclear = false;
         var bought = 0;
         var spent = 0L;
         var purchases = new List<MallBuyResult>();
@@ -138,9 +148,21 @@ public sealed class BaconArbitrageExecutor
         var failures = 0;
         for (var round = 0; round < maxRounds && bought < needed; round++)
         {
-            var step = await TryBuyAsync(credentials, itemId, availableMeat - spent, meatReserve,
-                needed - bought, maxPricePerUnit, cancellationToken, itemName, exhaustedStores).ConfigureAwait(false);
+            (Outcome Outcome, string Reason, bool MoveOn) step;
+            try
+            {
+                step = await TryBuyAsync(credentials, itemId, availableMeat - spent, meatReserve,
+                    needed - bought, maxPricePerUnit, cancellationToken, itemName, exhaustedStores,
+                    allowDailyLimitRetry: !singlePurchase).ConfigureAwait(false);
+            }
+            catch (Exception e) when (bought > 0 && e is not OperationCanceledException)
+            {
+                // Earlier rounds are already confirmed; report them instead of losing them to a later failure.
+                last = $"Stopped after a failed round: {e.Message}";
+                break;
+            }
             last = step.Outcome.Rationale;
+            if (step.Outcome.Unclear) { unclear = true; break; }
             if (step.Outcome.Bought)
             {
                 bought += step.Outcome.Quantity;
@@ -154,7 +176,8 @@ public sealed class BaconArbitrageExecutor
         }
         return new Outcome
         {
-            Verdict = bought >= needed ? "Complete" : bought > 0 ? "Partial" : "NotBought",
+            Verdict = unclear ? "Unclear" : bought >= needed ? "Complete" : bought > 0 ? "Partial" : "NotBought",
+            Unclear = unclear,
             Bought = bought > 0,
             Quantity = bought,
             Spent = spent,
@@ -175,8 +198,12 @@ public sealed class BaconArbitrageExecutor
         long priceCeiling,
         CancellationToken cancellationToken,
         string? itemName = null,
-        ISet<string>? exhaustedStores = null)
+        ISet<string>? exhaustedStores = null,
+        bool allowDailyLimitRetry = true)
     {
+        if (priceCeiling <= 0)
+            return (new Outcome { Verdict = "InvalidCeiling", Bought = false, Quantity = 0, Spent = 0,
+                Rationale = "A positive maximum price per unit is required." }, "invalid ceiling", false);
         exhaustedStores ??= new HashSet<string>(StringComparer.Ordinal);
         // Find the cheapest listing for the item. KoL's mall search runs on
         // the item name, not the id.
@@ -197,7 +224,7 @@ public sealed class BaconArbitrageExecutor
                 Rationale = $"No mall listing for item {itemId}."
             }, $"No mall listing for item {itemId}.", false);
         }
-        if (priceCeiling > 0 && candidate.Price > priceCeiling)
+        if (candidate.Price > priceCeiling)
         {
             var reason = $"Cheapest listing for {itemId} costs {candidate.Price}, ceiling is {priceCeiling}.";
             return (new Outcome
@@ -262,18 +289,41 @@ public sealed class BaconArbitrageExecutor
             }, reason, false);
         }
 
-        var purchase = await _buyClient.BuyAsync(
-            credentials, storeId, itemId, candidate.Price, quantity, hash, cancellationToken)
-            .ConfigureAwait(false);
-        if (!purchase.Accepted && DailyLimit.Match(purchase.Message) is { Success: true } limitMatch)
+        // Last check right before the POST: the price we send never exceeds the ceiling.
+        if (candidate.Price > priceCeiling)
+            return (new Outcome { Verdict = "TooExpensive", Bought = false, Quantity = 0, Spent = 0,
+                Rationale = $"Listing price {candidate.Price} is above the ceiling {priceCeiling}." }, "too expensive", false);
+        MallBuyResult purchase;
+        try
+        {
+            purchase = await _buyClient.BuyAsync(
+                credentials, storeId, itemId, candidate.Price, quantity, hash, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // The POST may have reached KoL; the outcome is unknown until reconciled.
+            return (UnclearOutcome(itemId, e.Message), e.Message, false);
+        }
+        if (!purchase.StatusCode.IsSuccess())
+            return (UnclearOutcome(itemId, $"HTTP {purchase.StatusCode}: {purchase.Message}", purchase), purchase.Message, false);
+        if (!purchase.Accepted && allowDailyLimitRetry && DailyLimit.Match(purchase.Message) is { Success: true } limitMatch)
         {
             // The store caps what one buyer may take per day; take the cap, then move on.
             var cap = int.Parse(limitMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
             exhaustedStores.Add(candidate.StoreId);
             if (cap > 0 && cap < quantity)
             {
-                var retry = await _buyClient.BuyAsync(
-                    credentials, storeId, itemId, candidate.Price, cap, hash, cancellationToken).ConfigureAwait(false);
+                MallBuyResult retry;
+                try
+                {
+                    retry = await _buyClient.BuyAsync(
+                        credentials, storeId, itemId, candidate.Price, cap, hash, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    return (UnclearOutcome(itemId, e.Message), e.Message, false);
+                }
                 if (retry.Accepted)
                     return (new Outcome
                     {
@@ -301,4 +351,16 @@ public sealed class BaconArbitrageExecutor
             Purchases = new[] { purchase }
         }, purchase.Message, purchase.Accepted);
     }
+
+    private static Outcome UnclearOutcome(int itemId, string message, MallBuyResult? purchase = null) => new()
+    {
+        Verdict = "Unclear", Bought = false, Quantity = 0, Spent = 0, Unclear = true,
+        Rationale = $"The purchase of item {itemId} was sent but its result is unknown ({message}). Check the account before retrying.",
+        Purchases = purchase is null ? Array.Empty<MallBuyResult>() : new[] { purchase }
+    };
+}
+
+internal static class HttpStatusExtensions
+{
+    public static bool IsSuccess(this int statusCode) => statusCode is >= 200 and < 300;
 }
