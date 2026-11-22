@@ -248,39 +248,20 @@ public sealed class AdventureRunKernel
         AdventureKernelObservation observation,
         AdventureActionAllowlist allowlist)
     {
+        var resolver = allowlist.ChoiceResolver;
+        // With a resolver, an unanswerable choice is never an abort: the choice stays open on the
+        // account, so the run stops in a resumable "needs decision" state that carries the options.
+        AdventureKernelDecision Fail(AdventureAbortReason reason, string message)
+            => resolver is null
+                ? AbortExisting(state, reason, message, observation.ResponseHash)
+                : AwaitDecision(state, observation, message);
+
         if (string.IsNullOrWhiteSpace(observation.ChoiceId))
-            return AbortExisting(
-                state,
-                AdventureAbortReason.UnknownChoice,
-                "The choice response has no choice id.",
-                observation.ResponseHash);
+            return Fail(AdventureAbortReason.UnknownChoice, "The choice response has no choice id.");
         if (!allowlist.IsEncounterAllowed(state.AdventureId, observation.EncounterId))
-            return AbortExisting(
-                state,
-                AdventureAbortReason.EncounterNotAllowlisted,
-                "The choice encounter is not allowlisted.",
-                observation.ResponseHash);
+            return Fail(AdventureAbortReason.EncounterNotAllowlisted, "The choice encounter is not allowlisted.");
         if (allowlist.WaitForManualChoice && observation.AvailableChoices.Count > 0)
-        {
-            var awaiting = new AdventureChoiceRunState(
-                state.RunId, state.AdventureId, state.Role, state.DailyLimit,
-                state.Counters with { ChoicesMade = Increment(state.Counters.ChoicesMade) })
-            {
-                EncounterId = observation.EncounterId,
-                ChoiceId = observation.ChoiceId,
-                LastResponseHash = observation.ResponseHash
-            };
-            return new AdventureKernelDecision
-            {
-                State = awaiting,
-                Checkpoint = AdventureCheckpoint.FromState(awaiting) with
-                {
-                    ManualChoiceOptions = observation.AvailableChoices.ToArray(),
-                    PendingChoiceFields = observation.ExtraFields
-                        ?? new Dictionary<string, string>(StringComparer.Ordinal)
-                }
-            };
-        }
+            return AwaitDecision(state, observation, null);
         if (!allowlist.TryGetChoiceAction(
                 state.AdventureId,
                 observation.ChoiceId,
@@ -288,14 +269,34 @@ public sealed class AdventureRunKernel
                 observation.EncounterId,
                 out var action))
         {
-            var reason = observation.AvailableChoices.Count == 0
-                ? AdventureAbortReason.UnknownChoice
-                : AdventureAbortReason.ChoiceOptionNotAvailable;
-            return AbortExisting(
-                state,
-                reason,
-                "No allowlisted choice option matches the observed page.",
-                observation.ResponseHash);
+            if (resolver is not null && observation.AvailableChoices.Count > 0)
+            {
+                var options = observation.AvailableChoices
+                    .Where(x => int.TryParse(x, out _))
+                    .Select(x => new ChoiceOptionInfo(
+                        int.Parse(x),
+                        observation.ChoiceLabels.TryGetValue(x, out var label) ? label : x))
+                    .ToArray();
+                var resolution = resolver.Resolve(new ChoiceResolutionRequest(
+                    state.AdventureId, observation.ChoiceId, observation.ChoiceTitle, options));
+                if (resolution.Option is { } picked)
+                {
+                    action = new AdventureChoiceAction(
+                        state.AdventureId, observation.ChoiceId, picked.ToString(), observation.EncounterId);
+                }
+                else
+                {
+                    return AwaitDecision(state, observation, resolution.Reason);
+                }
+            }
+            else
+            {
+                return Fail(
+                    observation.AvailableChoices.Count == 0
+                        ? AdventureAbortReason.UnknownChoice
+                        : AdventureAbortReason.ChoiceOptionNotAvailable,
+                    "No allowlisted choice option matches the observed page.");
+            }
         }
 
         action = action with
@@ -318,6 +319,35 @@ public sealed class AdventureRunKernel
             PendingAction = action
         };
         return Decision(next, action);
+    }
+
+    /// <summary>Stops on an open choice without sending anything; the checkpoint carries what a caller needs to ask.</summary>
+    private static AdventureKernelDecision AwaitDecision(
+        AdventureRunState state,
+        AdventureKernelObservation observation,
+        string? reason)
+    {
+        var awaiting = new AdventureChoiceRunState(
+            state.RunId, state.AdventureId, state.Role, state.DailyLimit,
+            state.Counters with { ChoicesMade = Increment(state.Counters.ChoicesMade) })
+        {
+            EncounterId = observation.EncounterId,
+            ChoiceId = observation.ChoiceId,
+            LastResponseHash = observation.ResponseHash
+        };
+        return new AdventureKernelDecision
+        {
+            State = awaiting,
+            Checkpoint = AdventureCheckpoint.FromState(awaiting) with
+            {
+                ManualChoiceOptions = observation.AvailableChoices.ToArray(),
+                ManualChoiceLabels = new Dictionary<string, string>(observation.ChoiceLabels, StringComparer.Ordinal),
+                ChoiceTitle = observation.ChoiceTitle,
+                AbortMessage = reason,
+                PendingChoiceFields = observation.ExtraFields
+                    ?? new Dictionary<string, string>(StringComparer.Ordinal)
+            }
+        };
     }
 
     private static AdventureKernelDecision Complete(

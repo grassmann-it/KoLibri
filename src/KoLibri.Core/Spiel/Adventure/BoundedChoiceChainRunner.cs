@@ -21,13 +21,16 @@ public enum BoundedChoiceChainStopReason
     DeadlineReached,
     RequiresRefresh,
     Aborted,
-    Canceled
+    Canceled,
+    /// <summary>A choice is open and no policy answered it; see <see cref="BoundedChoiceChainResult.NeedsDecision"/>.</summary>
+    NeedsDecision
 }
 
 public sealed record BoundedChoiceChainResult
 {
     public required BoundedChoiceChainStopReason StopReason { get; init; }
     public required IReadOnlyList<AdventureExecutionResult> Steps { get; init; }
+    public NeedsDecisionInfo? NeedsDecision { get; init; }
     public AdventureExecutionResult? LastStep => Steps.Count == 0 ? null : Steps[^1];
     public bool IsSafeStop => StopReason is not BoundedChoiceChainStopReason.Aborted;
 }
@@ -75,6 +78,8 @@ public sealed class BoundedChoiceChainRunner
             {
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.Aborted, Steps = results };
             }
+            if (state.PendingAction is not AdventureChoiceAction && checkpoint.ToNeedsDecision() is { } needs)
+                return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.NeedsDecision, Steps = results, NeedsDecision = needs };
             if (state.PendingAction is not AdventureChoiceAction)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.NoChoicePending, Steps = results };
             if (results.Count >= settings.MaxChoices)
@@ -88,6 +93,8 @@ public sealed class BoundedChoiceChainRunner
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.Aborted, Steps = results };
             if (current.RequiresRefresh || current.IsIndeterminate)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.RequiresRefresh, Steps = results };
+            if (current.State is AdventureChoiceRunState && current.NextAction is null)
+                continue; // the next loop turn reads the checkpoint and reports NeedsDecision
         }
     }
 }

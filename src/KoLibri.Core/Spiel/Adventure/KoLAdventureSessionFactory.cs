@@ -108,6 +108,14 @@ public sealed class KoLAdventureSession : IAsyncDisposable, IDisposable
     public IAccountReadClient AccountReader { get; }
     public IAuditEventJournal AuditJournal { get; }
 
+    /// <summary>Read only: is a choice (or fight) open on this account right now?</summary>
+    public Task<OpenChoiceDetection> DetectOpenChoiceAsync(CancellationToken cancellationToken = default)
+        => new OpenChoiceClient(_http).DetectAsync(cancellationToken);
+
+    /// <summary>Submits one option to the open choice (one POST). Callers must have the user's approval.</summary>
+    public Task<OpenChoiceSubmitResult> SubmitOpenChoiceAsync(string choiceId, int option, CancellationToken cancellationToken = default)
+        => new OpenChoiceClient(_http).SubmitAsync(choiceId, option, cancellationToken);
+
     public void Dispose()
     {
         if (_disposed) return;

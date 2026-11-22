@@ -15,6 +15,12 @@ public interface IAdventureExecutionGatewayFactory
         CancellationToken cancellationToken);
 }
 
+/// <summary>Optional capability of a gateway factory: read-only check for an open choice or fight.</summary>
+public interface IOpenChoiceProbe
+{
+    ValueTask<OpenChoiceDetection> DetectOpenChoiceAsync(AccountRole role, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Convenience adapter that builds an <see cref="AdventureExecutionGateway"/>
 /// from an already-running transport + checkpoint store. Hosts wire the

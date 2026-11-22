@@ -28,7 +28,9 @@ public enum BoundedAdventureRunStopReason
     StepLimitReached,
     DeadlineReached,
     GatewayStopped,
-    AwaitingManualChoice
+    AwaitingManualChoice,
+    /// <summary>A choice is open and no policy answered it; see <see cref="BoundedAdventureRunResult.NeedsDecision"/>.</summary>
+    NeedsDecision
 }
 
 public sealed record BoundedAdventureRunResult
@@ -37,6 +39,8 @@ public sealed record BoundedAdventureRunResult
     public required IReadOnlyList<AdventureExecutionResult> Steps { get; init; }
     public IReadOnlyList<AdventureConditionResult> Conditions { get; init; }
         = Array.Empty<AdventureConditionResult>();
+    /// <summary>Set when <see cref="StopReason"/> is NeedsDecision: the open choice and its options.</summary>
+    public NeedsDecisionInfo? NeedsDecision { get; init; }
 
     public AdventureExecutionResult? LastStep => Steps.Count == 0 ? null : Steps[^1];
     public bool IsSafeStop => StopReason is not BoundedAdventureRunStopReason.GatewayStopped;
@@ -90,7 +94,13 @@ public sealed class BoundedAdventureRunner
             if (current.IsAborted || current.RequiresRefresh || current.IsIndeterminate)
                 return Result(BoundedAdventureRunStopReason.GatewayStopped, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
             if (current.State is AdventureChoiceRunState && current.NextAction is null)
-                return Result(BoundedAdventureRunStopReason.AwaitingManualChoice, steps, Array.Empty<AdventureConditionResult>());
+            {
+                if (allowlist.ChoiceResolver is null)
+                    return Result(BoundedAdventureRunStopReason.AwaitingManualChoice, steps, Array.Empty<AdventureConditionResult>());
+                var checkpoint = await _gateway.CheckpointStore.LoadAsync(request.RunId, cancellationToken).ConfigureAwait(false);
+                return Result(BoundedAdventureRunStopReason.NeedsDecision, steps, Array.Empty<AdventureConditionResult>())
+                    with { NeedsDecision = checkpoint.ToNeedsDecision() };
+            }
             if (steps.Count >= settings.MaxGatewaySteps)
                 return Result(BoundedAdventureRunStopReason.StepLimitReached, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
             if (_clock.GetUtcNow() - started >= settings.MaxDuration)

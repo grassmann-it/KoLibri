@@ -70,7 +70,7 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
                 advisories.Add("Choice page has no recognised options; manual review required.");
             return Build(adventureId, AdventureEncounterKind.Choice, path, choiceId, choices,
                 choiceId is not null && choices.Count > 0, advisories, null, responseHash, retryCount,
-                extraFields) with { ChoiceLabels = labels };
+                extraFields) with { ChoiceLabels = labels, ChoiceTitle = ExtractChoiceTitle(html) };
         }
 
         var round = ExtractFightRound(html);
@@ -218,6 +218,18 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         }
 
         return labels;
+    }
+
+    /// <summary>Heading of a choice page: the first bold text in the blue title bar, else the first bold text.</summary>
+    public static string? ExtractChoiceTitle(string html)
+    {
+        if (string.IsNullOrEmpty(html)) return null;
+        const RegexOptions o = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline;
+        var m = Regex.Match(html, @"<td[^>]*bgcolor=['""]?blue['""]?[^>]*>.*?<b>(.*?)</b>", o);
+        if (!m.Success) m = Regex.Match(html, @"<b>(.*?)</b>", o);
+        if (!m.Success) return null;
+        var text = WebUtility.HtmlDecode(Regex.Replace(m.Groups[1].Value, "<[^>]*>", "")).Trim();
+        return text.Length == 0 ? null : text;
     }
 
     private static IReadOnlyDictionary<string, string> ExtractExtraFields(string html)
