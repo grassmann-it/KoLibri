@@ -92,6 +92,11 @@ async Task RunAsync()
             SeedDaily(window, stale: false);
             await Section(window, "NavCommunication"); Shot(window, P("chat-mail"));
             await Section(window, "NavBrowser"); await Pump(600); Shot(window, P("browser"));
+            if (w == 1280 && !dark)
+            {
+                var bp = window.FindControl<BrowserView>("BrowserPanel")!;
+                foreach (var st in new[] { "opening", "error", "system" }) { bp.ShowStateForQa(st); await Pump(300); Shot(window, P("browser-" + st)); }
+            }
             await Section(window, "NavSettings"); Shot(window, P("settings"));
             var qaLog = Priv<SessionLogViewModel>(window, "_log");
             qaLog.RoleProvider = () => "Main"; qaLog.Purchase("Purchased 1 × hot wing at 1,200 Meat");
