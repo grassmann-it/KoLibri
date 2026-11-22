@@ -114,4 +114,26 @@ public sealed class InventoryViewModelTests
         viewModel.SearchText = "a";
         Assert.Contains("of 3", viewModel.SummaryText);
     }
+
+    [Fact]
+    public void Sort_by_count_orders_descending_first_and_flips_on_repeat()
+    {
+        var viewModel = Build(Item("1", "a", 2), Item("2", "b", 9), Item("3", "c", 5));
+        viewModel.SortBy(InventorySortKey.Count);
+        Assert.Equal(new[] { "b", "c", "a" }, viewModel.Items.Select(i => i.Name));
+        viewModel.SortBy(InventorySortKey.Count);
+        Assert.Equal(new[] { "a", "c", "b" }, viewModel.Items.Select(i => i.Name));
+    }
+
+    [Fact]
+    public void Action_result_is_cleared_when_another_item_is_selected_but_not_when_the_same_one_refreshes()
+    {
+        var viewModel = Build(Item("1", "a", 2), Item("2", "b"));
+        viewModel.SelectedItem = viewModel.Items[0];
+        viewModel.ActionResult = "Ate 1 x a";
+        viewModel.ApplySnapshot(new[] { Item("1", "a", 1), Item("2", "b") });
+        Assert.Equal("Ate 1 x a", viewModel.ActionResult);
+        viewModel.SelectedItem = viewModel.Items[1];
+        Assert.Equal(string.Empty, viewModel.ActionResult);
+    }
 }

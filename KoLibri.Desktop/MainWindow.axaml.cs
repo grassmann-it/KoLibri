@@ -946,6 +946,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             {
                 case nameof(InventoryViewModel.SummaryText):
                     if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
+                    RenderInventoryEmptyState();
                     break;
                 case nameof(InventoryViewModel.LoadedAtText):
                     if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
@@ -959,7 +960,10 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                     break;
                 case nameof(InventoryViewModel.ActionResult):
                     if (_inventoryView?.FindControl<TextBlock>("InventoryActionResult") is { } result)
+                    {
                         result.Text = _inventory.ActionResult;
+                        if (_inventory.ActionResult.Length == 0) result.Classes.Set("error", false);
+                    }
                     break;
                 case nameof(InventoryViewModel.OrganSummary):
                     RenderInventoryDetail();
@@ -968,46 +972,81 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         };
         if (_inventorySummaryText is not null) _inventorySummaryText.Text = _inventory.SummaryText;
         if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+        WireInventorySortButtons();
+        RenderInventoryEmptyState();
         RenderInventoryDetail();
+    }
+
+    /// <summary>With nothing to list the tab shows one compact notice instead of an empty list and detail pane.</summary>
+    private void RenderInventoryEmptyState()
+    {
+        if (_inventoryView is null) return;
+        var empty = _inventory.IsEmptyState && _inventory.TotalCount == 0;
+        _inventoryView.FindControl<Border>("InventoryEmptyState")!.IsVisible = empty;
+        _inventoryView.FindControl<StackPanel>("InventoryBrowse")!.IsVisible = !empty;
+        _inventoryView.FindControl<TextBlock>("InventoryEmptyTitle")!.Text = _inventory.EmptyTitle;
+        _inventoryView.FindControl<TextBlock>("InventoryEmptyText")!.Text = _inventory.SummaryText;
+    }
+
+    private void WireInventorySortButtons()
+    {
+        var map = new (string Name, InventorySortKey Key, string Label)[]
+        {
+            ("InvSortName", InventorySortKey.Name, "Name"), ("InvSortType", InventorySortKey.Type, "Type"), ("InvSortCount", InventorySortKey.Count, "Count")
+        };
+        void Refresh()
+        {
+            foreach (var (name, key, label) in map)
+            {
+                if (_inventoryView?.FindControl<Button>(name) is not { } button) continue;
+                var active = _inventory.SortKey == key;
+                button.Content = active ? $"{label} {(_inventory.SortDescending ? "▼" : "▲")}" : label;
+                button.Classes.Set("active", active);
+            }
+        }
+        foreach (var (name, key, _) in map)
+            if (_inventoryView?.FindControl<Button>(name) is { } button)
+                button.Click += (_, _) => { _inventory.SortBy(key); Refresh(); };
+        Refresh();
     }
 
     private void RenderInventoryDetail()
     {
         if (_inventoryDetailPanel is null) return;
+        var header = _inventoryView?.FindControl<StackPanel>("InventoryHeaderPanel");
+        var info = _inventoryView?.FindControl<StackPanel>("InventoryInfoPanel");
+        var quantityRow = _inventoryView?.FindControl<StackPanel>("InventoryQuantityRow");
         _inventoryDetailPanel.Children.Clear();
+        header?.Children.Clear();
+        info?.Children.Clear();
+        if (quantityRow is not null) quantityRow.IsVisible = false;
         var detail = _inventory.Detail;
         if (detail is null)
         {
-            _inventoryDetailPanel.Children.Add(new TextBlock
-            {
-                Text = "No item selected",
-                Classes = { "muted" }
-            });
+            header?.Children.Add(new TextBlock { Text = "No item selected", FontSize = 15, FontWeight = Avalonia.Media.FontWeight.SemiBold });
+            header?.Children.Add(new TextBlock { Text = "Select an item on the left to eat, drink, use or equip it.", Classes = { "muted" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
             return;
         }
-        _inventoryDetailPanel.Children.Add(new TextBlock
+        var kind = _inventory.SelectedItem?.KindLabel;
+        header?.Children.Add(new TextBlock { Text = detail.Name, FontSize = 18, FontWeight = Avalonia.Media.FontWeight.SemiBold, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        header?.Children.Add(new TextBlock
         {
-            Text = detail.Name,
-            Classes = { "h3" }
-        });
-        _inventoryDetailPanel.Children.Add(new TextBlock
-        {
-            Text = $"ID {detail.ItemId} · {detail.Quantity} pcs",
-            Classes = { "muted" },
-            FontSize = 12
-        });
-        _inventoryDetailPanel.Children.Add(new TextBlock
-        {
-            Text = $"Uses: {detail.UsesText}",
-            FontSize = 12,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
-        });
-        _inventoryDetailPanel.Children.Add(new TextBlock
-        {
-            Text = $"Cheapest mall price: {detail.MallPriceText}",
-            FontSize = 12
+            Text = $"{(string.IsNullOrEmpty(kind) ? "Item" : kind)} · ID {detail.ItemId} · you have {detail.Quantity:N0}",
+            Classes = { "muted" }, FontSize = 12
         });
         RenderInventoryActions(detail);
+        if (info is null) return;
+        void Row(string label, string value)
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("110,*") };
+            row.Children.Add(new TextBlock { Text = label, Classes = { "muted" }, FontSize = 12 });
+            var v = new TextBlock { Text = value, FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+            Grid.SetColumn(v, 1);
+            row.Children.Add(v);
+            info.Children.Add(row);
+        }
+        Row("Uses", detail.UsesText);
+        Row("Cheapest mall", detail.MallPriceText);
     }
 
     public void InventorySearchChanged(object? sender, TextChangedEventArgs e)

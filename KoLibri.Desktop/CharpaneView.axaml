@@ -12,6 +12,7 @@
                      TextWrapping="Wrap" />
           <TextBlock x:Name="SidebarRole" Classes="muted" FontSize="11" />
         </StackPanel>
+        <StackPanel x:Name="SidebarDetails" Spacing="10">
         <Separator />
         <StackPanel Spacing="4">
           <TextBlock Text="Vitals" Classes="muted" FontSize="10" />
@@ -54,6 +55,7 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+        </StackPanel>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

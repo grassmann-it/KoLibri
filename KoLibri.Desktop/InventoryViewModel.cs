@@ -90,6 +90,20 @@ public sealed class InventoryViewModel : DesktopViewModel
         }
     }
 
+    /// <summary>Column the list is sorted by (name, type or count).</summary>
+    public InventorySortKey SortKey { get; private set; } = InventorySortKey.Name;
+
+    public bool SortDescending { get; private set; }
+
+    /// <summary>Sorts by a column; choosing the active column again flips the direction.</summary>
+    public void SortBy(InventorySortKey key)
+    {
+        if (key == SortKey) SortDescending = !SortDescending;
+        else { SortKey = key; SortDescending = key == InventorySortKey.Count; }
+        ApplyFilter();
+        OnPropertyChanged(nameof(SortKey));
+    }
+
     /// <summary>The selected category tab.</summary>
     public DesktopInventoryCategory SelectedCategory
     {
@@ -108,7 +122,10 @@ public sealed class InventoryViewModel : DesktopViewModel
         get => _selectedItem;
         set
         {
+            var previousId = _selectedItem?.ItemId;
             if (!SetProperty(ref _selectedItem, value)) return;
+            // A result describes the item it was produced for; a different (or no) selection starts clean.
+            if (previousId != value?.ItemId && _actionResult.Length > 0) ActionResult = string.Empty;
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(Detail));
         }
@@ -120,6 +137,14 @@ public sealed class InventoryViewModel : DesktopViewModel
     public ObservableCollection<DesktopInventoryCategory> Categories { get; }
 
     public bool HasSelection => SelectedItem is not null;
+
+    /// <summary>True when there is nothing to list (not signed in, not loaded, or an empty inventory).</summary>
+    public bool IsEmptyState => _signedOut || _loadedAt is null || TotalCount == 0;
+
+    public string EmptyTitle => _signedOut ? "Not signed in"
+        : LoadState == DesktopLoadState.Loading ? "Loading…"
+        : LoadState == DesktopLoadState.Error ? "Inventory could not be loaded"
+        : _loadedAt is null ? "Inventory not loaded" : "Inventory is empty";
 
     /// <summary>Everything the detail pane shows about the selected row.</summary>
     public DesktopItemDetail? Detail => SelectedItem is null
@@ -225,11 +250,20 @@ public sealed class InventoryViewModel : DesktopViewModel
             if (query.Length == 0) return true;
             return item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                 || item.ItemId.Contains(query, StringComparison.OrdinalIgnoreCase);
-        }).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        });
+        IOrderedEnumerable<DesktopInventoryItem> ordered = SortKey switch
+        {
+            InventorySortKey.Count => SortDescending ? filtered.OrderByDescending(i => i.Quantity) : filtered.OrderBy(i => i.Quantity),
+            InventorySortKey.Type => SortDescending
+                ? filtered.OrderByDescending(i => i.KindLabel ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                : filtered.OrderBy(i => i.KindLabel ?? string.Empty, StringComparer.OrdinalIgnoreCase),
+            _ => SortDescending ? filtered.OrderByDescending(i => i.Name, StringComparer.OrdinalIgnoreCase) : filtered.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+        };
+        var rows = (SortKey == InventorySortKey.Name ? ordered : ordered.ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)).ToArray();
 
         var selectedId = SelectedItem?.ItemId;
         Items.Clear();
-        foreach (var item in filtered) Items.Add(item);
+        foreach (var item in rows) Items.Add(item);
         // A refresh or filter change rebuilds the rows; keep the same item selected (with its new
         // quantity) so the detail pane and its buttons never describe a stale row.
         SelectedItem = selectedId is null ? null : Items.FirstOrDefault(row => row.ItemId == selectedId);
@@ -256,6 +290,8 @@ public sealed class InventoryViewModel : DesktopViewModel
         };
     }
 }
+
+public enum InventorySortKey { Name, Type, Count }
 
 /// <summary>Stable ids for the inventory categories.</summary>
 public static class InventoryFilterCategory

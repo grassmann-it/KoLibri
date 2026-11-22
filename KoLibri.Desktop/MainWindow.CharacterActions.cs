@@ -190,14 +190,17 @@ public partial class MainWindow
         if (_inventoryDetailPanel is null || !int.TryParse(detail.ItemId, out var id) || id <= 0)
             return;
 
-        void AddButton(string label, Func<Task> execute)
+        void AddButton(string label, Func<Task> execute, string style = "secondary")
         {
-            var button = new Button { Content = label };
+            var button = new Button
+            {
+                Content = label, Classes = { style }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, MinHeight = 38, FontSize = 14
+            };
+            if (style == "primary") button.FontWeight = Avalonia.Media.FontWeight.SemiBold;
             button.Click += async (_, _) => await GuardedAsync(label, execute);
             _inventoryDetailPanel.Children.Add(button);
         }
-
-        AddButton("Move one to closet", () => MoveSelectedToClosetAsync(detail.ItemId));
 
         // Use/Eat/Drink/Chew and Equip come from the item classification and share one code path
         // with the context menu (overfill warning, gates, readable result).
@@ -210,11 +213,18 @@ public partial class MainWindow
             quantityBox.Maximum = Math.Max(1, row.Quantity);
             if (quantityBox.Value is null || quantityBox.Value > row.Quantity) quantityBox.Value = 1;
         }
+        if (_inventoryView?.FindControl<StackPanel>("InventoryQuantityRow") is { } quantityRow)
+            quantityRow.IsVisible = target.Use != ItemUseKind.None;
         int Quantity() => (int)Math.Clamp(quantityBox?.Value ?? 1, 1, Math.Max(1, row.Quantity));
         if (target.Use != ItemUseKind.None)
-            AddButton(target.Use.ToString(), () => RunInventoryConsumeAsync(target, target.Use, Quantity()));
+            AddButton(target.Use.ToString(), () => RunInventoryConsumeAsync(target, target.Use, Quantity()), "primary");
+        var firstEquip = true;
         foreach (var slot in target.EquipSlots ?? Array.Empty<string>())
-            AddButton($"Equip · {slot}", () => RunInventoryEquipAsync(target, slot));
+        {
+            AddButton($"Equip · {slot}", () => RunInventoryEquipAsync(target, slot), firstEquip && target.Use == ItemUseKind.None ? "primary" : "secondary");
+            firstEquip = false;
+        }
+        AddButton("Move one to closet", () => MoveSelectedToClosetAsync(detail.ItemId));
         var organ = _inventory.Classify(row);
         if (organ.Organ != ItemOrgan.None)
         {
