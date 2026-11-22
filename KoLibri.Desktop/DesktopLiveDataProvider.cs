@@ -21,6 +21,8 @@ public sealed record DesktopInventoryItem
     public IReadOnlyList<string> Uses { get; init; } = Array.Empty<string>();
     /// <summary>Cheapest mall listing, when the item is listed.</summary>
     public long? CheapestMallPrice { get; init; }
+    /// <summary>Classified kind shown in the list (Food, Booze, Spleen, Usable, Quest, Equipment, Misc); set by the inventory view model.</summary>
+    public string KindLabel { get; init; } = string.Empty;
 }
 
 /// <summary>One inventory category, derived from the catalog's access flags.</summary>

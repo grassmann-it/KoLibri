@@ -151,16 +151,25 @@ static MallOfferRow Row(int rank, string item, long price, int? stock) => new()
 
 static void SeedFixtures(MainWindow w)
 {
-    // Real KoLmafia ids: hot wing, seal-clubbing club, meat paste, disco ball, Knob Goblin harem veil.
-    string[] ItemIds = { "471", "1", "25", "10", "306" };
+    // Real KoLmafia ids and flags; the inventory classifies them from the catalog, so the flags here
+    // only mirror the catalog: hot wing (food, t d), Sir Schlitz (booze), moxie weed (spleen),
+    // tamarind gum (potion), seal-clubbing club, Knob Goblin harem veil (hat), action figure body (quest, q), meat paste.
+    var items = new (string Id, string Name, int Qty, string[] Flags)[]
+    {
+        ("471", "hot wing", 12, new[] { "t", "d" }), ("41", "ice-cold Sir Schlitz", 3, new[] { "t", "d" }),
+        ("14", "moxie weed", 4, new[] { "t", "d" }), ("297", "tamarind-flavored chewing gum", 2, new[] { "t", "d" }),
+        ("1", "seal-clubbing club", 1, new[] { "t", "d" }), ("306", "Knob Goblin harem veil", 1, new[] { "t", "d" }),
+        ("63", "action figure body", 1, new[] { "q" }), ("25", "meat paste", 340, new[] { "t", "d" })
+    };
     var inv = Priv<InventoryViewModel>(w, "_inventory");
-    var items = new[] { ("hot wing", 12, new[] { "t", "d" }), ("seal-clubbing club", 1, new[] { "t", "d" }),
-        ("Meat paste", 340, new[] { "t", "d" }), ("disco ball", 2, new[] { "t", "d" }), ("Knob Goblin harem veil", 1, new[] { "t", "d" }) };
     inv.ApplySnapshot(items.Select((i, n) => new DesktopInventoryItem
     {
-        ItemId = ItemIds[n], Name = i.Item1, Quantity = i.Item2, AccessFlags = i.Item3,
+        ItemId = i.Id, Name = i.Name, Quantity = i.Qty, AccessFlags = i.Flags,
         Uses = new[] { "Use", "Autosell" }, CheapestMallPrice = 100 * (n + 1)
     }).ToList(), DateTimeOffset.Now);
+    inv.Organs = new OrganState(3, 2, 5);
+    inv.SelectedItem = inv.Items.First(i => i.Name == "hot wing");
+    inv.ActionResult = "Ate 2 × hot wing; 10 left. " + inv.OrganSummary;
 }
 
 async Task SeedCloverResults(MainWindow w)
