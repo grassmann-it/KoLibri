@@ -265,6 +265,8 @@ public sealed record MallPurchasePolicy
     public long? MaxDailySpend { get; init; } = 500_000;
     public long? MaxMeatPerPurchase { get; init; } = 250_000;
     public int? MaxQuantityPerPurchase { get; init; } = 10;
+    /// <summary>Meat that must stay on the account after the purchase, checked against the fresh commit-time reading (0 .. 1 000 000 000, default 0).</summary>
+    public long MeatReserve { get; init; }
 
     public void Validate()
     {
@@ -276,6 +278,8 @@ public sealed record MallPurchasePolicy
             throw new ArgumentOutOfRangeException(nameof(MaxDailySpend));
         if (MaxMeatPerPurchase is < 0)
             throw new ArgumentOutOfRangeException(nameof(MaxMeatPerPurchase));
+        if (MeatReserve is < 0 or > 1_000_000_000)
+            throw new ArgumentOutOfRangeException(nameof(MeatReserve));
         if (MaxQuantityPerPurchase is <= 0)
             throw new ArgumentOutOfRangeException(nameof(MaxQuantityPerPurchase));
     }
