@@ -21,12 +21,17 @@ public partial class AdventuresView : UserControl
     /// <summary>Set by the shell: starts an adventure (1 turn) or a bounded run (N turns) at a location row.</summary>
     public Action<LocationMenuTarget, int>? AdventureHere { get; set; }
 
+    /// <summary>Set by the shell: the job the batch form describes right now (null when its input is invalid).</summary>
+    public Func<AdventureJob?>? CurrentJob { get; set; }
+
     public void Attach(IShellHost host, IAdventuresViewHandlers handlers)
     {
         _host = host;
         _handlers = handlers;
         LocationMenu = RowContextMenuController<EncounterBrowserLocationRow>.Attach(this.FindControl<ListBox>("EncounterLocationsGrid")!,
-            row => new LocationContextMenu(host, (target, turns) => AdventureHere?.Invoke(target, turns)).Build(new LocationMenuTarget(row.LocationId, row.DisplayName, row.Zone)));
+            row => new LocationContextMenu(host, (target, turns) => AdventureHere?.Invoke(target, turns)).Build(CurrentJob?.Invoke() is { } job
+                ? new LocationMenuTarget(row.LocationId, row.DisplayName, row.Zone, job.Turns, job.ItemId)
+                : new LocationMenuTarget(row.LocationId, row.DisplayName, row.Zone)));
     }
 
     private void InitializeComponent() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);

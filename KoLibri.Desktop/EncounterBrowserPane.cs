@@ -64,6 +64,7 @@ public sealed class EncounterBrowserPane : IDisposable
         if (_selectedAccount != role) _observedAscension = null;
         _selectedAccount = role;
         _operationCancellation?.Cancel();
+        _operationCancellation = null; // the cancelled operation must not block the new account
         Session = new EncounterBrowserSessionViewModel(_openSession, _tokenStore, role);
         Browser?.ShowEncounter(null);
     }
@@ -138,13 +139,17 @@ public sealed class EncounterBrowserPane : IDisposable
 
     public ValueTask RunTurnsAsync(
         EncounterBrowserLocationRow? row, int maxTurns = 0, string? itemId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0)
         => RunAsync((session, browser, token) =>
         {
             var location = row is null ? null : new AdventureLocation(row.LocationId, row.DisplayName,
                 row.Zone, row.Snarfblat, row.TurnCost, Array.Empty<AdventureEncounterMetadata>());
-            return session.RunTurnsAsync(browser, location, maxTurns, itemId, token);
+            return session.RunTurnsAsync(browser, location, maxTurns, itemId, token, maxFightRounds, minimumHpPercent);
         }, cancellationToken);
+
+    /// <summary>Runs (or, with a null row, continues) the batch described by <paramref name="job"/>.</summary>
+    public ValueTask RunJobAsync(EncounterBrowserLocationRow? row, AdventureJob job, CancellationToken cancellationToken = default)
+        => RunTurnsAsync(row, job.Turns, job.ItemId, cancellationToken, job.MaxFightRounds, job.MinimumHpPercent);
 
     public ValueTask FightCurrentAsync(CombatTarget target, AutoCombatPolicy policy, int maxRounds, int minimumHpPercent)
         => RunAsync((session, browser, token) => session.FightCurrentAsync(browser, target, policy, maxRounds, minimumHpPercent, token));
@@ -168,6 +173,11 @@ public sealed class EncounterBrowserPane : IDisposable
             else
                 browser.ShowEncounter(null);
         }
+        catch (OperationCanceledException) when (pending.IsCancellationRequested || _disposed)
+        {
+            // "End run", an account switch or shutdown: expected, never an unhandled exception.
+            if (ReferenceEquals(Session, session)) _setStatus("The adventure run was canceled; nothing more was sent.");
+        }
         catch (Exception exception)
         {
             if (ReferenceEquals(Session, session))
@@ -181,35 +191,50 @@ public sealed class EncounterBrowserPane : IDisposable
         }
         finally
         {
-            _operationCancellation = null;
+            if (ReferenceEquals(_operationCancellation, pending)) _operationCancellation = null;
         }
     }
 
-    public async ValueTask SubmitDecisionAsync(int option)
+    private async ValueTask RunDecisionAsync(
+        Func<EncounterBrowserSessionViewModel, CancellationToken, Task<string>> operation)
     {
-        if (Session is not { } session || _operationCancellation is not null) return;
-        _operationCancellation = new CancellationTokenSource();
-        try { _setStatus(await session.Decisions.SubmitAsync(option, _operationCancellation.Token)); }
-        finally { _operationCancellation = null; }
+        if (_disposed || Session is not { } session || _operationCancellation is not null) return;
+        using var pending = new CancellationTokenSource();
+        _operationCancellation = pending;
+        try
+        {
+            var message = await operation(session, pending.Token);
+            // A late answer from a switched account must not land in the new account's status.
+            if (ReferenceEquals(Session, session)) _setStatus(message);
+        }
+        catch (OperationCanceledException)
+        {
+            if (ReferenceEquals(Session, session)) _setStatus("The choice request was canceled.");
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(Session, session)) _setStatus(AdventureFailureMapper.Describe(exception).Text);
+        }
+        finally
+        {
+            if (ReferenceEquals(_operationCancellation, pending)) _operationCancellation = null;
+        }
     }
 
-    public async ValueTask ApplyPolicyAsync()
-    {
-        if (Session is not { } session || _operationCancellation is not null) return;
-        _operationCancellation = new CancellationTokenSource();
-        try { _setStatus(await session.Decisions.ApplyPolicyAsync(_operationCancellation.Token)); }
-        finally { _operationCancellation = null; }
-    }
+    public ValueTask SubmitDecisionAsync(int option)
+        => RunDecisionAsync((session, token) => session.Decisions.SubmitAsync(option, token));
 
-    public async ValueTask RefreshDecisionAsync()
-    {
-        if (Session is not { } session || _operationCancellation is not null) return;
-        _setStatus(await session.Decisions.RefreshAsync());
-    }
+    public ValueTask ApplyPolicyAsync()
+        => RunDecisionAsync((session, token) => session.Decisions.ApplyPolicyAsync(token));
 
+    public ValueTask RefreshDecisionAsync()
+        => RunDecisionAsync((session, token) => session.Decisions.RefreshAsync(token));
+
+    /// <summary>Ends the run. A batch or decision in flight is cancelled first, so no further turn is sent.</summary>
     public void EndSession()
     {
-        if (_operationCancellation is not null) return;
+        _operationCancellation?.Cancel();
+        _operationCancellation = null;
         Session?.EndSession();
         Browser?.ShowEncounter(null);
         _setStatus("Manuelle Adventure-Sitzung beendet.");

@@ -64,12 +64,9 @@ public sealed class McpAdventureGateTests : IDisposable
         var first = await RunAsync(token, 3);
         Assert.False(first.Error, first.Text);
         Assert.Contains("\"executed\":true", first.Text.Replace(" ", ""));
-        // Only the requests that really went out are booked, not the reserved cap.
-        var used = _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.Adventure);
-        Assert.Equal(_transport.RequestCount, used);
-        Assert.InRange(used, 1, 3);
+        Assert.Equal(3, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.Adventure));
 
-        var second = await RunAsync(token, 5);   // the reservation (5) no longer fits next to what was used
+        var second = await RunAsync(token, 3);   // 3 + 3 > 5
         Assert.True(second.Error);
         Assert.Contains("BudgetExhausted", second.Text);
     }

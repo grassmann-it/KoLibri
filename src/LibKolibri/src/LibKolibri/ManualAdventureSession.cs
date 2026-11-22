@@ -97,6 +97,7 @@ public sealed class ManualAdventureSession : IAsyncDisposable
         var drops = new List<QuestDrop>();
         while (started < remainingTurns)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var request = template with { RunId = Guid.NewGuid().ToString("N") };
             last = await RunUntilChoiceAsync(request, allowlist, conditions, settings, cancellationToken)
                 .ConfigureAwait(false);

@@ -59,14 +59,25 @@ public sealed class KolibriClient : IDisposable
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var login = await new KoLLoginClient()
             .LoginAsync(username, password, rememberPassword, cancellationToken).ConfigureAwait(false);
-        await manager.SetProfileAsync(new AccountProfile
+        using (var probe = KoLLoginClient.CreateAuthenticatedClient(login.Credentials, KolBase))
         {
-            Id = role == AccountRole.Main ? "main" : "mallbot",
-            DisplayName = login.UserName,
-            Role = role,
-            Enabled = true
-        }, cancellationToken).ConfigureAwait(false);
-        await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+            var verified = await KoLPwdHashResolver.TryReadIdentityAsync(probe, cancellationToken).ConfigureAwait(false);
+            if (verified is not null)
+                // An explicit login with a name and password is the user's decision to (re)bind the role.
+                await manager.ApplyVerifiedLoginAsync(role, verified, login.Credentials, allowAccountChange: true, cancellationToken)
+                    .ConfigureAwait(false);
+            else
+            {
+                await manager.SetProfileAsync(new AccountProfile
+                {
+                    Id = role == AccountRole.Main ? "main" : "mallbot",
+                    DisplayName = login.UserName,
+                    Role = role,
+                    Enabled = true
+                }, cancellationToken).ConfigureAwait(false);
+                await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+            }
+        }
         var session = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
         return new KolibriClient(manager, session);
     }
@@ -306,13 +317,16 @@ public sealed class KolibriClient : IDisposable
             .FetchSalesAsync(forceRefresh, cancellationToken);
     }
 
-    /// <summary>Display name of the stored account for a role, or null when none is stored.</summary>
+    /// <summary>
+    /// Name of the other role's player as KoL itself reports it for that role's live session, or throws
+    /// (mismatch with the stored profile, no session, no identity). A transfer must never use a stale stored name.
+    /// </summary>
     public async Task<string?> OtherAccountNameAsync(CancellationToken cancellationToken = default)
     {
         var other = Role == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
-        var session = await _accounts.GetSessionAsync(other, includeExpired: true, cancellationToken: cancellationToken)
+        var identity = await AccountIdentityVerifier.VerifyRoleAsync(_accounts, other, cancellationToken)
             .ConfigureAwait(false);
-        return session?.Profile.DisplayName;
+        return identity.Name;
     }
 
     private async Task<bool> SessionWorksAsync(CancellationToken cancellationToken)

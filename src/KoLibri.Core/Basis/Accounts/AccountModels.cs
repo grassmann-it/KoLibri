@@ -24,6 +24,9 @@ public sealed record AccountProfile
     public required string DisplayName { get; init; }
     public required AccountRole Role { get; init; }
 
+    /// <summary>KoL player id verified from the live session; null for profiles created before verification existed.</summary>
+    public string? PlayerId { get; init; }
+
     /// <summary>
     /// Optional endpoint override. This lets a test or a future game client
     /// use a different host without baking it into the account store.
@@ -60,6 +63,16 @@ public sealed record AccountCredentials
 
 public sealed record AccountSession(AccountProfile Profile, AccountCredentials Credentials)
 {
+    /// <summary>
+    /// Opaque fingerprint of the player and the login cookie. It changes when the role is bound to another
+    /// player or the session is renewed, so cached clients can tell when they must be rebuilt. Never logged.
+    /// </summary>
+    public string BindingKey()
+    {
+        var raw = $"{Profile.Id}|{Profile.PlayerId}|{Profile.DisplayName}|{Credentials.CookieHeader}";
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw)));
+    }
+
     public bool IsExpired(TimeSpan? clockSkew = null, DateTimeOffset? now = null)
     {
         if (Credentials.ExpiresAt is null)
@@ -105,3 +118,7 @@ public sealed class SystemClock : IClock
 
 public sealed class AccountConfigurationException(string message) : Exception(message);
 
+
+public sealed class AccountIdentityMismatchException(string message) : Exception(message);
+
+public enum AccountIdentityChange { Unchanged, Created, Adopted, Switched }

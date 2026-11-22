@@ -16,11 +16,7 @@ public sealed record AdventureExecutionBridgeResult(
     string? AuditPath,
     string? RequestId,
     NeedsDecisionInfo? NeedsDecision = null,
-    OpenChoiceDetection? OpenChoice = null)
-{
-    /// <summary>Requests that really went out (aborted steps without a response do not count); an empty run is 0.</summary>
-    public int StepsSent { get; init; }
-}
+    OpenChoiceDetection? OpenChoice = null);
 
 /// <summary>
 /// Shared bridge that turns an MCP tool call into a bounded runner invocation.
@@ -91,7 +87,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         BoundedChoiceChainOptions options,
         bool execute,
         string? approvalToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<(string ChoiceId, string OptionId)>? choiceRules = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
         ArgumentNullException.ThrowIfNull(allowlist);
@@ -100,6 +97,15 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
             return PreviewResult(BoundedChoiceChainStopReason.Complete.ToString(), Array.Empty<object>());
 
         var gateway = await ResolveGatewayAsync(role, approvalToken, cancellationToken).ConfigureAwait(false);
+
+        if (choiceRules is { Count: > 0 }
+            && await gateway.CheckpointStore.LoadAsync(runId.Trim(), cancellationToken).ConfigureAwait(false) is { } stored)
+        {
+            // The user's decision applies to the run being resumed, whatever its location id was.
+            allowlist.AddAdventure(stored.AdventureId);
+            foreach (var (choiceId, optionId) in choiceRules)
+                allowlist.AddChoiceOption(stored.AdventureId, choiceId, optionId);
+        }
 
         var runner = new BoundedChoiceChainRunner(gateway);
         var result = await runner.RunAsync(runId.Trim(), allowlist, options, cancellationToken).ConfigureAwait(false);
@@ -128,7 +134,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         string stopReason,
         NeedsDecisionInfo? needsDecision = null)
         => new(
-            Executed: steps.Any(step => step.Status != AdventureExecutionStatus.Aborted || step.Response is not null),
+            // A run that sent nothing (unknown run, aborted before any step) did not execute anything.
+            Executed: steps.Count > 0,
             StopReason: stopReason,
             Steps: steps.Select(step => new
             {
@@ -141,10 +148,7 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
             }).Cast<object>().ToArray(),
             AuditPath: "<memory>",
             RequestId: steps.Count == 0 ? null : steps[^1].RequestId,
-            NeedsDecision: needsDecision)
-        {
-            StepsSent = steps.Count(step => step.Status != AdventureExecutionStatus.Aborted || step.Response is not null)
-        };
+            NeedsDecision: needsDecision);
 }
 
 /// <summary>
