@@ -16,7 +16,19 @@ public sealed class AdventureFightEndAndProbeTests
     [InlineData("You lose 12 hit points. You defeated the monster's shield.")]
     [InlineData("The goblin gets a defeat-the-purpose joke in. You lose 3 hit points.")]
     public void HitPointLossAloneIsNotDefeat(string text)
-        => Assert.NotEqual(CombatOutcome.Defeat, Parse("<p>" + text + "</p>").Outcome);
+    {
+        var outcome = Parse("<p>" + text + "</p>").Outcome;
+        Assert.NotEqual(CombatOutcome.Defeat, outcome);
+        Assert.Equal(CombatOutcome.Ongoing, outcome);
+    }
+
+    [Fact]
+    public void RealWinTextEndsTheFightOnlyWithoutActions()
+    {
+        var done = new KoLCombatObservationParser().Parse(
+            "<html><body><p>You win the fight!</p></body></html>", new Uri("https://example.invalid/fight.php"));
+        Assert.Equal(CombatOutcome.Victory, done.Outcome);
+    }
 
     [Theory]
     [InlineData("You slink away, defeated.")]
@@ -26,8 +38,9 @@ public sealed class AdventureFightEndAndProbeTests
 
     private sealed class FakeAccount(bool stale) : IAccountReadClient
     {
+        public bool Known { get; init; } = true;
         public Task<KoLStatusSnapshot> FetchStatusAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
-            => Task.FromResult(new KoLStatusSnapshot("x", 40, 0, 1, DateTimeOffset.UtcNow, stale));
+            => Task.FromResult(new KoLStatusSnapshot("x", 40, 0, 1, DateTimeOffset.UtcNow, stale) { AdventuresKnown = Known });
         public Task<KoLInventorySnapshot> FetchInventoryAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }
@@ -35,12 +48,18 @@ public sealed class AdventureFightEndAndProbeTests
     private sealed class Handler(Func<string, HttpStatusCode> map) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-            => Task.FromResult(new HttpResponseMessage(map(request.RequestUri!.AbsolutePath.TrimStart('/'))));
+        {
+            var code = map(request.RequestUri!.AbsolutePath.TrimStart('/'));
+            var response = new HttpResponseMessage(code);
+            if ((int)code is >= 300 and < 400 && !NoLocation) response.Headers.Location = new Uri("/main.php", UriKind.Relative);
+            return Task.FromResult(response);
+        }
+        public bool NoLocation { get; init; }
     }
 
     private static Task<AdventureStateSnapshot> Probe(Func<string, HttpStatusCode> map, bool stale = false)
     {
-        var http = new HttpClient(new Handler(map));
+        var http = new HttpClient(new Handler(map) { });
         return KoLAdventureSessionFactory.ReadAdventureStateAsync(
             http, new FakeAccount(stale), new Uri("https://example.invalid/"), CancellationToken.None);
     }
@@ -68,4 +87,25 @@ public sealed class AdventureFightEndAndProbeTests
     [Fact]
     public async Task StaleStatusIsMarkedNotFresh()
         => Assert.False((await Probe(_ => HttpStatusCode.Found, stale: true)).Fresh);
+
+    [Fact]
+    public async Task RedirectWithoutTargetIsUnknown()
+    {
+        var http = new HttpClient(new Handler(_ => HttpStatusCode.Found) { NoLocation = true });
+        await Assert.ThrowsAsync<HttpRequestException>(() => KoLAdventureSessionFactory.ReadAdventureStateAsync(
+            http, new FakeAccount(false), new Uri("https://example.invalid/"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OpenFightIsKeptWhenChoiceProbeFails()
+        => Assert.True((await Probe(p => p == "fight.php" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable)).EncounterOpen);
+
+    [Fact]
+    public async Task MissingAdventureCounterIsNotFresh()
+    {
+        var http = new HttpClient(new Handler(_ => HttpStatusCode.Found));
+        var state = await KoLAdventureSessionFactory.ReadAdventureStateAsync(
+            http, new FakeAccount(false) { Known = false }, new Uri("https://example.invalid/"), CancellationToken.None);
+        Assert.False(state.Fresh);
+    }
 }

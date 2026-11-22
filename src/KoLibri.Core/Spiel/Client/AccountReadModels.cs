@@ -16,6 +16,8 @@ public sealed record KoLStatusSnapshot(
     // Optional combat fields keep the original positional contract intact.
     // Older status endpoints may omit them; callers must then treat recovery
     // as blocked until a richer snapshot is available.
+    /// <summary>False when the status payload carried no adventure counter (Adventures is then a placeholder 0, not a reading).</summary>
+    public bool AdventuresKnown { get; init; } = true;
     public int CurrentHp { get; init; }
     public int MaximumHp { get; init; }
     public int CurrentMp { get; init; }
@@ -714,6 +716,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             IntValue(root, "level"),
             fetchedAt)
         {
+            AdventuresKnown = NullableIntValue(root, "adventures", "adventure", "turns") is not null,
             CurrentHp = IntValue(root, "currenthp", "current_hp", "hp", "hitpoints", "health"),
             MaximumHp = IntValue(root, "maximumhp", "maximum_hp", "maxhp", "max_hp", "maxhitpoints", "max_health"),
             CurrentMp = IntValue(root, "currentmp", "current_mp", "mp", "mana"),

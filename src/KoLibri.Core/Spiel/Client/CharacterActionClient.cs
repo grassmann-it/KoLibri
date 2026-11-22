@@ -70,7 +70,11 @@ public sealed class CharacterActionOutcomeUnknownException(CharacterAction actio
 
 /// <summary>Outcome of a rest series. Only rests with an observed effect are in <see cref="Rests"/>.</summary>
 public sealed record CharacterRestOutcome(
-    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem, bool Unclear = false);
+    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem, bool Unclear = false)
+{
+    /// <summary>True when a status value was stale for at least one confirmed rest, so AdventuresSpent is a lower bound, not a reading.</summary>
+    public bool AdventuresSpentUnknown { get; init; }
+}
 
 /// <summary>Submits one explicit character action and returns fresh account observations.</summary>
 public sealed class CharacterActionClient
@@ -249,6 +253,7 @@ public sealed class CharacterActionClient
         var spent = 0;
         string? problem = null;
         var unclear = false;
+        var costUnknown = false;
         for (var i = 0; i < times; i++)
         {
             CharacterActionSnapshot after;
@@ -267,12 +272,13 @@ public sealed class CharacterActionClient
                 problem = "KoL did not confirm the rest: HP, MP and adventures are unchanged." + Excerpt(after);
                 break;
             }
-            if (!after.Status.IsStale && !current.Status.IsStale)
+            if (!after.Status.IsStale && !current.Status.IsStale && after.Status.AdventuresKnown && current.Status.AdventuresKnown)
                 spent += Math.Max(0, current.Status.Adventures - after.Status.Adventures);
+            else costUnknown = true;
             seen.Add((after.Status.CurrentHp, after.Status.CurrentMp));
             current = after;
         }
-        return new(seen, spent, problem, unclear);
+        return new(seen, spent, problem, unclear) { AdventuresSpentUnknown = costUnknown };
     }
 
     public async Task<CharacterActionSnapshot> ReadAsync(CancellationToken cancellationToken = default)

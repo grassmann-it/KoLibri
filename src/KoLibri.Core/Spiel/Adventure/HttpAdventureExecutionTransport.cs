@@ -197,7 +197,11 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         if (interstitialAllowed && _options.StateProbe is { } probe)
         {
             try { baseline = await probe(timeout.Token).ConfigureAwait(false); }
-            catch (Exception ex) when (ex is not OperationCanceledException) { baseline = null; }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new AdventureHttpTransportException(
+                    "The initial adventure state could not be read; no adventure start was sent.", ex);
+            }
             if (baseline is { EncounterOpen: true })
                 throw new AdventureHttpTransportException(
                     "An encounter is already open; no adventure start was sent.");

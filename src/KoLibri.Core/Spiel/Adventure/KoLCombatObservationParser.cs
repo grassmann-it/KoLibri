@@ -622,8 +622,10 @@ public partial class KoLCombatObservationParser : ICombatObservationParser
             @"(?:you\s+(?:ran\s+)?away|you\s+flee|you\s+get\s+away|you\s+escape|runaway\s+successful|escaped\s+from)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             return CombatOutcome.Fled;
-        if (Regex.IsMatch(text,
-            @"(?:you\s+(?:have\s+)?won|you\s+win(?:\s+the\s+fight)?|victory|fight\s+(?:is\s+)?over|you\s+defeated|combat\s+complete)",
+        // Victory needs an unambiguous win marker AND no remaining combat actions;
+        // phrases like "You defeated the monster's shield" occur mid-fight.
+        if (actions.Count == 0 && Regex.IsMatch(text,
+            @"(?:you\s+win\s+the\s+fight|you\s+won\s+the\s+fight|winwinwin|you\s+have\s+won\s+the\s+fight)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             return CombatOutcome.Victory;
 

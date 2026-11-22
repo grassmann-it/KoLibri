@@ -82,19 +82,21 @@ public static class KoLAdventureSessionFactory
         HttpClient http, IAccountReadClient reader, Uri baseUri, CancellationToken ct)
     {
         var status = await reader.FetchStatusAsync(forceRefresh: true, ct).ConfigureAwait(false);
-        var open = false;
         foreach (var page in new[] { "fight.php", "choice.php" })
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, page));
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             var code = (int)response.StatusCode;
-            if (response.StatusCode == HttpStatusCode.OK) open = true;
-            else if (code is < 300 or >= 400)
-                // Errors (429, 5xx, 403 ...) are "unknown", not "no encounter": stop instead of guessing.
+            // First safely open encounter: return at once, a later probe failure must not lose it.
+            if (response.StatusCode == HttpStatusCode.OK)
+                return new AdventureStateSnapshot(status.Adventures, true, Fresh: !status.IsStale && status.AdventuresKnown);
+            // Only a redirect with a usable target means "no encounter"; anything else is unknown.
+            var freeRedirect = code is >= 300 and < 400 && response.Headers.Location is not null;
+            if (!freeRedirect)
                 throw new HttpRequestException(
                     $"Encounter probe {page} answered {code}; encounter state unknown.");
         }
-        return new AdventureStateSnapshot(status.Adventures, open, Fresh: !status.IsStale);
+        return new AdventureStateSnapshot(status.Adventures, false, Fresh: !status.IsStale && status.AdventuresKnown);
     }
 }
 
