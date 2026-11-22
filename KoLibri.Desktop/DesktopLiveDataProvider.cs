@@ -71,14 +71,18 @@ public sealed class DesktopLiveDataProvider : IDisposable
     private readonly Dictionary<AccountRole, AccountClients> _clients = new();
     private readonly HttpClient _pricegunHttp = new();
     private readonly PricegunReadClient _pricegun;
+    private readonly Func<bool> _reloginAutomatically;
 
     private sealed record AccountClients(
         AccountSession Session, HttpClient Http, KoLAccountReadClient Account, IMallReadClient Mall);
 
     public DesktopLiveDataProvider(AccountSessionManager? accounts = null,
         Func<AccountSession, HttpClient>? createAccountHttp = null,
-        DesktopSettings? settings = null)
+        DesktopSettings? settings = null,
+        Func<bool>? reloginAutomatically = null)
     {
+        // Read before every automatic reconnect, so the saved setting always wins. Without a reader: never log in again.
+        _reloginAutomatically = reloginAutomatically ?? (() => false);
         _accounts = accounts ?? AccountSessionManager.CreateDefault();
         _createAccountHttp = createAccountHttp ?? (session => KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/")));
@@ -519,7 +523,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     }
 
     private Task<AccountSession?> ReconnectAsync(AccountSession session, CancellationToken cancellationToken)
-        => _accounts.ReconnectAsync(session,
+        => !_reloginAutomatically()
+            ? Task.FromResult<AccountSession?>(null)
+            : _accounts.ReconnectAsync(session,
             (username, password, token) => new KoLLoginClient().LoginAsync(username, password, true, token),
             cancellationToken);
 

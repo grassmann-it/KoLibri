@@ -48,7 +48,7 @@ public sealed class DesktopShellWiringTests
         Assert.Equal(3, options.MaxQuantityPerPurchase);
     }
 
-    private sealed class FakeReads(long meat, int owned) : IMallPurchaseReads
+    private sealed class FakeReads(long meat, int owned, bool stale = false) : IMallPurchaseReads
     {
         public int Searches;
         public Task<MallSearchPage> SearchAsync(string term, CancellationToken ct)
@@ -57,7 +57,8 @@ public sealed class DesktopShellWiringTests
             var listing = new MallListing("789", "42", "Shop", 100, 5, null, Now, new Uri("https://www.kingdomofloathing.com/"))
             { SellerId = "42", QuantityKnown = true, LimitKind = MallLimitKind.Unlimited };
             return Task.FromResult(new MallSearchPage(term,
-                [new MallItemOffers("789", "Thing", [listing], 1)], Now, new Uri("https://www.kingdomofloathing.com/")));
+                [new MallItemOffers("789", "Thing", [listing], 1)], stale ? Now.AddHours(-3) : Now,
+                new Uri("https://www.kingdomofloathing.com/"), stale));
         }
         public Task<KoLStatusSnapshot?> StatusAsync(CancellationToken ct)
             => Task.FromResult<KoLStatusSnapshot?>(new KoLStatusSnapshot("Bot", 10, meat, 1, Now));
@@ -167,5 +168,98 @@ public sealed class DesktopShellWiringTests
         Assert.Equal(0, prompt.Asked);
         Assert.Equal(0, fixture.CommitCount);
         Assert.Equal(1, log.ErrorCount);
+    }
+
+    private static string TempLedger() => Path.Combine(Path.GetTempPath(), "kolibri-ledger-" + Guid.NewGuid().ToString("N"), "ledger.json");
+
+    [Fact]
+    public async Task StaleOfferBlocksTheBuyBeforeAnyPostAndIsNeverRedatedAsFresh()
+    {
+        var ledger = new MallSpendLedger(new FixedTime());
+        var observer = new MallPurchaseObserver(new FakeReads(10_000, 0, stale: true), "Mallbot", () => 1_000_000, ledger, new FixedTime());
+        // The observer feeds the gateway before the POST: a stale page throws there, so nothing is sent.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Observe(observer));
+
+        // A fresh page keeps its own fetch time instead of "now".
+        var fresh = new MallPurchaseObserver(new FakeReads(10_000, 0), "Mallbot", () => 1_000_000, ledger,
+            new OffsetTime(TimeSpan.FromMinutes(2)));
+        var observation = await Observe(fresh);
+        Assert.Equal(Now, observation.Offer.ObservedAt);
+        Assert.Equal(Now, observation.ObservedAt);
+    }
+
+    private static Task<MallPurchaseObservation> Observe(MallPurchaseObserver observer)
+    {
+        observer.Remember("789", "Thing");
+        return observer.BeforeAsync(new MallPurchaseRequest("42", "42", "789", 100, 2, accountId: "Mallbot"), default);
+    }
+
+    [Fact]
+    public void BudgetSurvivesANewLedgerInstanceAndRollsOverWithTheDay()
+    {
+        var path = TempLedger();
+        try
+        {
+            var first = new MallSpendLedger(new FixedTime(), path);
+            first.Reserve("Mallbot", 300);
+            first.Settle("Mallbot", 300);
+            first.Reserve("Mallbot", 50); // crash while the POST was in flight
+            Assert.Equal(300, first.SpentToday("Mallbot"));
+
+            var second = new MallSpendLedger(new FixedTime(), path);
+            Assert.Equal(350, second.SpentToday("Mallbot"));
+            Assert.Equal(50, second.UnclearToday("Mallbot"));
+
+            var nextDay = new MallSpendLedger(new OffsetTime(TimeSpan.FromDays(1)), path);
+            Assert.Equal(0, nextDay.SpentToday("Mallbot"));
+            second.Reconcile("Mallbot", 0);
+            Assert.Equal(300, new MallSpendLedger(new FixedTime(), path).SpentToday("Mallbot"));
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
+    }
+
+    private sealed class OffsetTime(TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => Now + offset;
+    }
+
+    [Fact]
+    public void UnreadableLedgerFileBlocksSpending()
+    {
+        var path = TempLedger();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "{ not json");
+            var ledger = new MallSpendLedger(new FixedTime(), path);
+            Assert.True(ledger.Unreadable);
+            Assert.True(ledger.SpentToday("Mallbot") > 1_000_000_000_000);
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
+    }
+
+    [Fact]
+    public async Task UnclearPurchaseStaysCountedAndNotSentIsReleased()
+    {
+        var path = TempLedger();
+        try
+        {
+            var ledger = new MallSpendLedger(new FixedTime(), path);
+            // Meat did not move although KoL accepted: the gateway cannot prove the purchase.
+            var fixture = new FixtureMallPurchaseTransport(new MallPurchaseObservation(
+                new MallPurchaseOffer("42", "42", "789", 100, 5, Now),
+                new MallPurchaseAccountState("Mallbot", 10_000, 0, 1_000_000, new Dictionary<string, int> { ["789"] = 0 }, Now)));
+            var service = new DesktopMallPurchaseService(fixture, null, null, new FixedTime());
+            var observer = new MallPurchaseObserver(new FakeReads(10_000, 0), "Mallbot", () => 1_000_000, ledger, new FixedTime());
+            var coordinator = new MallPurchaseCoordinator("Mallbot",
+                _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>((service, observer)),
+                new Prompt(true), new SessionLogViewModel(now: () => Now), ledger);
+            await coordinator.RequestAsync(Row(), default);
+            Assert.Equal(1, fixture.CommitCount);
+            var spent = new MallSpendLedger(new FixedTime(), path).SpentToday("Mallbot");
+            // Either verified (settled) or unclear: in both cases the 200 meat stay counted after a restart.
+            Assert.Equal(200, spent);
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
     }
 }

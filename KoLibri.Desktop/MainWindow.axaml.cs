@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     private readonly DesktopSettingsStore _settingsStore;
     private DesktopSettings _settings;
     private readonly SessionLogViewModel _log;
-    private readonly MallSpendLedger _spendLedger = new();
+    private readonly MallSpendLedger _spendLedger;
     private object _accountToken = new();
     private bool _combatCatalogLoaded;
     private bool _arbitrageLoaded;
@@ -119,7 +119,9 @@ public partial class MainWindow : Window
         {
             if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action);
         });
-        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp, _settings);
+        _spendLedger = new MallSpendLedger(path: MallSpendLedger.PathNextTo(_settingsStore));
+        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp, _settings,
+            () => _settingsStore.Load().ReloginAutomatically);
         _catalog = TryLoadCatalog();
         InitializeComponent();
         _pageScroll = this.FindControl<ScrollViewer>("PageScroll");
