@@ -16,8 +16,8 @@ internal static partial class KolibriCli
         var role = ParseRole(GetOption(args, "--role") ?? "main");
         var port = Math.Clamp(ReadInt(args, "--port", RelayDefaultPort), 1024, 65535);
         var browserUa = HasFlag(args, "--browser-ua");
-        var logPath = GetOption(args, "--log") ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "relay-log.jsonl");
+        var logPath = Path.GetFullPath(GetOption(args, "--log") ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "relay-log.jsonl"));
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
         var accounts = AccountSessionManager.CreateDefault();

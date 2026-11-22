@@ -236,8 +236,17 @@ public sealed class FreePullDispatcher
         ArgumentNullException.ThrowIfNull(credentials);
         if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
             throw new InvalidOperationException("This action needs a logged-in account with a cookie header.");
-        // KoL embeds the hash in links ("pwd=<hash>") and in the charpane script
-        // ("pwdhash = \"<hash>\""). Try the inventory page first, then the charpane.
+        // Same order as KoLPwdHashResolver: api.php status ("pwd" field) first, then page markup
+        // (links "pwd=<hash>", charpane script "pwdhash = \"<hash>\"").
+        using (var api = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, "api.php?what=status&for=KoLibri")))
+        {
+            api.Headers.Add("Cookie", credentials.CookieHeader);
+            using var apiResponse = await SendGuardedAsync(api, cancellationToken).ConfigureAwait(false);
+            if (apiResponse.IsSuccessStatusCode
+                && KoLPwdHashResolver.ParseStatusJson(
+                    await apiResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)) is { } fromApi)
+                return fromApi;
+        }
         foreach (var page in new[] { "inventory.php?which=3", "charpane.php" })
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, page));

@@ -33,6 +33,16 @@ internal static class StrictOptions
             ? Parse(name, text, min, max)
             : throw new ArgumentException($"{name} is required{(hint is null ? "" : " (" + hint + ")")}.");
 
+    public static long Long(string[] args, string name, long fallback, long min, long max)
+    {
+        if (Value(args, name) is not { } text) return fallback;
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+            throw new ArgumentException($"{name} must be a whole number, got '{text}'.");
+        if (value < min || value > max)
+            throw new ArgumentException($"{name} must be between {min} and {max}, got {value}.");
+        return value;
+    }
+
     private static int Parse(string name, string text, int min, int max)
     {
         if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))

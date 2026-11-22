@@ -99,7 +99,9 @@ public partial class MainWindow
         var classifier = _catalog is null ? null : new ItemClassifier(_catalog);
         var result = await DailyStepRunner.RunAsync(row.Kind, actions,
             session.ReadAsync, session.ExecuteAsync, classifier,
-            (title, body) => OverfillConfirmDialog.AskAsync(this, title, body, "Send anyway"), token);
+            // The runner continues on a pool thread after the async status reads; dialogs must open on the UI thread.
+            (title, body) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                () => OverfillConfirmDialog.AskAsync(this, title, body, "Send anyway")), token);
         return result.Summary;
     }
 
