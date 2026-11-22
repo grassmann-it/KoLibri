@@ -130,7 +130,7 @@ public sealed class KoLLoginClient
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
-        using var client = new HttpClient(handler)
+        using var client = new HttpClient(new KoLRateLimitedHandler(handler))
         {
             BaseAddress = _options.BaseUri,
             Timeout = _options.Timeout
@@ -300,7 +300,7 @@ public sealed class KoLLoginClient
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
-        var client = new HttpClient(handler)
+        var client = new HttpClient(new KoLRateLimitedHandler(handler))
         {
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)
