@@ -93,8 +93,14 @@ async Task RunAsync()
             await Section(window, "NavCommunication"); Shot(window, P("chat-mail"));
             await Section(window, "NavBrowser"); await Pump(600); Shot(window, P("browser"));
             await Section(window, "NavSettings"); Shot(window, P("settings"));
+            var qaLog = Priv<SessionLogViewModel>(window, "_log");
+            qaLog.RoleProvider = () => "Main"; qaLog.Purchase("Purchased 1 × hot wing at 1,200 Meat");
+            qaLog.Purchase("Purchased 1 × hot wing at 1,200 Meat");
+            qaLog.RoleProvider = () => "Mallbot"; qaLog.Error("Mall search failed: KoL did not answer.");
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Pump(400); Shot(window, P("settings-session-log"));
+            window.ShowShortcutHelpForQa(); await Pump(300); Shot(window, P("help"));
+            window.FindControl<Border>("ShortcutHelpOverlay")!.IsVisible = false;
             await SeedSettingsDaily(window); Shot(window, P("settings-daily"));
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Section(window, "NavMall");

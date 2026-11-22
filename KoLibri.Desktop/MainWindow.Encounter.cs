@@ -37,6 +37,7 @@ public partial class MainWindow
             _encounterLocationsGrid.ItemsSource = _encounterBrowser.Browser.Locations;
             _encounterMonstersGrid!.ItemsSource = _encounterBrowser.Browser.Monsters;
             _encounterActionsGrid!.ItemsSource = _encounterBrowser.Browser.Actions;
+            _adventuresView?.SetZones(_encounterBrowser.Browser.ZoneGroups);
         }
 
         if (_encounterFilterBox is not null)

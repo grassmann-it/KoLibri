@@ -33,6 +33,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         Settings = store.Load();
         AgentRightsNote = agentRightsNote ?? "Agent rights are granted on the consent page of the MCP server and shown there; see docs/mcp-access.md.";
         Save = new RelayCommand(DoSave);
+        ResetDefaults = new RelayCommand(DoResetDefaults);
         Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup);
         Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup);
     }
@@ -52,6 +53,25 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public string? DefaultAccount { get => Settings.DefaultAccount; set { Settings.DefaultAccount = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); Raise(); } }
     public bool ReloginAutomatically { get => Settings.ReloginAutomatically; set { Settings.ReloginAutomatically = value; Raise(); } }
     public bool OptionalTools { get => Settings.OptionalTools; set { Settings.OptionalTools = value; Raise(); } }
+    /// <summary>"Last used" opens the role used last time; Main/Mallbot always open that role.</summary>
+    public const string LastUsedChoice = "Last used";
+    public string[] DefaultAccountChoices { get; } = [LastUsedChoice, "Main", "Mallbot"];
+    public string DefaultAccountChoice
+    {
+        get => Settings.DefaultAccount is { } a && DefaultAccountChoices.Contains(a, StringComparer.OrdinalIgnoreCase)
+            ? DefaultAccountChoices.First(c => string.Equals(c, a, StringComparison.OrdinalIgnoreCase))
+            : LastUsedChoice;
+        set { if (value is not null) { DefaultAccount = value == LastUsedChoice ? null : value; Raise(); } }
+    }
+    public decimal CloverThreshold { get => N("cloverThreshold"); set => Put("cloverThreshold", value); }
+    public decimal CloverThresholdMin => Min("cloverThreshold"); public decimal CloverThresholdMax => Max("cloverThreshold");
+
+    /// <summary>Puts every number back to its default (not saved until Save).</summary>
+    public ICommand ResetDefaults { get; private set; } = null!;
+
+    /// <summary>Header theme button: the shown theme and the saved theme are one value.</summary>
+    public void SetTheme(string theme) { Settings.Theme = theme; Raise(nameof(Theme)); }
+
     public string Theme { get => Settings.Theme; set { if (value is not null) { Settings.Theme = value; Raise(); } } }
 
     public decimal MeatPerDay { get => N("meatPerDay"); set => Put("meatPerDay", value); }
@@ -96,6 +116,13 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private static decimal Min(string key) => (decimal)DesktopSettings.Definition(key).Min;
     private static decimal Max(string key) => (decimal)DesktopSettings.Definition(key).Max;
     private void Put(string key, decimal value, [CallerMemberName] string? name = null) { Settings.Set(key, (double)value); Raise(name); }
+
+    private void DoResetDefaults()
+    {
+        foreach (var d in DesktopSettings.Definitions) Settings.Set(d.Key, d.Default);
+        Raise(string.Empty);
+        Status = "Numbers are back at their defaults. Press Save to keep them.";
+    }
 
     private void DoSave()
     {

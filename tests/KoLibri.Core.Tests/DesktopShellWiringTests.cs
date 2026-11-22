@@ -23,13 +23,13 @@ public sealed class DesktopShellWiringTests
     }
 
     [Fact]
-    public void LogKeepsNewestEntriesCollapsesRepeatsAndCountsErrors()
+    public void LogKeepsNewestEntriesNeverMergesRepeatsAndCountsErrors()
     {
         var log = new SessionLogViewModel(capacity: 10, now: () => Now);
         log.Search("a");
         log.Search("a");
         log.Error("boom");
-        Assert.Equal(2, log.Entries.Count);
+        Assert.Equal(3, log.Entries.Count);   // identical lines are two events, never merged
         Assert.Equal(1, log.ErrorCount);
         Assert.Contains("1 errors", log.Summary);
         for (var i = 0; i < 30; i++) log.Adventure($"turn {i}");
