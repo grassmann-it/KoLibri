@@ -596,7 +596,7 @@ public sealed class DesktopLiveDataProvider : IDisposable
                 return null;
 
             var http = _createAccountHttp(session);
-            var clients = new AccountClients(session, http, new KoLAccountReadClient(http), new KoLMallReadClient(http, policy: _mallPolicy));
+            var clients = new AccountClients(session, http, new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true }, new KoLMallReadClient(http, policy: _mallPolicy));
             _clients.Add(role, clients);
             return clients;
         }

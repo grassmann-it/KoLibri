@@ -33,7 +33,7 @@ internal static partial class KolibriCli
         {
             if (reader is not null) return reader;
             http = await ReadAuthenticatedHttpAsync(role);
-            reader = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver());
+            reader = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver()) { ReadCharsheetForOrganLimits = true };
             return reader;
         }
     }
