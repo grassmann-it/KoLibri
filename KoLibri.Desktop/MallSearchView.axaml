@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.MallSearchView"
+             x:DataType="local:MallSearchViewModel">
+  <StackPanel Spacing="14">
+
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Mall search" Classes="h2" />
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <TextBox x:Name="SearchBox"
+                   Text="{Binding SearchText, Mode=TwoWay}"
+                   Watermark="Item name (partial is fine) or item ID"
+                   KeyDown="SearchBoxKeyDown"
+                   AutomationProperties.Name="Mall search term" />
+          <Button x:Name="SearchButton" Grid.Column="1" Content="Search" Classes="primary"
+                  Click="SearchClick" />
+          <Button x:Name="CancelButton" Grid.Column="2" Content="Cancel"
+                  IsVisible="{Binding CanCancel}" Click="CancelClick" />
+        </Grid>
+        <TextBlock Text="{Binding StatusText}" Classes="muted" TextWrapping="Wrap" />
+        <Border x:Name="ErrorBanner" IsVisible="{Binding HasSearchError}"
+                Background="{DynamicResource ErrorSoftBrush}" BorderBrush="{DynamicResource ErrorBrush}" BorderThickness="1"
+                CornerRadius="6" Padding="10,6">
+          <TextBlock Text="{Binding SearchError}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"
+                     AutomationProperties.Name="Search error" />
+        </Border>
+        <TextBlock Text="{Binding Notice}" IsVisible="{Binding HasNotice}"
+                   Classes="muted" TextWrapping="Wrap" FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card" IsVisible="{Binding NeedsPick}">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Pick item" Classes="h2" />
+        <ListBox x:Name="ChoiceList" ItemsSource="{Binding Choices}" MaxHeight="260"
+                 DoubleTapped="ChoiceActivated" KeyDown="ChoiceKeyDown"
+                 AutomationProperties.Name="Matching items">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:MallItemChoice">
+              <TextBlock Text="{Binding Label}" Margin="0,3" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <Button Content="Show offers for selected item" HorizontalAlignment="Left" Click="ChoiceClick" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card" Padding="0" IsVisible="{Binding HasOffers}">
+      <StackPanel>
+        <Grid ColumnDefinitions="44,*,110,125,95,115,70" ColumnSpacing="10" Margin="14,12,14,6">
+          <TextBlock Grid.Column="0" Text="Rank" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="1" Text="Shop" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="2" Text="Meat / unit" Classes="muted" FontSize="11" TextAlignment="Right" />
+          <TextBlock Grid.Column="3" Text="Stock" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="4" Text="Limit / day" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="5" Text="Pricegun median" Classes="muted" FontSize="11" TextAlignment="Right" />
+        </Grid>
+        <ListBox x:Name="OfferList" ItemsSource="{Binding Offers}" MaxHeight="460"
+                 AutomationProperties.Name="Market offers">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:MallOfferRow">
+              <Grid ColumnDefinitions="44,*,110,125,95,115,70" ColumnSpacing="10" Margin="0,2">
+                <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="muted" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding ShopName}" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding PriceText}" TextAlignment="Right" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="{Binding StockText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="4" Text="{Binding LimitText}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="{Binding PricegunText}" TextAlignment="Right"
+                           VerticalAlignment="Center" />
+                <!-- Disabled until a purchase hook (IMallPurchaseRequest) is wired in. -->
+                <Button Grid.Column="6" Content="Buy" IsEnabled="{Binding CanBuy}"
+                        Click="BuyClick" Padding="8,2"
+                        ToolTip.Tip="Purchase is not wired up yet." />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Text="{Binding PricegunNote}" IsVisible="{Binding HasPricegunNote}"
+                   Classes="muted" FontSize="12" Margin="14,6,14,10" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Expander x:Name="OwnShopExpander" Header="My shop (loads when opened)"
+              HorizontalAlignment="Stretch" Expanded="OwnShopExpanded">
+      <Border Classes="card" Padding="0">
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto" Margin="14,10,14,4">
+            <TextBlock x:Name="OwnShopSummary" Text="—" Classes="muted" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Reload" Click="OwnShopReloadClick" />
+          </Grid>
+          <TextBlock Text="Double-click a listing to search the mall for it." Classes="muted" FontSize="12"
+                     Margin="14,0,14,6" />
+          <ListBox x:Name="OwnShopRows" MaxHeight="320" DoubleTapped="OwnShopDoubleTapped"
+                   AutomationProperties.Name="Own mall listings">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:MallStoreRow">
+                <Grid ColumnDefinitions="*,115,95,95" ColumnSpacing="12" Margin="0,3">
+                  <TextBlock Text="{Binding ItemName}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{Binding PriceText}" />
+                  <TextBlock Grid.Column="2" Text="{Binding QuantityText}" Classes="muted" />
+                  <TextBlock Grid.Column="3" Text="{Binding LimitText}" Classes="muted" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+      </Border>
+    </Expander>
+  </StackPanel>
+</UserControl>
