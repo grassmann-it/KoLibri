@@ -71,6 +71,7 @@ public sealed class PricegunReadClient
         TimeProvider? clock = null)
     {
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(_http);
         _baseUri = baseUri ?? new Uri("https://pricegun.loathers.net/", UriKind.Absolute);
         if (_baseUri.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("Pricegun base URI must use HTTPS.", nameof(baseUri));

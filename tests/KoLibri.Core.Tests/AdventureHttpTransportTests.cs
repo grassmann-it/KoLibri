@@ -224,3 +224,41 @@ public sealed class AdventureHttpTransportTests
         }
     }
 }
+
+public sealed class KoLUserAgentTests
+{
+    [Fact]
+    public void User_agent_names_the_library_and_its_version_without_build_metadata()
+    {
+        Assert.StartsWith("LibKolibri/", KoLibri.Core.Basis.KoLUserAgent.Value);
+        Assert.DoesNotContain('+', KoLibri.Core.Basis.KoLUserAgent.Version);
+        Assert.Matches(@"^\d+\.\d+", KoLibri.Core.Basis.KoLUserAgent.Version);
+        Assert.Contains("github.com/grassmann-it/KoLibri", KoLibri.Core.Basis.KoLUserAgent.Value);
+    }
+
+    [Fact]
+    public void Sessions_keep_the_user_agent_they_were_created_with_and_old_ones_stay_legacy()
+    {
+        var uri = new Uri("https://www.kingdomofloathing.com/");
+        var legacy = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
+            new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "a=b" }, uri);
+        Assert.Equal(KoLibri.Core.Basis.KoLUserAgent.LegacyValue, legacy.DefaultRequestHeaders.UserAgent.ToString());
+
+        var fresh = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
+            new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "a=b", UserAgent = KoLibri.Core.Basis.KoLUserAgent.Value }, uri);
+        Assert.StartsWith("LibKolibri/", fresh.DefaultRequestHeaders.UserAgent.ToString());
+    }
+
+    [Fact]
+    public void Authenticated_and_pricegun_clients_send_it_and_keep_a_caller_value()
+    {
+        var empty = new HttpClient();
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(empty);
+        Assert.Contains("LibKolibri/", empty.DefaultRequestHeaders.UserAgent.ToString());
+
+        var own = new HttpClient();
+        own.DefaultRequestHeaders.UserAgent.ParseAdd("Mine/1");
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(own);
+        Assert.Equal("Mine/1", own.DefaultRequestHeaders.UserAgent.ToString());
+    }
+}

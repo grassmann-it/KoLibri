@@ -50,6 +50,11 @@ public sealed record AccountCredentials
     /// the configured secret store together with the session token.
     /// </summary>
     public string? CookieHeader { get; init; }
+    /// <summary>
+    /// The User-Agent this session was created with. KoL ties a session to it, so later requests reuse it.
+    /// Sessions stored before this field existed have none and keep the legacy value.
+    /// </summary>
+    public string? UserAgent { get; init; }
     public DateTimeOffset? ExpiresAt { get; init; }
 }
 

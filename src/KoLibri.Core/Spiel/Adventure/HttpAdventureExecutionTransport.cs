@@ -160,15 +160,23 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         var uri = BuildUri(route);
         _security.EnsureAllowed(uri, $"KoL adventure {operation} request");
 
-        using var message = new HttpRequestMessage(
-            operation == AdventureTransportOperation.Refresh ? HttpMethod.Get : HttpMethod.Post,
-            uri);
-
-        if (operation != AdventureTransportOperation.Refresh)
+        // Diagnostic switch: KOLIBRI_ADVENTURE_GET=1 starts an adventure like KoL's own link
+        // (adventure.php?snarfblat=N) instead of posting a form.
+        var asQuery = operation == AdventureTransportOperation.Adventure
+            && Environment.GetEnvironmentVariable("KOLIBRI_ADVENTURE_GET") == "1";
+        HttpRequestMessage message;
+        if (operation == AdventureTransportOperation.Refresh)
+            message = new HttpRequestMessage(HttpMethod.Get, uri);
+        else if (asQuery)
         {
-            var fields = BuildFields(request, operation);
-            message.Content = new FormUrlEncodedContent(fields);
+            var query = string.Join('&', BuildFields(request, operation)
+                .Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
+            uri = new UriBuilder(uri) { Query = query }.Uri;
+            message = new HttpRequestMessage(HttpMethod.Get, uri);
         }
+        else
+            message = new HttpRequestMessage(HttpMethod.Post, uri) { Content = new FormUrlEncodedContent(BuildFields(request, operation)) };
+        using var messageScope = message;
 
         using var timeout = CreateTimeoutSource(cancellationToken);
         Interlocked.Increment(ref _httpRequestCount);
@@ -208,7 +216,12 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                             if (!FollowableRoutes.Contains(target.AbsolutePath.TrimStart('/')))
                                 target = null;
                         }
-                        if (target is null) { EnsureNoRedirect(currentUri, current); break; }
+                        if (target is null)
+                        {
+                            await AddRedirectHintAsync(current, currentUri, timeout.Token).ConfigureAwait(false);
+                            EnsureNoRedirect(currentUri, current);
+                            break;
+                        }
                         using var follow = new HttpRequestMessage(HttpMethod.Get, target);
                         Interlocked.Increment(ref _httpRequestCount);
                         var next = await _http.SendAsync(follow, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
@@ -318,6 +331,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 if (!fields.ContainsKey("snarfblat"))
                     fields["snarfblat"] = expectedSnarfblat;
                 EnsureFieldMatches(fields, "snarfblat", expectedSnarfblat);
+                // KoL's own link carries only the location number; internal run keys are not sent to the game.
+                fields.Remove("adventure");
+                fields.Remove("location");
                 if (fields.ContainsKey("adventure")) EnsureFieldMatches(fields, "adventure", request.AdventureId);
                 if (fields.ContainsKey("location")) EnsureFieldMatches(fields, "location", request.AdventureId);
                 break;
@@ -394,17 +410,43 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         "fight.php", "choice.php"
     };
 
+    /// <summary>Reads the page KoL redirected to (one GET, same host) so the error can say why.</summary>
+    private async Task AddRedirectHintAsync(HttpResponseMessage redirect, Uri from, CancellationToken ct)
+    {
+        // Opt-in diagnostics (KOLIBRI_ADVENTURE_DIAG=1): normally a refused redirect sends nothing further.
+        if (Environment.GetEnvironmentVariable("KOLIBRI_ADVENTURE_DIAG") != "1") return;
+        try
+        {
+            if (redirect.Headers.Location?.OriginalString is not { } location) return;
+            var target = _security.ResolveRedirect(from, location);
+            using var get = new HttpRequestMessage(HttpMethod.Get, target);
+            using var page = await _http.SendAsync(get, ct).ConfigureAwait(false);
+            var html = await page.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var text = System.Text.RegularExpressions.Regex.Replace(
+                System.Text.RegularExpressions.Regex.Replace(html, "<(script|style)[^>]*>.*?</\\1>", " ",
+                    System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                "<[^>]+>|\\s+", " ").Trim();
+            _redirectHint = text.Length > 300 ? text[..300] : text;
+        }
+        catch (Exception) { /* the hint is best effort */ }
+    }
+
+    private string? _redirectHint;
+
     private static string RedirectTarget(HttpResponseMessage response)
     {
         var raw = response.Headers.Location?.OriginalString ?? "?";
         var cut = raw.IndexOfAny(['?', '#']);
-        return cut >= 0 ? raw[..cut] : raw;
+        if (cut < 0) return raw;
+        // Parameter names only: they usually say why KoL redirected (for example notloggedin), values may be personal.
+        var names = raw[(cut + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=')[0]);
+        return $"{raw[..cut]}?{string.Join('&', names)}";
     }
 
     private static bool IsRedirect(HttpResponseMessage response)
         => (int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is not null;
 
-    private static void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
+    private void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
     {
         var statusCode = (int)response.StatusCode;
         var finalUri = response.RequestMessage?.RequestUri;
@@ -414,7 +456,8 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
             || changedUri)
             throw new AdventureHttpTransportException(
                 "KoL adventure redirects are disabled; refresh the session manually."
-                + $" (HTTP {statusCode} to '{RedirectTarget(response)}')");
+                + $" (HTTP {statusCode} to '{RedirectTarget(response)}')"
+                + (string.IsNullOrEmpty(_redirectHint) ? "" : $" Page says: {_redirectHint}"));
     }
 
     private async Task<string> ReadBoundedBodyAsync(

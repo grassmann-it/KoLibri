@@ -10,7 +10,7 @@ namespace KoLibri.Core.Basis;
 public sealed record KoLLoginOptions
 {
     public Uri BaseUri { get; init; } = new("https://www.kingdomofloathing.com/", UriKind.Absolute);
-    public string UserAgent { get; init; } = "KoLibri/0.1 (Kingdom of Loathing client)";
+    public string UserAgent { get; init; } = KoLUserAgent.Value;
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
     /// <summary>Minimum delay between login attempts made by one client.</summary>
     public TimeSpan MinimumRequestInterval { get; init; } = TimeSpan.FromSeconds(1);
@@ -252,6 +252,7 @@ public sealed class KoLLoginClient
         {
             AccessToken = accessToken,
             CookieHeader = cookieHeader,
+            UserAgent = _options.UserAgent,
             Username = userName.Trim(),
             Password = rememberPassword ? password : null,
             // KoL session cookies are renewed by the server; keep the local
@@ -281,7 +282,7 @@ public sealed class KoLLoginClient
         AccountCredentials credentials,
         Uri baseUri,
         TimeSpan? timeout = null,
-        string userAgent = "KoLibri/0.1 (Kingdom of Loathing client)",
+        string? userAgent = null,
         KoLSecurityPolicy? securityPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
@@ -304,7 +305,7 @@ public sealed class KoLLoginClient
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent ?? credentials.UserAgent ?? KoLUserAgent.LegacyValue);
         client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", credentials.CookieHeader);
         return client;
     }
