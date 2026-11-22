@@ -4,6 +4,35 @@
              x:Class="KoLibri.Desktop.DailyView">
   <StackPanel Spacing="16">
 
+    <Border x:Name="DailyStaleBanner" Classes="card" IsVisible="False" BorderBrush="#C0392B" BorderThickness="1">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <TextBlock x:Name="DailyStaleBannerText" Text="The session has expired." VerticalAlignment="Center" TextWrapping="Wrap" />
+        <Button x:Name="DailyLogInButton" Content="Log in" Classes="primary" Click="DailyLogInClick"
+                AutomationProperties.Name="Log in again" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,Auto,*">
+        <TextBlock Grid.Row="0" Text="Today's steps" Classes="h2" Margin="14,12,14,2" />
+        <TextBlock Grid.Row="1" Text="Right-click a step: Run now, Skip today, Copy. Run asks before anything is sent."
+                   Classes="muted" FontSize="12" Margin="14,0,14,8" TextWrapping="Wrap" />
+        <ListBox x:Name="DailyStepList" Grid.Row="2" AutomationProperties.Name="Daily steps">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:DailyStepRow">
+              <Grid ColumnDefinitions="190,*,90,90" ColumnSpacing="10" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Detail}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="2" Text="{Binding Status}" Classes="muted" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Content="{Binding ActionLabel}" IsEnabled="{Binding CanRun}"
+                        ToolTip.Tip="{Binding DisabledReason}" Click="DailyStepRunClick" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
     <Border Classes="card">
       <StackPanel Spacing="8">
         <TextBlock Text="Daily briefing" Classes="h2" />

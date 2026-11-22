@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Markt;
 using KoLibri.Desktop;
@@ -84,11 +85,15 @@ async Task RunAsync()
             await Section(window, "NavMall"); Shot(window, P("mall-empty"));
             await SeedMallResults(window); await Pump(500); Shot(window, P("mall-results"));
             await SeedCloverResults(window); await Pump(500); Shot(window, P("mall-clover"));
-            await Section(window, "NavDaily"); Shot(window, P("daily"));
+            await Section(window, "NavDaily"); SeedDaily(window, stale: false); await Pump(400); Shot(window, P("daily"));
+            SeedDaily(window, stale: true); await Pump(400); Shot(window, P("daily-stale"));
+            SeedDaily(window, stale: false);
             await Section(window, "NavCommunication"); Shot(window, P("chat-mail"));
             await Section(window, "NavSettings"); Shot(window, P("settings"));
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Pump(400); Shot(window, P("settings-session-log"));
+            await SeedSettingsDaily(window); Shot(window, P("settings-daily"));
+            window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Section(window, "NavMall");
             Shot(window, P("mall-session-log"));
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = false;
@@ -180,6 +185,37 @@ async Task SeedCloverResults(MainWindow w)
     model.CloverThreshold = () => 27_000;
     search.Attach(model, Priv<LiveMallViewModel>(w, "_mall"));
     await model.SearchCloverAsync();
+}
+
+static void SeedDaily(MainWindow w, bool stale)
+{
+    var daily = Priv<DailyBriefingViewModel>(w, "_daily");
+    daily.Steps.Clear();
+    if (!stale)
+        foreach (var r in new[]
+        {
+            new DailyStepRow(DailyStepKind.Adventures, "Adventure target", "Knucklebones 1,621 / 100 · target reached", "done", "Plan", true),
+            new DailyStepRow(DailyStepKind.LuckyEgg, "Eat Lucky Surprise Egg", "3 in the inventory (item 995)", "open", "Run", true),
+            new DailyStepRow(DailyStepKind.FreeRests, "Free rests", "Up to 5 rests; stops at the first rest that costs adventures", "open", "Run", true),
+            new DailyStepRow(DailyStepKind.Booze, "Booze", "No booze chosen. Pick them in Settings.", "blocked", "Run", false, "Choose booze in Settings first."),
+            new DailyStepRow(DailyStepKind.Spleen, "Spleen", "Fixture spleen item × 1 · spleen 4", "skipped", "Run", false, "Skipped for today."),
+            new DailyStepRow(DailyStepKind.CloverCheck, "Clover check", "No 11-leaf clovers in the inventory", "open", "Check", true),
+        }) daily.Steps.Add(r);
+    typeof(DailyBriefingViewModel).GetProperty(nameof(DailyBriefingViewModel.SessionStale))!.SetValue(daily, stale);
+}
+
+async Task SeedSettingsDaily(MainWindow w)
+{
+    var view = w.FindControl<ContentControl>("SettingsHost")!.Content as SettingsView;
+    if (view?.DataContext is not SettingsViewModel model) return;
+    model.Booze.Item = "1234"; model.Booze.Quantity = 2; model.Booze.Add.Execute(null);
+    model.Spleen.Item = "5678"; model.Spleen.Add.Execute(null);
+    await Pump(300);
+    var header = view.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == "Daily");
+    w.FindControl<Expander>("SessionLogExpander")!.IsExpanded = false;
+    if (header?.FindAncestorOfType<ScrollViewer>() is { } scroll && header.TranslatePoint(new Avalonia.Point(0, 0), (Visual)scroll.Content!) is { } at)
+        scroll.Offset = new Avalonia.Vector(0, Math.Max(0, at.Y - 8));
+    await Pump(500);
 }
 
 async Task SeedMallResults(MainWindow w)

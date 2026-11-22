@@ -21,7 +21,6 @@
         <NumericUpDown Value="{Binding ResultLimit}" Minimum="{Binding ResultLimitMin}" Maximum="{Binding ResultLimitMax}" FormatString="N0"/>
         <TextBlock Text="Result / page limit" FontSize="11" Opacity="0.7"/>
       </StackPanel>
-      <CheckBox IsChecked="{Binding PricegunDisplay}" Content="Show Pricegun history"/>
 
       <TextBlock Text="Network and cache" FontWeight="SemiBold"/>
       <NumericUpDown Value="{Binding KolIntervalSeconds}" Minimum="{Binding IntervalMin}" Maximum="{Binding IntervalMax}" FormatString="0.##"/>
@@ -33,6 +32,38 @@
       <NumericUpDown Value="{Binding MaxStaleHours}" Minimum="{Binding MaxStaleHoursMin}" Maximum="{Binding MaxStaleHoursMax}" FormatString="N0"/>
       <TextBlock Text="Maximum age of stale data shown (hours)" FontSize="11" Opacity="0.7"/>
 
+      <TextBlock Text="Daily" FontWeight="SemiBold"/>
+      <NumericUpDown Value="{Binding DailyKnucklebonesTarget}" Minimum="{Binding DailyKnucklebonesTargetMin}" Maximum="{Binding DailyKnucklebonesTargetMax}" FormatString="N0"
+                     AutomationProperties.Name="Daily knucklebones target"/>
+      <TextBlock Text="{Binding DailyKnucklebonesTargetInfo}" FontSize="11" Opacity="0.7"/>
+      <NumericUpDown Value="{Binding DailyRests}" Minimum="{Binding DailyRestsMin}" Maximum="{Binding DailyRestsMax}" FormatString="N0"
+                     AutomationProperties.Name="Rests per daily run"/>
+      <TextBlock Text="{Binding DailyRestsInfo}" FontSize="11" Opacity="0.7"/>
+
+      <TextBlock Text="Booze for the Daily tab (nothing is chosen for you)" FontSize="12"/>
+      <ListBox ItemsSource="{Binding Booze.Items}" SelectedItem="{Binding Booze.Selected}" MaxHeight="120" AutomationProperties.Name="Daily booze list">
+        <ListBox.ItemTemplate><DataTemplate x:DataType="local:DailyConsumable"><TextBlock Text="{Binding Label}"/></DataTemplate></ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Text="{Binding Booze.Item}" Watermark="Item id or exact name" Width="220" AutomationProperties.Name="Booze item"/>
+        <NumericUpDown Value="{Binding Booze.Quantity}" Minimum="{Binding Booze.QuantityMin}" Maximum="{Binding Booze.QuantityMax}" Width="100" FormatString="N0"/>
+        <Button Content="Add" Command="{Binding Booze.Add}"/>
+        <Button Content="Remove selected" Command="{Binding Booze.Remove}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding Booze.Message}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"/>
+
+      <TextBlock Text="Spleen items for the Daily tab" FontSize="12"/>
+      <ListBox ItemsSource="{Binding Spleen.Items}" SelectedItem="{Binding Spleen.Selected}" MaxHeight="120" AutomationProperties.Name="Daily spleen list">
+        <ListBox.ItemTemplate><DataTemplate x:DataType="local:DailyConsumable"><TextBlock Text="{Binding Label}"/></DataTemplate></ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBox Text="{Binding Spleen.Item}" Watermark="Item id or exact name" Width="220" AutomationProperties.Name="Spleen item"/>
+        <NumericUpDown Value="{Binding Spleen.Quantity}" Minimum="{Binding Spleen.QuantityMin}" Maximum="{Binding Spleen.QuantityMax}" Width="100" FormatString="N0"/>
+        <Button Content="Add" Command="{Binding Spleen.Add}"/>
+        <Button Content="Remove selected" Command="{Binding Spleen.Remove}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding Spleen.Message}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"/>
+
       <TextBlock Text="Game and UI" FontWeight="SemiBold"/>
       <NumericUpDown Value="{Binding TurnBudget}" Minimum="{Binding TurnBudgetMin}" Maximum="{Binding TurnBudgetMax}" FormatString="N0"/>
       <TextBlock Text="Turn budget" FontSize="11" Opacity="0.7"/>
@@ -40,7 +71,6 @@
       <TextBlock Text="HP stop (% of max HP)" FontSize="11" Opacity="0.7"/>
       <NumericUpDown Value="{Binding MaxCombatRounds}" Minimum="{Binding MaxCombatRoundsMin}" Maximum="{Binding MaxCombatRoundsMax}" FormatString="N0"/>
       <TextBlock Text="Max combat rounds (the game ends a fight at 50)" FontSize="11" Opacity="0.7"/>
-      <CheckBox IsChecked="{Binding DailyDefaults}" Content="Use daily defaults"/>
       <CheckBox IsChecked="{Binding OptionalTools}" Content="Show optional tools (Arbitrage, ...)"/>
       <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}"/>
 
