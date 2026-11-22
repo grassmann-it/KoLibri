@@ -58,6 +58,10 @@ public sealed class DesktopShellWiringTests
     private sealed class FakeReads(long meat, int owned, bool stale = false) : IMallPurchaseReads
     {
         public int Searches;
+        public int Owned = owned;
+        public int? AfterFirstRead;
+        private int _inventoryReads;
+        public long Meat = meat;
         public Task<MallSearchPage> SearchAsync(string term, CancellationToken ct)
         {
             Searches++;
@@ -68,12 +72,12 @@ public sealed class DesktopShellWiringTests
                 new Uri("https://www.kingdomofloathing.com/"), stale));
         }
         public Task<KoLStatusSnapshot?> StatusAsync(CancellationToken ct)
-            => Task.FromResult<KoLStatusSnapshot?>(new KoLStatusSnapshot("Bot", 10, meat, 1, Now));
+            => Task.FromResult<KoLStatusSnapshot?>(new KoLStatusSnapshot("Bot", 10, Meat, 1, Now));
         public Task<DesktopInventorySnapshot> InventoryAsync(CancellationToken ct)
             => Task.FromResult(new DesktopInventorySnapshot
             {
                 Role = AccountRole.Mallbot,
-                Items = [new DesktopInventoryItem { ItemId = "789", Name = "Thing", Quantity = owned }],
+                Items = [new DesktopInventoryItem { ItemId = "789", Name = "Thing", Quantity = ++_inventoryReads > 1 && AfterFirstRead is { } after ? after : Owned }],
                 ObservedAt = Now
             });
     }
@@ -127,8 +131,10 @@ public sealed class DesktopShellWiringTests
         UnitPrice = 100, Stock = stock, LimitKind = MallLimitKind.Unlimited
     };
 
+    private static FakeReads _reads = new(10_000, 0);
+
     private static (MallPurchaseCoordinator Coordinator, FixtureMallPurchaseTransport Fixture, SessionLogViewModel Log, MallSpendLedger Ledger)
-        Build(Prompt prompt, bool signedIn = true)
+        Build(Prompt prompt, bool signedIn = true, int? deliver = null)
     {
         var fixture = new FixtureMallPurchaseTransport(new MallPurchaseObservation(
             new MallPurchaseOffer("42", "42", "789", 100, 5, Now),
@@ -137,10 +143,12 @@ public sealed class DesktopShellWiringTests
         var log = new SessionLogViewModel(now: () => Now);
         var ledger = new MallSpendLedger(new FixedTime());
         var service = new DesktopMallPurchaseService(fixture, null, null, new FixedTime());
-        var observer = new MallPurchaseObserver(new FakeReads(10_000, 0), "Mallbot", () => 1_000_000, ledger, new FixedTime());
+        _reads = new FakeReads(10_000, 0) { AfterFirstRead = deliver };
+        var observer = new MallPurchaseObserver(_reads, "Mallbot", () => 1_000_000, ledger, new FixedTime());
+        var queue = new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero);
         var coordinator = new MallPurchaseCoordinator("Mallbot",
             _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>(signedIn ? (service, observer) : null),
-            prompt, log, ledger);
+            prompt, log, ledger, queue: queue);
         return (coordinator, fixture, log, ledger);
     }
 
@@ -148,13 +156,14 @@ public sealed class DesktopShellWiringTests
     public async Task ConfirmedBuySendsOnePurchaseAndRecordsSpend()
     {
         var prompt = new Prompt(true);
-        var (coordinator, fixture, log, ledger) = Build(prompt);
+        var (coordinator, fixture, log, ledger) = Build(prompt, deliver: 2);
         Assert.True(coordinator.CanRequest(Row()));
         await coordinator.RequestAsync(Row(), default);
+        await coordinator.Queue.WhenIdleAsync();
         Assert.Equal(1, fixture.CommitCount);
         Assert.Equal(2, prompt.Quantity);
         Assert.Equal(200, ledger.SpentToday("Mallbot"));
-        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.StartsWith("Settled:"));
+        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.StartsWith("#1 Settled:"));
     }
 
     [Fact]
@@ -262,8 +271,11 @@ public sealed class DesktopShellWiringTests
             var observer = new MallPurchaseObserver(new FakeReads(10_000, 0), "Mallbot", () => 1_000_000, ledger, new FixedTime());
             var coordinator = new MallPurchaseCoordinator("Mallbot",
                 _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>((service, observer)),
-                new Prompt(true), new SessionLogViewModel(now: () => Now), ledger);
+                new Prompt(true), new SessionLogViewModel(now: () => Now), ledger,
+                queue: new MallBuyQueue("Mallbot", ledger, new SessionLogViewModel(now: () => Now),
+                    verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero));
             await coordinator.RequestAsync(Row(), default);
+            await coordinator.Queue.WhenIdleAsync();
             Assert.Equal(1, fixture.CommitCount);
             var spent = new MallSpendLedger(new FixedTime(), path).SpentToday("Mallbot");
             // Either verified (settled) or unclear: in both cases the 200 meat stay counted after a restart.

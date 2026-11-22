@@ -35,6 +35,9 @@ public sealed record MallPurchaseHttpResponse(
     Uri? RequestUri,
     string? Message = null)
 {
+    /// <summary>Redacted short text of the answer (tags stripped, no secrets), kept only for unrecognised purchase answers.</summary>
+    public string? Snippet { get; init; }
+
     public bool IsAccepted => Classification == MallPurchaseHttpResponseClassification.Accepted;
 }
 
@@ -358,6 +361,9 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
         MallPurchaseHttpResponse response,
         CancellationToken cancellationToken)
     {
+        if (commit.DeferVerification)
+            return new MallPurchaseTransportReceipt(accepted: true, before, before,
+                response.Message, _clock.GetUtcNow());
         try
         {
             var after = await ReadAfterCommitAsync(commit, cancellationToken).ConfigureAwait(false);
@@ -387,6 +393,9 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
         string? message,
         CancellationToken cancellationToken)
     {
+        if (commit.DeferVerification)
+            return new MallPurchaseTransportReceipt(accepted: false, before, before,
+                message ?? "Mall POST outcome was indeterminate.", _clock.GetUtcNow()) { Indeterminate = true };
         try
         {
             var after = await ReadAfterCommitAsync(commit, cancellationToken).ConfigureAwait(false);
@@ -524,11 +533,20 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
     {
         var uri = response.RequestMessage?.RequestUri;
         if (uri is not null && (!IsAllowedHost(uri.Host) || !UrisMatchEndpoint(expectedUri, uri)))
-            return new(MallPurchaseHttpResponseClassification.Redirected, response.StatusCode, uri,
-                "KoL response was redirected away from the exact allowed Mall endpoint.");
+            return mutation
+                // The POST may have been applied before KoL sent us elsewhere: the inventory decides.
+                ? new(MallPurchaseHttpResponseClassification.Indeterminate, response.StatusCode, uri,
+                    string.Create(CultureInfo.InvariantCulture,
+                        $"KoL answered the purchase from another page (HTTP {(int)response.StatusCode}, final {uri.Host}{uri.AbsolutePath}). Answer: \"{MallPurchaseDiagnostics.Snippet(body)}\""))
+                    { Snippet = MallPurchaseDiagnostics.Snippet(body) }
+                : new(MallPurchaseHttpResponseClassification.Redirected, response.StatusCode, uri,
+                    "KoL response was redirected away from the exact allowed Mall endpoint.");
         if ((int)response.StatusCode is >= 300 and < 400)
-            return new(MallPurchaseHttpResponseClassification.Redirected, response.StatusCode, uri,
-                "KoL returned a redirect; mutation was not accepted.");
+            return mutation
+                ? new(MallPurchaseHttpResponseClassification.Indeterminate, response.StatusCode, uri,
+                    string.Create(CultureInfo.InvariantCulture, $"KoL answered the purchase with a redirect (HTTP {(int)response.StatusCode})."))
+                : new(MallPurchaseHttpResponseClassification.Redirected, response.StatusCode, uri,
+                    "KoL returned a redirect.");
         if (response.StatusCode == HttpStatusCode.Unauthorized
             || response.StatusCode == HttpStatusCode.Forbidden
             || LooksLikeLogin(body))
@@ -547,20 +565,16 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
         if (!mutation)
             return new(MallPurchaseHttpResponseClassification.Accepted, response.StatusCode, uri);
 
-        if (MallBuyClient.IsConfirmedPurchase((int)response.StatusCode, body)
-            || ContainsAny(body,
-                "you bought", "you purchase", "purchase successful", "successfully purchased",
-                "item added to your inventory", "you acquire", "you got"))
-            return new(MallPurchaseHttpResponseClassification.Accepted, response.StatusCode, uri,
-                "KoL acknowledged the Mall purchase.");
-        if (ContainsAny(body,
-                "not enough meat", "insufficient meat", "sold out", "no longer available",
-                "cannot purchase", "can't purchase", "could not purchase", "purchase limit",
-                "not enough of that item"))
-            return new(MallPurchaseHttpResponseClassification.Rejected, response.StatusCode, uri,
-                "KoL rejected the exact Mall purchase.");
-        return new(MallPurchaseHttpResponseClassification.Indeterminate, response.StatusCode, uri,
-            "KoL returned no unambiguous Mall purchase acknowledgement.");
+        var reading = MallPurchaseReceiptReader.Read(body);
+        var where = string.Create(CultureInfo.InvariantCulture, $"HTTP {(int)response.StatusCode} {uri?.AbsolutePath}");
+        return reading.Kind switch
+        {
+            MallReceiptKind.Confirmed => new(MallPurchaseHttpResponseClassification.Accepted, response.StatusCode, uri, reading.Message),
+            MallReceiptKind.Refused => new(MallPurchaseHttpResponseClassification.Rejected, response.StatusCode, uri, reading.Message),
+            _ => new(MallPurchaseHttpResponseClassification.Indeterminate, response.StatusCode, uri,
+                $"{reading.Message} ({where}) Answer: \"{MallPurchaseDiagnostics.Snippet(body)}\"")
+            { Snippet = MallPurchaseDiagnostics.Snippet(body) }
+        };
     }
 
     private Uri BuildListingUri(MallPurchaseRequest request)

@@ -353,7 +353,9 @@ public enum MallPurchaseVerificationStatus
     NotAttempted,
     Verified,
     Failed,
-    Aborted
+    Aborted,
+    /// <summary>The POST was sent (confirmed or unknown); the caller verifies the inventory later.</summary>
+    Pending
 }
 
 /// <summary>Pure review object returned before any mutation is attempted.</summary>
@@ -466,6 +468,8 @@ public sealed record MallPurchaseTransportCommit
         new MallPurchaseOffer(), new MallPurchaseAccountState(), DateTimeOffset.MinValue);
     public string? ApprovalToken { get; init; }
     public DateTimeOffset CommittedAt { get; init; }
+    /// <summary>The caller verifies the inventory later (batched): the transport must not read after the POST.</summary>
+    public bool DeferVerification { get; init; }
 }
 
 /// <summary>Transport acknowledgement and post-mutation observation.</summary>

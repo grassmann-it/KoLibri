@@ -191,6 +191,13 @@ public class FileSpendLedger
             return 0;
         }, write: true);
 
+    /// <summary>Meat currently reserved by purchases in flight (all processes), 0 when unreadable.</summary>
+    public long ReservedAmount(string account)
+    {
+        try { return Transact(entries => Current(entries, account, Today).Reserved, write: false); }
+        catch (SpendLedgerException) { return 0; }
+    }
+
     /// <summary>Meat of today that is counted as unclear (spent or not unknown) for this account, excluding reservations. -1 when the ledger is unreadable.</summary>
     public long UnclearAmount(string account)
     {
