@@ -164,19 +164,31 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         // (adventure.php?snarfblat=N) instead of posting a form.
         var asQuery = operation == AdventureTransportOperation.Adventure
             && Environment.GetEnvironmentVariable("KOLIBRI_ADVENTURE_GET") == "1";
-        HttpRequestMessage message;
-        if (operation == AdventureTransportOperation.Refresh)
-            message = new HttpRequestMessage(HttpMethod.Get, uri);
-        else if (asQuery)
+        (HttpRequestMessage Message, Uri Uri) BuildMessage()
         {
-            var query = string.Join('&', BuildFields(request, operation)
-                .Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
-            uri = new UriBuilder(uri) { Query = query }.Uri;
-            message = new HttpRequestMessage(HttpMethod.Get, uri);
+            if (operation == AdventureTransportOperation.Refresh)
+                return (new HttpRequestMessage(HttpMethod.Get, uri), uri);
+            if (asQuery)
+            {
+                var query = string.Join('&', BuildFields(request, operation)
+                    .Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
+                var getUri = new UriBuilder(uri) { Query = query }.Uri;
+                return (new HttpRequestMessage(HttpMethod.Get, getUri), getUri);
+            }
+            return (new HttpRequestMessage(HttpMethod.Post, uri)
+            { Content = new FormUrlEncodedContent(BuildFields(request, operation)) }, uri);
         }
-        else
-            message = new HttpRequestMessage(HttpMethod.Post, uri) { Content = new FormUrlEncodedContent(BuildFields(request, operation)) };
+        var (message, sentUri) = BuildMessage();
+        uri = sentUri;
         using var messageScope = message;
+
+        // KoL's one-time interstitial (Daily Reminders, New Events ...) answers the very first
+        // adventure.php after a login with 302 to main.php. Only a genuine first start may recover
+        // from it: no start sent before by this transport and a pristine checkpoint (not a resume).
+        var interstitialAllowed = operation == AdventureTransportOperation.Adventure
+            && IsPristineStart(request.Checkpoint)
+            && Interlocked.Exchange(ref _startSent, 1) == 0;
+        if (operation == AdventureTransportOperation.Adventure) Interlocked.Exchange(ref _startSent, 1);
 
         using var timeout = CreateTimeoutSource(cancellationToken);
         Interlocked.Increment(ref _httpRequestCount);
@@ -215,6 +227,37 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                             target = _security.ResolveRedirect(currentUri, location);
                             if (!FollowableRoutes.Contains(target.AbsolutePath.TrimStart('/')))
                                 target = null;
+                        }
+                        if (target is null && interstitialAllowed && hop == 0 && location is not null
+                            && IsMainPhpInterstitial(currentUri, current, location))
+                        {
+                            interstitialAllowed = false; // at most one detour, never again
+                            using (var main = new HttpRequestMessage(HttpMethod.Get, new Uri(currentUri, "/main.php")))
+                            {
+                                Interlocked.Increment(ref _httpRequestCount);
+                                using var mainResponse = await _http
+                                    .SendAsync(main, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                                    .ConfigureAwait(false);
+                                // Only a plain 200 on main.php proves the interstitial was shown.
+                                if (mainResponse.StatusCode != HttpStatusCode.OK
+                                    || mainResponse.RequestMessage?.RequestUri is { } mu && !UriEquals(mu, main.RequestUri!))
+                                    throw new AdventureHttpTransportException(
+                                        "KoL adventure start was redirected to main.php, but main.php did not answer normally; no further start was sent.");
+                            }
+                            var (retry, retryUri) = BuildMessage();
+                            using (retry)
+                            {
+                                Interlocked.Increment(ref _httpRequestCount);
+                                var again = await _http
+                                    .SendAsync(retry, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                                    .ConfigureAwait(false);
+                                followed?.Dispose();
+                                followed = again;
+                                current = again;
+                                currentUri = retryUri;
+                            }
+                            hop = -1; // a redirect to fight/choice after the retry is followed as usual
+                            continue;
                         }
                         if (target is null)
                         {
@@ -403,6 +446,29 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         if (_options.RequestTimeout != System.Threading.Timeout.InfiniteTimeSpan)
             source.CancelAfter(_options.RequestTimeout);
         return source;
+    }
+
+    private int _startSent;
+
+    private static bool IsPristineStart(AdventureCheckpoint? checkpoint)
+        => checkpoint is null
+            || (checkpoint.Phase == AdventureRunPhase.Ready
+                && checkpoint.LastResponseHash is null
+                && checkpoint.ResponseHashes.Count == 0
+                && checkpoint.PendingActionKind is null);
+
+    /// <summary>Exact same-origin 302 to /main.php (any query is refused).</summary>
+    private bool IsMainPhpInterstitial(Uri from, HttpResponseMessage response, string location)
+    {
+        if (response.StatusCode != HttpStatusCode.Found) return false;
+        try
+        {
+            var target = _security.ResolveRedirect(from, location);
+            return string.Equals(target.AbsolutePath, "/main.php", StringComparison.OrdinalIgnoreCase)
+                && target.Query.Length == 0 && target.Fragment.Length == 0
+                && target.Scheme == from.Scheme && target.Host == from.Host && target.Port == from.Port;
+        }
+        catch (KoLSecurityException) { return false; }
     }
 
     private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)

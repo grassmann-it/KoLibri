@@ -90,9 +90,13 @@ public sealed class LiveManualCombatTransport : IManualCombatTransport, IDisposa
         using var response = await _http
             .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
-        var target = response.Headers.Location is { } location
-            ? new Uri(uri, location)
-            : uri;
+        // A direct 200 is the finished start: re-reading the start URL would start a second adventure.
+        if (response.Headers.Location is null)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return new QuestPage { Url = uri, Html = body, StatusCode = (int)response.StatusCode };
+        }
+        var target = new Uri(uri, response.Headers.Location);
         var html = await ReadAsync(target, cancellationToken).ConfigureAwait(false);
         return new QuestPage
         {
