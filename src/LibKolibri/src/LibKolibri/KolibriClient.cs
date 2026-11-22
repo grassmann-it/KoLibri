@@ -8,13 +8,14 @@ namespace LibKolibri;
 public sealed class KolibriLoginRequiredException(string message) : InvalidOperationException(message);
 
 /// <summary>One step of the Internet Meme Shop run and what KoL answered.</summary>
-public sealed record MemeShopStepResult(string Description, bool Accepted, string Message);
+public sealed record MemeShopStepResult(string Description, bool Accepted, string Message, bool Unclear = false);
 
 /// <summary>Outcome of <see cref="KolibriClient.RunMemeShopAsync"/>.</summary>
 public sealed record MemeShopRunResult(
     string Verdict,
     IReadOnlyList<MemeShopStepResult> Steps,
-    BaconArbitrageExecutor.Outcome? BaconTopUp);
+    BaconArbitrageExecutor.Outcome? BaconTopUp,
+    bool Unclear = false);
 
 /// <summary>
 /// The front door of LibKolibri: sign in, read the account, search and buy in the mall, run the
@@ -148,6 +149,9 @@ public sealed class KolibriClient : IDisposable
                 topUp = await BuyCheapAsync(BaconArbitrageExecutor.Ids.Bacon, "BACON", needed,
                     maxBaconPrice, meatReserve, cancellationToken).ConfigureAwait(false);
                 bacon += topUp.Quantity;
+                // A BACON purchase whose answer is unknown may be booked: stop before the shop steps.
+                if (topUp.Unclear)
+                    return new MemeShopRunResult("Unclear", Array.Empty<MemeShopStepResult>(), topUp, Unclear: true);
             }
         }
         var plan = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
@@ -159,14 +163,16 @@ public sealed class KolibriClient : IDisposable
         });
         var dispatcher = new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri);
         var results = new List<MemeShopStepResult>();
+        var unclear = false;
         foreach (var step in plan.Steps)
         {
-            var (accepted, message) = await AutoCombatDailyBridge.ExecuteMemeStepAsync(
+            var (accepted, message, stepUnclear) = await AutoCombatDailyBridge.ExecuteMemeStepDetailedAsync(
                 new ChoiceStepSpec(step.ChoiceId, step.OptionId), dispatcher, _session.Credentials,
                 store, Role.ToString(), cancellationToken).ConfigureAwait(false);
-            results.Add(new MemeShopStepResult(step.Description, accepted, message));
+            results.Add(new MemeShopStepResult(step.Description, accepted, message, stepUnclear));
+            if (stepUnclear) { unclear = true; break; }
         }
-        return new MemeShopRunResult(plan.Verdict.ToString(), results, topUp);
+        return new MemeShopRunResult(unclear ? "Unclear" : plan.Verdict.ToString(), results, topUp, unclear);
     }
 
     /// <summary>

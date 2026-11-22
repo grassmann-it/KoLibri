@@ -91,13 +91,13 @@ public sealed class MallSearchViewModelTests
     }
 
     [Fact]
-    public async Task Pricegun_is_loaded_once_per_item_and_refresh_repeats_the_active_search()
+    public async Task Pricegun_is_asked_again_on_refresh_and_never_kept_after_it_finished()
     {
         var backend = new FakeBackend { Page = OneItem };
         var vm = new MallSearchViewModel(backend, Catalog) { SearchText = "11-leaf clover" };
         await vm.SearchAsync();
         await vm.RefreshAsync();
-        Assert.Equal(1, backend.PricegunCalls);
+        Assert.Equal(2, backend.PricegunCalls);
         Assert.Equal(new[] { false, true }, backend.Searches.Select(s => s.Force));
     }
 

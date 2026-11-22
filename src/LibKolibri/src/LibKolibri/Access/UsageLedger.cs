@@ -49,6 +49,18 @@ public sealed class UsageReservation
         _ledger.Settle(this, Math.Max(0, confirmedAmount), detail);
     }
 
+    /// <summary>
+    /// Books <paramref name="confirmedAmount"/> as usual and keeps <paramref name="unclearAmount"/> as an
+    /// unreconciled spend in the ledger file: it counts against the budget, also after a restart, until
+    /// <see cref="UsageLedger.Reconcile"/> settles it. The rest of the hold is freed.
+    /// </summary>
+    public void CommitUnclear(long confirmedAmount, long unclearAmount, string? detail = null)
+    {
+        if (Interlocked.Exchange(ref _settled, 1) != 0) return;
+        var confirmed = Math.Clamp(confirmedAmount, 0, Amount);
+        _ledger.Settle(this, confirmed, detail, Math.Clamp(unclearAmount, 0, Amount - confirmed));
+    }
+
     public void Release()
     {
         if (Interlocked.Exchange(ref _settled, 1) != 0) return;
@@ -108,25 +120,70 @@ public sealed class UsageLedger
         }
     }
 
-    internal void Settle(UsageReservation reservation, long confirmed, string? detail)
+    /// <summary>Operation prefix of a spend whose outcome is unknown.</summary>
+    public const string UnclearPrefix = "unclear:";
+    /// <summary>Operation prefix of the entry that settles an unclear one.</summary>
+    public const string ReconcilePrefix = "reconcile:";
+
+    internal void Settle(UsageReservation reservation, long confirmed, string? detail, long unclear = 0)
     {
         var key = Key(reservation.GrantId, reservation.Right, reservation.Day);
         lock (_gate)
         {
             _held[key] = Math.Max(0, _held.GetValueOrDefault(key) - reservation.Amount);
-            if (confirmed <= 0) return;
-            var entry = new UsageEntry
-            {
-                Seq = _seq + 1, At = _clock.GetUtcNow(), KolDay = reservation.Day, GrantId = reservation.GrantId,
-                Right = reservation.Right, Operation = reservation.Operation, Account = reservation.Account,
-                Amount = confirmed, Detail = detail, PrevHash = _lastHash,
-            };
-            entry = entry with { Hash = Hash(entry) };
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.AppendAllText(_path, JsonSerializer.Serialize(entry, Json) + "\n");
-            _seq = entry.Seq;
-            _lastHash = entry.Hash;
-            _booked[key] = _booked.GetValueOrDefault(key) + confirmed;
+            if (confirmed > 0) Append(key, reservation, reservation.Operation, confirmed, detail);
+            if (unclear > 0) Append(key, reservation, UnclearPrefix + reservation.Operation, unclear, detail);
+        }
+    }
+
+    private UsageEntry Append(string key, UsageReservation r, string operation, long amount, string? detail)
+        => Append(key, r.GrantId, r.Right, r.Day, operation, r.Account, amount, detail);
+
+    private UsageEntry Append(string key, string grantId, string right, string day, string operation, string? account, long amount, string? detail)
+    {
+        var entry = new UsageEntry
+        {
+            Seq = _seq + 1, At = _clock.GetUtcNow(), KolDay = day, GrantId = grantId,
+            Right = right, Operation = operation, Account = account,
+            Amount = amount, Detail = detail, PrevHash = _lastHash,
+        };
+        entry = entry with { Hash = Hash(entry) };
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        File.AppendAllText(_path, JsonSerializer.Serialize(entry, Json) + "\n");
+        _seq = entry.Seq;
+        _lastHash = entry.Hash;
+        _booked[key] = _booked.GetValueOrDefault(key) + amount;
+        return entry;
+    }
+
+    /// <summary>Unclear spends that nobody has reconciled yet (also from before a restart).</summary>
+    public IReadOnlyList<UsageEntry> Unreconciled(string? grantId = null)
+    {
+        lock (_gate)
+        {
+            var all = ReadAll();
+            var settled = all.Where(e => e.Operation.StartsWith(ReconcilePrefix, StringComparison.Ordinal))
+                .Select(e => e.Operation[ReconcilePrefix.Length..]).ToHashSet(StringComparer.Ordinal);
+            return all.Where(e => e.Operation.StartsWith(UnclearPrefix, StringComparison.Ordinal)
+                    && !settled.Contains(e.Seq.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    && (grantId is null || e.GrantId == grantId)).ToList();
+        }
+    }
+
+    /// <summary>
+    /// Explicitly settles one unclear spend after the user checked the account: books what KoL really
+    /// charged (0 frees it entirely) and closes the entry. False when it is not an open unclear entry.
+    /// </summary>
+    public bool Reconcile(long seq, long actualAmount, string? note = null)
+    {
+        lock (_gate)
+        {
+            var entry = Unreconciled().FirstOrDefault(e => e.Seq == seq);
+            if (entry is null) return false;
+            var delta = Math.Clamp(actualAmount, 0, entry.Amount) - entry.Amount;
+            Append(Key(entry.GrantId, entry.Right, entry.KolDay), entry.GrantId, entry.Right, entry.KolDay,
+                ReconcilePrefix + seq.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Account, delta, note);
+            return true;
         }
     }
 

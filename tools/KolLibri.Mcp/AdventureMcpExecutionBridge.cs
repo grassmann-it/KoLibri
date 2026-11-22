@@ -16,7 +16,11 @@ public sealed record AdventureExecutionBridgeResult(
     string? AuditPath,
     string? RequestId,
     NeedsDecisionInfo? NeedsDecision = null,
-    OpenChoiceDetection? OpenChoice = null);
+    OpenChoiceDetection? OpenChoice = null)
+{
+    /// <summary>Requests that really went out (aborted steps without a response do not count); an empty run is 0.</summary>
+    public int StepsSent { get; init; }
+}
 
 /// <summary>
 /// Shared bridge that turns an MCP tool call into a bounded runner invocation.
@@ -124,7 +128,7 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         string stopReason,
         NeedsDecisionInfo? needsDecision = null)
         => new(
-            Executed: true,
+            Executed: steps.Any(step => step.Status != AdventureExecutionStatus.Aborted || step.Response is not null),
             StopReason: stopReason,
             Steps: steps.Select(step => new
             {
@@ -137,7 +141,10 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
             }).Cast<object>().ToArray(),
             AuditPath: "<memory>",
             RequestId: steps.Count == 0 ? null : steps[^1].RequestId,
-            NeedsDecision: needsDecision);
+            NeedsDecision: needsDecision)
+        {
+            StepsSent = steps.Count(step => step.Status != AdventureExecutionStatus.Aborted || step.Response is not null)
+        };
 }
 
 /// <summary>

@@ -154,18 +154,82 @@ public sealed class MallBuyClient
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var snippet = ExtractMeaningfulSnippet(body);
+        var status = (int)response.StatusCode;
+        var confirmed = IsConfirmedPurchase(status, body);
+        if (!confirmed)
+            return new MallBuyResult
+            {
+                RequestId = Guid.NewGuid().ToString("N"), StatusCode = status, Accepted = false,
+                StoreId = storeId, ItemId = itemId, UnitPrice = unitPrice, Quantity = quantity,
+                TotalPrice = unitPrice * quantity, Message = snippet, RequestedQuantity = quantity
+            };
+        var receipt = ReadReceipt(body, itemId, unitPrice, quantity);
         return new MallBuyResult
         {
             RequestId = Guid.NewGuid().ToString("N"),
-            StatusCode = (int)response.StatusCode,
-            Accepted = IsConfirmedPurchase((int)response.StatusCode, body),
+            StatusCode = status,
+            // Only what the receipt proves counts: an inconsistent receipt is not accepted (Unverified).
+            Accepted = !receipt.Unverified && receipt.Quantity > 0,
+            Unverified = receipt.Unverified,
+            Partial = !receipt.Unverified && receipt.Quantity is > 0 && receipt.Quantity < quantity,
             StoreId = storeId,
             ItemId = itemId,
             UnitPrice = unitPrice,
-            Quantity = quantity,
-            TotalPrice = unitPrice * quantity,
-            Message = snippet
+            Quantity = receipt.Unverified ? quantity : receipt.Quantity,
+            TotalPrice = unitPrice * (receipt.Unverified ? quantity : receipt.Quantity),
+            RequestedQuantity = quantity,
+            Message = receipt.Unverified ? $"Unverified receipt: {receipt.Problem} {snippet}" : snippet
         };
+    }
+
+    private static readonly Regex SpentPattern = new(@"You spent\s+([\d,\.]+)\s+Meat", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ItemIdPattern = new(@"(?:[?&;\s](?:itemid|item)=|descitem\([^)]*\)[^>]*?whichitem=)(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    internal readonly record struct Receipt(int Quantity, bool Unverified, string? Problem);
+
+    /// <summary>
+    /// Reads what KoL's purchase page proves: the Meat spent (a multiple of the unit price) and the
+    /// quantity acquired. A receipt that names another item id, or whose numbers disagree or exceed the
+    /// order, is Unverified; a smaller confirmed quantity is a partial purchase.
+    /// </summary>
+    internal static Receipt ReadReceipt(string body, int itemId, long unitPrice, int requested)
+    {
+        // Item id: only checked when the page names one (KoL's receipt usually shows the item name only).
+        var ids = ItemIdPattern.Matches(body).Select(m => m.Groups[1].Value).Where(v => v.Length <= 9).ToList();
+        if (ids.Count > 0 && ids.Any(v => v != itemId.ToString(CultureInfo.InvariantCulture)))
+            return new(0, true, "the receipt names a different item.");
+
+        int? byMeat = null;
+        var spent = SpentPattern.Match(body);
+        if (spent.Success)
+        {
+            var digits = spent.Groups[1].Value.Replace(",", "").Replace(".", "");
+            if (!long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var meat) || unitPrice <= 0
+                || meat % unitPrice != 0 || meat / unitPrice > int.MaxValue)
+                return new(0, true, $"the Meat spent ({spent.Groups[1].Value}) is not a multiple of the unit price {unitPrice}.");
+            byMeat = (int)(meat / unitPrice);
+        }
+
+        int? byItems = null;
+        var text = System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ");
+        var at = text.IndexOf("You acquire", StringComparison.OrdinalIgnoreCase);
+        if (at >= 0)
+        {
+            var tail = text[at..Math.Min(text.Length, at + 240)];
+            var n = System.Text.RegularExpressions.Regex.Match(tail, @"\((\d[\d,]*)\)");
+            byItems = n.Success && int.TryParse(n.Groups[1].Value.Replace(",", ""), NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+                ? count : 1;
+        }
+
+        if (byMeat is null && byItems is null)
+            return new(0, true, "the receipt shows neither Meat spent nor an item count.");
+        if (byMeat is { } a && byItems is { } b && a != b)
+            return new(0, true, $"Meat spent implies {a} items but the receipt shows {b}.");
+        var confirmed = byMeat ?? byItems!.Value;
+        if (confirmed > requested)
+            return new(0, true, $"the receipt shows {confirmed} items for an order of {requested}.");
+        // A bare "You acquire an item" cannot show more than one unit: for a larger order that is a partial one.
+        return new(confirmed, false, null);
     }
 
     /// <summary>
@@ -221,4 +285,10 @@ public sealed record MallBuyResult
     public required int Quantity { get; init; }
     public required long TotalPrice { get; init; }
     public required string Message { get; init; }
+    /// <summary>What was ordered; <see cref="Quantity"/>/<see cref="TotalPrice"/> are what the receipt confirmed once <see cref="Accepted"/>.</summary>
+    public int RequestedQuantity { get; init; }
+    /// <summary>KoL confirmed less than was ordered.</summary>
+    public bool Partial { get; init; }
+    /// <summary>The page claimed a purchase but its numbers or item contradict the order: outcome unknown.</summary>
+    public bool Unverified { get; init; }
 }

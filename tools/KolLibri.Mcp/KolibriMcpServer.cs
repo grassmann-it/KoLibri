@@ -260,6 +260,8 @@ public partial class KolibriMcpServer
         }
 
         var confirmed = false;
+        var settlement = new UsageSettlement();
+        McpRequestContext.Usage = settlement;
         try
         {
             var value = await tool!.Handler(arguments, cancellationToken).ConfigureAwait(false);
@@ -286,7 +288,8 @@ public partial class KolibriMcpServer
         finally
         {
             // Requested amount counts only when the handler ran through; a failed call frees the hold.
-            if (confirmed) authorization.Reservation?.Commit(authorization.Reservation.Amount, name);
+            McpRequestContext.Usage = null;
+            if (confirmed) authorization.Reservation?.Commit(settlement.Confirmed ?? authorization.Reservation.Amount, name);
             else authorization.Reservation?.Release();
         }
     }

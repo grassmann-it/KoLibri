@@ -114,6 +114,8 @@ public partial class KolibriMcpServer
             approvalToken,
             cancellationToken).ConfigureAwait(false);
 
+        // Budget: only requests that really went out count; an empty or aborted run costs nothing.
+        if (McpRequestContext.Usage is { } usage) usage.Confirmed = result.StepsSent;
         return new
         {
             executed = result.Executed,
@@ -170,6 +172,8 @@ public partial class KolibriMcpServer
             approvalToken,
             cancellationToken).ConfigureAwait(false);
 
+        // Budget: only requests that really went out count; an empty or aborted run costs nothing.
+        if (McpRequestContext.Usage is { } usage) usage.Confirmed = result.StepsSent;
         return new
         {
             executed = result.Executed,

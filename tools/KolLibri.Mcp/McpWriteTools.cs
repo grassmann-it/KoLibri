@@ -13,7 +13,16 @@ public sealed record RepriceLine(string ItemId, long ExpectedPrice, long? Observ
 
 /// <summary>What the write tools need from a signed-in account. Real: <see cref="KolibriClientActions"/>.</summary>
 /// <summary>A purchase POST was sent but KoL's answer is unknown. The spend stays reserved until the user reconciles it.</summary>
-public sealed class UnreconciledPurchaseException(string message) : Exception(message);
+/// <remarks>
+/// <paramref name="confirmed"/> and <paramref name="unclear"/> are amounts per reservation of the call, in request
+/// order: what KoL confirmed (booked) and what is unknown (kept as an unreconciled ledger entry). A missing entry means
+/// nothing confirmed and the whole reservation unclear.
+/// </remarks>
+public sealed class UnreconciledPurchaseException(string message, IReadOnlyList<long>? confirmed = null, IReadOnlyList<long>? unclear = null) : Exception(message)
+{
+    public IReadOnlyList<long>? Confirmed { get; } = confirmed;
+    public IReadOnlyList<long>? Unclear { get; } = unclear;
+}
 
 public interface IAccountActions
 {
@@ -53,7 +62,7 @@ public sealed partial class KolibriClientActions : IAccountActions
         if (maxPrice < 1) throw new ArgumentOutOfRangeException(nameof(maxPrice), "A positive price limit is required.");
         // One confirmed MCP buy sends at most one purchase POST.
         var o = await client.BuyCheapAsync(itemId, itemName, quantity, maxPrice, reserve, ct, singlePurchase: true).ConfigureAwait(false);
-        if (o.Unclear) throw new UnreconciledPurchaseException(o.Rationale);
+        if (o.Unclear) throw new UnreconciledPurchaseException(o.Rationale, [o.Spent], [Math.Max(o.UnclearSpend, 1)]);
         return (o.Quantity, o.Spent, o.Verdict);
     }
 
@@ -61,6 +70,18 @@ public sealed partial class KolibriClientActions : IAccountActions
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
         var r = await client.RunMemeShopAsync(topUp, maxBaconPrice, reserve, ct).ConfigureAwait(false);
+        if (r.Unclear)
+        {
+            // Book what KoL confirmed per step, keep the unknown part reserved until the user reconciles.
+            var steps = r.Steps.Count(s => s.Accepted);
+            var confirmedRun = steps > 0 || (r.BaconTopUp?.Quantity ?? 0) > 0 ? 1L : 0L;
+            var topUpUnclear = r.BaconTopUp?.UnclearSpend ?? 0;
+            var runUnclear = r.Steps.Any(s => s.Unclear) || topUpUnclear > 0 ? 1L : 0L;
+            var note = r.Steps.LastOrDefault(s => s.Unclear)?.Message ?? r.BaconTopUp?.Rationale ?? "The answer to a meme shop request is unknown.";
+            throw new UnreconciledPurchaseException(note,
+                topUp ? [confirmedRun, r.BaconTopUp?.Spent ?? 0] : [confirmedRun],
+                topUp ? [runUnclear, topUpUnclear] : [runUnclear]);
+        }
         return (r.Steps.Count(s => s.Accepted), r.BaconTopUp?.Quantity ?? 0, r.BaconTopUp?.Spent ?? 0, r.Verdict,
             r.Steps.Select(s => $"{s.Description}: {(s.Accepted ? "ok" : "not done")} - {s.Message}").ToArray());
     }
@@ -99,6 +120,9 @@ public sealed partial class KolibriClientActions : IAccountActions
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
         var o = await client.RestAsync(times, ct).ConfigureAwait(false);
+        if (o.Unclear)
+            throw new UnreconciledPurchaseException(o.Problem ?? "The answer to a rest is unknown.",
+                [o.Rests.Count, o.AdventuresSpent], [1, 1]);
         return (o.Rests.Count, o.AdventuresSpent, o.Problem);
     }
 
@@ -217,6 +241,13 @@ public partial class KolibriMcpServer
         {
             // The POST may have gone through: keep the budget held instead of freeing it.
             unreconciled = true;
+            for (var i = 0; i < held.Count; i++)
+            {
+                var confirmed = e.Confirmed is { } c && i < c.Count ? c[i] : 0;
+                var unclear = e.Unclear is { } u ? (i < u.Count ? u[i] : 0) : held[i].Amount;
+                // Persisted in the usage ledger: survives a restart and counts against the budget until reconciled.
+                held[i].CommitUnclear(confirmed, unclear, $"unclear: {e.Message}");
+            }
             throw new McpInvalidParamsException($"Outcome unclear, the spend stays reserved until reconciled. {e.Message}");
         }
         finally { if (!unreconciled) foreach (var r in held) r.Release(); }   // no-op for everything already committed

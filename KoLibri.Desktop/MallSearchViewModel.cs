@@ -12,6 +12,9 @@ public interface IMallSearchBackend
 {
     Task<MallSearchPage> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken);
     Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken);
+    /// <summary>Pricegun median; <paramref name="forceRefresh"/> skips the cache (explicit refresh).</summary>
+    Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
+        => LoadPricegunAsync(itemId, cancellationToken);
 }
 
 /// <summary>
@@ -252,17 +255,17 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 PricegunNote = null;
             }
             else if (preferred is not null)
-                await ShowItemAsync(page, preferred, cancellation.Token).ConfigureAwait(true);
+                await ShowItemAsync(page, preferred, cancellation.Token, forceRefresh).ConfigureAwait(true);
             else if (page.Items.Count == 1)
             {
-                await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token).ConfigureAwait(true);
+                await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
             }
             else
             {
                 var bare = term.Trim('"');
                 var exact = page.Items.Where(i => string.Equals(i.ItemName, bare, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (exact.Length == 1)
-                    await ShowItemAsync(page, exact[0].ItemId, cancellation.Token).ConfigureAwait(true);
+                    await ShowItemAsync(page, exact[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
                 else
                 {
                     Notice = $"“{typed.Trim()}” matches {page.Items.Count} items. Pick one.";
@@ -289,7 +292,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private async Task ShowItemAsync(MallSearchPage page, string itemId, CancellationToken cancellationToken)
+    private async Task ShowItemAsync(MallSearchPage page, string itemId, CancellationToken cancellationToken, bool forceRefresh = false)
     {
         var group = page.Items.First(i => i.ItemId == itemId);
         _selectedItemId = itemId;
@@ -306,12 +309,15 @@ public sealed class MallSearchViewModel : DesktopViewModel
         OnPropertyChanged(nameof(NeedsPick));
         OnPropertyChanged(nameof(HasOffers));
 
-        // Pricegun is loaded once per item; a failure only adds a note.
+        // Only a request that is still running is shared; a finished one is dropped, so each search (and an
+        // explicit refresh) asks again and the Pricegun client's own cache decides what is still fresh.
         PricegunNote = null;
         if (group.Listings.Count == 0) return;
+        if (forceRefresh) _pricegun.Remove(itemId);
         if (!_pricegun.TryGetValue(itemId, out var task))
-            _pricegun[itemId] = task = LoadPricegunQuietAsync(itemId, cancellationToken);
+            _pricegun[itemId] = task = LoadPricegunQuietAsync(itemId, forceRefresh, cancellationToken);
         var info = await task.ConfigureAwait(true);
+        if (_pricegun.TryGetValue(itemId, out var current) && ReferenceEquals(current, task)) _pricegun.Remove(itemId);
         if (_selectedItemId != itemId) return;
         if (info is not null)
         {
@@ -323,9 +329,9 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private async Task<PricegunInfo?> LoadPricegunQuietAsync(string itemId, CancellationToken cancellationToken)
+    private async Task<PricegunInfo?> LoadPricegunQuietAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
     {
-        try { return await _backend.LoadPricegunAsync(itemId, cancellationToken).ConfigureAwait(true); }
+        try { return await _backend.LoadPricegunAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(true); }
         catch (Exception exception)
         {
             PricegunNote = cancellationToken.IsCancellationRequested ? null : $"Pricegun unavailable: {exception.Message}";
@@ -387,4 +393,7 @@ public sealed class LiveMallSearchBackend(DesktopLiveDataProvider provider, KoLi
 
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
         => provider.LoadPricegunAsync(itemId, cancellationToken);
+
+    public Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
+        => provider.LoadPricegunAsync(itemId, forceRefresh, cancellationToken);
 }
