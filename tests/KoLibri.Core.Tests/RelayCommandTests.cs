@@ -264,6 +264,46 @@ public sealed class RelayCommandTests : IDisposable
         await WaitLog(l => l.Contains("\"outcome\":\"timeout\""));
     }
 
+    private sealed class HangingStream : Stream
+    {
+        public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        { await Task.Delay(Timeout.Infinite, ct); return 0; }
+        public override long Seek(long o, SeekOrigin s) => throw new NotSupportedException();
+        public override void SetLength(long v) => throw new NotSupportedException();
+        public override void Write(byte[] b, int o, int c) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task Hanging_upstream_body_is_cut_off_by_the_same_timeout()
+    {
+        using var s = Start((_, _) =>
+        {
+            var content = new StreamContent(new HangingStream());
+            content.Headers.ContentType = new("application/octet-stream");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }, b => b.Timeout = TimeSpan.FromMilliseconds(300));
+        using var c = Client();
+        try { using var res = await c.SendAsync(Get(s, "/hang.bin"), HttpCompletionOption.ResponseHeadersRead); }
+        catch (HttpRequestException) { }
+        await WaitLog(l => l.Contains("\"outcome\":\"timeout\""));
+    }
+
+    [Fact]
+    public void Cookie_name_is_random_per_run_and_not_port_derived()
+    {
+        using var a = Start((_, _) => Task.FromResult(Ok("x")));
+        using var b = Start((_, _) => Task.FromResult(Ok("x")));
+        Assert.NotEqual(a.CookieName, b.CookieName);
+        Assert.DoesNotContain(FreePortText(a), a.CookieName);
+    }
+
+    private static string FreePortText(RelayServer s) => new Uri(s.Origin).Port.ToString();
+
     private sealed class EndlessStream(TaskCompletionSource disposed) : Stream
     {
         public override bool CanRead => true; public override bool CanSeek => false; public override bool CanWrite => false;

@@ -124,7 +124,10 @@ internal sealed class RelayServer : IDisposable
     {
         _upstream = upstream; _o = options;
         _slots = new SemaphoreSlim(Math.Max(1, options.MaxConcurrency));
-        _cookieName = "kolibri_relay_" + options.Port;
+        // Random per run: a fixed or port-derived name would be predictable, and browsers send
+        // 127.0.0.1 cookies to every port of that host, so the name alone isolates nothing.
+        // Exact Host-port matching, HttpOnly and SameSite=Strict are the real boundary.
+        _cookieName = "kolibri_relay_" + RandomSecret()[..12];
         _kol = new Uri(options.KolOrigin);
         Token = RandomSecret();
         var session = RandomSecret();
@@ -336,6 +339,10 @@ internal sealed class RelayServer : IDisposable
                 outcome = "timeout"; status = 504;
                 await WriteTextAsync(res, 504, "Relay error: upstream timeout."); return;
             }
+            // The 60 s guard must also bound the body: a stalled body would hold a slot forever.
+            using var bodyCts = CancellationTokenSource.CreateLinkedTokenSource(stop);
+            bodyCts.CancelAfter(_o.UpstreamTimeout);
+            var bodyStop = bodyCts.Token;
             using (response)
             {
                 status = (int)response.StatusCode;
@@ -354,20 +361,20 @@ internal sealed class RelayServer : IDisposable
                 var ctype = response.Content.Headers.ContentType;
                 var type = ctype?.MediaType ?? "";
                 var isHead = method == "HEAD";
-                await using var src = await response.Content.ReadAsStreamAsync(stop).ConfigureAwait(false);
+                await using var src = await response.Content.ReadAsStreamAsync(bodyStop).ConfigureAwait(false);
                 if (isHead) { res.ContentLength64 = 0; }
                 else if (RewritableTypes.Contains(type))
-                    bytes = await RewriteAndWriteAsync(res, src, ctype, stop).ConfigureAwait(false);
+                    bytes = await RewriteAndWriteAsync(res, src, ctype, bodyStop).ConfigureAwait(false);
                 else
                 {
                     var len = response.Content.Headers.ContentLength;
                     if (len is { } l) res.ContentLength64 = l; else res.SendChunked = true;
-                    bytes = await CopyAsync(src, res.OutputStream, stop).ConfigureAwait(false);
+                    bytes = await CopyAsync(src, res.OutputStream, bodyStop).ConfigureAwait(false);
                 }
             }
         }
         catch (ClientAbortException) { outcome = "client-abort"; }
-        catch (OperationCanceledException) { outcome = "cancelled"; }
+        catch (OperationCanceledException) { outcome = stop.IsCancellationRequested ? "cancelled" : "timeout"; }
         catch (Exception ex)
         {
             // Never echo ex.Message: it can contain URLs. Type name only.

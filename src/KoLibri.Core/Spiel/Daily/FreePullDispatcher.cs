@@ -36,6 +36,39 @@ public sealed class FreePullDispatcher
         _baseUri = baseUri ?? throw new ArgumentNullException(nameof(baseUri));
     }
 
+    /// <summary>Single choke point for every request that carries the cookie:
+    /// the target must share scheme, host and port with the base URI before the
+    /// request is sent (this also covers manual redirect targets), and a
+    /// response whose final URI differs means the injected client followed a
+    /// redirect on its own, which is refused.</summary>
+    private async Task<HttpResponseMessage> SendGuardedAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var target = request.RequestUri;
+        if (target is null || !target.IsAbsoluteUri || !IsBaseOrigin(target))
+            throw new KoLSecurityException("Refusing to send the KoL session cookie to a different origin.");
+        var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        var finalUri = response.RequestMessage?.RequestUri;
+        if (finalUri is not null && !IsBaseOrigin(finalUri))
+        {
+            response.Dispose();
+            throw new KoLSecurityException(
+                "The HTTP client followed a redirect to a different origin; use a client that does not auto-redirect.");
+        }
+        if (finalUri is not null && finalUri != target)
+        {
+            response.Dispose();
+            throw new KoLSecurityException(
+                "The HTTP client followed a redirect automatically; use a client that does not auto-redirect.");
+        }
+        return response;
+    }
+
+    private bool IsBaseOrigin(Uri uri) =>
+        string.Equals(uri.Scheme, _baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(uri.Host, _baseUri.Host, StringComparison.OrdinalIgnoreCase)
+        && uri.Port == _baseUri.Port;
+
     public static Uri DefaultBaseUri => new("https://www.kingdomofloathing.com/");
 
     public async Task<FreePullResult> PullAsync(
@@ -114,7 +147,7 @@ public sealed class FreePullDispatcher
         var uri = new Uri(_baseUri, "campground.php?preaction=leaves");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         // KoL answers with a redirect to the choice page. The client is
         // configured not to follow redirects (so cookies never leak
@@ -124,7 +157,7 @@ public sealed class FreePullDispatcher
             var target = new Uri(uri, location);
             using var follow = new HttpRequestMessage(HttpMethod.Get, target);
             follow.Headers.Add("Cookie", credentials.CookieHeader);
-            using var followed = await _http.SendAsync(follow, cancellationToken).ConfigureAwait(false);
+            using var followed = await SendGuardedAsync(follow, cancellationToken).ConfigureAwait(false);
             body = await followed.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         }
         return BurningLeavesPage.Parse(body);
@@ -140,7 +173,7 @@ public sealed class FreePullDispatcher
         var uri = new Uri(_baseUri, "campground.php?preaction=leaves");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -187,7 +220,7 @@ public sealed class FreePullDispatcher
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, page));
             request.Headers.Add("Cookie", credentials.CookieHeader);
-            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var found = System.Text.RegularExpressions.Regex.Match(
                 body, @"(?:pwd=|pwdhash\s*=\s*[""'])(?<h>[0-9a-fA-F]{16,})");
@@ -206,7 +239,7 @@ public sealed class FreePullDispatcher
         var uri = new Uri(_baseUri, "shop.php?whichshop=" + MemeShopCatalog.ShopId);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -228,7 +261,7 @@ public sealed class FreePullDispatcher
             throw new InvalidOperationException("This action needs a logged-in account with a cookie header.");
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseUri, path));
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var snippet = string.IsNullOrWhiteSpace(body)
             ? $"(empty body, HTTP {(int)response.StatusCode}, location {response.Headers.Location?.ToString() ?? "none"})"
@@ -254,7 +287,7 @@ public sealed class FreePullDispatcher
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
         request.Content = new FormUrlEncodedContent(form);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var snippet = string.IsNullOrWhiteSpace(body)
             ? $"(empty body, HTTP {(int)response.StatusCode}, location {response.Headers.Location?.ToString() ?? "none"})"
@@ -403,7 +436,7 @@ public sealed class FreePullDispatcher
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
         request.Content = new FormUrlEncodedContent(form);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         var snippet = ExtractMeaningfulSnippet(body);
         return new FreePullResult(
@@ -432,7 +465,7 @@ public sealed class FreePullDispatcher
         var uri = new Uri(_baseUri, $"choice.php?whichchoice={whichChoice}");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
-        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await SendGuardedAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         return body.Length > 0 ? body.Substring(0, Math.Min(600, body.Length)) : "";
     }

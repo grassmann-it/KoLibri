@@ -294,6 +294,7 @@ public sealed class KoLLoginClient
         if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
             throw new ArgumentException("Credentials do not contain a KoL cookie header.", nameof(credentials));
 
+        KoLAllowlistHandler.EnsureNoAutoRedirect(innerHandler);
         HttpMessageHandler handler = innerHandler ?? new HttpClientHandler
         {
             // Callers must handle redirects themselves (or use a safe

@@ -243,6 +243,15 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                     || mainResponse.RequestMessage?.RequestUri is { } mu && !UriEquals(mu, main.RequestUri!))
                                     throw new AdventureHttpTransportException(
                                         "KoL adventure start was redirected to main.php, but main.php did not answer normally; no further start was sent.");
+                                // A plain 200 is not enough: the page must be the known interstitial
+                                // (Daily Reminders / New Events block) without a login or session error.
+                                // The transport has no account reader, so the redirect plus the
+                                // recognised page is the evidence; anything unclear stops the run.
+                                var mainHtml = await ReadBoundedBodyAsync(mainResponse.Content, timeout.Token)
+                                    .ConfigureAwait(false);
+                                if (!IsKnownInterstitialPage(mainHtml))
+                                    throw new AdventureHttpTransportException(
+                                        "KoL adventure start was redirected to main.php, but the page is not the recognised interstitial; no further start was sent.");
                             }
                             var (retry, retryUri) = BuildMessage();
                             using (retry)
@@ -469,6 +478,23 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 && target.Scheme == from.Scheme && target.Host == from.Host && target.Port == from.Port;
         }
         catch (KoLSecurityException) { return false; }
+    }
+
+    private static readonly string[] InterstitialMarkers = ["Daily Reminders", "New Events"];
+    private static readonly string[] InterstitialErrorMarkers =
+    [
+        "loginname", "login.php", "not logged in", "must be logged in", "session has expired",
+        "Rollover", "too many requests", "character pane error"
+    ];
+
+    /// <summary>True only for the interstitial main page seen live: a Daily
+    /// Reminders or New Events block and no login/session error text.</summary>
+    internal static bool IsKnownInterstitialPage(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return false;
+        if (!InterstitialMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        return !InterstitialErrorMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
     private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)
