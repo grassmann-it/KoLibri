@@ -12,7 +12,8 @@ public partial class MainWindow
     {
         if (_skillsEffectsView is null) return;
         _skillsEffectsModel = new SkillsEffectsViewModel(
-            _catalog is null ? [] : SkillsEffectsViewModel.FromCatalog(_catalog.Skills));
+            _catalog is null ? [] : SkillsEffectsViewModel.FromCatalog(_catalog.Skills))
+        { Role = _selectedRole.ToString() };
         _skillsEffectsView.AttachModel(_skillsEffectsModel, CastSkillAsync,
             () => RefreshSidebarAsync(forceRefresh: true));
     }
@@ -20,6 +21,9 @@ public partial class MainWindow
     /// <summary>One explicit, user-confirmed cast through the existing character action client.</summary>
     private async Task<CharacterCastOutcome> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken)
     {
+        // Re-check at execution: the confirmation was made for a specific role.
+        if (_skillsEffectsModel is { } model && model.Role != _selectedRole.ToString())
+            throw new InvalidOperationException("The selected account changed; the cast was not sent.");
         using var session = await CharacterSession.OpenAsync(_selectedRole, _accounts, cancellationToken);
         return await session.CastAsync(skillId, times, cancellationToken);
     }

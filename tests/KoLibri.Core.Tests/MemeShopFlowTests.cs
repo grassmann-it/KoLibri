@@ -57,7 +57,7 @@ public sealed class MemeShopFlowTests
     private static (FreePullDispatcher dispatcher, FakeKoL kol) Create()
     {
         var kol = new FakeKoL();
-        return (new FreePullDispatcher(new HttpClient(kol), new Uri("https://kol.test/")), kol);
+        return (new FreePullDispatcher(kol, new Uri("https://kol.test/")), kol);
     }
 
     private static DailyDoneStore TempStore(out string path)

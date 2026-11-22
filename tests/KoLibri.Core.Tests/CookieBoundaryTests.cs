@@ -29,7 +29,7 @@ public sealed class CookieBoundaryTests
         {
             Headers = { Location = new Uri("https://evil.test/steal") }
         });
-        var dispatcher = new FreePullDispatcher(new HttpClient(handler), new Uri("https://kol.test/"));
+        var dispatcher = new FreePullDispatcher(handler, new Uri("https://kol.test/"));
 
         await Assert.ThrowsAsync<KoLSecurityException>(() => dispatcher.VisitBurningLeavesAsync(Credentials));
         Assert.Single(handler.Seen);
@@ -42,7 +42,7 @@ public sealed class CookieBoundaryTests
         var handler = new Recording(r => r.RequestUri!.AbsolutePath == "/campground.php"
             ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("/choice.php", UriKind.Relative) } }
             : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("page") });
-        var dispatcher = new FreePullDispatcher(new HttpClient(handler), new Uri("https://kol.test/"));
+        var dispatcher = new FreePullDispatcher(handler, new Uri("https://kol.test/"));
 
         await dispatcher.VisitBurningLeavesAsync(Credentials);
         Assert.Equal(2, handler.Seen.Count);
@@ -57,7 +57,7 @@ public sealed class CookieBoundaryTests
             return res;
         });
         var inner = new RewritingHandler(handler, new Uri("https://evil.test/landed"));
-        var dispatcher = new FreePullDispatcher(new HttpClient(inner), new Uri("https://kol.test/"));
+        var dispatcher = new FreePullDispatcher(inner, new Uri("https://kol.test/"));
         await Assert.ThrowsAsync<KoLSecurityException>(() => dispatcher.VisitBurningLeavesAsync(Credentials));
     }
 
@@ -69,6 +69,26 @@ public sealed class CookieBoundaryTests
             res.RequestMessage = new HttpRequestMessage(HttpMethod.Get, finalUri);
             return res;
         }
+    }
+
+    [Fact]
+    public void Dispatcher_refuses_an_untrusted_http_client()
+        => Assert.Throws<KoLSecurityException>(() =>
+            new FreePullDispatcher(new HttpClient(new Recording(_ => new HttpResponseMessage())), new Uri("https://kol.test/")));
+
+    [Fact]
+    public void Dispatcher_refuses_an_auto_redirecting_handler()
+        => Assert.Throws<KoLSecurityException>(() =>
+            new FreePullDispatcher(new HttpClientHandler { AllowAutoRedirect = true }, new Uri("https://kol.test/")));
+
+    [Fact]
+    public void Synchronous_send_is_guarded_like_async()
+    {
+        var inner = new Recording(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        using var client = new HttpClient(new KoLAllowlistHandler(inner, new KoLSecurityPolicy()));
+        var request = new HttpRequestMessage(HttpMethod.Get, "https://evil.test/x");
+        Assert.Throws<KoLSecurityException>(() => client.Send(request));
+        Assert.Empty(inner.Seen);
     }
 
     [Fact]

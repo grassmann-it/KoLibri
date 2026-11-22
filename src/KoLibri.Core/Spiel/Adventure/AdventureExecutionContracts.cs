@@ -241,6 +241,9 @@ public sealed class AdventureResponseTooLargeException : AdventureHttpTransportE
 }
 
 /// <summary>Options for the guarded adventure HTTP adapter.</summary>
+/// <summary>Adventures left and whether a fight or choice is open, read before and after an interstitial.</summary>
+public sealed record AdventureStateSnapshot(int Adventures, bool EncounterOpen);
+
 public record AdventureHttpTransportOptions
 {
     public Uri BaseUri { get; init; } =
@@ -257,6 +260,12 @@ public record AdventureHttpTransportOptions
     }
 
     public KoLSecurityPolicy Security { get; init; } = new() { MaxRedirects = 0 };
+
+    /// <summary>
+    /// Reads the adventure count and whether an encounter is open. Needed for the one-time interstitial
+    /// recovery: without it (or when it fails) a start redirected to main.php is never retried.
+    /// </summary>
+    public Func<CancellationToken, Task<AdventureStateSnapshot>>? StateProbe { get; init; }
 
     /// <summary>Compatibility alias for callers using the longer name.</summary>
     public KoLSecurityPolicy SecurityPolicy

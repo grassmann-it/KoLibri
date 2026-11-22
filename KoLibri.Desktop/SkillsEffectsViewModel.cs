@@ -44,7 +44,8 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
     private string? _pendingText;
     private string _resultText = "";
     private bool _busy;
-    private (SkillRow Skill, int Times)? _pending;
+    private (SkillRow Skill, int Times, string Role)? _pending;
+    private string _role = "";
     private int _currentMp = -1;
 
     public SkillsEffectsViewModel(IEnumerable<SkillRow> skills)
@@ -89,6 +90,13 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
         set { if (Set(ref _quantity, Math.Clamp(value, 1, MaxQuantity))) { CancelCast(); Notify(nameof(TotalMp)); } }
     }
 
+    /// <summary>Label of the account the cast would run as. Changing it discards a pending confirmation.</summary>
+    public string Role
+    {
+        get => _role;
+        set { if (_role == (value ?? "")) return; _role = value ?? ""; CancelCast(); }
+    }
+
     public int TotalMp => (_selected?.MpCost ?? 0) * _quantity;
     public bool CanRequestCast => _selected is not null && !_busy;
     public bool IsBusy => _busy;
@@ -116,10 +124,11 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
             ResultText = $"Not enough MP for {skill.Name} ×{_quantity}: needs {total:N0}, you have {_currentMp:N0}. Lower the quantity or refresh.";
             return false;
         }
-        _pending = (skill, _quantity);
+        _pending = (skill, _quantity, _role);
+        var who = _role.Length > 0 ? $" as {_role}" : "";
         PendingText = total > 0
-            ? $"Cast {skill.Name} ×{_quantity} for {total:N0} MP?"
-            : $"Cast {skill.Name} ×{_quantity}? (no MP cost; it may use another resource such as soulsauce)";
+            ? $"Cast {skill.Name} ×{_quantity}{who} for {total:N0} MP?"
+            : $"Cast {skill.Name} ×{_quantity}{who}? (no MP cost; it may use another resource such as soulsauce)";
         return true;
     }
 
@@ -135,6 +144,11 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
     {
         if (_pending is not { } pending) return null;
         CancelCast();
+        if (!string.Equals(pending.Role, _role, StringComparison.Ordinal))
+        {
+            ResultText = "The account changed since the confirmation; nothing was cast. Request the cast again.";
+            return new SkillCastReport(false, ResultText, null, null);
+        }
         _busy = true;
         Notify(nameof(IsBusy)); Notify(nameof(CanRequestCast));
         try

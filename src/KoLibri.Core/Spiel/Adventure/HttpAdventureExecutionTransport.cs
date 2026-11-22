@@ -191,6 +191,18 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         if (operation == AdventureTransportOperation.Adventure) Interlocked.Exchange(ref _startSent, 1);
 
         using var timeout = CreateTimeoutSource(cancellationToken);
+
+        // Baseline for the interstitial retry: adventures and encounter state before the first start.
+        AdventureStateSnapshot? baseline = null;
+        if (interstitialAllowed && _options.StateProbe is { } probe)
+        {
+            try { baseline = await probe(timeout.Token).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { baseline = null; }
+            if (baseline is { EncounterOpen: true })
+                throw new AdventureHttpTransportException(
+                    "An encounter is already open; no adventure start was sent.");
+        }
+
         Interlocked.Increment(ref _httpRequestCount);
         LastRequest = request;
 
@@ -253,6 +265,20 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                     throw new AdventureHttpTransportException(
                                         "KoL adventure start was redirected to main.php, but the page is not the recognised interstitial; no further start was sent.");
                             }
+                            // The first start was answered with a redirect; prove it spent nothing before sending it again.
+                            if (baseline is null || _options.StateProbe is not { } recheck)
+                                throw new AdventureHttpTransportException(
+                                    "KoL adventure start was redirected to main.php and no state baseline exists; not retrying because a turn or encounter cannot be ruled out.");
+                            AdventureStateSnapshot afterState;
+                            try { afterState = await recheck(timeout.Token).ConfigureAwait(false); }
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                throw new AdventureHttpTransportException(
+                                    "KoL adventure start was redirected to main.php and the adventure state could not be re-read; not retrying.", ex);
+                            }
+                            if (afterState.EncounterOpen || afterState.Adventures != baseline.Adventures)
+                                throw new AdventureHttpTransportException(
+                                    $"KoL adventure start was redirected to main.php but the state changed (adventures {baseline.Adventures} -> {afterState.Adventures}, encounter open: {afterState.EncounterOpen}); not retrying.");
                             var (retry, retryUri) = BuildMessage();
                             using (retry)
                             {

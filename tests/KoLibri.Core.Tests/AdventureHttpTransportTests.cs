@@ -16,6 +16,12 @@ public sealed class AdventureHttpTransportTests
             MaximumResponseBodyBytes = maximumBytes
         };
 
+    private static AdventureHttpTransportOptions ProbeOptions(params AdventureStateSnapshot[] states)
+    {
+        var queue = new Queue<AdventureStateSnapshot>(states);
+        return Options() with { StateProbe = _ => Task.FromResult(queue.Dequeue()) };
+    }
+
     private static AdventureTransportRequest Request(
         AdventureTransportOperation operation,
         AccountRole role = AccountRole.Main,
@@ -182,7 +188,8 @@ public sealed class AdventureHttpTransportTests
     {
         var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
         using var client = new HttpClient(handler);
-        using var transport = new HttpAdventureExecutionTransport(client, Options());
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(50, false)));
 
         var result = await transport.StartAdventureAsync(StartWithFields());
 
@@ -195,6 +202,47 @@ public sealed class AdventureHttpTransportTests
         Assert.Equal(handler.Bodies[0], handler.Bodies[2]);
         Assert.Contains("snarfblat=123", handler.Bodies[2]);
         Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task InterstitialIsNotRetriedWithoutAStateProbe()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+    }
+
+    [Theory]
+    [InlineData(50, 49, false)]
+    [InlineData(50, 50, true)]
+    public async Task InterstitialIsNotRetriedWhenATurnOrEncounterAppeared(int before, int after, bool open)
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(before, false), new AdventureStateSnapshot(after, open)));
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task FailingStateProbeAfterInterstitialStopsWithoutRetry()
+    {
+        var calls = 0;
+        var options = Options() with
+        {
+            StateProbe = _ => ++calls == 1 ? Task.FromResult(new AdventureStateSnapshot(50, false)) : throw new HttpRequestException("down")
+        };
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, options);
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
     }
 
     [Fact]
@@ -214,7 +262,8 @@ public sealed class AdventureHttpTransportTests
     {
         var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Found("/main.php"), Response(Html()));
         using var client = new HttpClient(handler);
-        using var transport = new HttpAdventureExecutionTransport(client, Options());
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(50, false)));
 
         await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
         Assert.Equal(3, handler.Requests.Count);

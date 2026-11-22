@@ -450,6 +450,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             return;
 
         _selectedRole = ReadSelectedRole();
+        if (_skillsEffectsModel is not null) _skillsEffectsModel.Role = _selectedRole.ToString();
         ResetAccountViews();
         await OpenSectionAsync(_activeSection);
     }
