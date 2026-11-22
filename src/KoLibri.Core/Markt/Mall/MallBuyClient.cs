@@ -14,9 +14,10 @@ namespace KoLibri.Core.Markt;
 /// (see <c>PasswordHashRequest</c>) and sends it back as <c>pwd</c>; the
 /// hash is not the plaintext password and it is never logged.
 ///
-/// The price must match the current listing exactly — KoL rejects the
-/// purchase when <c>whichitem</c> carries a different price than the listing
-/// the buyer saw.
+/// The price must match the current listing exactly — <c>whichitem</c> is the
+/// item id followed by the nine-digit zero-padded price (see
+/// <see cref="FormatWhichItem"/>), and KoL rejects the purchase when it differs
+/// from the store's current price.
 /// </summary>
 public sealed class MallBuyClient
 {
@@ -78,6 +79,43 @@ public sealed class MallBuyClient
         return null;
     }
 
+    /// <summary>Highest unit price the <c>whichitem</c> encoding can carry (nine digits).</summary>
+    public const long MaxBindablePrice = 999_999_999;
+
+    /// <summary>
+    /// KoL's price-bound item field, as KoLmafia sends it: the item id followed
+    /// by the unit price zero-padded to nine digits (item 10881 at 25,000 meat
+    /// is <c>10881000025000</c>). KoL refuses the purchase when the store's
+    /// current price differs, so this is the price binding.
+    /// </summary>
+    public static string FormatWhichItem(long itemId, long unitPrice)
+    {
+        if (itemId <= 0) throw new ArgumentOutOfRangeException(nameof(itemId));
+        if (unitPrice <= 0 || unitPrice > MaxBindablePrice)
+            throw new ArgumentOutOfRangeException(nameof(unitPrice));
+        return itemId.ToString(CultureInfo.InvariantCulture)
+            + unitPrice.ToString("D9", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The single mallstore.php purchase form, shared by this client and the
+    /// purchase gateway's HTTP transport. Never logged: it carries the hash.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> BuildPurchaseForm(
+        long storeId, long itemId, long unitPrice, int quantity, string? passwordHash)
+    {
+        if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+        var form = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["whichstore"] = storeId.ToString(CultureInfo.InvariantCulture),
+            ["buying"] = "1",
+            ["whichitem"] = FormatWhichItem(itemId, unitPrice),
+            ["quantity"] = quantity.ToString(CultureInfo.InvariantCulture)
+        };
+        if (!string.IsNullOrWhiteSpace(passwordHash)) form["pwd"] = passwordHash;
+        return form;
+    }
+
     /// <summary>
     /// KoL's answer to a purchase that broke a daily limit. The message
     /// names the limit, so the caller can skip the listing for today.
@@ -108,21 +146,7 @@ public sealed class MallBuyClient
             throw new ArgumentException(
                 "The store password hash is required for a mall purchase.", nameof(passwordHash));
 
-        var form = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["whichstore"] = storeId.ToString(CultureInfo.InvariantCulture),
-            ["buying"] = "Yep.",
-            // KoL encodes the agreed price in the item field: the item id, a
-            // dot, and the price in meat as a whole number. The radio
-            // button for a clover at 25.000 meat reads whichitem=10881.25000
-            // and for a troll doll at 12.345.678 meat whichitem=5433.12345678.
-            // Sending a scaled price makes KoL answer "This store doesn't
-            // have that item at that price".
-            ["whichitem"] = itemId.ToString(CultureInfo.InvariantCulture)
-                + "." + unitPrice.ToString(CultureInfo.InvariantCulture),
-            ["quantity"] = quantity.ToString(CultureInfo.InvariantCulture),
-            ["pwd"] = passwordHash
-        };
+        var form = BuildPurchaseForm(storeId, itemId, unitPrice, quantity, passwordHash);
         var uri = new Uri(_baseUri, "mallstore.php");
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);

@@ -60,11 +60,11 @@ public sealed class HttpMallPurchaseTransportTests
         var sent = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, sent.Method);
         Assert.NotNull(sent.RequestUri);
-        Assert.Contains("whichitem=789", sent.RequestUri!.Query, StringComparison.Ordinal);
-        Assert.Contains("whichstore=123", sent.RequestUri.Query, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, sent.RequestUri!.Query);
         var body = handler.RequestBodies[0];
-        Assert.Contains("sellerid=42", body, StringComparison.Ordinal);
-        Assert.Contains("price=100", body, StringComparison.Ordinal);
+        Assert.Contains("whichitem=789000000100", body, StringComparison.Ordinal);
+        Assert.Contains("whichstore=123", body, StringComparison.Ordinal);
+        Assert.Contains("buying=1", body, StringComparison.Ordinal);
         Assert.Contains("quantity=2", body, StringComparison.Ordinal);
         Assert.DoesNotContain("approval-secret", body, StringComparison.Ordinal);
     }
