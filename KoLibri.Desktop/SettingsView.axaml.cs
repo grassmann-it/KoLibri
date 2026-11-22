@@ -25,14 +25,20 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private readonly Func<string, string?> _env;
     private string _status = "";
 
-    public SettingsViewModel(DesktopSettingsStore store, Func<string, string?>? env = null, string? agentRightsNote = null)
+    public SettingsViewModel(DesktopSettingsStore store, Func<string, string?>? env = null, string? agentRightsNote = null,
+        Func<string, IReadOnlyList<(string Id, string Name)>>? itemLookup = null)
     {
         _store = store;
         _env = env ?? Environment.GetEnvironmentVariable;
         Settings = store.Load();
         AgentRightsNote = agentRightsNote ?? "Agent rights are granted on the consent page of the MCP server and shown there; see docs/mcp-access.md.";
         Save = new RelayCommand(DoSave);
+        Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup);
+        Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup);
     }
+
+    public ConsumableListEditor Booze { get; }
+    public ConsumableListEditor Spleen { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -45,8 +51,6 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public string? DefaultAccount { get => Settings.DefaultAccount; set { Settings.DefaultAccount = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); Raise(); } }
     public bool ReloginAutomatically { get => Settings.ReloginAutomatically; set { Settings.ReloginAutomatically = value; Raise(); } }
-    public bool PricegunDisplay { get => Settings.PricegunDisplay; set { Settings.PricegunDisplay = value; Raise(); } }
-    public bool DailyDefaults { get => Settings.DailyDefaults; set { Settings.DailyDefaults = value; Raise(); } }
     public bool OptionalTools { get => Settings.OptionalTools; set { Settings.OptionalTools = value; Raise(); } }
     public string Theme { get => Settings.Theme; set { if (value is not null) { Settings.Theme = value; Raise(); } } }
 
@@ -61,6 +65,13 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     public decimal TurnBudget { get => N("turnBudget"); set => Put("turnBudget", value); }
     public decimal HpStopPercent { get => N("hpStopPercent"); set => Put("hpStopPercent", value); }
     public decimal MaxCombatRounds { get => N("maxCombatRounds"); set => Put("maxCombatRounds", value); }
+
+    public decimal DailyKnucklebonesTarget { get => N("dailyKnucklebonesTarget"); set => Put("dailyKnucklebonesTarget", value); }
+    public decimal DailyRests { get => N("dailyRests"); set => Put("dailyRests", value); }
+    public decimal DailyKnucklebonesTargetMin => Min("dailyKnucklebonesTarget"); public decimal DailyKnucklebonesTargetMax => Max("dailyKnucklebonesTarget");
+    public decimal DailyRestsMin => Min("dailyRests"); public decimal DailyRestsMax => Max("dailyRests");
+    public string DailyKnucklebonesTargetInfo => $"Daily knucklebones target (default {DesktopSettings.Definition("dailyKnucklebonesTarget").Default:N0}, {DailyKnucklebonesTargetMin:N0}–{DailyKnucklebonesTargetMax:N0})";
+    public string DailyRestsInfo => $"Rests per daily run (default {DesktopSettings.Definition("dailyRests").Default:N0}, {DailyRestsMin:N0}–{DailyRestsMax:N0})";
 
     public decimal MeatPerDayMin => Min("meatPerDay"); public decimal MeatPerDayMax => Max("meatPerDay");
     public decimal MeatPerPurchaseMin => Min("meatPerPurchase"); public decimal MeatPerPurchaseMax => Max("meatPerPurchase");
@@ -95,6 +106,90 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private void Raise([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
     private sealed class RelayCommand(Action run) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => run();
+    }
+}
+
+/// <summary>Edits one user-selected consumable list (booze or spleen items); the list belongs to the settings object.</summary>
+public sealed class ConsumableListEditor : INotifyPropertyChanged
+{
+    private readonly List<DailyConsumable> _list;
+    private readonly Func<string, IReadOnlyList<(string Id, string Name)>>? _lookup;
+    private string _item = "";
+    private decimal _quantity = 1;
+    private string _message = "";
+    private DailyConsumable? _selected;
+
+    public ConsumableListEditor(List<DailyConsumable> list, Func<string, IReadOnlyList<(string Id, string Name)>>? lookup = null)
+    {
+        _list = list;
+        _lookup = lookup;
+        Items = new System.Collections.ObjectModel.ObservableCollection<DailyConsumable>(list);
+        Add = new RelayCommandImpl(DoAdd);
+        Remove = new RelayCommandImpl(DoRemove);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public System.Collections.ObjectModel.ObservableCollection<DailyConsumable> Items { get; }
+    public ICommand Add { get; }
+    public ICommand Remove { get; }
+    public decimal QuantityMin => 1;
+    public decimal QuantityMax => DesktopSettings.MaxConsumableQuantity;
+    /// <summary>An item id (digits) or an exact item name.</summary>
+    public string Item { get => _item; set { _item = value ?? ""; Raise(); } }
+    public decimal Quantity { get => _quantity; set { _quantity = Math.Clamp(value, QuantityMin, QuantityMax); Raise(); } }
+    public string Message { get => _message; private set { _message = value; Raise(); } }
+    public DailyConsumable? Selected { get => _selected; set { _selected = value; Raise(); } }
+
+    private void DoAdd()
+    {
+        var text = Item.Trim();
+        if (text.Length == 0) { Message = "Enter an item id or an exact item name."; return; }
+        int id; string name = "";
+        if (int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out id) && id > 0)
+        {
+            var found = _lookup?.Invoke(text);
+            if (found is { Count: > 0 }) name = found[0].Name;
+        }
+        else
+        {
+            var found = _lookup?.Invoke(text);
+            if (found is null) { Message = "Item names need the item catalog; enter the item id instead."; return; }
+            if (found.Count == 0) { Message = $"No item named \"{text}\". Use the exact name or the id."; return; }
+            if (found.Count > 1) { Message = $"\"{text}\" is ambiguous ({found.Count} items). Use the id."; return; }
+            if (!int.TryParse(found[0].Id, out id)) { Message = "That item has no numeric id."; return; }
+            name = found[0].Name;
+        }
+        if (!DesktopSettings.AddConsumable(_list, id, name, (int)Quantity))
+        {
+            Message = $"The list is full ({DesktopSettings.MaxConsumableEntries} entries).";
+            return;
+        }
+        Sync();
+        Item = "";
+        Message = "Added. Press Save to keep the list.";
+    }
+
+    private void DoRemove()
+    {
+        if (_selected is null) { Message = "Select an entry to remove."; return; }
+        _list.RemoveAll(x => x.ItemId == _selected.ItemId);
+        Sync();
+        Message = "Removed. Press Save to keep the list.";
+    }
+
+    private void Sync()
+    {
+        Items.Clear();
+        foreach (var x in _list) Items.Add(x);
+    }
+
+    private void Raise([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private sealed class RelayCommandImpl(Action run) : ICommand
     {
         public event EventHandler? CanExecuteChanged { add { } remove { } }
         public bool CanExecute(object? parameter) => true;

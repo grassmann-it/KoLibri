@@ -8,6 +8,13 @@ namespace KoLibri.Desktop;
 /// <summary>One persisted number with its default and allowed range (min/max are the UI/clamp bounds).</summary>
 public sealed record SettingDefinition(string Key, string Label, double Default, double Min, double Max, string Unit);
 
+/// <summary>One user-selected item the Daily tab consumes.</summary>
+public sealed record DailyConsumable(int ItemId, string Name, int Quantity)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string Label => $"{Name} (#{ItemId}) × {Quantity}";
+}
+
 /// <summary>Where an effective interval comes from.</summary>
 public sealed record EffectiveSetting(double Value, bool OverriddenByEnvironment, string? EnvironmentVariable);
 
@@ -32,16 +39,61 @@ public sealed class DesktopSettings
         new("turnBudget", "Turn budget", 100, 1, 1_000, "turns"),
         new("hpStopPercent", "HP stop", 30, 0, 100, "%"),
         new("maxCombatRounds", "Max combat rounds", 30, 1, 50, "rounds"),
+        new("dailyKnucklebonesTarget", "Daily knucklebones target", 100, 0, 10_000, "knucklebones"),
+        new("dailyRests", "Rests per daily run", 5, 0, 100, "rests"),
     ];
+
+    /// <summary>Most entries one daily consumable list (booze, spleen) may hold.</summary>
+    public const int MaxConsumableEntries = 20;
+    /// <summary>Largest quantity per consumable entry.</summary>
+    public const int MaxConsumableQuantity = 99;
 
     public int Version { get; set; } = CurrentVersion;
     public string? DefaultAccount { get; set; }
     public bool ReloginAutomatically { get; set; }
+    /// <summary>Legacy flags kept so old files round-trip. Nothing reads them and the settings page no longer shows them.</summary>
     public bool PricegunDisplay { get; set; } = true;
+    /// <inheritdoc cref="PricegunDisplay"/>
     public bool DailyDefaults { get; set; } = true;
     public bool OptionalTools { get; set; } = true;
     public string Theme { get; set; } = "Light";
     public Dictionary<string, double> Numbers { get; set; } = new();
+
+    /// <summary>Booze the Daily tab drinks, chosen by the user (no built-in items).</summary>
+    public List<DailyConsumable> BoozeItems { get; set; } = new();
+    /// <summary>Spleen items the Daily tab takes, chosen by the user.</summary>
+    public List<DailyConsumable> SpleenItems { get; set; } = new();
+    /// <summary>Steps skipped for a day, key "Role|step" to ISO date.</summary>
+    public Dictionary<string, string> SkippedSteps { get; set; } = new();
+
+    public static string SkipKey(string role, string step) => $"{role}|{step}";
+
+    public bool IsSkipped(string role, string step, DateOnly today)
+        => SkippedSteps.TryGetValue(SkipKey(role, step), out var d)
+           && string.Equals(d, today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+
+    public void SkipToday(string role, string step, DateOnly today)
+    {
+        var text = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        // Forget older days so the file does not grow.
+        foreach (var key in SkippedSteps.Where(kv => kv.Value != text).Select(kv => kv.Key).ToList())
+            SkippedSteps.Remove(key);
+        SkippedSteps[SkipKey(role, step)] = text;
+    }
+
+    public void UnskipToday(string role, string step) => SkippedSteps.Remove(SkipKey(role, step));
+
+    /// <summary>Adds or merges an entry; false when the list is full or the id is invalid.</summary>
+    public static bool AddConsumable(List<DailyConsumable> list, int itemId, string name, int quantity)
+    {
+        if (itemId <= 0) return false;
+        quantity = Math.Clamp(quantity, 1, MaxConsumableQuantity);
+        var at = list.FindIndex(x => x.ItemId == itemId);
+        if (at >= 0) { list[at] = list[at] with { Quantity = quantity, Name = string.IsNullOrWhiteSpace(name) ? list[at].Name : name.Trim() }; return true; }
+        if (list.Count >= MaxConsumableEntries) return false;
+        list.Add(new DailyConsumable(itemId, string.IsNullOrWhiteSpace(name) ? $"Item {itemId}" : name.Trim(), quantity));
+        return true;
+    }
 
     public static SettingDefinition Definition(string key) => Definitions.First(d => d.Key == key);
 
@@ -101,7 +153,7 @@ public sealed class DesktopSettings
 /// <summary>Reads and writes <see cref="DesktopSettings"/> as JSON; tolerant of missing files and bad values.</summary>
 public sealed class DesktopSettingsStore
 {
-    private static readonly JsonSerializerOptions Write = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Write = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public DesktopSettingsStore(string? path = null) => Path = path ?? DefaultPath();
 
@@ -128,6 +180,12 @@ public sealed class DesktopSettingsStore
             settings.DailyDefaults = Bool(root, "dailyDefaults", settings.DailyDefaults);
             settings.OptionalTools = Bool(root, "optionalTools", settings.OptionalTools);
             if (Str(root, "theme") is "Light" or "Dark" or "System") settings.Theme = Str(root, "theme")!;
+            settings.BoozeItems = Consumables(root, "boozeItems");
+            settings.SpleenItems = Consumables(root, "spleenItems");
+            if (root["skippedSteps"] is JsonObject skips)
+                foreach (var (k, v) in skips)
+                    if (v is JsonValue sv && sv.TryGetValue<string>(out var day) && !string.IsNullOrWhiteSpace(day))
+                        settings.SkippedSteps[k] = day;
             if (root["numbers"] is JsonObject numbers)
                 foreach (var d in DesktopSettings.Definitions)
                     if (numbers[d.Key] is JsonValue v && v.TryGetValue<double>(out var n))
@@ -153,12 +211,30 @@ public sealed class DesktopSettingsStore
             dailyDefaults = settings.DailyDefaults,
             optionalTools = settings.OptionalTools,
             theme = settings.Theme,
+            boozeItems = settings.BoozeItems,
+            spleenItems = settings.SpleenItems,
+            skippedSteps = settings.SkippedSteps,
             numbers,
         }, Write);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
         var tmp = Path + ".tmp";
         File.WriteAllText(tmp, json);
         File.Move(tmp, Path, overwrite: true);
+    }
+
+    private static List<DailyConsumable> Consumables(JsonObject o, string key)
+    {
+        var list = new List<DailyConsumable>();
+        if (o[key] is not JsonArray array) return list;
+        foreach (var node in array)
+        {
+            if (node is not JsonObject e) continue;
+            var id = e["itemId"] is JsonValue i && i.TryGetValue<int>(out var n) ? n : 0;
+            var name = Str(e, "name") ?? "";
+            var qty = e["quantity"] is JsonValue q && q.TryGetValue<int>(out var m) ? m : 1;
+            DesktopSettings.AddConsumable(list, id, name, qty);
+        }
+        return list;
     }
 
     private static string? Str(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrWhiteSpace(s) ? s : null;

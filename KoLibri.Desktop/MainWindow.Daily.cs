@@ -20,6 +20,141 @@ public partial class MainWindow
             _dailyStatusText.Text = $"{row.Surface}: {row.Description} — {row.Detail}";
     }
 
+    public void DailyStepSkip(DailyStepRow row, bool skip)
+    {
+        var role = _selectedRole.ToString();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (skip) _settings.SkipToday(role, row.Id, today);
+        else _settings.UnskipToday(role, row.Id);
+        try { _settingsStore.Save(_settings); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ReportDailyStep($"Could not save the skip: {exception.Message}", error: true);
+        }
+        _daily.RebuildSteps();
+        ReportDailyStep(skip ? $"{row.Title}: skipped for today." : $"{row.Title}: back on today's list.");
+    }
+
+    public async void DailyStepRun(DailyStepRow row)
+    {
+        if (!row.CanRun)
+        {
+            ReportDailyStep($"{row.Title}: {row.DisabledReason ?? "not available."}", error: true);
+            return;
+        }
+        switch (row.Kind)
+        {
+            case DailyStepKind.Adventures:
+                ReportDailyStep($"{row.Title}: {row.Detail}. Opening Adventures; nothing was sent.");
+                await ((IShellHost)this).NavigateToAsync("Adventure");
+                return;
+            case DailyStepKind.CloverCheck:
+                await ((IShellHost)this).RefreshStatusAsync(true);
+                ReportDailyStep($"{row.Title}: {row.Detail}");
+                return;
+        }
+
+        var settings = _settings;
+        var eggs = _daily.EggsOwned;
+        var actions = DailyStepBoard.ActionsFor(row, settings, eggs);
+        if (actions.Count == 0)
+        {
+            ReportDailyStep($"{row.Title}: nothing to do.", error: true);
+            return;
+        }
+        var confirmText = DailyStepBoard.ConfirmText(row, settings, eggs);
+        if (!await ConfirmDailyAsync(row.Title, confirmText)) { ReportDailyStep($"{row.Title}: cancelled, nothing was sent."); return; }
+
+        var role = _selectedRole;
+        await RunBusyOperationAsync(row.Title, async token =>
+        {
+            try
+            {
+                var outcome = await RunDailyActionsAsync(role, row, actions, token);
+                ReportDailyStep($"{row.Title}: {outcome}");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception exception)
+            {
+                ReportDailyStep(DailyStepBoard.ReadableError(row.Title, exception), error: true);
+                return;
+            }
+            await _daily.LoadAsync(forceRefresh: true, token);
+        });
+    }
+
+    private async Task<string> RunDailyActionsAsync(
+        AccountRole role, DailyStepRow row, IReadOnlyList<CharacterAction> actions, CancellationToken token)
+    {
+        using var session = await LibKolibri.CharacterSession.OpenAsync(role, _accounts, token);
+        var done = 0;
+        var problems = new List<string>();
+        var current = await session.ReadAsync(token);
+        foreach (var action in actions)
+        {
+            token.ThrowIfCancellationRequested();
+            var after = await session.ExecuteAsync(action, token);
+            if (after.RejectionReason is { } refused) { problems.Add(refused); break; }
+            switch (action)
+            {
+                case ConsumeCharacterItem consume:
+                    var key = consume.ItemId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    int Count(KoLInventorySnapshot i) => i.Items.Where(x => x.ItemId == key).Sum(x => x.Quantity);
+                    var used = after.Inventory.IsStale ? 0 : Math.Max(0, Count(current.Inventory) - Count(after.Inventory));
+                    if (used < consume.Quantity)
+                        problems.Add($"item {consume.ItemId}: KoL confirmed {used} of {consume.Quantity}"
+                            + (after.ResponseExcerpt is { Length: > 0 } excerpt ? $" ({excerpt})" : ""));
+                    done += used;
+                    break;
+                case RestAtCampground:
+                    var changed = !after.Status.IsStale && !current.Status.IsStale
+                        && (after.Status.CurrentHp != current.Status.CurrentHp || after.Status.CurrentMp != current.Status.CurrentMp
+                            || after.Status.Adventures != current.Status.Adventures);
+                    if (!changed) { problems.Add("KoL did not confirm the rest."); break; }
+                    done++;
+                    var cost = current.Status.Adventures - after.Status.Adventures;
+                    if (cost > 0) problems.Add($"that rest cost {cost} adventure(s), so no more rests were taken");
+                    break;
+            }
+            current = after;
+            if (problems.Count > 0 && action is RestAtCampground) break;
+        }
+        var summary = row.Kind == DailyStepKind.FreeRests ? $"{done} rest(s) taken" : $"{done} item(s) used";
+        return problems.Count == 0 ? summary + "." : $"{summary}. {string.Join("; ", problems)}.";
+    }
+
+    private void ReportDailyStep(string message, bool error = false)
+    {
+        if (_dailyStatusText is not null) _dailyStatusText.Text = message;
+        SetStatus(message);
+        if (error) _log.Error(message); else _log.Add(SessionLogKind.Info, message);
+    }
+
+    private async Task<bool> ConfirmDailyAsync(string title, string body)
+    {
+        var yes = new Button { Content = "Run", Classes = { "primary" } };
+        var no = new Button { Content = "Cancel" };
+        var dialog = new Window
+        {
+            Title = title, Width = 460, SizeToContent = SizeToContent.Height, CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(20), Spacing = 14,
+                Children =
+                {
+                    new TextBlock { Text = "This sends the following to Kingdom of Loathing:", FontWeight = FontWeight.SemiBold },
+                    new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap },
+                    new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Children = { yes, no } }
+                }
+            }
+        };
+        yes.Click += (_, _) => dialog.Close(true);
+        no.Click += (_, _) => dialog.Close(false);
+        return await dialog.ShowDialog<bool>(this);
+    }
+
     public async void DailyRunClick(object? sender, RoutedEventArgs e)
     {
         var token = Guid.NewGuid().ToString("N");

@@ -11,7 +11,7 @@ using KoLibri.Core.Spiel;
 namespace KoLibri.Desktop;
 
 public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, IInventoryViewHandlers,
-    IGearViewHandlers, ISkillsEffectsViewHandlers, IDailyViewHandlers
+    IGearViewHandlers, ISkillsEffectsViewHandlers, IDailyViewHandlers, IDailyStepHandlers
 {
     // The tab views own their own name scopes; the shell keeps looking controls up by name
     // (and the tests do too), so the lookup falls through to the views.
@@ -799,7 +799,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _mallSearch?.Attach(_mallSearchModel, _mall);
         _accountToken = new object();
         _arbitrageLoaded = false;
-        _daily = new DailyBriefingViewModel(_selectedRole, _live);
+        _daily = new DailyBriefingViewModel(_selectedRole, _live, () => _settings);
+        _dailyView?.Bind(_daily);
 
         if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
         if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;

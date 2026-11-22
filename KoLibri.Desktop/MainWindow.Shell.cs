@@ -34,7 +34,7 @@ public partial class MainWindow
                 expander.Header = _log.Summary;
         };
 
-        var model = new SettingsViewModel(_settingsStore);
+        var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems);
         model.PropertyChanged += (_, args) =>
         {
             // The settings model reports a saved state through Status.
@@ -61,6 +61,7 @@ public partial class MainWindow
     private void ApplySettings(bool reload)
     {
         if (reload) _settings = _settingsStore.Load();
+        if (reload) _daily?.RebuildSteps();
         if (_arbitrageExpander is not null) _arbitrageExpander.IsVisible = _settings.OptionalTools;
         var variant = _settings.Theme switch
         {

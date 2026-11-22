@@ -546,6 +546,11 @@ public sealed class DesktopLiveDataProvider : IDisposable
         return clients is null ? null : (clients.Http, clients.Session.Credentials.AccessToken);
     }
 
+    /// <summary>True when a stored session exists for the role but is expired (no automatic log-in was attempted or it failed).</summary>
+    public async Task<bool> HasExpiredSessionAsync(AccountRole role, CancellationToken cancellationToken = default)
+        => await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken).ConfigureAwait(false) is null
+           && await _accounts.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken).ConfigureAwait(false) is not null;
+
     private async Task<AccountClients?> GetClientsAsync(AccountRole role, CancellationToken cancellationToken)
     {
         var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken).ConfigureAwait(false);

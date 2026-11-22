@@ -28,13 +28,48 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
 {
     private readonly DesktopLiveDataProvider _provider;
     private readonly AccountRole _role;
+    private readonly Func<DesktopSettings> _settings;
+    private readonly Func<DateOnly> _today;
+    private LiveDailySnapshot? _lastLive;
+    private bool _sessionStale;
 
     public DailyBriefingViewModel(
         AccountRole role = AccountRole.Main,
-        DesktopLiveDataProvider? provider = null)
+        DesktopLiveDataProvider? provider = null,
+        Func<DesktopSettings>? settings = null,
+        Func<DateOnly>? today = null)
     {
         _role = role;
         _provider = provider ?? new DesktopLiveDataProvider();
+        _settings = settings ?? (() => new DesktopSettings());
+        _today = today ?? (() => DateOnly.FromDateTime(DateTime.Now));
+    }
+
+    /// <summary>The per-account step list (adventure target, egg, rests, booze, spleen, clover check).</summary>
+    public ObservableCollection<DailyStepRow> Steps { get; } = new();
+
+    /// <summary>True when the stored session was rejected and no automatic log-in happened.</summary>
+    public bool SessionStale
+    {
+        get => _sessionStale;
+        private set { if (SetProperty(ref _sessionStale, value)) OnPropertyChanged(nameof(SessionBannerText)); }
+    }
+
+    public string SessionBannerText => SessionStale
+        ? $"The {_role} session has expired. Log in again to load today's steps."
+        : string.Empty;
+
+    /// <summary>Lucky Surprise Eggs in the last loaded inventory.</summary>
+    public int EggsOwned => _lastLive?.State.Inventory.Items
+        .Where(i => i.ItemId == DailyStepBoard.LuckySurpriseEggItemId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        .Sum(i => i.Quantity) ?? 0;
+
+    /// <summary>Rebuilds the step list from the last live numbers (after a skip or a settings change).</summary>
+    public void RebuildSteps()
+    {
+        Steps.Clear();
+        if (_lastLive is null) return;
+        foreach (var row in DailyStepBoard.Build(_lastLive, _settings(), _today())) Steps.Add(row);
     }
 
     public AccountRole Role => _role;
@@ -60,11 +95,17 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
                 _role, new DailyRoutineSnapshot(), forceRefresh, cancellationToken);
             if (live is null)
             {
-                SnapshotText = "No session — please log in.";
+                SessionStale = await _provider.HasExpiredSessionAsync(_role, cancellationToken);
+                SnapshotText = SessionStale ? "Session expired — please log in." : "No session — please log in.";
                 Rows.Clear();
+                Steps.Clear();
+                _lastLive = null;
                 LoadState = DesktopLoadState.Empty;
                 return;
             }
+            SessionStale = false;
+            _lastLive = live;
+            RebuildSteps();
 
             SnapshotText = $"{live.Meat:N0} Meat · {live.Adventures} adventures · Level {live.Level} · "
                 + $"{live.Leaves} Leaves · {live.Clovers} Clovers · {live.Permits} Permits · "
@@ -99,6 +140,17 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         {
             LoadState = DesktopLoadState.Empty;
             throw;
+        }
+        catch (KoLibri.Core.Basis.KoLHtmlResponseException exception)
+            when (exception.Kind == KoLibri.Core.Basis.KoLHtmlResponseKind.LoginPage)
+        {
+            SessionStale = true;
+            Rows.Clear();
+            Steps.Clear();
+            _lastLive = null;
+            SnapshotText = "Session expired — please log in.";
+            ErrorMessage = SessionBannerText;
+            LoadState = DesktopLoadState.Error;
         }
         catch (Exception exception)
         {
