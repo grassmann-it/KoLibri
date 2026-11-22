@@ -81,6 +81,12 @@ public partial class MallSearchView : UserControl
         if (_search is not null) await _search.SearchCloverAsync();
     }
 
+    private void SortClick(object? sender, RoutedEventArgs e)
+    {
+        if (_search is not null && sender is Button { Tag: string tag } && Enum.TryParse<MallOfferSort>(tag, out var column))
+            _search.SortBy(column);
+    }
+
     private void CancelClick(object? sender, RoutedEventArgs e) => _search?.Cancel();
 
     private async void ChoiceClick(object? sender, RoutedEventArgs e) => await PickSelectedAsync();

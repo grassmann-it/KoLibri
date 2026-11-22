@@ -61,9 +61,10 @@
                   Classes="secondary"
                   Content="⟳"
                   Click="RefreshClick"
-                  AutomationProperties.Name="Refresh current tab (F5)" />
+                  AutomationProperties.Name="Refresh current tab" />
           <Button x:Name="NavBrowser" Classes="secondary" Content="Browser" Tag="Browser" Click="SectionClick" AutomationProperties.Name="Open the KoL relay browser" />
           <Button x:Name="NavCommunication" Classes="secondary" Content="Chat &amp; Mail" Tag="Communication" Click="SectionClick" AutomationProperties.Name="Open chat, clan and KoLmail" />
+          <Button x:Name="HelpButton" Classes="secondary" Content="?" Click="ShortcutHelpButtonClick" ToolTip.Tip="Keyboard shortcuts" AutomationProperties.Name="Open the keyboard shortcut help" />
           <Button x:Name="NavSettings" Classes="secondary" Content="⚙" Tag="Settings" Click="SectionClick" AutomationProperties.Name="Open settings" />
           <Button x:Name="ThemeToggleButton"
                   Classes="secondary"
@@ -86,8 +87,12 @@
                   Spacing="12">
         <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
           <TextBlock x:Name="ShellPageTitle" Text="Guts" Classes="h1" />
-          <TextBlock x:Name="ShellPageDescription" Grid.Column="1" Classes="muted"
-                     VerticalAlignment="Center" Margin="12,0,0,0" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <TextBlock x:Name="ShellPageDescription" Classes="muted" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <!-- Always in view on Settings, however far the page is scrolled or expanded. -->
+            <Button x:Name="SettingsHeaderSave" Content="Save settings" Classes="primary" IsVisible="False"
+                    Click="SettingsHeaderSaveClick" AutomationProperties.Name="Save the settings" />
+          </StackPanel>
         </Grid>
 
         <StackPanel x:Name="CommunicationPanel" Spacing="16" IsVisible="False">
@@ -303,7 +308,6 @@
         <local:BrowserView x:Name="BrowserPanel" IsVisible="False" Height="620" />
 
         <StackPanel x:Name="SettingsPanel" Spacing="16" IsVisible="False">
-          <ContentControl x:Name="SettingsHost" />
           <Border Classes="card">
             <Expander x:Name="AccountsExpander" Header="Accounts: sign in to Main and Mallbot" IsExpanded="True">
         <Border x:Name="AccountsPanel" Classes="card">
@@ -319,8 +323,8 @@
               <Border Classes="panel-subtle">
                 <StackPanel Spacing="8">
                   <TextBlock Text="Main" Classes="h2" FontSize="16" />
-                  <TextBox x:Name="MainUsername" Watermark="Username" AutomationProperties.Name="Main Username" />
-                  <TextBox x:Name="MainPassword" Watermark="Password" PasswordChar="●" AutomationProperties.Name="Main Password" />
+                  <TextBox x:Name="MainUsername" Tag="Main" KeyDown="AccountFieldKeyDown" Watermark="Username" AutomationProperties.Name="Main Username" />
+                  <TextBox x:Name="MainPassword" Tag="Main" KeyDown="AccountFieldKeyDown" Watermark="Password" PasswordChar="●" AutomationProperties.Name="Main Password" />
                   <CheckBox x:Name="MainRememberPassword" Content="Remember password for reconnecting" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock x:Name="MainAccountStatus"
@@ -328,6 +332,7 @@
                                Classes="muted"
                                VerticalAlignment="Center" />
                     <Button Grid.Column="1"
+                            x:Name="MainSignInButton"
                             Content="Sign in"
                             Tag="Main"
                             Click="SaveAccountClick"
@@ -339,8 +344,8 @@
               <Border Grid.Column="1" Classes="panel-subtle">
                 <StackPanel Spacing="8">
                   <TextBlock Text="Mallbot" Classes="h2" FontSize="16" />
-                  <TextBox x:Name="MallbotUsername" Watermark="Username" AutomationProperties.Name="Mallbot Username" />
-                  <TextBox x:Name="MallbotPassword" Watermark="Password" PasswordChar="●" AutomationProperties.Name="Mallbot Password" />
+                  <TextBox x:Name="MallbotUsername" Tag="Mallbot" KeyDown="AccountFieldKeyDown" Watermark="Username" AutomationProperties.Name="Mallbot Username" />
+                  <TextBox x:Name="MallbotPassword" Tag="Mallbot" KeyDown="AccountFieldKeyDown" Watermark="Password" PasswordChar="●" AutomationProperties.Name="Mallbot Password" />
                   <CheckBox x:Name="MallbotRememberPassword" Content="Remember password for reconnecting" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock x:Name="MallbotAccountStatus"
@@ -348,6 +353,7 @@
                                Classes="muted"
                                VerticalAlignment="Center" />
                     <Button Grid.Column="1"
+                            x:Name="MallbotSignInButton"
                             Content="Sign in"
                             Tag="Mallbot"
                             Click="SaveAccountClick"
@@ -360,6 +366,9 @@
           </StackPanel>
         </Border>
             </Expander>
+          </Border>
+          <Border Classes="card">
+            <ContentControl x:Name="SettingsHost" />
           </Border>
           <Border Classes="card">
             <Expander x:Name="AgentsExpander" Header="Agent rights (AI agent access)">
@@ -524,8 +533,12 @@
             </ListBox.ItemTemplate>
           </ListBox>
           <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-            <Button Content="Copy" Classes="secondary" Click="SessionLogCopyClick" />
+            <ComboBox x:Name="SessionLogLevelBox" Width="130" AutomationProperties.Name="Log level filter" />
+            <ComboBox x:Name="SessionLogRoleBox" Width="130" AutomationProperties.Name="Log role filter" />
+            <Button Content="Copy" Classes="secondary" Click="SessionLogCopyClick" ToolTip.Tip="Copies the entries shown, without credentials." />
+            <Button Content="Save" Classes="secondary" Click="SessionLogSaveClick" ToolTip.Tip="Saves the entries shown as a text file for this KoL day." />
             <Button Content="Clear" Classes="secondary" Click="SessionLogClearClick" />
+            <TextBlock x:Name="SessionLogFilterText" Classes="muted" VerticalAlignment="Center" />
           </StackPanel>
         </Grid>
       </Expander>
@@ -561,5 +574,29 @@
       </Grid>
     </Border>
 
+
+    <!-- Keyboard help: a real panel over the window; Escape or Close dismisses it. -->
+    <Border x:Name="ShortcutHelpOverlay" Grid.RowSpan="4" Grid.ColumnSpan="2" IsVisible="False"
+            Background="#80000000" KeyDown="ShortcutHelpKeyDown">
+      <Border Classes="card" MaxWidth="520" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+              BorderThickness="1" CornerRadius="0">
+        <StackPanel Spacing="10">
+          <TextBlock x:Name="ShortcutHelpTitle" Text="Keyboard shortcuts" Classes="h2" />
+          <TextBlock x:Name="ShortcutHelpIntro" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+          <ItemsControl x:Name="ShortcutHelpList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="local:ShortcutHelpRow">
+                <Grid ColumnDefinitions="120,*" Margin="0,2">
+                  <TextBlock Text="{Binding Gesture}" FontFamily="monospace" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button x:Name="ShortcutHelpClose" Content="Close" Classes="primary" HorizontalAlignment="Right"
+                  Click="ShortcutHelpCloseClick" AutomationProperties.Name="Close the keyboard help" />
+        </StackPanel>
+      </Border>
+    </Border>
   </Grid>
 </Window>

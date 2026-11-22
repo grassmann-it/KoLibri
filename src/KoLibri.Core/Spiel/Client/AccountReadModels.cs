@@ -33,6 +33,12 @@ public sealed record KoLStatusSnapshot(
     public IReadOnlyList<KoLTimedEffect> TimedEffects { get; init; } = Array.Empty<KoLTimedEffect>();
     public string? PlayerId { get; init; }
     public string? FamiliarId { get; init; }
+    /// <summary>The familiar's name when the status reports one; null when it does not (the charpane then shows the id).</summary>
+    public string? FamiliarName { get; init; }
+    /// <summary>Organ capacities when the status reports them; null when it does not (the charpane then marks defaults as assumed).</summary>
+    public int? FullnessLimit { get; init; }
+    public int? InebrietyLimit { get; init; }
+    public int? SpleenLimit { get; init; }
     /// <summary>Familiar weight in pounds when the status endpoint reports it (api.php "famlevel").</summary>
     public int? FamiliarWeight { get; init; }
     public string? ClassId { get; init; }
@@ -715,6 +721,10 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             PlayerId = StringValue(root, "playerid"),
             FamiliarId = StringValue(root, "familiarid", "familiar_id", "familiar"),
             FamiliarWeight = NullableIntValue(root, "famlevel", "familiar_weight"),
+            FamiliarName = StringValue(root, "familiarname", "familiar_name", "famname"),
+            FullnessLimit = NullableIntValue(root, "fullnessmax", "fullness_max", "maxfullness", "fullmax"),
+            InebrietyLimit = NullableIntValue(root, "drunkmax", "drunk_max", "inebrietymax", "maxdrunk", "maxinebriety"),
+            SpleenLimit = NullableIntValue(root, "spleenmax", "spleen_max", "maxspleen"),
             ClassId = StringValue(root, "classid", "class_id", "class"),
             Fullness = NullableIntValue(root, "full", "fullness"),
             Inebriety = NullableIntValue(root, "drunk", "drunkenness", "inebriety"),

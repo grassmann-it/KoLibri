@@ -23,9 +23,9 @@ public sealed class CharpaneViewModelTests
         var s = CharpaneState.FromStatus(Status(), "Main", Now);
         Assert.Equal("HP 50 / 200", s.Hp);
         Assert.Equal(0.25, s.HpFraction);
-        Assert.Equal("Fullness 3 / 15", s.Fullness);
-        Assert.Equal("Drunkenness 0 / 14", s.Drunk);
-        Assert.Equal("Spleen 7 / 15", s.Spleen);
+        Assert.Equal("Fullness 3 / 15 (assumed)", s.Fullness);
+        Assert.Equal("Drunkenness 0 / 14 (assumed)", s.Drunk);
+        Assert.Equal("Spleen 7 / 15 (assumed)", s.Spleen);
         Assert.Equal("Familiar #9 · 20 lb", s.Familiar);
         Assert.Equal("Ode to Booze · 12 turns", s.Effects[0].Display);
         Assert.Equal("Ur-Kel's · 1 turn", s.Effects[1].Display);
