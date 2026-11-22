@@ -114,12 +114,12 @@ public sealed class KolibriClient : IDisposable
     /// </summary>
     public async Task<BaconArbitrageExecutor.Outcome> BuyCheapAsync(
         int itemId, string itemName, int quantity, long maxPricePerUnit, long meatReserve = 0,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool singlePurchase = false)
     {
         var status = await GetStatusAsync(true, cancellationToken).ConfigureAwait(false);
         return await new BaconArbitrageExecutor(new MallBuyClient(_http, MallBuyClient.DefaultBaseUri), _mall)
             .TopUpItemAsync(_session.Credentials, itemId, quantity, status.Meat, maxPricePerUnit,
-                meatReserve, maxRounds: 60, cancellationToken: cancellationToken, itemName: itemName)
+                meatReserve, maxRounds: 60, cancellationToken: cancellationToken, itemName: itemName, singlePurchase: singlePurchase)
             .ConfigureAwait(false);
     }
 
@@ -229,6 +229,54 @@ public sealed class KolibriClient : IDisposable
             current = after;
         }
         return (used, rejection);
+    }
+
+    private async Task<CharacterActionClient> OpenCharacterActionsAsync(CancellationToken cancellationToken)
+    {
+        var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
+            .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new InvalidOperationException("No request hash for this account; nothing was sent.");
+        return new CharacterActionClient(_http, hash);
+    }
+
+    /// <summary>
+    /// Eats, drinks or takes a spleen item. Returns how many KoL confirmed by the inventory count going
+    /// down, and the reason when KoL refused (too full, too drunk, spleen limit).
+    /// </summary>
+    public async Task<(int Consumed, string? Rejection)> ConsumeAsync(
+        int itemId, CharacterConsumableKind kind, int quantity, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(quantity, 1);
+        var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
+        var key = itemId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        int Count(KoLInventorySnapshot i) => i.Items.Where(x => x.ItemId == key).Sum(x => x.Quantity);
+        var before = Count(await GetInventoryAsync(true, cancellationToken).ConfigureAwait(false));
+        var result = await actions.ExecuteAsync(new ConsumeCharacterItem(itemId, kind, quantity), cancellationToken).ConfigureAwait(false);
+        var after = result.Inventory.IsStale ? before : Count(result.Inventory);
+        var consumed = Math.Max(0, before - after);
+        var rejection = result.RejectionReason ?? (consumed < quantity ? "KoL did not confirm all of it." : null);
+        return (consumed, rejection);
+    }
+
+    /// <summary>
+    /// Rests at the campground up to <paramref name="times"/> times. Refused or unconfirmed rests are not
+    /// counted; <c>Problem</c> says why the series ended early.
+    /// </summary>
+    public async Task<CharacterRestOutcome> RestAsync(int times, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
+        var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
+        return await actions.RestAsync(times, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Casts a skill <paramref name="times"/> times in one request (e.g. Soul Food, id 7185). Returns HP/MP after; Rejection is set when KoL refused or the effect is unconfirmed.</summary>
+    public async Task<(int Hp, int Mp, string? Rejection, string? Page)> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
+        var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
+        var o = await actions.CastAsync(skillId, times, cancellationToken).ConfigureAwait(false);
+        return (o.After.Status.CurrentHp, o.After.Status.CurrentMp, o.Problem, o.After.ResponseExcerpt);
     }
 
     /// <summary>Changes prices in the account's own mall store. Without <paramref name="commit"/> only checks.</summary>

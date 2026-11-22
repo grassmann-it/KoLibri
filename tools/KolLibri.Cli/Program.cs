@@ -43,6 +43,10 @@ internal static partial class KolibriCli
                 "mafia-script" => await MafiaScriptAsync(args[1..]),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
+                "consume" => await ConsumeAsync(args[1..]),
+                "rest" => await RestAsync(args[1..]),
+                "cast" => await CastAsync(args[1..]),
+                "relay" => await RelayAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
@@ -292,6 +296,8 @@ internal static partial class KolibriCli
     private static void PrintHelp()
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
+        Console.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
+        Console.WriteLine("  relay --role main|mallbot [--port 8766] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
         Console.WriteLine("  login status [--role main|mallbot|all]       shows stored sessions + cookies");
         Console.WriteLine("  login clear --role main|mallbot|all          deletes stored credentials");
@@ -304,6 +310,8 @@ internal static partial class KolibriCli
         Console.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         Console.WriteLine("  shop --role mallbot [--refresh]");
         Console.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
+        Console.WriteLine("  consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]   eat/drink/spleen (preview without --execute)");
+        Console.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests are free; other rests can cost adventures)");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
@@ -315,19 +323,17 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
         Console.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         Console.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
-        Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (preview-only)");
+        Console.WriteLine("  adventure locations|start|inspect|step|stop ...                 (previews; only adventure run --execute and choice-chain --execute send requests)");
         Console.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
         Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
         Console.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
         Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
-        Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
-        Console.WriteLine("               [--min-profit N] [--max-qty N]");
         Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
         Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
-        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
+        Console.WriteLine("  daily go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
         Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
         Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
         Console.WriteLine("           [--already-claimed NAME] [--output PATH]");

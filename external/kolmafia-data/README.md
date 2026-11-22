@@ -33,3 +33,17 @@ Loathing game. The values are reproduced verbatim from the open
 KoLmafia data dumps (https://github.com/kolmafia/kolmafia/tree/main/src/data)
 which are distributed alongside the KoLmafia source under the
 KoLmafia licence. See `LICENSE` for the upstream licence text.
+
+## Item classification files (added for 0.4.0)
+
+Produced by `scripts/import-kolmafia-data.py` from KoLmafia's `fullness.txt`, `inebriety.txt`,
+`spleenhit.txt`, `equipment.txt` and `outfits.txt` (same MIT license and credit as above).
+Upstream keys these by item **name**; the importer resolves the id from `items.txt` into `itemId`
+(`null` when the name is not an item row, e.g. restaurant dishes). Missing values are `null`, never 0;
+`unspaded: true` marks organ rows upstream has not measured. Run with
+`KOLIBRI_MAFIA_DATA=<path to kolmafia/src/main/resources/data>` when `external/kolmafia` is not vendored in
+the checkout (for example in a git worktree).
+
+* `fullness.jsonl` / `inebriety.jsonl` / `spleenhit.jsonl` — `kind, name, itemId, size, levelRequired, quality, adventures(+Min/Max), muscle, mysticality, moxie, unspaded, notes`
+* `equipment.jsonl` — `name, itemId, power, requirement, requirementStat, requirementValue, weaponType`
+* `outfits.jsonl` — `id, name, image, parts, partIds, treats`

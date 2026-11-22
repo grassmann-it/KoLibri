@@ -131,33 +131,14 @@ internal static partial class KolibriCli
         var roles = ResolveLoginRoles(roleValue);
         var accounts = AccountSessionManager.CreateDefault();
         await accounts.InitializeAsync();
+        var cleared = await LoginClear.ClearAsync(accounts, roles);
         foreach (var role in roles)
         {
-            var profile = await accounts.GetProfileAsync(role);
-            if (profile is null)
-            {
-                Console.Error.WriteLine($"login clear: no profile for {role}.");
-                continue;
-            }
-            // Removing credentials by overwriting with an empty password
-            // clears the cookie, then we keep the profile so the operator
-            // does not have to re-add it on next login.
-            try
-            {
-                await accounts.SetCredentialsAsync(role, new AccountCredentials
-                {
-                    Password = string.Empty,
-                    CookieHeader = string.Empty,
-                    ExpiresAt = DateTimeOffset.MinValue
-                });
-            }
-            catch (AccountConfigurationException)
-            {
-                // No profile configured: silently skip.
-            }
-            Console.Error.WriteLine($"login clear: cleared credentials for {role} (profile '{profile.Id}' retained).");
+            Console.Error.WriteLine(cleared.Contains(role)
+                ? $"login clear: cleared credentials for {role} (profile retained)."
+                : $"login clear: no profile for {role}.");
         }
-        WriteJson(new { command = "login clear", roles = roles.Select(r => r.ToString()).ToArray() });
+        WriteJson(new { command = "login clear", roles = cleared.Select(r => r.ToString()).ToArray() });
         return 0;
     }
 

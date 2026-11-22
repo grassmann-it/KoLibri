@@ -11,10 +11,11 @@ are deliberately small:
 
 | Command | Shortcut | Purpose |
 |---|---|---|
-| Overview, Arbitrage, Shop, Adventure, Combat | `Ctrl+1` … `Ctrl+5` | Switch workspace |
+| Adventures, Inventory, Mall, Daily, Chat & Mail | `Ctrl+1` … `Ctrl+5` (`Cmd` on macOS) | Switch tab |
+| Settings | `Ctrl+,` (`Cmd+,` on macOS) | Open settings |
 | Refresh | `F5` | Load the current read-only snapshot |
 | Keyboard help | `F1` | Show all available bindings |
-| Stop run | `Escape` | Cancel the local adventure/combat run |
+| Cancel the running load | `Ctrl+.` (`Cmd+.` on macOS) | Cancel the current operation (`Ctrl+Escape` opened the Start menu on Windows) |
 
 Context actions depend on the selected object. For adventures these include
 inspecting an encounter, refreshing an encounter and stopping the run. For
@@ -34,7 +35,7 @@ it disappears; the same actions remain reachable via the compact top
 navigation and context menus.
 
 The Avalonia shell now routes this core mapping directly at the window:
-`F1`, `F5`, `Ctrl+Escape`, `Shift+F10` and `Ctrl+1..7`. Text fields keep their
+`F1`, `F5`, `Ctrl+.`, `Ctrl+,` and `Ctrl+1..5` (`Cmd` instead of `Ctrl` on macOS). Text fields keep their
 normal input; the global gestures are only consumed for the explicitly defined
 combinations.
 

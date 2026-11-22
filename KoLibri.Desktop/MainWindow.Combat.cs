@@ -70,7 +70,7 @@ public partial class MainWindow
         if (_combatPreviewText is not null) _combatPreviewText.Text = _autoCombat.PreviewText;
     }
 
-    private async void CombatRunClick(object? sender, RoutedEventArgs e)
+    public async void CombatRunClick(object? sender, RoutedEventArgs e)
     {
         if (_encounterBrowser is not { Session: { } session } pane || _autoCombat.SelectedTarget is not { } target
             || !_autoCombat.HasConfiguration)

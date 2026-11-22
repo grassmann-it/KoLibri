@@ -116,4 +116,74 @@ public sealed class ItemArbitrageTests
         Assert.Equal(3, outcome.Quantity);
         Assert.Equal(3, outcome.Purchases.Count);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task A_non_positive_price_limit_never_buys(long ceiling)
+    {
+        var store = new FakeStore("You acquire an item");
+        var outcome = await Executor(store, Listing(25_000)).TopUpItemAsync(
+            Credentials, 10881, 1, 100_000, ceiling, 10_000, itemName: "11-leaf clover");
+        Assert.False(outcome.Bought);
+        Assert.Equal("InvalidCeiling", outcome.Verdict);
+        Assert.DoesNotContain(store.Requests, r => r.StartsWith("POST"));
+    }
+
+    [Fact]
+    public async Task A_single_purchase_sends_one_post_even_when_the_store_has_a_daily_limit()
+    {
+        var store = new FakeStore("You spent 1,000 Meat. You acquire an item: BACON",
+            multiResponse: "You may only buy 1 of this item per day from this store.");
+        var listings = new[] { Listing(1_000, 50) with { StoreId = "111" }, Listing(1_100, 50) with { StoreId = "222" } };
+        var outcome = await Executor(store, listings).TopUpItemAsync(
+            Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON", singlePurchase: true);
+        Assert.Equal(1, store.Requests.Count(r => r.StartsWith("POST")));
+        Assert.False(outcome.Unclear);
+        Assert.Equal(0, outcome.Quantity);
+    }
+
+    [Fact]
+    public async Task A_confirmed_partial_survives_when_a_later_round_fails()
+    {
+        var store = new FakeStore("You spent 1,000 Meat. You acquire an item: BACON");
+        var listings = new[] { Listing(1_000, 1) with { StoreId = "111" }, Listing(1_100, 5) with { StoreId = "222" } };
+        var outcome = await ExecutorWithMall(store, new ThrowingAfterFirstMall(listings)).TopUpItemAsync(
+            Credentials, 8763, 3, 10_000_000, 1_500, 1_000, itemName: "BACON");
+        Assert.Equal(1, outcome.Quantity);
+        Assert.Equal(1_000, outcome.Spent);
+    }
+
+    [Fact]
+    public async Task A_post_that_fails_in_transport_is_reported_as_unclear()
+    {
+        var handler = new ThrowOnPost();
+        var executor = new BaconArbitrageExecutor(new MallBuyClient(new HttpClient(handler), new Uri("https://kol.test/")), new FakeMall(Listing(25_000)));
+        var outcome = await executor.TopUpItemAsync(Credentials, 10881, 1, 100_000, 27_000, 10_000, itemName: "x", singlePurchase: true);
+        Assert.True(outcome.Unclear);
+        Assert.False(outcome.Bought);
+    }
+
+    private static BaconArbitrageExecutor ExecutorWithMall(FakeStore store, IMallReadClient mall)
+        => new(new MallBuyClient(new HttpClient(store), new Uri("https://kol.test/")), mall);
+
+    private sealed class ThrowingAfterFirstMall(MallListing[] listings) : IMallReadClient
+    {
+        private int _calls;
+        public Task<MallSnapshot> SearchAsync(string itemId, bool forceRefresh = false, CancellationToken cancellationToken = default)
+        {
+            if (_calls++ > 0) throw new HttpRequestException("search failed");
+            return Task.FromResult(new MallSnapshot(itemId, listings, DateTimeOffset.UtcNow, new Uri("https://kol.test/mall.php")));
+        }
+        public Task<IReadOnlyList<OwnShopListing>> FetchOwnShopAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<OwnShopListing>>(Array.Empty<OwnShopListing>());
+    }
+
+    private sealed class ThrowOnPost : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => request.Method == HttpMethod.Get
+                ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<input type=hidden name=\"pwd\" value=\"h\">") })
+                : throw new HttpRequestException("connection reset");
+    }
 }

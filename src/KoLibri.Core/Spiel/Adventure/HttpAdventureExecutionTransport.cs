@@ -160,15 +160,35 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         var uri = BuildUri(route);
         _security.EnsureAllowed(uri, $"KoL adventure {operation} request");
 
-        using var message = new HttpRequestMessage(
-            operation == AdventureTransportOperation.Refresh ? HttpMethod.Get : HttpMethod.Post,
-            uri);
-
-        if (operation != AdventureTransportOperation.Refresh)
+        // Diagnostic switch: KOLIBRI_ADVENTURE_GET=1 starts an adventure like KoL's own link
+        // (adventure.php?snarfblat=N) instead of posting a form.
+        var asQuery = operation == AdventureTransportOperation.Adventure
+            && Environment.GetEnvironmentVariable("KOLIBRI_ADVENTURE_GET") == "1";
+        (HttpRequestMessage Message, Uri Uri) BuildMessage()
         {
-            var fields = BuildFields(request, operation);
-            message.Content = new FormUrlEncodedContent(fields);
+            if (operation == AdventureTransportOperation.Refresh)
+                return (new HttpRequestMessage(HttpMethod.Get, uri), uri);
+            if (asQuery)
+            {
+                var query = string.Join('&', BuildFields(request, operation)
+                    .Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
+                var getUri = new UriBuilder(uri) { Query = query }.Uri;
+                return (new HttpRequestMessage(HttpMethod.Get, getUri), getUri);
+            }
+            return (new HttpRequestMessage(HttpMethod.Post, uri)
+            { Content = new FormUrlEncodedContent(BuildFields(request, operation)) }, uri);
         }
+        var (message, sentUri) = BuildMessage();
+        uri = sentUri;
+        using var messageScope = message;
+
+        // KoL's one-time interstitial (Daily Reminders, New Events ...) answers the very first
+        // adventure.php after a login with 302 to main.php. Only a genuine first start may recover
+        // from it: no start sent before by this transport and a pristine checkpoint (not a resume).
+        var interstitialAllowed = operation == AdventureTransportOperation.Adventure
+            && IsPristineStart(request.Checkpoint)
+            && Interlocked.Exchange(ref _startSent, 1) == 0;
+        if (operation == AdventureTransportOperation.Adventure) Interlocked.Exchange(ref _startSent, 1);
 
         using var timeout = CreateTimeoutSource(cancellationToken);
         Interlocked.Increment(ref _httpRequestCount);
@@ -191,7 +211,85 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         {
             try
             {
-                EnsureNoRedirect(uri, response);
+                // KoL answers adventure.php with a redirect to fight.php or choice.php. Follow exactly
+                // that (GET, same host, at most two hops); any other redirect still stops the run.
+                var current = response;
+                var currentUri = uri;
+                HttpResponseMessage? followed = null;
+                try
+                {
+                    for (var hop = 0; IsRedirect(current); hop++)
+                    {
+                        var location = current.Headers.Location?.OriginalString;
+                        Uri? target = null;
+                        if (operation != AdventureTransportOperation.Refresh && hop < 2 && location is not null)
+                        {
+                            target = _security.ResolveRedirect(currentUri, location);
+                            if (!FollowableRoutes.Contains(target.AbsolutePath.TrimStart('/')))
+                                target = null;
+                        }
+                        if (target is null && interstitialAllowed && hop == 0 && location is not null
+                            && IsMainPhpInterstitial(currentUri, current, location))
+                        {
+                            interstitialAllowed = false; // at most one detour, never again
+                            using (var main = new HttpRequestMessage(HttpMethod.Get, new Uri(currentUri, "/main.php")))
+                            {
+                                Interlocked.Increment(ref _httpRequestCount);
+                                using var mainResponse = await _http
+                                    .SendAsync(main, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                                    .ConfigureAwait(false);
+                                // Only a plain 200 on main.php proves the interstitial was shown.
+                                if (mainResponse.StatusCode != HttpStatusCode.OK
+                                    || mainResponse.RequestMessage?.RequestUri is { } mu && !UriEquals(mu, main.RequestUri!))
+                                    throw new AdventureHttpTransportException(
+                                        "KoL adventure start was redirected to main.php, but main.php did not answer normally; no further start was sent.");
+                                // A plain 200 is not enough: the page must be the known interstitial
+                                // (Daily Reminders / New Events block) without a login or session error.
+                                // The transport has no account reader, so the redirect plus the
+                                // recognised page is the evidence; anything unclear stops the run.
+                                var mainHtml = await ReadBoundedBodyAsync(mainResponse.Content, timeout.Token)
+                                    .ConfigureAwait(false);
+                                if (!IsKnownInterstitialPage(mainHtml))
+                                    throw new AdventureHttpTransportException(
+                                        "KoL adventure start was redirected to main.php, but the page is not the recognised interstitial; no further start was sent.");
+                            }
+                            var (retry, retryUri) = BuildMessage();
+                            using (retry)
+                            {
+                                Interlocked.Increment(ref _httpRequestCount);
+                                var again = await _http
+                                    .SendAsync(retry, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                                    .ConfigureAwait(false);
+                                followed?.Dispose();
+                                followed = again;
+                                current = again;
+                                currentUri = retryUri;
+                            }
+                            hop = -1; // a redirect to fight/choice after the retry is followed as usual
+                            continue;
+                        }
+                        if (target is null)
+                        {
+                            await AddRedirectHintAsync(current, currentUri, timeout.Token).ConfigureAwait(false);
+                            EnsureNoRedirect(currentUri, current);
+                            break;
+                        }
+                        using var follow = new HttpRequestMessage(HttpMethod.Get, target);
+                        Interlocked.Increment(ref _httpRequestCount);
+                        var next = await _http.SendAsync(follow, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                            .ConfigureAwait(false);
+                        followed?.Dispose();
+                        followed = next;
+                        current = next;
+                        currentUri = target;
+                    }
+                    EnsureNoRedirect(currentUri, current);
+                    return await BuildResultAsync(current, currentUri).ConfigureAwait(false);
+                }
+                finally { followed?.Dispose(); }
+
+                async Task<AdventureTransportResponse> BuildResultAsync(HttpResponseMessage response, Uri uri)
+                {
                 var responseUri = response.RequestMessage?.RequestUri ?? uri;
                 _security.EnsureResponseUri(uri, responseUri);
                 var html = await ReadBoundedBodyAsync(response.Content, timeout.Token).ConfigureAwait(false);
@@ -219,6 +317,7 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 };
                 LastResponse = result;
                 return result;
+                }
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -284,6 +383,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 if (!fields.ContainsKey("snarfblat"))
                     fields["snarfblat"] = expectedSnarfblat;
                 EnsureFieldMatches(fields, "snarfblat", expectedSnarfblat);
+                // KoL's own link carries only the location number; internal run keys are not sent to the game.
+                fields.Remove("adventure");
+                fields.Remove("location");
                 if (fields.ContainsKey("adventure")) EnsureFieldMatches(fields, "adventure", request.AdventureId);
                 if (fields.ContainsKey("location")) EnsureFieldMatches(fields, "location", request.AdventureId);
                 break;
@@ -355,7 +457,88 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         return source;
     }
 
-    private static void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
+    private int _startSent;
+
+    private static bool IsPristineStart(AdventureCheckpoint? checkpoint)
+        => checkpoint is null
+            || (checkpoint.Phase == AdventureRunPhase.Ready
+                && checkpoint.LastResponseHash is null
+                && checkpoint.ResponseHashes.Count == 0
+                && checkpoint.PendingActionKind is null);
+
+    /// <summary>Exact same-origin 302 to /main.php (any query is refused).</summary>
+    private bool IsMainPhpInterstitial(Uri from, HttpResponseMessage response, string location)
+    {
+        if (response.StatusCode != HttpStatusCode.Found) return false;
+        try
+        {
+            var target = _security.ResolveRedirect(from, location);
+            return string.Equals(target.AbsolutePath, "/main.php", StringComparison.OrdinalIgnoreCase)
+                && target.Query.Length == 0 && target.Fragment.Length == 0
+                && target.Scheme == from.Scheme && target.Host == from.Host && target.Port == from.Port;
+        }
+        catch (KoLSecurityException) { return false; }
+    }
+
+    private static readonly string[] InterstitialMarkers = ["Daily Reminders", "New Events"];
+    private static readonly string[] InterstitialErrorMarkers =
+    [
+        "loginname", "login.php", "not logged in", "must be logged in", "session has expired",
+        "Rollover", "too many requests", "character pane error"
+    ];
+
+    /// <summary>True only for the interstitial main page seen live: a Daily
+    /// Reminders or New Events block and no login/session error text.</summary>
+    internal static bool IsKnownInterstitialPage(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return false;
+        if (!InterstitialMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        return !InterstitialErrorMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "fight.php", "choice.php"
+    };
+
+    /// <summary>Reads the page KoL redirected to (one GET, same host) so the error can say why.</summary>
+    private async Task AddRedirectHintAsync(HttpResponseMessage redirect, Uri from, CancellationToken ct)
+    {
+        // Opt-in diagnostics (KOLIBRI_ADVENTURE_DIAG=1): normally a refused redirect sends nothing further.
+        if (Environment.GetEnvironmentVariable("KOLIBRI_ADVENTURE_DIAG") != "1") return;
+        try
+        {
+            if (redirect.Headers.Location?.OriginalString is not { } location) return;
+            var target = _security.ResolveRedirect(from, location);
+            using var get = new HttpRequestMessage(HttpMethod.Get, target);
+            using var page = await _http.SendAsync(get, ct).ConfigureAwait(false);
+            var html = await page.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var text = System.Text.RegularExpressions.Regex.Replace(
+                System.Text.RegularExpressions.Regex.Replace(html, "<(script|style)[^>]*>.*?</\\1>", " ",
+                    System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+                "<[^>]+>|\\s+", " ").Trim();
+            _redirectHint = text.Length > 300 ? text[..300] : text;
+        }
+        catch (Exception) { /* the hint is best effort */ }
+    }
+
+    private string? _redirectHint;
+
+    private static string RedirectTarget(HttpResponseMessage response)
+    {
+        var raw = response.Headers.Location?.OriginalString ?? "?";
+        var cut = raw.IndexOfAny(['?', '#']);
+        if (cut < 0) return raw;
+        // Parameter names only: they usually say why KoL redirected (for example notloggedin), values may be personal.
+        var names = raw[(cut + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=')[0]);
+        return $"{raw[..cut]}?{string.Join('&', names)}";
+    }
+
+    private static bool IsRedirect(HttpResponseMessage response)
+        => (int)response.StatusCode is >= 300 and <= 399 && response.Headers.Location is not null;
+
+    private void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
     {
         var statusCode = (int)response.StatusCode;
         var finalUri = response.RequestMessage?.RequestUri;
@@ -364,7 +547,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
             || response.Headers.Location is not null
             || changedUri)
             throw new AdventureHttpTransportException(
-                "KoL adventure redirects are disabled; refresh the session manually.");
+                "KoL adventure redirects are disabled; refresh the session manually."
+                + $" (HTTP {statusCode} to '{RedirectTarget(response)}')"
+                + (string.IsNullOrEmpty(_redirectHint) ? "" : $" Page says: {_redirectHint}"));
     }
 
     private async Task<string> ReadBoundedBodyAsync(

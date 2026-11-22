@@ -25,7 +25,7 @@ internal static partial class KolibriCli
             "send-items" => DailySendItemsAsync(args[1..]),
             "item-arbitrage" => DailyItemArbitrageAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
-            "daily-go" or "go" => DailyGoAsync(args[1..]),
+            "daily-go" or "go" => await DailyGoAsync(args[1..]),
             "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
             "breakfast" => await DailyBreakfastAsync(args[1..]),
             _ => Fail($"Unknown daily command: {args[0]}")
@@ -501,14 +501,12 @@ internal static partial class KolibriCli
         Console.WriteLine("  daily hermit [--permits N] [--clovers N] [--adventure-value N]");
         Console.WriteLine("              [--clover-floor N] [--reserve N]");
         Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--bacon N] [--machine] [--machine-used]");
-        Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
-        Console.WriteLine("               [--min-profit N] [--max-qty N]");
         Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
         Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
-        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--mallbot-leaves N] [--main-meat N]");
+        Console.WriteLine("  daily go [--role main|mallbot|all] [--main-leaves N] [--mallbot-leaves N] [--main-meat N]");
         Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
         Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
         Console.WriteLine("           [--already-claimed NAME] [--output PATH]");
@@ -531,7 +529,7 @@ internal static partial class KolibriCli
         return session.Gateway;
     }
 
-    private static int DailyGoAsync(string[] args)
+    private static async Task<int> DailyGoAsync(string[] args)
     {
         var roles = ResolveRoles(args);
         if (roles.Count == 0)
@@ -557,6 +555,8 @@ internal static partial class KolibriCli
         }).ToArray();
 
         var token = GetOption(args, "--approval-token");
+        if (HasFlag(args, "--execute") && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
         var useBridge = true; // the legacy choice-chain executor is gone; --use-bridge is accepted and ignored
         BridgeAuditLog? bridgeAudit = useBridge ? new BridgeAuditLog(BridgeAuditLog.DefaultPath()) : null;
         var orchestrator = new DailyOrchestrator(
@@ -664,7 +664,7 @@ internal static partial class KolibriCli
 
         if (HasFlag(args, "--execute"))
         {
-            Console.Error.WriteLine("daily routine is preview-only. Use 'daily-go --execute' (live state, confirmed steps).");
+            Console.Error.WriteLine("daily routine is preview-only. Use 'daily go --execute' (live state, confirmed steps).");
             return 2;
         }
         DailyRoutineExecutionResult? executionResult = null;
@@ -761,6 +761,9 @@ internal static partial class KolibriCli
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
         var baseline = BuildDailySnapshot(args);
+        if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
+        var mayPurchase = AgentGuard.MayPurchase(execute, !string.IsNullOrWhiteSpace(token));
 
         var perRole = new List<object>();
         var bridge = new AutoCombatDailyBridge();
@@ -829,7 +832,7 @@ internal static partial class KolibriCli
                     });
 
                     var baconMedian = long.TryParse(GetOption(args, "--bacon-median"), out var bm) ? bm : 0;
-                    if (baconMedian > 0)
+                    if (baconMedian > 0 && mayPurchase)
                     {
                         var bacon = new BaconArbitrageExecutor(buyClient, client.Mall);
                         var baconOutcome = await bacon.RunAsync(
@@ -906,6 +909,8 @@ internal static partial class KolibriCli
         var roles = ResolveRoles(args);
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
+        if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
         var snapshot = BuildDailySnapshot(args);
         var bridge = new AutoCombatDailyBridge();
         var emptyState = new AccountDailyState

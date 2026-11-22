@@ -40,6 +40,11 @@ Known gaps are listed honestly in [planning/RELEASE_0_4_0.md](planning/RELEASE_0
 - Move shop analytics, CRM and price suggestions from the MCP tool layer into the library.
 - IotM scanner as a library call, CLI command and MCP tool.
 - Consolidate the ~34 MCP tools into a smaller, clearer set.
+- Buffbot building blocks in LibKolibri (so a buffbot is a small app, like KoLmafia's): cast a skill on another
+  player (`runskillz.php` with `targetplayer`), poll and parse incoming KMail (requests, meat/items), reply or
+  send KMail with items and meat, mood/buff list with MP budget, soulsauce/MP restore (Soul Food is available as
+  `kolibri cast --skill 7185`), per-player cooldown and daily limits. Today: KMail send/read and self casts exist,
+  casting on others and an inbox watcher are missing.
 - Live-verify the remaining write tools (meme shop, item use, reprice, KMail, adventures).
 
 ## 0.6 (KoLmafia data and reports)

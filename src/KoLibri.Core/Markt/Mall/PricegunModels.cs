@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
+using KoLibri.Core.Basis;
 
 namespace KoLibri.Core.Markt;
 
@@ -35,6 +36,19 @@ public sealed record PricegunReadPolicy
 }
 
 /// <summary>
+/// Request limit for Pricegun (a different host than the game, so it does not share the KoL limiter): one gate
+/// per process, not per client instance. Default 2 s between request starts, clamped to 1 s .. 60 s, raisable
+/// with <c>KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS</c>. Cache hits never reach it.
+/// </summary>
+public static class PricegunRateLimit
+{
+    public const string IntervalEnvironmentVariable = "KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS";
+
+    public static KoLRateLimiter Shared { get; } = new(KoLRateLimiter.ResolveInterval(
+        Environment.GetEnvironmentVariable(IntervalEnvironmentVariable)));
+}
+
+/// <summary>
 /// Read-only adapter for Pricegun's public item history pages. Pricegun is a
 /// historical transaction source, so its observations are sell-side quotes;
 /// it is never used to place a game request.
@@ -58,6 +72,7 @@ public sealed class PricegunReadClient
     private readonly Uri _baseUri;
     private readonly PricegunReadPolicy _policy;
     private readonly TimeProvider _clock;
+    private readonly KoLRateLimiter _limiter;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private readonly object _cacheGate = new();
     private readonly Dictionary<string, PricegunSnapshot> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -68,9 +83,12 @@ public sealed class PricegunReadClient
         HttpClient httpClient,
         Uri? baseUri = null,
         PricegunReadPolicy? policy = null,
-        TimeProvider? clock = null)
+        TimeProvider? clock = null,
+        KoLRateLimiter? limiter = null)
     {
+        _limiter = limiter ?? PricegunRateLimit.Shared;
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(_http);
         _baseUri = baseUri ?? new Uri("https://pricegun.loathers.net/", UriKind.Absolute);
         if (_baseUri.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("Pricegun base URI must use HTTPS.", nameof(baseUri));
@@ -189,6 +207,7 @@ public sealed class PricegunReadClient
                 var wait = _policy.MinimumRequestInterval - (_clock.GetUtcNow() - last);
                 if (wait > TimeSpan.Zero) await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
             }
+            await _limiter.WaitAsync(cancellationToken).ConfigureAwait(false);
             using var response = await _http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);

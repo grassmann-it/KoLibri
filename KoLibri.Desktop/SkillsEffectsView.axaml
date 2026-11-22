@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.SkillsEffectsView">
+  <Border Classes="card">
+    <StackPanel Spacing="12">
+        <TextBlock Text="Resources and effects" Classes="h3" />
+        <TextBlock x:Name="CharacterResourceStatus" TextWrapping="Wrap" />
+        <WrapPanel>
+          <TextBox x:Name="CharacterSkillId" Watermark="Skill name or ID" Width="190" />
+          <Button Content="Cast skill" Click="CastCharacterSkillClick" />
+          <Button Content="Rest (may use a turn)" Click="RestCharacterClick" />
+        </WrapPanel>
+        <WrapPanel>
+          <TextBox x:Name="CharacterMoodEffect" Watermark="Effect to maintain" Width="165" />
+          <Button Content="Apply mood" Click="ApplyCharacterMoodClick" />
+        </WrapPanel>
+                    </StackPanel>
+  </Border>
+</UserControl>

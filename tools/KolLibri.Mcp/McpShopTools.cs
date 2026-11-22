@@ -146,13 +146,19 @@ public partial class KolibriMcpServer
             async (a, ct) =>
             {
                 var role = RoleFor(a, _options.DefaultRole);
-                return await actions.ShopSalesAsync(role, BoolProperty(a, "refresh"), NullableIntProperty(a, "topBuyers") ?? 10, ct).ConfigureAwait(false);
+                // The buyer ledger is shared by both accounts: rankings only appear when the grant covers both.
+                var topBuyers = CrmReadable(gate) ? NullableIntProperty(a, "topBuyers") ?? 10 : 0;
+                return await actions.ShopSalesAsync(role, BoolProperty(a, "refresh"), topBuyers, ct).ConfigureAwait(false);
             });
 
         Register("kol_shop_buyers",
             "Read-only: customers from the local loyalty ledger (1 point per 1,000 Meat plus 1 per sale), best first. Keys only. Use minPoints to find reward candidates. Needs right 'shop.read'.",
             Sch("""{"type":"object","additionalProperties":false,"properties":{"minPoints":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":200}}}"""),
-            async (a, ct) => new { buyers = await actions.BuyersAsync(NullableIntProperty(a, "minPoints") ?? 0, NullableIntProperty(a, "limit") ?? 50, ct).ConfigureAwait(false) });
+            async (a, ct) =>
+            {
+                RequireCrmAccess(gate);
+                return new { buyers = await actions.BuyersAsync(NullableIntProperty(a, "minPoints") ?? 0, NullableIntProperty(a, "limit") ?? 50, ct).ConfigureAwait(false) };
+            });
 
         Register("kol_shop_price_suggestions",
             "Read-only: own listings against the current mall floor and recent sales, with a suggested price and advice. Apply with kol_reprice_shop. Needs right 'shop.read'.",
@@ -179,6 +185,11 @@ public partial class KolibriMcpServer
         var points = NullableIntProperty(args, "pointsCost") ?? 0;
         if (key.Length == 0) throw new McpInvalidParamsException("buyerKey is required.");
         if (text.Length is < 1 or > 2000) throw new McpInvalidParamsException("message must be 1..2000 characters.");
+        // Role and action rights first: nothing about the buyer (status, points) is revealed before this passes.
+        var token = Token();
+        RequireRight(gate, token, "message.send", role);
+        if (itemId is not null) RequireRight(gate, token, "transfer.items", role);
+        RequireCrmAccess(gate);
         var buyer = await actions.BuyerAsync(key, ct).ConfigureAwait(false) ?? throw new McpInvalidParamsException("Unknown buyer key.");
         if (buyer.IsBlocked) throw new McpInvalidParamsException("This buyer is blocked locally; no reward.");
         if (buyer.LoyaltyPoints < points) throw new McpInvalidParamsException($"The buyer has {buyer.LoyaltyPoints} points, {points} needed.");
@@ -193,5 +204,25 @@ public partial class KolibriMcpServer
                 if (sent) foreach (var h in held) h.Commit(h.Amount, h.Right);
                 return new { preview = false, buyerKey = key, sent, refusal };
             }).ConfigureAwait(false);
+    }
+
+    /// <summary>The buyer ledger has no per-account split, so reading it needs 'shop.read' on every account.</summary>
+    private static bool CrmReadable(AccessGate gate)
+    {
+        var token = McpRequestContext.Token;
+        if (string.IsNullOrEmpty(token)) return false;
+        foreach (var role in Enum.GetValues<AccountRole>())
+        {
+            var d = gate.Authorize(token, new AccessRequest("shop.read", role.ToString()));
+            if (!d.Allowed) return false;
+            d.Reservation?.Release();
+        }
+        return true;
+    }
+
+    private static void RequireCrmAccess(AccessGate gate)
+    {
+        if (!CrmReadable(gate))
+            throw new McpInvalidParamsException("[AccountNotGranted] Buyer data is shared by both accounts and needs 'shop.read' on both.");
     }
 }

@@ -71,17 +71,22 @@ public sealed class DesktopLiveDataProvider : IDisposable
     private readonly Dictionary<AccountRole, AccountClients> _clients = new();
     private readonly HttpClient _pricegunHttp = new();
     private readonly PricegunReadClient _pricegun;
+    private readonly Func<bool> _reloginAutomatically;
 
     private sealed record AccountClients(
         AccountSession Session, HttpClient Http, KoLAccountReadClient Account, IMallReadClient Mall);
 
     public DesktopLiveDataProvider(AccountSessionManager? accounts = null,
-        Func<AccountSession, HttpClient>? createAccountHttp = null)
+        Func<AccountSession, HttpClient>? createAccountHttp = null,
+        DesktopSettings? settings = null,
+        Func<bool>? reloginAutomatically = null)
     {
+        // Read before every automatic reconnect, so the saved setting always wins. Without a reader: never log in again.
+        _reloginAutomatically = reloginAutomatically ?? (() => false);
         _accounts = accounts ?? AccountSessionManager.CreateDefault();
         _createAccountHttp = createAccountHttp ?? (session => KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/")));
-        _pricegun = new PricegunReadClient(_pricegunHttp);
+        _pricegun = new PricegunReadClient(_pricegunHttp, policy: settings?.ToPricegunPolicy());
     }
 
     /// <summary>The live inventory of the given account.</summary>
@@ -250,6 +255,31 @@ public sealed class DesktopLiveDataProvider : IDisposable
         var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to search the mall.");
         return await mall.SearchAsync(query, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Mall search that keeps the offers per item.</summary>
+    public async Task<MallSearchPage> SearchMallItemsAsync(
+        AccountRole role, string term, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to search the mall.");
+        return await mall.SearchItemsAsync(term, forceRefresh, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Pricegun median with the age of the data. Throws on failure so the
+    /// caller can show the reason; it must never be awaited in a way that
+    /// blocks the offers.
+    /// </summary>
+    public async Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
+    {
+        var snapshot = await _pricegun.FetchAsync(itemId, forceRefresh: false, cancellationToken).ConfigureAwait(false);
+        if (snapshot.Sales.Count == 0) return new PricegunInfo(null, snapshot.FetchedAt, snapshot.IsStale);
+        var prices = snapshot.Sales.Select(sale => (decimal)sale.UnitPrice).OrderBy(price => price).ToArray();
+        var median = prices.Length % 2 == 1
+            ? prices[prices.Length / 2]
+            : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
+        return new PricegunInfo((long)median, snapshot.FetchedAt, snapshot.IsStale);
     }
 
     /// <summary>Reads the own store listings, or returns null for a signed-out role.</summary>
@@ -493,7 +523,9 @@ public sealed class DesktopLiveDataProvider : IDisposable
     }
 
     private Task<AccountSession?> ReconnectAsync(AccountSession session, CancellationToken cancellationToken)
-        => _accounts.ReconnectAsync(session,
+        => !_reloginAutomatically()
+            ? Task.FromResult<AccountSession?>(null)
+            : _accounts.ReconnectAsync(session,
             (username, password, token) => new KoLLoginClient().LoginAsync(username, password, true, token),
             cancellationToken);
 
@@ -502,6 +534,17 @@ public sealed class DesktopLiveDataProvider : IDisposable
 
     private async Task<IMallReadClient?> CreateMallClientAsync(AccountRole role, CancellationToken cancellationToken)
         => (await GetClientsAsync(role, cancellationToken).ConfigureAwait(false))?.Mall;
+
+    /// <summary>
+    /// The signed-in HTTP client and password hash for an explicit user-confirmed
+    /// purchase; null without a session. The client stays owned by this provider.
+    /// </summary>
+    public async Task<(HttpClient Http, string? PasswordHash)?> OpenPurchaseSessionAsync(
+        AccountRole role, CancellationToken cancellationToken)
+    {
+        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
+        return clients is null ? null : (clients.Http, clients.Session.Credentials.AccessToken);
+    }
 
     private async Task<AccountClients?> GetClientsAsync(AccountRole role, CancellationToken cancellationToken)
     {

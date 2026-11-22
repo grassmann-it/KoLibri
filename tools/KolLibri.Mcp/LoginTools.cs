@@ -37,8 +37,12 @@ public partial class KolibriMcpServer
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var profiles = await manager.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<object>();
+        var wanted = McpArgs.Roles(arguments, _options.DefaultRole);
+        var explicitRole = arguments.TryGetProperty("role", out _);
         foreach (var role in Enum.GetValues<AccountRole>())
         {
+            // Without an explicit role list every account the grant covers; never one it does not.
+            if (explicitRole ? !wanted.Contains(role) : !GrantCovers(role)) continue;
             var profile = profiles.FirstOrDefault(p => p.Role == role);
             var session = await manager.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
@@ -55,6 +59,14 @@ public partial class KolibriMcpServer
             });
         }
         return new { command = "login status", accounts = rows };
+    }
+
+    /// <summary>Asks the installed authorizer (if any) whether a read of this role is allowed.</summary>
+    private bool GrantCovers(AccountRole role)
+    {
+        if (Authorizer is null) return true;
+        using var probe = JsonDocument.Parse("{\"role\":\"" + role + "\"}");
+        return Authorizer("kol_login_status", probe.RootElement.Clone()).Allowed;
     }
 
     private async Task<object?> LoginClearAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -115,7 +127,7 @@ public partial class KolibriMcpServer
     }
 
     private static JsonElement LoginStatusSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}");
+        => Schema("{\"type\":\"object\",\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\",\"all\"]}},\"additionalProperties\":false}");
 
     private static JsonElement LoginClearSchema()
         => Schema("{\"type\":\"object\",\"properties\":{"

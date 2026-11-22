@@ -68,6 +68,28 @@ public sealed class LoginDispatchTests
     }
 
     [Fact]
+    public async Task LoginClear_helper_removes_stored_secret_and_keeps_profile()
+    {
+        var secrets = new InMemorySecretStore();
+        var accounts = new AccountSessionManager(new InMemoryAccountStore(), secrets);
+        await accounts.SetProfileAsync(new AccountProfile
+        {
+            Id = "main", DisplayName = "alice", Role = AccountRole.Main, Enabled = true
+        });
+        await accounts.SetCredentialsAsync(AccountRole.Main, new AccountCredentials
+        {
+            CookieHeader = "PHPSESSID=abc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(2)
+        });
+
+        var cleared = await LoginClear.ClearAsync(accounts, new[] { AccountRole.Main, AccountRole.Mallbot });
+
+        Assert.Equal(new[] { AccountRole.Main }, cleared);
+        Assert.Null(await secrets.GetAsync("main"));
+        Assert.NotNull(await accounts.GetProfileAsync(AccountRole.Main));
+        Assert.Null(await accounts.GetSessionAsync(AccountRole.Main, includeExpired: true));
+    }
+
+    [Fact]
     public void ParseArgs_handles_login_subcommand_dispatch()
     {
         Assert.Equal(new[] { "status" }, ReplSession.ParseArgs("status"));

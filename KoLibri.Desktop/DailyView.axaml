@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.DailyView">
+  <StackPanel Spacing="16">
+
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Daily briefing" Classes="h2" />
+        <TextBlock x:Name="DailySnapshotText"
+                   Text="—"
+                   Classes="muted"
+                   FontSize="13" />
+        <TextBlock x:Name="DailySummaryText"
+                   Text="—"
+                   Classes="muted"
+                   FontSize="12" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0"
+              ColumnDefinitions="140,2*,3*,110"
+              ColumnSpacing="12" Margin="14,12,14,8">
+          <TextBlock Grid.Column="0" Text="Area" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="1" Text="Action" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="2" Text="Details" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="3" Text="Status" Classes="muted" FontSize="11" />
+        </Grid>
+        <ListBox x:Name="DailyRows"
+                 Grid.Row="1"
+                 SelectionChanged="DailySelectionChanged"
+                 AutomationProperties.Name="Farm plan">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:DailyBriefingRow">
+              <Grid ColumnDefinitions="140,2*,3*,110" ColumnSpacing="10" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding Surface}" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="1" Text="{Binding Description}" />
+                <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="muted" />
+                <TextBlock Grid.Column="3" Text="{Binding State}" Classes="muted" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="DailyRunButton"
+                  Classes="primary"
+                  Content="▶  Run the daily routine"
+                  Click="DailyRunClick"
+                  AutomationProperties.Name="Run the daily routine" />
+        </StackPanel>
+        <WrapPanel>
+          <TextBlock Text="Hermit clovers to trade for" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <NumericUpDown x:Name="DailyHermitClovers" Value="0" Minimum="0" Maximum="20"
+                         Width="92" AutomationProperties.Name="Hermit clovers to trade for" />
+          <CheckBox x:Name="DailyBaconTopUp" Content="Top up BACON from the mall (max meat per BACON:)"
+                    IsChecked="False" Margin="16,0,8,0" />
+          <NumericUpDown x:Name="DailyBaconMaxPrice" Value="1500" Minimum="1" Maximum="100000"
+                         Width="110" AutomationProperties.Name="Maximum meat per BACON" />
+        </WrapPanel>
+        <TextBlock x:Name="DailyStatusText"
+                   Text="Nothing executed yet."
+                   Classes="muted"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+
+    <Expander x:Name="ArbitrageExpander" Header="Arbitrage (optional tool)" IsVisible="False">
+      <StackPanel x:Name="ArbitragePanel" Spacing="16" Margin="0,8,0,0">
+    <Border Classes="card">
+      <StackPanel Spacing="6">
+        <TextBlock x:Name="ArbitrageSummaryText"
+                   Text="—"
+                   Classes="muted"
+                   FontSize="13" />
+        <TextBlock Text="Live mall listings against the pricegun median. Buying stays behind the approval token."
+                   Classes="muted"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0"
+              ColumnDefinitions="*,115,145,90"
+              ColumnSpacing="12" Margin="14,12,14,8">
+          <TextBlock Grid.Column="0" Text="Item" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="1" Text="Cheapest" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="2" Text="Spread" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="3" Text="Margin" Classes="muted" FontSize="11" />
+        </Grid>
+        <ListBox x:Name="ArbitrageRows"
+                 Grid.Row="1"
+                 AutomationProperties.Name="Arbitrage candidates">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:LiveArbitrageRow">
+              <Grid ColumnDefinitions="*,115,145,90" ColumnSpacing="12" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding ItemName}" />
+                <TextBlock Grid.Column="1" Text="{Binding CheapestPrice}" />
+                <TextBlock Grid.Column="2" Text="{Binding SpreadText}" />
+                <TextBlock Grid.Column="3" Text="{Binding MarginText}" Classes="muted" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
+    <Border Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,Auto,*">
+        <Grid Grid.Row="0"
+              ColumnDefinitions="*,115,126,75,140"
+              ColumnSpacing="12" Margin="14,12,14,8">
+          <TextBlock Grid.Column="0" Text="Buy rule" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="1" Text="Price ceiling" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="2" Text="Resale reference" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="3" Text="Listings" Classes="muted" FontSize="11" />
+          <TextBlock Grid.Column="4" Text="Projected profit" Classes="muted" FontSize="11" />
+        </Grid>
+        <TextBlock Grid.Row="1"
+                   x:Name="ArbitragePlanText"
+                   Text="—"
+                   Classes="muted"
+                   FontSize="12"
+                   Margin="14,0,14,8" />
+        <ListBox x:Name="ArbitrageRules"
+                 Grid.Row="2"
+                 AutomationProperties.Name="Buy rules">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:BuyRuleRow">
+              <Grid ColumnDefinitions="*,115,126,75,140" ColumnSpacing="12" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding ItemName}" />
+                <TextBlock Grid.Column="1" Text="{Binding CeilingText}" />
+                <TextBlock Grid.Column="2" Text="{Binding ResalePrice}" />
+                <TextBlock Grid.Column="3" Text="{Binding CandidateCount}" />
+                <TextBlock Grid.Column="4" Text="{Binding ProfitText}" Classes="muted" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
+      </StackPanel>
+    </Expander>
+  </StackPanel>
+</UserControl>

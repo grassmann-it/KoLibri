@@ -404,10 +404,10 @@ internal static partial class KolibriCli
         if (string.IsNullOrWhiteSpace(approvalToken))
             throw new ArgumentException("Live adventure execution requires --approval-token.");
 
+        if (!await AgentGuard.ApprovalTokenValidAsync(approvalToken).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
         var approval = new DelegateAdventureApprovalHook((context, _) =>
-            ValueTask.FromResult(string.Equals(approvalToken, GetOption(args, "--approval-token"), StringComparison.Ordinal)
-                ? AdventureApprovalDecision.Allow(approvalToken)
-                : AdventureApprovalDecision.Deny("The supplied approval token does not match the command approval.")));
+            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
         var verification = new DelegateAdventureVerificationHook((context, _) =>
             ValueTask.FromResult(context.Response.Accepted == true && context.Observation.Kind != AdventureEncounterKind.Unknown
                 ? AdventureVerificationResult.Success()
@@ -473,6 +473,7 @@ internal static partial class KolibriCli
                 requestId = step.RequestId,
                 responseHash = step.Response?.ResponseHash,
                 abortReason = step.AbortReason?.ToString(),
+                messages = step.Messages,
                 requiresRefresh = step.RequiresRefresh,
                 complete = step.IsComplete
             }).ToArray(),
@@ -515,6 +516,8 @@ internal static partial class KolibriCli
         var approvalToken = GetOption(args, "--approval-token");
         if (string.IsNullOrWhiteSpace(approvalToken))
             throw new ArgumentException("Live choice-chain execution requires --approval-token.");
+        if (!await AgentGuard.ApprovalTokenValidAsync(approvalToken).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
         var approval = new DelegateAdventureApprovalHook((_, _) =>
             ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
         var verification = new DelegateAdventureVerificationHook((context, _) =>

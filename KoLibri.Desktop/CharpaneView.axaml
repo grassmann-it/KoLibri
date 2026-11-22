@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.CharpaneView">
+  <Border x:Name="CharacterPaneRoot" Width="196"
+      Classes="shell-sidebar" BorderThickness="0,0,1,0">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="12" Spacing="10">
+        <StackPanel Spacing="2">
+          <TextBlock x:Name="SidebarName" Text="Not signed in" FontSize="16" FontWeight="Bold"
+                     TextWrapping="Wrap" />
+          <TextBlock x:Name="SidebarRole" Classes="muted" FontSize="11" />
+        </StackPanel>
+        <Separator />
+        <StackPanel Spacing="4">
+          <TextBlock Text="Vitals" Classes="muted" FontSize="10" />
+          <TextBlock x:Name="SidebarLevel" Text="Level —" />
+          <TextBlock x:Name="SidebarHp" Text="HP —" />
+          <Border Height="6" CornerRadius="3" ClipToBounds="True" Background="{DynamicResource BorderBrush}">
+            <ProgressBar x:Name="SidebarHpBar" Height="6" MinHeight="6" Minimum="0" Maximum="1" Value="0" Background="Transparent" />
+          </Border>
+          <TextBlock x:Name="SidebarMp" Text="MP —" />
+          <Border Height="6" CornerRadius="3" ClipToBounds="True" Background="{DynamicResource BorderBrush}">
+            <ProgressBar x:Name="SidebarMpBar" Height="6" MinHeight="6" Minimum="0" Maximum="1" Value="0" Background="Transparent" />
+          </Border>
+        </StackPanel>
+        <Separator />
+        <StackPanel Spacing="4">
+          <TextBlock Text="Resources" Classes="muted" FontSize="10" />
+          <TextBlock x:Name="SidebarAdventures" Text="Adventures —" />
+          <TextBlock x:Name="SidebarMeat" Text="Meat —" />
+        </StackPanel>
+        <Separator />
+        <StackPanel Spacing="4">
+          <TextBlock Text="Organs" Classes="muted" FontSize="10" />
+          <TextBlock x:Name="SidebarFullness" Text="Fullness —" />
+          <TextBlock x:Name="SidebarDrunk" Text="Drunkenness —" />
+          <TextBlock x:Name="SidebarSpleen" Text="Spleen —" />
+        </StackPanel>
+        <Separator />
+        <StackPanel Spacing="4">
+          <TextBlock Text="Familiar" Classes="muted" FontSize="10" />
+          <TextBlock x:Name="SidebarFamiliar" Text="None" TextWrapping="Wrap" />
+        </StackPanel>
+        <Separator />
+        <StackPanel Spacing="4">
+          <TextBlock Text="Active effects" Classes="muted" FontSize="10" />
+          <TextBlock x:Name="SidebarEffects" Text="None" TextWrapping="Wrap" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

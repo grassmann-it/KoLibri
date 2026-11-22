@@ -6,13 +6,8 @@ namespace KoLibri.Desktop;
 
 /// <summary>
 /// The item manager: the KoLmafia "Guts" screen. It lists everything the
-/// account owns, groups it the way KoLmafia does and exposes the actions
-/// that belong to an item — use, equip, discard, sell.
-///
-/// The actions are declared here but not executed: the write path goes
-/// through the approval flow, which the window drives. A manager that
-/// cannot act is still useful — it answers "what do I have and what can
-/// I do with it".
+/// account owns and groups it the way KoLmafia does. Row actions are not
+/// declared here; they are built by <see cref="ContextMenus.ItemContextMenu"/>.
 /// </summary>
 public sealed class ItemManagerViewModel : DesktopViewModel
 {
@@ -95,7 +90,6 @@ public sealed class ItemManagerViewModel : DesktopViewModel
 
     /// <summary>The actions the operator can take on the selected item.
     /// The write path runs through the approval flow.</summary>
-    public ObservableCollection<ItemAction> Actions { get; } = new();
 
     public DateTimeOffset? LoadedAt
     {
@@ -156,23 +150,14 @@ public sealed class ItemManagerViewModel : DesktopViewModel
     public Task RefreshAsync(CancellationToken cancellationToken = default)
         => LoadAsync(forceRefresh: true, cancellationToken);
 
-    /// <summary>Recomputes the action list for the selected item.</summary>
-    public void RefreshActions()
-    {
-        Actions.Clear();
-        if (SelectedItem is null) return;
-        var item = SelectedItem;
-        var isConsumable = item.AccessFlags.Any(f =>
-            string.Equals(f, "q", StringComparison.OrdinalIgnoreCase));
-        var isTransferable = item.AccessFlags.Any(f =>
-            string.Equals(f, "t", StringComparison.OrdinalIgnoreCase));
-        if (isConsumable)
-            Actions.Add(new ItemAction("use", "Use", "Use the item (needs approval)."));
-        if (isTransferable)
-            Actions.Add(new ItemAction("transfer", "Transfer", "Send to the other account."));
-        Actions.Add(new ItemAction("sell", "Offer in the mall", "Create an own listing."));
-        Actions.Add(new ItemAction("details", "Details", "Show catalog data and origin."));
-    }
+    /// <summary>
+    /// The context-menu target for an item row. Row actions live in
+    /// <see cref="ContextMenus.ItemContextMenu"/>; this only maps the row. The use kind and
+    /// equip slots stay empty until the item classification of the Core item data fills them,
+    /// so no row offers an action it cannot do (there is no global Sell and "q" is not Use).
+    /// </summary>
+    public static ContextMenus.ItemMenuTarget ToMenuTarget(DesktopInventoryItem item)
+        => new(item.ItemId, item.Name, item.Quantity);
 
     private void ApplyFilter()
     {
@@ -238,6 +223,3 @@ public sealed class ItemManagerViewModel : DesktopViewModel
         };
     }
 }
-
-/// <summary>One action on the selected item.</summary>
-public sealed record ItemAction(string Id, string Label, string Description);

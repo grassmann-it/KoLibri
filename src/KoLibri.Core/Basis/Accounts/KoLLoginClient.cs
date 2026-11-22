@@ -10,7 +10,7 @@ namespace KoLibri.Core.Basis;
 public sealed record KoLLoginOptions
 {
     public Uri BaseUri { get; init; } = new("https://www.kingdomofloathing.com/", UriKind.Absolute);
-    public string UserAgent { get; init; } = "KoLibri/0.1 (Kingdom of Loathing client)";
+    public string UserAgent { get; init; } = KoLUserAgent.Value;
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
     /// <summary>Minimum delay between login attempts made by one client.</summary>
     public TimeSpan MinimumRequestInterval { get; init; } = TimeSpan.FromSeconds(1);
@@ -130,7 +130,7 @@ public sealed class KoLLoginClient
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
-        using var client = new HttpClient(handler)
+        using var client = new HttpClient(new KoLRateLimitedHandler(handler))
         {
             BaseAddress = _options.BaseUri,
             Timeout = _options.Timeout
@@ -252,6 +252,7 @@ public sealed class KoLLoginClient
         {
             AccessToken = accessToken,
             CookieHeader = cookieHeader,
+            UserAgent = _options.UserAgent,
             Username = userName.Trim(),
             Password = rememberPassword ? password : null,
             // KoL session cookies are renewed by the server; keep the local
@@ -281,8 +282,9 @@ public sealed class KoLLoginClient
         AccountCredentials credentials,
         Uri baseUri,
         TimeSpan? timeout = null,
-        string userAgent = "KoLibri/0.1 (Kingdom of Loathing client)",
-        KoLSecurityPolicy? securityPolicy = null)
+        string? userAgent = null,
+        KoLSecurityPolicy? securityPolicy = null,
+        HttpMessageHandler? innerHandler = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(baseUri);
@@ -292,19 +294,21 @@ public sealed class KoLLoginClient
         if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
             throw new ArgumentException("Credentials do not contain a KoL cookie header.", nameof(credentials));
 
-        var handler = new HttpClientHandler
+        KoLAllowlistHandler.EnsureNoAutoRedirect(innerHandler);
+        HttpMessageHandler handler = innerHandler ?? new HttpClientHandler
         {
             // Callers must handle redirects themselves (or use a safe
             // request wrapper) so cookies cannot be sent cross-host.
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
-        var client = new HttpClient(handler)
+        // Allowlist is outermost: a foreign target is refused before any wait or send.
+        var client = new HttpClient(new KoLAllowlistHandler(new KoLRateLimitedHandler(handler), policy))
         {
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent ?? credentials.UserAgent ?? KoLUserAgent.LegacyValue);
         client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", credentials.CookieHeader);
         return client;
     }

@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.GearView">
+  <Border Classes="card">
+    <StackPanel Spacing="12">
+        <TextBlock Text="Equipment and familiar" Classes="h3" />
+        <TextBlock x:Name="CharacterEquipmentStatus" TextWrapping="Wrap" />
+        <WrapPanel>
+          <Button Content="Read equipment" Click="ReadCharacterEquipmentClick" />
+          <ComboBox x:Name="CharacterSlotPicker" Width="135"
+                    AutomationProperties.Name="Equipment slot" />
+          <Button Content="Unequip slot" Click="UnequipCharacterSlotClick" />
+        </WrapPanel>
+        <WrapPanel>
+          <TextBox x:Name="CharacterOutfitId" Watermark="Outfit ID" Width="105" />
+          <Button Content="Wear outfit" Click="WearCharacterOutfitClick" />
+        </WrapPanel>
+        <WrapPanel>
+          <TextBox x:Name="CharacterFamiliarId" Watermark="Familiar ID" Width="105" />
+          <Button Content="Switch familiar" Click="SwitchCharacterFamiliarClick" />
+          <Button Content="Unequip familiar" Click="UnequipCharacterFamiliarClick" />
+        </WrapPanel>
+        <WrapPanel>
+          <TextBox x:Name="CharacterModifierGoal" Watermark="Modifier, e.g. Item Drop" Width="170" />
+          <Button Content="Compare selected slot" Click="CompareCharacterEquipmentClick" />
+        </WrapPanel>
+        <TextBlock x:Name="CharacterGearPreview" TextWrapping="Wrap" />
+                    </StackPanel>
+  </Border>
+</UserControl>

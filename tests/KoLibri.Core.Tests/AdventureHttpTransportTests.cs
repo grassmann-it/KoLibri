@@ -132,6 +132,164 @@ public sealed class AdventureHttpTransportTests
     }
 
     [Fact]
+    public async Task AdventureRedirectToFightPhpIsFollowedOnceWithGet()
+    {
+        var redirect = new HttpResponseMessage(HttpStatusCode.Found)
+        {
+            Headers = { Location = new Uri("https://adventure.test/fight.php?ireallymeanit=1") }
+        };
+        var handler = new RecordingHandler(redirect, Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        var result = await transport.StartAdventureAsync(Request(AdventureTransportOperation.Adventure));
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal(HttpMethod.Get, handler.Requests[1].Method);
+        Assert.Equal("/fight.php", handler.Requests[1].RequestUri!.AbsolutePath);
+        Assert.True(result.Accepted);
+    }
+
+    private static HttpResponseMessage Found(string location)
+        => new(HttpStatusCode.Found) { Headers = { Location = new Uri(location, UriKind.RelativeOrAbsolute) } };
+
+    private static AdventureTransportRequest StartWithFields()
+        => Request(AdventureTransportOperation.Adventure) with
+        {
+            Fields = new Dictionary<string, string> { ["snarfblat"] = "123" }
+        };
+
+    private const string Interstitial = "<html><body><b>Daily Reminders</b> you have things to do</body></html>";
+
+    [Theory]
+    [InlineData("<html>ordinary main page</html>")]
+    [InlineData("<html>Daily Reminders <form><input name=loginname></form></html>")]
+    [InlineData("")]
+    public async Task OrdinaryOrErrorMainPageDoesNotTriggerTheSecondStart(string mainBody)
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(mainBody), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task FirstStartInterstitialFetchesMainPhpOnceAndRetriesTheSameStart()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        var result = await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.True(result.Accepted);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal(HttpMethod.Get, handler.Requests[1].Method);
+        Assert.Equal("/main.php", handler.Requests[1].RequestUri!.AbsolutePath);
+        Assert.Equal(HttpMethod.Post, handler.Requests[2].Method);
+        Assert.Equal(handler.Bodies[0], handler.Bodies[2]);
+        Assert.Contains("snarfblat=123", handler.Bodies[2]);
+        Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task DirectOkSendsExactlyOneStart()
+    {
+        var handler = new RecordingHandler(Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task RepeatedInterstitialRedirectStopsAfterTheRetry()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("/login.php?notloggedin=1")]
+    [InlineData("https://evil.test/main.php")]
+    [InlineData("/main.php?x=1")]
+    [InlineData("/main.php#a")]
+    public async Task OtherRedirectsOnFirstStartSendNothingFurther(string location)
+    {
+        var handler = new RecordingHandler(Found(location), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAnyAsync<Exception>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task MainPhpRedirectingToLoginStopsWithoutRetry()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Found("/login.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task InterstitialIsNotRecoveredOnASecondStartOfTheSameTransport()
+    {
+        var handler = new RecordingHandler(Response(Html()), Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await transport.StartAdventureAsync(StartWithFields());
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task InterstitialIsNotRecoveredWhenResumingFromACheckpoint()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+        var request = StartWithFields() with
+        {
+            Checkpoint = new AdventureCheckpoint
+            {
+                RunId = "run-1", AdventureId = "123", Phase = AdventureRunPhase.Ready,
+                ResponseHashes = ["abc"]
+            }
+        };
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(request));
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task FightNeverRetriesAfterAMainPhpRedirect()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() =>
+            transport.SubmitFightAsync(Request(AdventureTransportOperation.Fight)));
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
     public async Task OversizedResponseIsRejectedBeforeParserSeesIt()
     {
         using var client = new HttpClient(new RecordingHandler(
@@ -202,5 +360,43 @@ public sealed class AdventureHttpTransportTests
                 }
                 : _responses.Dequeue();
         }
+    }
+}
+
+public sealed class KoLUserAgentTests
+{
+    [Fact]
+    public void User_agent_names_the_library_and_its_version_without_build_metadata()
+    {
+        Assert.StartsWith("LibKolibri/", KoLibri.Core.Basis.KoLUserAgent.Value);
+        Assert.DoesNotContain('+', KoLibri.Core.Basis.KoLUserAgent.Version);
+        Assert.Matches(@"^\d+\.\d+", KoLibri.Core.Basis.KoLUserAgent.Version);
+        Assert.Contains("github.com/grassmann-it/KoLibri", KoLibri.Core.Basis.KoLUserAgent.Value);
+    }
+
+    [Fact]
+    public void Sessions_keep_the_user_agent_they_were_created_with_and_old_ones_stay_legacy()
+    {
+        var uri = new Uri("https://www.kingdomofloathing.com/");
+        var legacy = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
+            new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "a=b" }, uri);
+        Assert.Equal(KoLibri.Core.Basis.KoLUserAgent.LegacyValue, legacy.DefaultRequestHeaders.UserAgent.ToString());
+
+        var fresh = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
+            new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "a=b", UserAgent = KoLibri.Core.Basis.KoLUserAgent.Value }, uri);
+        Assert.StartsWith("LibKolibri/", fresh.DefaultRequestHeaders.UserAgent.ToString());
+    }
+
+    [Fact]
+    public void Authenticated_and_pricegun_clients_send_it_and_keep_a_caller_value()
+    {
+        var empty = new HttpClient();
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(empty);
+        Assert.Contains("LibKolibri/", empty.DefaultRequestHeaders.UserAgent.ToString());
+
+        var own = new HttpClient();
+        own.DefaultRequestHeaders.UserAgent.ParseAdd("Mine/1");
+        KoLibri.Core.Basis.KoLUserAgent.ApplyTo(own);
+        Assert.Equal("Mine/1", own.DefaultRequestHeaders.UserAgent.ToString());
     }
 }
