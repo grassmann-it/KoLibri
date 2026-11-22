@@ -12,6 +12,9 @@ public sealed record PriceChange(string ItemId, long ExpectedPrice, long NewPric
 public sealed record RepriceLine(string ItemId, long ExpectedPrice, long? ObservedPrice, long NewPrice, string Status, string? Message);
 
 /// <summary>What the write tools need from a signed-in account. Real: <see cref="KolibriClientActions"/>.</summary>
+/// <summary>A purchase POST was sent but KoL's answer is unknown. The spend stays reserved until the user reconciles it.</summary>
+public sealed class UnreconciledPurchaseException(string message) : Exception(message);
+
 public interface IAccountActions
 {
     Task<long> MeatAsync(AccountRole role, CancellationToken ct);
@@ -47,7 +50,10 @@ public sealed partial class KolibriClientActions : IAccountActions
     public async Task<(int, long, string)> BuyAsync(AccountRole role, int itemId, string itemName, int quantity, long maxPrice, long reserve, CancellationToken ct)
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var o = await client.BuyCheapAsync(itemId, itemName, quantity, maxPrice, reserve, ct).ConfigureAwait(false);
+        if (maxPrice < 1) throw new ArgumentOutOfRangeException(nameof(maxPrice), "A positive price limit is required.");
+        // One confirmed MCP buy sends at most one purchase POST.
+        var o = await client.BuyCheapAsync(itemId, itemName, quantity, maxPrice, reserve, ct, singlePurchase: true).ConfigureAwait(false);
+        if (o.Unclear) throw new UnreconciledPurchaseException(o.Rationale);
         return (o.Quantity, o.Spent, o.Verdict);
     }
 
@@ -205,8 +211,23 @@ public partial class KolibriMcpServer
         var consumed = gate.ConsumePlan(token, planId, tool, CanonicalArgs(args));
         if (!consumed.Allowed) throw new McpInvalidParamsException($"[{consumed.Code}] {consumed.Message}");
         var held = AuthorizeAll(gate, token, requests);
+        var unreconciled = false;
         try { return await execute(held).ConfigureAwait(false); }
-        finally { foreach (var r in held) r.Release(); }   // no-op for everything already committed
+        catch (UnreconciledPurchaseException e)
+        {
+            // The POST may have gone through: keep the budget held instead of freeing it.
+            unreconciled = true;
+            throw new McpInvalidParamsException($"Outcome unclear, the spend stays reserved until reconciled. {e.Message}");
+        }
+        finally { if (!unreconciled) foreach (var r in held) r.Release(); }   // no-op for everything already committed
+    }
+
+    /// <summary>Role/action check before any account access: no amounts, nothing held.</summary>
+    private static void RequireRight(AccessGate gate, string token, string operation, AccountRole role, long? unitPrice = null)
+    {
+        var d = gate.Authorize(token, new AccessRequest(operation, role.ToString(), 0, unitPrice));
+        if (!d.Allowed) throw new McpInvalidParamsException($"[{d.Code}] {d.Message}");
+        d.Reservation?.Release();
     }
 
     private static void RequireOtherAccount(AccessGate gate, string token, AccountRole from)
@@ -229,6 +250,7 @@ public partial class KolibriMcpServer
         if (quantity is < 1 or > MaxBuyQuantity || maxPrice < 1)
             throw new McpInvalidParamsException($"quantity must be 1..{MaxBuyQuantity} and maxPricePerUnit at least 1.");
         var worstCase = checked(quantity * maxPrice);
+        RequireRight(gate, token, "mall.buy", role, maxPrice);   // role, right and price limit before the account is opened
         var meat = await actions.MeatAsync(role, ct).ConfigureAwait(false);
         var request = new AccessRequest("mall.buy", role.ToString(), worstCase, maxPrice, meat - worstCase);
 
@@ -249,6 +271,7 @@ public partial class KolibriMcpServer
         var role = RoleFor(args, _options.DefaultRole);
         var topUp = BoolProperty(args, "topUpBacon");
         var maxBacon = (long?)NullableIntProperty(args, "maxBaconPrice") ?? 1_500;
+        if (maxBacon < 1) throw new McpInvalidParamsException("maxBaconPrice must be at least 1.");
         var requests = new List<AccessRequest> { new("daily.run", role.ToString(), 1, topUp ? maxBacon : null) };
         long cap = 0;
         if (topUp)
@@ -288,6 +311,8 @@ public partial class KolibriMcpServer
         if (itemId is null && meat == 0) throw new McpInvalidParamsException("Give an item (itemId and quantity) or meat.");
         if (itemId is not null && quantity < 1) throw new McpInvalidParamsException("quantity is required with itemId.");
         if (itemId is null) quantity = 0;
+        if (itemId is not null) RequireRight(gate, token, "transfer.items", from);
+        if (meat > 0) RequireRight(gate, token, "transfer.meat", from);
         RequireOtherAccount(gate, token, from);
 
         var requests = new List<AccessRequest>();

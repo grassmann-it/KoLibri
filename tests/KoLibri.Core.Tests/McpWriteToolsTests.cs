@@ -14,9 +14,11 @@ public sealed class McpWriteToolsTests : IDisposable
         public int BuyCalls, MemeCalls, TransferCalls, MessageCalls, UseCalls, RepriceCommits;
         public long LastMemeReserve;
         public bool TransferConfirms = true;
-        public Task<long> MeatAsync(AccountRole role, CancellationToken ct) => Task.FromResult(Meat);
+        public int MeatCalls;
+        public bool BuyUnclear;
+        public Task<long> MeatAsync(AccountRole role, CancellationToken ct) { MeatCalls++; return Task.FromResult(Meat); }
         public Task<(int, long, string)> BuyAsync(AccountRole role, int itemId, string itemName, int quantity, long maxPrice, long reserve, CancellationToken ct)
-        { BuyCalls++; return Task.FromResult((quantity, quantity * (maxPrice - 10), "Bought")); }
+        { BuyCalls++; if (BuyUnclear) throw new UnreconciledPurchaseException("no answer"); return Task.FromResult((quantity, quantity * (maxPrice - 10), "Bought")); }
         public Task<(int, int, long, string, IReadOnlyList<string>)> MemeShopAsync(AccountRole role, bool topUp, long maxBaconPrice, long reserve, CancellationToken ct)
         { MemeCalls++; LastMemeReserve = reserve; return Task.FromResult((2, topUp ? 10 : 0, topUp ? 1_200L : 0L, "Done", (IReadOnlyList<string>)new[] { "x" })); }
         public Task<bool> TransferAsync(AccountRole from, int? itemId, int quantity, long meat, CancellationToken ct)
@@ -124,6 +126,68 @@ public sealed class McpWriteToolsTests : IDisposable
         var again = await CallAsync(token, "kol_mall_buy", Buy + $",\"planId\":\"{plan}\"}}");
         Assert.True(again.Error);
         Assert.Equal(1, _actions.BuyCalls);
+    }
+
+    [Fact]
+    public async Task Buy_checks_role_and_right_before_opening_the_account()
+    {
+        var mainOnly = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit>
+            { [Rights.AccountRead] = new(), [Rights.MallBuy] = new() { DailyBudget = 10_000, MaxUnitPrice = 1_000 } }, TimeSpan.FromDays(1)).Token;
+        Assert.True((await CallAsync(mainOnly, "kol_mall_buy", Buy + ",\"role\":\"Mallbot\"}")).Error);
+        var noRight = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.AccountRead] = new() }, TimeSpan.FromDays(1)).Token;
+        Assert.True((await CallAsync(noRight, "kol_mall_buy", Buy + "}")).Error);
+        // Above the grant's unit price limit: also refused before any meat lookup.
+        Assert.True((await CallAsync(Token(maxPrice: 50), "kol_mall_buy", Buy + "}")).Error);
+        Assert.Equal(0, _actions.MeatCalls);
+    }
+
+    [Fact]
+    public async Task Transfer_checks_the_right_before_reading_meat()
+    {
+        var noMeat = _grants.Create("ai", ["Main", "Mallbot"], new Dictionary<string, RightLimit>
+            { [Rights.AccountRead] = new(), [Rights.TransferItems] = new() { DailyBudget = 10 } }, TimeSpan.FromDays(1)).Token;
+        Assert.True((await CallAsync(noMeat, "kol_transfer", "{\"meat\":100}")).Error);
+        Assert.Equal(0, _actions.MeatCalls);
+    }
+
+    [Fact]
+    public async Task Reward_buyer_reveals_nothing_before_the_rights_pass()
+    {
+        var noRight = _grants.Create("ai", ["Main", "Mallbot"], new Dictionary<string, RightLimit>
+            { [Rights.ShopRead] = new() }, TimeSpan.FromDays(1)).Token;
+        var denied = await CallAsync(noRight, "kol_reward_buyer", "{\"buyerKey\":\"buyer_a\",\"message\":\"x\",\"pointsCost\":99}");
+        Assert.True(denied.Error);
+        Assert.DoesNotContain("points", denied.Body.GetRawText());   // neither "has 12 points" nor the status of the buyer
+        Assert.DoesNotContain("blocked", denied.Body.GetRawText());
+    }
+
+    [Fact]
+    public async Task Shop_buyer_data_is_not_given_to_a_single_account_grant()
+    {
+        var one = _grants.Create("ai", ["Mallbot"], new Dictionary<string, RightLimit> { [Rights.ShopRead] = new() }, TimeSpan.FromDays(1)).Token;
+        Assert.True((await CallAsync(one, "kol_shop_buyers", "{}")).Error);
+    }
+
+    [Fact]
+    public async Task Meme_shop_top_up_needs_a_positive_price_limit()
+    {
+        var token = Token(budget: 5_000);
+        Assert.True((await CallAsync(token, "kol_meme_shop", "{\"topUpBacon\":true,\"maxBaconPrice\":0}")).Error);
+        Assert.True((await CallAsync(token, "kol_meme_shop", "{\"topUpBacon\":true,\"maxBaconPrice\":-5}")).Error);
+        Assert.Equal(0, _actions.MemeCalls);
+    }
+
+    [Fact]
+    public async Task An_unclear_buy_outcome_keeps_the_worst_case_reserved()
+    {
+        var token = Token();
+        var id = _grants.FindByToken(token)!.Id;
+        _actions.BuyUnclear = true;
+        var preview = await CallAsync(token, "kol_mall_buy", Buy + "}");
+        var plan = preview.Body.GetProperty("planId").GetString();
+        var done = await CallAsync(token, "kol_mall_buy", Buy + $",\"planId\":\"{plan}\"}}");
+        Assert.True(done.Error);
+        Assert.Equal(500, _ledger.UsedToday(id, Rights.MallBuy));   // still held, not released
     }
 
     [Fact]
