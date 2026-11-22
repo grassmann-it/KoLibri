@@ -41,6 +41,11 @@ public sealed record KoLStatusSnapshot(
     public int? FullnessLimit { get; init; }
     public int? InebrietyLimit { get; init; }
     public int? SpleenLimit { get; init; }
+    /// <summary>Known skill names (api.php "skills" or charsheet.php); null when the skill list was not read.</summary>
+    public IReadOnlyList<string>? Skills { get; init; }
+    /// <summary>Where the three limits came from. Unknown means they are null and must be shown as "?".</summary>
+    public OrganLimitConfidence OrganLimitConfidence { get; init; }
+    public string? OrganLimitNote { get; init; }
     /// <summary>Familiar weight in pounds when the status endpoint reports it (api.php "famlevel").</summary>
     public int? FamiliarWeight { get; init; }
     public string? ClassId { get; init; }
@@ -141,6 +146,8 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         {
             var json = await GetJsonAsync(KoLRoutes.Status("status"), cancellationToken).ConfigureAwait(false);
             var snapshot = ParseStatus(json, _clock.GetUtcNow());
+            if (snapshot.Skills is null) snapshot = snapshot with { Skills = await ReadSkillsFromCharsheetAsync(cancellationToken).ConfigureAwait(false) };
+            snapshot = OrganLimitDeriver.Apply(snapshot);
             lock (_cacheGate) _status = snapshot;
             return snapshot;
         }
@@ -154,6 +161,28 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             }
             throw;
         }
+    }
+
+    private IReadOnlyList<string>? _charsheetSkills;
+    private DateTimeOffset _charsheetSkillsAt;
+
+    /// <summary>api.php status carries no skill list, so capacity skills come from charsheet.php (cached for an hour;
+    /// skills change rarely). A failed read leaves the last good list, or null: the limits then stay Unknown.</summary>
+    private async Task<IReadOnlyList<string>?> ReadSkillsFromCharsheetAsync(CancellationToken cancellationToken)
+    {
+        var now = _clock.GetUtcNow();
+        if (_charsheetSkills is not null && now - _charsheetSkillsAt < TimeSpan.FromHours(1)) return _charsheetSkills;
+        try
+        {
+            var html = await ReadAccountPageAsync("charsheet.php", cancellationToken).ConfigureAwait(false);
+            if (OrganLimitDeriver.ParseCharsheetSkills(html) is { } skills)
+            {
+                _charsheetSkills = skills;
+                _charsheetSkillsAt = now;
+            }
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested) { }
+        return _charsheetSkills;
     }
 
     public async Task<KoLInventorySnapshot> FetchInventoryAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -729,6 +758,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             InebrietyLimit = NullableIntValue(root, "drunkmax", "drunk_max", "inebrietymax", "maxdrunk", "maxinebriety"),
             SpleenLimit = NullableIntValue(root, "spleenmax", "spleen_max", "maxspleen"),
             ClassId = StringValue(root, "classid", "class_id", "class"),
+            Skills = ReadSkillNames(root),
             Fullness = NullableIntValue(root, "full", "fullness"),
             Inebriety = NullableIntValue(root, "drunk", "drunkenness", "inebriety"),
             Spleen = NullableIntValue(root, "spleen", "spleenuse"),
@@ -819,6 +849,23 @@ public sealed class KoLAccountReadClient : IAccountReadClient
 
     private static int? NullableIntValue(JsonElement element, params string[] names)
         => int.TryParse(StringValue(element, names), out var value) ? value : null;
+
+    /// <summary>Skill names from an api.php "skills" array or object; null when the payload has none.</summary>
+    private static IReadOnlyList<string>? ReadSkillNames(JsonElement root)
+    {
+        if (!root.TryGetProperty("skills", out var skills)) return null;
+        if (skills.ValueKind == JsonValueKind.Array)
+            return skills.EnumerateArray().Select(i => i.ValueKind == JsonValueKind.String ? i.GetString() : null)
+                .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!).ToArray();
+        if (skills.ValueKind == JsonValueKind.Object)
+        {
+            // Either {"id":"Name"} or {"Name":1}; values that are not names fall back to the key.
+            return skills.EnumerateObject()
+                .Select(p => p.Value.ValueKind == JsonValueKind.String && !int.TryParse(p.Value.GetString(), out _) ? p.Value.GetString()! : p.Name)
+                .Where(n => !int.TryParse(n, out _)).ToArray();
+        }
+        return null;
+    }
 
     private static IReadOnlyList<KoLTimedEffect> ReadTimedEffects(JsonElement root)
     {
