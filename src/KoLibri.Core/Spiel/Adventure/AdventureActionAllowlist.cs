@@ -103,6 +103,12 @@ public sealed class AdventureActionAllowlist
 
     public bool WaitForManualChoice { get; init; }
 
+    /// <summary>
+    /// When set, a choice without an allowlist rule is resolved by this policy; if it has no
+    /// answer the run stops in a resumable NeedsDecision state instead of aborting with a choice open.
+    /// </summary>
+    public IChoiceResolver? ChoiceResolver { get; init; }
+
     public static AdventureActionAllowlist Empty => new();
 
     public IReadOnlyCollection<AdventureAllowlistEntry> Entries
@@ -331,7 +337,7 @@ public sealed class AdventureActionAllowlist
         => _entries.TryGetValue(adventureId?.Trim() ?? string.Empty, out entry!);
 
     private AdventureActionAllowlist Clone()
-        => new(_entries.Values) { WaitForManualChoice = WaitForManualChoice };
+        => new(_entries.Values) { WaitForManualChoice = WaitForManualChoice, ChoiceResolver = ChoiceResolver };
 
     private static AdventureAllowlistEntry Rebuild(
         AdventureAllowlistEntry source,

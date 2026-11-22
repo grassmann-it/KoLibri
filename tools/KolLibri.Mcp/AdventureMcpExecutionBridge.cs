@@ -14,7 +14,9 @@ public sealed record AdventureExecutionBridgeResult(
     string StopReason,
     IReadOnlyList<object> Steps,
     string? AuditPath,
-    string? RequestId);
+    string? RequestId,
+    NeedsDecisionInfo? NeedsDecision = null,
+    OpenChoiceDetection? OpenChoice = null);
 
 /// <summary>
 /// Shared bridge that turns an MCP tool call into a bounded runner invocation.
@@ -69,8 +71,14 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         var runner = new BoundedAdventureRunner(gateway);
         var result = await runner.RunAsync(request, allowlist, conditions, snapshotProvider, options, cancellationToken)
             .ConfigureAwait(false);
-        return ToBridgeResult(result.Steps, result.StopReason.ToString());
+        return ToBridgeResult(result.Steps, result.StopReason.ToString(), result.NeedsDecision);
     }
+
+    /// <summary>Read only: whether a choice/fight is open. Null when the host has no live session to ask.</summary>
+    public async ValueTask<OpenChoiceDetection?> DetectOpenChoiceAsync(AccountRole role, CancellationToken cancellationToken)
+        => _factory is IOpenChoiceProbe probe
+            ? await probe.DetectOpenChoiceAsync(role, cancellationToken).ConfigureAwait(false)
+            : null;
 
     public async ValueTask<AdventureExecutionBridgeResult> RunChoiceChainAsync(
         AccountRole role,
@@ -91,7 +99,7 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
 
         var runner = new BoundedChoiceChainRunner(gateway);
         var result = await runner.RunAsync(runId.Trim(), allowlist, options, cancellationToken).ConfigureAwait(false);
-        return ToBridgeResult(result.Steps, result.StopReason.ToString());
+        return ToBridgeResult(result.Steps, result.StopReason.ToString(), result.NeedsDecision);
     }
 
     private async ValueTask<AdventureExecutionGateway> ResolveGatewayAsync(
@@ -113,7 +121,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
 
     private static AdventureExecutionBridgeResult ToBridgeResult(
         IReadOnlyList<AdventureExecutionResult> steps,
-        string stopReason)
+        string stopReason,
+        NeedsDecisionInfo? needsDecision = null)
         => new(
             Executed: true,
             StopReason: stopReason,
@@ -127,7 +136,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
                 complete = step.IsComplete
             }).Cast<object>().ToArray(),
             AuditPath: "<memory>",
-            RequestId: steps.Count == 0 ? null : steps[^1].RequestId);
+            RequestId: steps.Count == 0 ? null : steps[^1].RequestId,
+            NeedsDecision: needsDecision);
 }
 
 /// <summary>

@@ -56,6 +56,9 @@ public sealed record AdventureEncounterState(
 {
     public CombatObservation? Combat { get; init; }
 
+    /// <summary>Heading of a choice page, when one could be read.</summary>
+    public string? ChoiceTitle { get; init; }
+
     public IReadOnlyDictionary<string, string> ChoiceLabels { get; init; }
         = new Dictionary<string, string>(StringComparer.Ordinal);
 

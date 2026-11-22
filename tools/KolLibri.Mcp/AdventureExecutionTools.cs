@@ -14,13 +14,20 @@ public partial class KolibriMcpServer
     private void RegisterAdventureExecutionTools()
     {
         Register("kol_adventure_run_execute",
-            "Execute (or preview) a bounded adventure run via the runner; live path requires execute=true and an approvalToken.",
+            "Execute (or preview) a bounded adventure run via the runner; live path requires execute=true and an approvalToken. If the result has needsDecision, ask the user which option to take; do not guess.",
             AdventureRunExecuteSchema(),
             AdventureRunExecuteAsync);
         Register("kol_choice_chain_execute",
-            "Execute (or preview) a bounded choice chain against an existing checkpoint; live path requires execute=true and an approvalToken.",
+            "Execute (or preview) a bounded choice chain against an existing checkpoint; live path requires execute=true and an approvalToken. If the result has needsDecision, ask the user which option to take; do not guess.",
             ChoiceChainExecuteSchema(),
             ChoiceChainExecuteAsync);
+
+        Register("kol_choice_pending",
+            "Read only: is a choice adventure (or fight) open on the account? Returns the choice id, title and visible options. If one is open, ask the user which option to take; never guess.",
+            ChoicePendingSchema(),
+            ChoicePendingAsync);
+        Alias("choice-pending", "kol_choice_pending");
+        Alias("choice_pending", "kol_choice_pending");
 
         Alias("adventure-run-execute", "kol_adventure_run_execute");
         Alias("adventure_run_execute", "kol_adventure_run_execute");
@@ -46,7 +53,7 @@ public partial class KolibriMcpServer
         var maxSteps = Math.Clamp(NullableIntProperty(arguments, "maxGatewaySteps") ?? 20, 1, 10_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 300);
 
-        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
+        var allowlist = new AdventureActionAllowlist { ChoiceResolver = new ChoiceResolver(new ChoiceResolutionConfigStore().Load()) }.AddAdventure(location);
         foreach (var fightAction in ParseCsv(arguments, "fightActions"))
             allowlist.AddFightAction(location, fightAction);
         foreach (var choiceAction in ParseCsv(arguments, "choiceActions"))
@@ -116,6 +123,7 @@ public partial class KolibriMcpServer
             location,
             stopReason = result.StopReason,
             requestId = result.RequestId,
+            needsDecision = NeedsDecisionPayload(result.NeedsDecision),
             steps = result.Steps,
             auditPath = result.AuditPath,
             note = execute
@@ -138,9 +146,8 @@ public partial class KolibriMcpServer
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 120);
 
         var location = OptionalString(arguments, "locationId");
-        var allowlist = location is null
-            ? new AdventureActionAllowlist()
-            : new AdventureActionAllowlist().AddAdventure(location);
+        var resolverAllowlist = new AdventureActionAllowlist { ChoiceResolver = new ChoiceResolver(new ChoiceResolutionConfigStore().Load()) };
+        var allowlist = location is null ? resolverAllowlist : resolverAllowlist.AddAdventure(location);
         foreach (var choiceAction in ParseCsv(arguments, "choiceActions"))
         {
             var separator = choiceAction.IndexOf(':');
@@ -171,6 +178,7 @@ public partial class KolibriMcpServer
             role = role.ToString(),
             location,
             stopReason = result.StopReason,
+            needsDecision = NeedsDecisionPayload(result.NeedsDecision),
             steps = result.Steps,
             auditPath = result.AuditPath,
             note = execute
@@ -178,6 +186,49 @@ public partial class KolibriMcpServer
                 : "Preview only; no choice.php POST was sent."
         };
     }
+
+    private async Task<object?> ChoicePendingAsync(JsonElement arguments, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var bridge = _executionBridge
+            ?? throw new McpInvalidParamsException("Live account access is not configured for this MCP host.");
+        var role = RoleFor(arguments, _options.DefaultRole);
+        var detection = await bridge.DetectOpenChoiceAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new McpInvalidParamsException("No live session is available to check for an open choice.");
+        return new
+        {
+            readOnly = true,
+            role = role.ToString(),
+            open = detection.IsOpen,
+            kind = detection.Kind.ToString(),
+            message = detection.Message,
+            choiceId = detection.Choice?.ChoiceId,
+            title = detection.Choice?.Title,
+            options = detection.Choice?.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
+            instruction = detection.Kind == OpenChoiceKind.Choice ? AskUserInstruction : null
+        };
+    }
+
+    internal const string AskUserInstruction =
+        "A choice adventure is open and needs the user's decision. Show the options to the user and ask which one to take; do not guess. "
+        + "After the user decided, the choice is submitted with the CLI (kolibri choice submit) or by resuming the run.";
+
+    private static object? NeedsDecisionPayload(NeedsDecisionInfo? info)
+        => info is null ? null : new
+        {
+            status = "NeedsDecision",
+            runId = info.RunId,
+            role = info.AccountRole,
+            adventureId = info.AdventureId,
+            choiceId = info.ChoiceId,
+            title = info.Title,
+            options = info.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
+            reason = info.Reason,
+            instruction = AskUserInstruction
+        };
+
+    private static JsonElement ChoicePendingSchema()
+        => Schema("{\"type\":\"object\",\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":false}");
 
     private static IReadOnlyList<string> ParseCsv(JsonElement element, string property)
     {

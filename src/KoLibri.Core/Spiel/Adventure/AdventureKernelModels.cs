@@ -211,6 +211,7 @@ public sealed record AdventureKernelObservation
     public string? MonsterId { get; init; }
     public int? FightRound { get; init; }
     public string? ChoiceId { get; init; }
+    public string? ChoiceTitle { get; init; }
     public IReadOnlyList<string> AvailableChoices { get; init; } = Array.Empty<string>();
     public CombatObservation? Combat { get; init; }
 
@@ -233,6 +234,7 @@ public sealed record AdventureKernelObservation
             Kind = encounter.Kind,
             EncounterId = encounter.Location,
             ChoiceId = encounter.ChoiceId,
+            ChoiceTitle = encounter.ChoiceTitle,
             AvailableChoices = encounter.AvailableChoices ?? Array.Empty<string>(),
             ChoiceLabels = encounter.ChoiceLabels,
             Combat = encounter.Combat,
@@ -482,6 +484,9 @@ public sealed record AdventureCheckpoint
     public string? PendingChoiceOption { get; init; }
     public IReadOnlyList<CombatAction>? ObservedFightActions { get; init; }
     public IReadOnlyList<string> ManualChoiceOptions { get; init; } = Array.Empty<string>();
+    /// <summary>Visible option texts (option number to label) of an open choice awaiting a decision.</summary>
+    public IReadOnlyDictionary<string, string>? ManualChoiceLabels { get; init; }
+    public string? ChoiceTitle { get; init; }
     public IReadOnlyDictionary<string, string> PendingChoiceFields { get; init; }
         = new Dictionary<string, string>(StringComparer.Ordinal);
     public AdventureAbortReason? AbortReason { get; init; }

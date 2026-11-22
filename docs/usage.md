@@ -72,3 +72,26 @@ var shop = await kol.GetOwnShopAsync();
 `KolibriClient` in package `KoLibri.LibKolibri` is the front door: login, status, inventory, mall search and
 guarded buying, own shop and sales log, KMail, item use, repricing, daily Meme Shop and adventure sessions. See
 `src/LibKolibri/README.md` and the runnable `src/LibKolibri/sample`.
+
+## Choice adventures
+
+If a choice adventure appears during `adventure run` or `adventure choice-chain`, the run answers it only when the
+choice policy has an answer; otherwise it stops with `stopReason: NeedsDecision` and exit code 4 (not an error). The
+JSON `needsDecision` lists the choice id, title, options and the exact commands to resume. A choice left open
+blocks every page of the game, so always resolve it:
+
+```bash
+kolibri choice pending --role mallbot                  # read only: id, title, options (exit 4 if one is open)
+kolibri choice submit --role mallbot --choice ID --option N                       # preview
+kolibri choice submit --role mallbot --choice ID --option N --execute --approval-token TOKEN
+kolibri choice policy list
+kolibri choice policy set --choice ID --option N       # always use option N for this choice
+kolibri choice policy set --mode auto-safe             # also allow built-in/"leave it" options that cost nothing
+kolibri choice policy clear --choice ID                # or --all
+```
+
+Policy file: `choice-policy.json` in the KoLibri app data directory (override with `KOLIBRI_CHOICE_POLICY`).
+Limits `--max-meat` (0-1,000,000), `--max-hp-percent` (0-100), `--max-adventures` (0-10) default to 0 and only apply
+to built-in options; a per-choice default is your explicit decision. The built-in table is empty until choice
+data is verified (KoLmafia's bundled data has no choice table); `auto-safe` therefore only takes an option whose text
+clearly means leave/ignore/skip and mentions no cost, and only if exactly one option does.

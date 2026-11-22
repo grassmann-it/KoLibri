@@ -418,7 +418,8 @@ internal static partial class KolibriCli
             approval,
             verification,
             cancellationToken: CancellationToken.None).ConfigureAwait(false);
-        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
+        var resolver = CreateChoiceResolver();
+        var allowlist = new AdventureActionAllowlist { ChoiceResolver = resolver }.AddAdventure(location);
         foreach (var actionId in GetOptions(args, "--fight-action"))
             allowlist.AddFightAction(location, actionId);
         foreach (var choice in GetOptions(args, "--choice-action"))
@@ -455,6 +456,11 @@ internal static partial class KolibriCli
                 MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)))
             }).ConfigureAwait(false);
 
+        var needs = result.NeedsDecision;
+        var leftover = needs is null && result.StopReason != BoundedAdventureRunStopReason.Complete
+            ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
+            : null;
+        var continueCommand = $"kolibri adventure run --location {location} --role {role.ToString().ToLowerInvariant()} --execute --approval-token <token>";
         WriteJson(new
         {
             command = "adventure run",
@@ -466,6 +472,9 @@ internal static partial class KolibriCli
             location,
             role = role.ToString(),
             stopReason = result.StopReason.ToString(),
+            needsDecision = needs is null ? null : NeedsDecisionDocument(needs, continueCommand),
+            openChoice = leftover,
+            autoChoices = resolver.Log,
             conditions = result.Conditions,
             steps = result.Steps.Select(step => new
             {
@@ -479,6 +488,7 @@ internal static partial class KolibriCli
             }).ToArray(),
             auditPath = KoLAdventureSessionFactory.DefaultAuditPath
         });
+        if (needs is not null || leftover is not null) return 4; // a choice is open: needs the user, not an error
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
     }
 
@@ -527,7 +537,8 @@ internal static partial class KolibriCli
 
         await using var session = await KoLAdventureSessionFactory.CreateAsync(
             role, approval, verification, cancellationToken: CancellationToken.None).ConfigureAwait(false);
-        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
+        var resolver = CreateChoiceResolver();
+        var allowlist = new AdventureActionAllowlist { ChoiceResolver = resolver }.AddAdventure(location);
         foreach (var choice in choiceActions)
         {
             var separator = choice.IndexOf(':');
@@ -544,6 +555,10 @@ internal static partial class KolibriCli
                 MaxChoices = maxChoices,
                 MaxDuration = TimeSpan.FromSeconds(maxDuration)
             }).ConfigureAwait(false);
+        var chainNeeds = result.NeedsDecision;
+        var chainLeftover = chainNeeds is null && result.StopReason != BoundedChoiceChainStopReason.Complete
+            ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
+            : null;
         WriteJson(new
         {
             command = "adventure choice-chain",
@@ -555,6 +570,9 @@ internal static partial class KolibriCli
             role = role.ToString(),
             location,
             stopReason = result.StopReason.ToString(),
+            needsDecision = chainNeeds is null ? null : NeedsDecisionDocument(chainNeeds),
+            openChoice = chainLeftover,
+            autoChoices = resolver.Log,
             steps = result.Steps.Select(step => new
             {
                 status = step.Status.ToString(),
@@ -564,6 +582,7 @@ internal static partial class KolibriCli
                 nextAction = step.NextAction is null ? null : KernelActionDocument(step.NextAction)
             }).ToArray()
         });
+        if (chainNeeds is not null || chainLeftover is not null) return 4;
         return result.StopReason == BoundedChoiceChainStopReason.Aborted ? 3 : 0;
     }
 
@@ -1131,6 +1150,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
         Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
         Console.WriteLine("  adventure run --location ID [--snarfblat N] [--execute --approval-token TOKEN] [--fight-action attack]");
+        Console.WriteLine("  choice pending|submit|policy                         see `choice --help`; adventure run exits 4 with needsDecision when a choice needs you");
         Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
         Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
     }

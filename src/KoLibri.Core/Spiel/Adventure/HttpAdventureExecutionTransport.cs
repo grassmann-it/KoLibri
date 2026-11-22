@@ -541,6 +541,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
     private void EnsureNoRedirect(Uri requestUri, HttpResponseMessage response)
     {
         var statusCode = (int)response.StatusCode;
+        var openKind = OpenChoiceRedirect.Classify(response);
+        if (openKind != OpenChoiceKind.None)
+            throw new OpenChoiceException(openKind, requestUri.AbsolutePath);
         var finalUri = response.RequestMessage?.RequestUri;
         var changedUri = finalUri is not null && !UriEquals(requestUri, finalUri);
         if ((statusCode is >= 300 and <= 399)

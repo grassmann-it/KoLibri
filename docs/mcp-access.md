@@ -90,3 +90,13 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - Verified against a real KoL session on 21 Nov 2026: reading status, `kol_mall_buy` (1 BACON, 145 meat) and
   `kol_transfer` (Mallbot to Main), each booked in the usage ledger after KoL confirmed it. The other write tools
   are covered by tests with a fake account and fixture transport only.
+
+## Open choice adventures
+
+While a choice adventure is open KoL redirects every page to `choice.php`, so a run that stops on a choice must
+never leave it unreported. `kol_choice_pending` (read only, needs `account.status` on the role) says whether a
+choice or fight is open and returns the choice id, title and visible options. `kol_adventure_run_execute` and
+`kol_choice_chain_execute` return `needsDecision` (run id, choice id, title, options, reason) with stop reason
+`NeedsDecision` when no default answers the choice. **AI clients must show these options to the user and ask which
+one to take; never guess.** The user's decision is submitted with `kolibri choice submit` (see usage). Automatic
+answers come only from the user's choice policy (`kolibri choice policy`, default mode `ask`).

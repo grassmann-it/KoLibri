@@ -51,6 +51,7 @@ public static class McpAccessPolicy
         ["kol_combat_decision"] = "account.status",
         ["kol_recovery_plan"] = "account.status",
         ["kol_choice_options"] = "account.status",
+        ["kol_choice_pending"] = "account.status",
     };
 
     /// <summary>Read tools whose handler really works on several roles (<c>roles</c>, "all"). Every other read tool uses one role.</summary>
