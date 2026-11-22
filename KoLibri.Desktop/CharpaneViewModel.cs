@@ -17,9 +17,6 @@ public sealed record EffectRow(string Name, int TurnsRemaining)
 /// </summary>
 public sealed record CharpaneState
 {
-    /// <summary>Default organ limits of an unrestricted character, used (and labelled "assumed") when the status read does not report them.</summary>
-    public const int DefaultFullnessLimit = 15, DefaultDrunkLimit = 14, DefaultSpleenLimit = 15;
-
     public string Name { get; init; } = "Not signed in";
     public string Role { get; init; } = "";
     public string Level { get; init; } = "Level —";
@@ -56,9 +53,9 @@ public sealed record CharpaneState
             MpFraction = Fraction(status.CurrentMp, status.MaximumMp),
             Adventures = $"Adventures {status.Adventures:N0}",
             Meat = $"Meat {status.Meat:N0}",
-            Fullness = Organ("Fullness", status.Fullness, status.FullnessLimit, DefaultFullnessLimit),
-            Drunk = Organ("Drunkenness", status.Inebriety, status.InebrietyLimit, DefaultDrunkLimit),
-            Spleen = Organ("Spleen", status.Spleen, status.SpleenLimit, DefaultSpleenLimit),
+            Fullness = Organ("Fullness", status.Fullness, status.FullnessLimit),
+            Drunk = Organ("Drunkenness", status.Inebriety, status.InebrietyLimit),
+            Spleen = Organ("Spleen", status.Spleen, status.SpleenLimit),
             Familiar = DescribeFamiliar(status),
             Effects = effects,
             EffectsText = effects.Count == 0 ? "None" : string.Join(Environment.NewLine, effects.Select(e => e.Display)),
@@ -102,11 +99,11 @@ public sealed record CharpaneState
         return $"{name}{weight}";
     }
 
-    /// <summary>"Fullness 3 / 15". A limit the status did not report is the unrestricted default and says so: "3 / 15 (assumed)".</summary>
-    private static string Organ(string label, int? value, int? reported, int assumed)
+    /// <summary>"Fullness 3 / 15". A limit the status did not report is shown as unknown: "3 / ?".</summary>
+    private static string Organ(string label, int? value, int? reported)
         => value is not { } v ? $"{label} —"
             : reported is > 0 ? $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / {reported}"
-            : $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / {assumed} (assumed)";
+            : $"{label} {v.ToString("N0", CultureInfo.InvariantCulture)} / ?";
 
     private static double Fraction(int current, int maximum)
         => maximum > 0 ? Math.Clamp((double)current / maximum, 0, 1) : 0;

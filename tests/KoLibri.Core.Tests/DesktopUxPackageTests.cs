@@ -180,7 +180,7 @@ public sealed class DesktopUxPackageTests : IDisposable
         Assert.Equal("Spleen 1 / 25", s.Spleen);
         Assert.Equal("Fluffy · 30 lb", s.Familiar);
         var plain = CharpaneState.FromStatus(new KoLStatusSnapshot("T", 1, 1, 1, Now) { Fullness = 4, FamiliarId = "9" }, "Main", Now);
-        Assert.Equal("Fullness 4 / 15 (assumed)", plain.Fullness);
+        Assert.Equal("Fullness 4 / ?", plain.Fullness);
         Assert.Equal("Familiar #9", plain.Familiar);
     }
 
