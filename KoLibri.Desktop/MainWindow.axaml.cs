@@ -454,9 +454,19 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         await OpenSectionAsync(_activeSection);
     }
 
+    /// <summary>True while another operation runs; says so in the status bar and the session log, so a click is never silently ignored.</summary>
+    private bool BusyBlocked()
+    {
+        if (_refreshCancellation is null) return false;
+        const string message = "Another operation is still running; wait for it to finish or press Cancel, then try again.";
+        SetStatus(message);
+        _log.Add(SessionLogKind.Info, message);
+        return true;
+    }
+
     private Task RunBusyOperationAsync(string operation, Func<CancellationToken, Task> action)
     {
-        if (_refreshCancellation is not null)
+        if (BusyBlocked())
             return _busyTask;
 
         _busyTask = ExecuteBusyOperationAsync(operation, action);
@@ -869,6 +879,10 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                     break;
                 case nameof(InventoryViewModel.LoadedAtText):
                     if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
+                    break;
+                case nameof(InventoryViewModel.SelectedItem):
+                    if (_inventoryList is not null && !ReferenceEquals(_inventoryList.SelectedItem, _inventory.SelectedItem))
+                        _inventoryList.SelectedItem = _inventory.SelectedItem;
                     break;
                 case nameof(InventoryViewModel.Detail):
                     RenderInventoryDetail();

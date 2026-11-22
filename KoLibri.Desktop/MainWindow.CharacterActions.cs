@@ -160,7 +160,7 @@ public partial class MainWindow
         void AddButton(string label, Func<Task> execute)
         {
             var button = new Button { Content = label };
-            button.Click += async (_, _) => await execute();
+            button.Click += async (_, _) => await GuardedAsync(label, execute);
             _inventoryDetailPanel.Children.Add(button);
         }
 

@@ -227,8 +227,12 @@ public sealed class InventoryViewModel : DesktopViewModel
                 || item.ItemId.Contains(query, StringComparison.OrdinalIgnoreCase);
         }).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToArray();
 
+        var selectedId = SelectedItem?.ItemId;
         Items.Clear();
         foreach (var item in filtered) Items.Add(item);
+        // A refresh or filter change rebuilds the rows; keep the same item selected (with its new
+        // quantity) so the detail pane and its buttons never describe a stale row.
+        SelectedItem = selectedId is null ? null : Items.FirstOrDefault(row => row.ItemId == selectedId);
         OnPropertyChanged(nameof(SummaryText));
         OnPropertyChanged(nameof(TotalCount));
     }

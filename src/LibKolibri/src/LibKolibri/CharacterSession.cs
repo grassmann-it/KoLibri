@@ -21,14 +21,15 @@ public sealed class CharacterSession : IDisposable
     public string AccountId { get; }
 
     public static async Task<CharacterSession> OpenAsync(
-        AccountRole role, AccountSessionManager? accounts = null, CancellationToken cancellationToken = default)
+        AccountRole role, AccountSessionManager? accounts = null, CancellationToken cancellationToken = default,
+        HttpMessageHandler? innerHandler = null)
     {
         var manager = accounts ?? AccountSessionManager.CreateDefault();
         var account = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(account.Credentials.AccessToken))
             throw new InvalidOperationException("Sign in again to obtain the character action token.");
         var http = KoLLoginClient.CreateAuthenticatedClient(account.Credentials,
-            new Uri("https://www.kingdomofloathing.com/"));
+            new Uri("https://www.kingdomofloathing.com/"), innerHandler: innerHandler);
         try
         {
             return new CharacterSession(account, http);

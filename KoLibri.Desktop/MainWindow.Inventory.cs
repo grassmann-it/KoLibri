@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia.Controls;
 using KoLibri.Core.Spiel;
 using KoLibri.Desktop.ContextMenus;
+using KoLibri.Core.Basis;
 using LibKolibri;
 
 namespace KoLibri.Desktop;
@@ -9,13 +10,27 @@ namespace KoLibri.Desktop;
 /// <summary>Inventory-tab actions: eat/drink/chew/use with overfill warning, equip, and readable results.</summary>
 public partial class MainWindow : IInventoryItemActions
 {
+    /// <summary>Test seam: replaces the network handler of inventory-action sessions (never set in the app).</summary>
+    public HttpMessageHandler? CharacterTransportOverride { get; set; }
+
+    private Task<CharacterSession> OpenCharacterSessionAsync(AccountRole role, CancellationToken token)
+        => CharacterSession.OpenAsync(role, _accounts, token, CharacterTransportOverride);
+
     public ItemMenuTarget ToTarget(DesktopInventoryItem row) => _inventory.ToMenuTarget(row);
 
     public void Consume(ItemMenuTarget item, ItemUseKind kind, int quantity)
-        => _ = RunInventoryConsumeAsync(item, kind, quantity);
+        => _ = GuardedAsync($"{kind} {item.Name}", () => RunInventoryConsumeAsync(item, kind, quantity));
 
     public void Equip(ItemMenuTarget item, string slot)
-        => _ = RunInventoryEquipAsync(item, slot);
+        => _ = GuardedAsync($"Equip {item.Name}", () => RunInventoryEquipAsync(item, slot));
+
+    /// <summary>Runs an inventory action and turns any escaped exception into a visible message and a log entry
+    /// (a fire-and-forget task or an async-void click handler would otherwise swallow or crash on it).</summary>
+    internal async Task GuardedAsync(string what, Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception exception) { ReportInventoryResult($"{what} failed: {exception.Message}", error: true); }
+    }
 
     /// <summary>Shows a result or error in the inventory tab, the status bar and the session log.</summary>
     private void ReportInventoryResult(string message, bool error = false)
@@ -70,7 +85,8 @@ public partial class MainWindow : IInventoryItemActions
         {
             try
             {
-                using var session = await CharacterSession.OpenAsync(role, _accounts, token);
+                using var session = await OpenCharacterSessionAsync(role, token);
+                SetStatus($"{kind} {row.Name}: reading your status and inventory (KoL requests are paced, this takes a few seconds)…");
                 var before = await session.ReadAsync(token);
                 if (!ReferenceEquals(inventory, _inventory)) return;
                 var state = new OrganState(before.Status.Fullness, before.Status.Inebriety, before.Status.Spleen);
@@ -87,6 +103,8 @@ public partial class MainWindow : IInventoryItemActions
                     }
                 }
 
+                SetStatus($"{kind} {quantity} × {row.Name}: sending to KoL…");
+                _log.Add(SessionLogKind.Info, $"{kind} {quantity} × {row.Name} (#{id}) sent to KoL.");
                 CharacterActionSnapshot after = before;
                 var done = 0;
                 if (consumable is { } organKind)
@@ -147,7 +165,7 @@ public partial class MainWindow : IInventoryItemActions
         {
             try
             {
-                using var session = await CharacterSession.OpenAsync(role, _accounts, token);
+                using var session = await OpenCharacterSessionAsync(role, token);
                 var action = new EquipInventoryItem(id, slot);
                 var snapshot = await session.ExecuteAsync(action, token);
                 if (!ReferenceEquals(inventory, _inventory)) return;

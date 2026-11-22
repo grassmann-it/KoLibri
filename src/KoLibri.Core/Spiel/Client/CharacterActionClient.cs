@@ -296,6 +296,8 @@ public sealed class CharacterActionClient
                 fields["howmany1"] = PositiveId(pull.Quantity);
                 return ("storage.php", fields);
             case ConsumeCharacterItem consume:
+                // KoL's inv_eat/inv_booze/inv_spleen pages are addressed with which=1 (inventory) like KoLmafia sends it.
+                fields["which"] = "1";
                 fields["whichitem"] = PositiveId(consume.ItemId);
                 fields["quantity"] = PositiveId(consume.Quantity);
                 return (consume.Kind switch

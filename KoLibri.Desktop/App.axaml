@@ -297,6 +297,9 @@
     <Style Selector="TextBlock.badge-text.warning">
       <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
     </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    </Style>
     <Style Selector="TextBlock.badge-text.error">
       <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
     </Style>
