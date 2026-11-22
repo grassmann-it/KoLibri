@@ -17,7 +17,7 @@ public sealed class DesktopMallPurchaseServiceTests
         var expected = "whichitem=789000000100";
         Assert.Equal("789000000100", MallBuyClient.FormatWhichItem(789, 100));
 
-        var clientHandler = new Handler(_ => Ok("You acquire an item"));
+        var clientHandler = new Handler(_ => Ok("You acquire an item (2). You spent 200 Meat."));
         using var http = new HttpClient(clientHandler);
         var client = new MallBuyClient(http, new Uri("https://www.kingdomofloathing.com/"));
         var result = await client.BuyAsync(new AccountCredentials { CookieHeader = "c=1" }, 123, 789, 100, 2, "HASH");
