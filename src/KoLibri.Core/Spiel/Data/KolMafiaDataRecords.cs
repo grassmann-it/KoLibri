@@ -137,4 +137,59 @@ public sealed record KoLmafiaCatalog(
 {
     public IReadOnlyDictionary<string, string> FamiliarSpecies { get; init; } =
         new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>Food, drink and spleen cost rows (fullness/inebriety/spleenhit), one per item name.</summary>
+    public IReadOnlyList<MafiaOrganRecord> Organs { get; init; } = Array.Empty<MafiaOrganRecord>();
+
+    /// <summary>Equipment slot requirement rows (equipment.txt).</summary>
+    public IReadOnlyList<MafiaEquipmentRecord> Equipment { get; init; } = Array.Empty<MafiaEquipmentRecord>();
+
+    /// <summary>Outfit definitions (outfits.txt).</summary>
+    public IReadOnlyList<MafiaOutfitRecord> Outfits { get; init; } = Array.Empty<MafiaOutfitRecord>();
+}
+
+/// <summary>
+/// Organ cost of a food, drink or spleen item. Values KoLmafia has no data for are
+/// <c>null</c> (unknown), never silently 0; <see cref="Unspaded"/> marks rows upstream
+/// flags as not yet measured.
+/// </summary>
+public sealed record MafiaOrganRecord
+{
+    public string Kind { get; init; } = string.Empty; // food | drink | spleen
+    public string Name { get; init; } = string.Empty;
+    public string? ItemId { get; init; }
+    public int Size { get; init; }
+    public int? LevelRequired { get; init; }
+    public string? Quality { get; init; }
+    public string? Adventures { get; init; }
+    public int? AdventuresMin { get; init; }
+    public int? AdventuresMax { get; init; }
+    public string? Muscle { get; init; }
+    public string? Mysticality { get; init; }
+    public string? Moxie { get; init; }
+    public bool Unspaded { get; init; }
+    public string Notes { get; init; } = string.Empty;
+}
+
+/// <summary>Power and stat requirement of an equippable item.</summary>
+public sealed record MafiaEquipmentRecord
+{
+    public string Name { get; init; } = string.Empty;
+    public string? ItemId { get; init; }
+    public int? Power { get; init; }
+    public string? Requirement { get; init; }
+    public string? RequirementStat { get; init; }
+    public int? RequirementValue { get; init; }
+    public string? WeaponType { get; init; }
+}
+
+/// <summary>An outfit and the item ids of its parts (null where a part name did not resolve).</summary>
+public sealed record MafiaOutfitRecord
+{
+    public int Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string? Image { get; init; }
+    public IReadOnlyList<string> Parts { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string?> PartIds { get; init; } = Array.Empty<string?>();
+    public IReadOnlyList<string> Treats { get; init; } = Array.Empty<string>();
 }

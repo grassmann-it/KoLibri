@@ -40,6 +40,11 @@ public sealed class MafiaDataLoader
         var restores = LoadFlexible(directory, "restores.jsonl", diag);
 
         var familiars = LoadFlexible(directory, "familiars.jsonl", diag);
+        var organs = LoadFlexible(directory, "fullness.jsonl", diag)
+            .Concat(LoadFlexible(directory, "inebriety.jsonl", diag))
+            .Concat(LoadFlexible(directory, "spleenhit.jsonl", diag));
+        var equipment = LoadFlexible(directory, "equipment.jsonl", diag);
+        var outfits = LoadFlexible(directory, "outfits.jsonl", diag);
         diagnostics = diag;
         return new KoLmafiaCatalog(
             monsters.Select(MapMonster).Where(m => m is not null).Cast<MafiaMonsterRecord>().ToArray(),
@@ -55,6 +60,9 @@ public sealed class MafiaDataLoader
             DateTimeOffset.UtcNow,
             Path.GetFullPath(directory))
         {
+            Organs = organs.Select(MapOrgan).Where(o => o is not null).Cast<MafiaOrganRecord>().ToArray(),
+            Equipment = equipment.Select(MapEquipment).Where(e => e is not null).Cast<MafiaEquipmentRecord>().ToArray(),
+            Outfits = outfits.Select(MapOutfit).Where(o => o is not null).Cast<MafiaOutfitRecord>().ToArray(),
             FamiliarSpecies = familiars.Select(row => (Id: GetString(row, "id"), Name: GetString(row, "name")))
                 .Where(row => row.Id is not null && row.Name is not null)
                 .GroupBy(row => row.Id!, StringComparer.Ordinal)
@@ -240,7 +248,7 @@ public sealed class MafiaDataLoader
             Name = name,
             Type = GetString(row, "type") ?? InferType(row),
             Tradeable = GetStringList(row, "accessFlags").Contains("t"),
-            Usable = (GetStringList(row, "primaryUse").Count + GetStringList(row, "secondaryUse").Count) > 0,
+            Usable = ItemClassifier.IsUsableByUseTags(GetStringList(row, "primaryUse"), GetStringList(row, "secondaryUse")),
             HpDelta = GetInt(row, "hpDelta") ?? 0,
             MpDelta = GetInt(row, "mpDelta") ?? 0,
             Effect = GetString(row, "effect"),
@@ -253,6 +261,70 @@ public sealed class MafiaDataLoader
             Plural = GetString(row, "plural") ?? name
         };
     }
+
+    private static MafiaOrganRecord? MapOrgan(Dictionary<string, object?> row)
+    {
+        var kind = GetString(row, "kind");
+        var name = GetString(row, "name");
+        var size = GetInt(row, "size");
+        if (kind is null || name is null || size is null) return null;
+        return new MafiaOrganRecord
+        {
+            Kind = kind,
+            Name = name,
+            ItemId = GetString(row, "itemId"),
+            Size = size.Value,
+            LevelRequired = GetInt(row, "levelRequired"),
+            Quality = GetString(row, "quality"),
+            Adventures = GetString(row, "adventures"),
+            AdventuresMin = GetInt(row, "adventuresMin"),
+            AdventuresMax = GetInt(row, "adventuresMax"),
+            Muscle = GetString(row, "muscle"),
+            Mysticality = GetString(row, "mysticality"),
+            Moxie = GetString(row, "moxie"),
+            Unspaded = GetBool(row, "unspaded"),
+            Notes = GetString(row, "notes") ?? string.Empty
+        };
+    }
+
+    private static MafiaEquipmentRecord? MapEquipment(Dictionary<string, object?> row)
+    {
+        var name = GetString(row, "name");
+        if (name is null) return null;
+        return new MafiaEquipmentRecord
+        {
+            Name = name,
+            ItemId = GetString(row, "itemId"),
+            Power = GetInt(row, "power"),
+            Requirement = GetString(row, "requirement"),
+            RequirementStat = GetString(row, "requirementStat"),
+            RequirementValue = GetInt(row, "requirementValue"),
+            WeaponType = GetString(row, "weaponType")
+        };
+    }
+
+    private static MafiaOutfitRecord? MapOutfit(Dictionary<string, object?> row)
+    {
+        var id = GetInt(row, "id");
+        var name = GetString(row, "name");
+        if (id is null || name is null) return null;
+        var ids = new List<string?>();
+        if (row.TryGetValue("partIds", out var raw) && raw is JsonElement { ValueKind: JsonValueKind.Array } array)
+            foreach (var entry in array.EnumerateArray())
+                ids.Add(entry.ValueKind == JsonValueKind.String ? entry.GetString() : null);
+        return new MafiaOutfitRecord
+        {
+            Id = id.Value,
+            Name = name,
+            Image = GetString(row, "image"),
+            Parts = GetStringList(row, "parts").Select(DecodeHtmlEntities).ToArray(),
+            PartIds = ids,
+            Treats = GetStringList(row, "treats").Select(DecodeHtmlEntities).ToArray()
+        };
+    }
+
+    private static bool GetBool(Dictionary<string, object?> row, string key)
+        => row.TryGetValue(key, out var value) && value is JsonElement { ValueKind: JsonValueKind.True };
 
     private static string InferType(Dictionary<string, object?> row)
     {
