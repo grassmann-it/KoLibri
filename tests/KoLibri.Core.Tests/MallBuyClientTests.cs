@@ -66,7 +66,7 @@ public sealed class BurningLeavesGuardTests
     [Fact]
     public async Task Burning_more_than_one_leaf_is_refused()
     {
-        var dispatcher = new FreePullDispatcher(new HttpClient(), FreePullDispatcher.DefaultBaseUri);
+        var dispatcher = new FreePullDispatcher(new HttpClientHandler { AllowAutoRedirect = false }, FreePullDispatcher.DefaultBaseUri);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             dispatcher.BurnLeavesAsync(
                 new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "x" }, 5));
@@ -75,7 +75,7 @@ public sealed class BurningLeavesGuardTests
     [Fact]
     public async Task Burning_zero_leaves_is_refused()
     {
-        var dispatcher = new FreePullDispatcher(new HttpClient(), FreePullDispatcher.DefaultBaseUri);
+        var dispatcher = new FreePullDispatcher(new HttpClientHandler { AllowAutoRedirect = false }, FreePullDispatcher.DefaultBaseUri);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             dispatcher.BurnLeavesAsync(
                 new KoLibri.Core.Basis.AccountCredentials { CookieHeader = "x" }, 0));
