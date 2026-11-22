@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.AdventuresView">
+  <Border Classes="card">
+    <StackPanel Spacing="14">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <StackPanel Spacing="3">
+          <TextBlock Text="Adventure &amp; Farm" Classes="h2" />
+          <TextBlock Text="Fresh status and inventory read plus the bounded daily plan; execution stays separately gated."
+                     Classes="muted" TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="⟳  Refresh plan"
+                Click="RefreshClick" Classes="primary"
+                AutomationProperties.Name="Adventure-Refresh plan" />
+      </Grid>
+      <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+        <Border Classes="panel-subtle">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Account" Classes="muted" />
+            <TextBlock x:Name="AdventureAccountLabel" Text="Mallbot" Classes="body" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="1" Classes="panel-subtle">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Adventures" Classes="muted" />
+            <TextBlock x:Name="AdventureTurnsLabel" Text="—" Classes="body" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="panel-subtle">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Knucklebones" Classes="muted" />
+            <TextBlock x:Name="AdventureKnucklebonesLabel" Text="— / 100" Classes="body" />
+          </StackPanel>
+        </Border>
+      </Grid>
+      <Border Classes="panel-subtle">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Deep Fat Friars" Classes="h3" />
+          <TextBlock x:Name="FriarsPageStatus" TextWrapping="Wrap" />
+          <WrapPanel>
+            <Button Content="Open Friars" Click="OpenFriarsClick" />
+            <Button x:Name="FriarRitualButton" Content="Perform ritual" Click="FriarRitualClick" IsEnabled="False" />
+            <Button x:Name="FriarFoodButton" Content="Food blessing" Click="FriarBlessingClick" Tag="Food" IsEnabled="False" />
+            <Button x:Name="FriarFamiliarButton" Content="Familiar blessing" Click="FriarBlessingClick" Tag="Familiar" IsEnabled="False" />
+            <Button x:Name="FriarBoozeButton" Content="Booze blessing" Click="FriarBlessingClick" Tag="Booze" IsEnabled="False" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+      <Border Classes="panel-subtle">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Manual adventures" Classes="h3" />
+          <TextBlock Text="Choose a location to start a manual adventure or a bounded run."
+                     Classes="muted" TextWrapping="Wrap" FontSize="12" />
+          <Grid>
+            <StackPanel Spacing="6">
+              <TextBlock Text="Location" Classes="muted" />
+              <TextBox x:Name="EncounterFilterBox" Watermark="Filter by location or zone" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button x:Name="EncounterStartButton" Content="Start" Classes="primary" />
+                <Button x:Name="EncounterSubmitButton" Content="Submit action" Classes="secondary" />
+                <Button x:Name="EncounterRecheckButton" Content="Recheck encounter" Classes="secondary" />
+                <Button x:Name="EncounterFightButton" Content="Fight encounter" Classes="secondary" Click="CombatRunClick" AutomationProperties.Name="Fight the open encounter with the auto-combat rules from settings" />
+                <Button x:Name="EncounterEndButton" Content="End run" Classes="secondary" />
+              </StackPanel>
+              <WrapPanel>
+                <NumericUpDown x:Name="EncounterBatchTurns" Value="10" Minimum="1" Maximum="100"
+                               Width="120" Margin="0,0,6,6" AutomationProperties.Name="Adventure turn budget" />
+                <TextBox x:Name="EncounterBatchItem" Watermark="Stop when owned (item ID)" Width="230" Margin="0,0,6,6" />
+                <Button x:Name="EncounterBatchStart" Content="Run turns" Classes="secondary" />
+                <Button x:Name="EncounterBatchContinue" Content="Continue remaining turns" Classes="secondary" />
+              </WrapPanel>
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Height="270">
+            <DockPanel>
+              <TextBlock Text="Locations" Classes="muted" DockPanel.Dock="Top" />
+              <ListBox x:Name="EncounterLocationsGrid">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:EncounterBrowserLocationRow">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+            <DockPanel Grid.Column="1">
+              <TextBlock Text="Monsters" Classes="muted" DockPanel.Dock="Top" />
+              <ListBox x:Name="EncounterMonstersGrid">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:EncounterBrowserMonsterRow">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+            <DockPanel Grid.Column="2">
+              <TextBlock Text="Actions" Classes="muted" DockPanel.Dock="Top" />
+              <ListBox x:Name="EncounterActionsGrid">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:EncounterBrowserActionRow">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Grid>
+          <Border Classes="panel-subtle" Padding="10">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Status / Step-Log" Classes="muted" />
+              <TextBlock x:Name="EncounterStatusText" Text="(no adventure session yet)" Classes="body" TextWrapping="Wrap" />
+              <TextBlock x:Name="EncounterStepLogText" Classes="body" TextWrapping="Wrap" FontFamily="monospace" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Border>
+      <Border Classes="panel-subtle">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Farm plan" Classes="body" />
+            <Border Grid.Column="1" Classes="badge info">
+              <TextBlock Text="Preview only" Classes="badge-text info" />
+            </Border>
+          </Grid>
+          <TextBlock x:Name="AdventurePlanSummary" Text="Waiting for account data."
+                     Classes="muted" TextWrapping="Wrap" />
+          <TextBlock x:Name="AdventurePlanAdvisories" Classes="muted"
+                     TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </Border>
+</UserControl>

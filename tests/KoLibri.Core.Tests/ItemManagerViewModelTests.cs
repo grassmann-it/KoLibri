@@ -40,30 +40,15 @@ public sealed class ItemManagerViewModelTests
     }
 
     [Fact]
-    public void Actions_follow_the_selected_item()
+    public void Menu_target_maps_the_row_without_inventing_actions()
     {
-        var viewModel = new ItemManagerViewModel();
-        viewModel.ApplySnapshot(new[]
+        var target = ItemManagerViewModel.ToMenuTarget(new DesktopInventoryItem
         {
-            new DesktopInventoryItem
-            {
-                ItemId = "10881", Name = "11-leaf clover", Quantity = 3,
-                AccessFlags = new[] { "q", "t" }
-            }
+            ItemId = "10881", Name = "11-leaf clover", Quantity = 3, AccessFlags = new[] { "q", "t" }
         });
-        viewModel.SelectedItem = viewModel.Items[0];
-        viewModel.RefreshActions();
-        Assert.Contains(viewModel.Actions, a => a.Id == "use");
-        Assert.Contains(viewModel.Actions, a => a.Id == "transfer");
-        Assert.Contains(viewModel.Actions, a => a.Id == "sell");
-    }
-
-    [Fact]
-    public void No_selection_means_no_actions()
-    {
-        var viewModel = new ItemManagerViewModel();
-        viewModel.RefreshActions();
-        Assert.Empty(viewModel.Actions);
+        Assert.Equal("10881", target.ItemId);
+        Assert.Equal(3, target.Quantity);
+        Assert.Equal(KoLibri.Desktop.ContextMenus.ItemUseKind.None, target.Use);
     }
 
     [Fact]

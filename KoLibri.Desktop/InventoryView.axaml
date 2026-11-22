@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:KoLibri.Desktop"
+             x:Class="KoLibri.Desktop.InventoryView">
+  <StackPanel Spacing="16">
+  <Border Classes="card">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+      <StackPanel Spacing="8">
+        <TextBlock x:Name="InventorySummaryText"
+                   Text="No entries."
+                   Classes="muted"
+                   FontSize="13" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+        <TextBox x:Name="InventorySearchBox"
+                 Width="240"
+                 Watermark="Filter by name or ID"
+                 TextChanged="InventorySearchChanged"
+                 AutomationProperties.Name="Filter inventory" />
+        <TextBlock x:Name="InventoryLoadedText"
+                   Text="—"
+                   Classes="muted"
+                   FontSize="11"
+                   HorizontalAlignment="Right" />
+      </StackPanel>
+    </Grid>
+  </Border>
+
+  <Border Classes="card" Padding="8,6">
+    <StackPanel x:Name="InventoryViewStrip" Orientation="Horizontal" Spacing="4">
+      <Button x:Name="InvViewItems" Classes="menu-item active" Content="Items" Tag="Items" Click="InventoryViewClick" />
+      <Button x:Name="InvViewGear" Classes="menu-item" Content="Gear and Familiar" Tag="Gear" Click="InventoryViewClick" />
+      <Button x:Name="InvViewSkills" Classes="menu-item" Content="Skills and Effects" Tag="Skills" Click="InventoryViewClick" />
+    </StackPanel>
+  </Border>
+  <StackPanel x:Name="InventoryItemsView" Spacing="16">
+  <Border Classes="card" Padding="8,6">
+    <StackPanel x:Name="InventoryCategoryStrip" Orientation="Horizontal" Spacing="4" />
+  </Border>
+
+  <Grid ColumnDefinitions="2*,3*" ColumnSpacing="14" Height="450">
+
+    <Border Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Grid.Row="0"
+                   Text="Items"
+                   Classes="muted"
+                   Margin="14,12,14,8" />
+        <ListBox x:Name="InventoryList"
+                 Grid.Row="1"
+                 SelectionChanged="InventorySelectionChanged"
+                 AutomationProperties.Name="Inventory items">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="local:DesktopInventoryItem">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Name}"
+                             VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding ItemId}"
+                             Classes="muted"
+                             FontSize="11"
+                             VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Quantity}"
+                           Classes="muted"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
+    <Border Grid.Column="1" Classes="card">
+      <StackPanel Spacing="12">
+        <StackPanel x:Name="InventoryDetailPanel" Spacing="10">
+          <TextBlock Text="No item selected" Classes="muted" />
+        </StackPanel>
+        <TextBlock Text="Closet and storage" Classes="h3" />
+        <TextBlock x:Name="CharacterStorageStatus" TextWrapping="Wrap" />
+        <Button Content="Read closet and storage" Click="ReadCharacterStorageClick" />
+        <ComboBox x:Name="CharacterStoredItem" HorizontalAlignment="Stretch"
+                  AutomationProperties.Name="Stored item">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="local:CharacterStoredItemRow">
+              <TextBlock Text="{Binding Label}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Content="Take one" Click="TakeCharacterStoredItemClick" />
+        <TextBlock Text="Acquire an item" Classes="h3" />
+        <TextBox x:Name="CharacterAcquireItem" Watermark="Exact item name" />
+        <WrapPanel>
+          <Button Content="Find sources" Click="PreviewCharacterAcquisitionClick" />
+          <Button x:Name="CharacterCombineButton" Content="Combine" IsEnabled="False"
+                  Click="CombineCharacterItemClick" />
+        </WrapPanel>
+        <TextBlock x:Name="CharacterAcquisitionStatus" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+  </Grid>
+  </StackPanel>
+  </StackPanel>
+</UserControl>

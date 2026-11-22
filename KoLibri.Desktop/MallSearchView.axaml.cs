@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;
 
@@ -31,6 +32,15 @@ public partial class MallSearchView : UserControl
         own.PropertyChanged += OwnChanged;
         OwnShopExpander.IsExpanded = false;
     }
+
+    /// <summary>Right-click and keyboard menu of the offer list.</summary>
+    public RowContextMenuController<MallOfferRow>? OfferMenu { get; private set; }
+
+    /// <summary>Adds the row context menu; the shell calls it once.</summary>
+    public void AttachMenu(IShellHost host)
+        => OfferMenu = RowContextMenuController<MallOfferRow>.Attach(this.FindControl<ListBox>("OfferList")!,
+            row => new MallOfferContextMenu(host).Build(
+                new OfferMenuTarget(row.ItemId, row.ItemName, row.ShopName, row.UnitPrice, row.CanBuy)));
 
     public void FocusSearch() => Dispatcher.UIThread.Post(() =>
     {

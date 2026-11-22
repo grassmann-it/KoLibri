@@ -11,13 +11,13 @@ public sealed record CharacterStoredItemRow(int ItemId, bool InCloset, string La
 
 public partial class MainWindow
 {
-    private async void OpenFriarsClick(object? sender, RoutedEventArgs e)
+    public async void OpenFriarsClick(object? sender, RoutedEventArgs e)
         => await RunFriarsAsync(null);
 
-    private async void FriarRitualClick(object? sender, RoutedEventArgs e)
+    public async void FriarRitualClick(object? sender, RoutedEventArgs e)
         => await RunFriarsAsync(new PerformFriarRitual());
 
-    private async void FriarBlessingClick(object? sender, RoutedEventArgs e)
+    public async void FriarBlessingClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button button && Enum.TryParse<FriarBlessing>(button.Tag?.ToString(), out var blessing))
             await RunFriarsAsync(new RequestFriarBlessing(blessing));
@@ -82,7 +82,7 @@ public partial class MainWindow
     private CombineCharacterItems? _combinePreview;
     private string? _combinePreviewName;
 
-    private async void PreviewCharacterAcquisitionClick(object? sender, RoutedEventArgs e)
+    public async void PreviewCharacterAcquisitionClick(object? sender, RoutedEventArgs e)
     {
         var name = this.FindControl<TextBox>("CharacterAcquireItem")?.Text?.Trim();
         if (_catalog is null || string.IsNullOrWhiteSpace(name))
@@ -140,7 +140,7 @@ public partial class MainWindow
         });
     }
 
-    private async void CombineCharacterItemClick(object? sender, RoutedEventArgs e)
+    public async void CombineCharacterItemClick(object? sender, RoutedEventArgs e)
     {
         var name = this.FindControl<TextBox>("CharacterAcquireItem")?.Text?.Trim();
         if (_combinePreview is not { } combine || !string.Equals(name, _combinePreviewName, StringComparison.Ordinal))
@@ -195,7 +195,7 @@ public partial class MainWindow
             AddButton("Equip on familiar", () => RunFamiliarEquipmentAsync(id));
     }
 
-    private async void CompareCharacterEquipmentClick(object? sender, RoutedEventArgs e)
+    public async void CompareCharacterEquipmentClick(object? sender, RoutedEventArgs e)
     {
         var modifier = this.FindControl<TextBox>("CharacterModifierGoal")?.Text?.Trim();
         if (_catalog is null || string.IsNullOrWhiteSpace(modifier)
@@ -220,10 +220,10 @@ public partial class MainWindow
         });
     }
 
-    private async void ReadCharacterEquipmentClick(object? sender, RoutedEventArgs e)
+    public async void ReadCharacterEquipmentClick(object? sender, RoutedEventArgs e)
         => await RunCharacterActionAsync(null);
 
-    private async void ReadCharacterStorageClick(object? sender, RoutedEventArgs e)
+    public async void ReadCharacterStorageClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
         var inventory = _inventory;
@@ -235,7 +235,7 @@ public partial class MainWindow
         });
     }
 
-    private async void TakeCharacterStoredItemClick(object? sender, RoutedEventArgs e)
+    public async void TakeCharacterStoredItemClick(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<ComboBox>("CharacterStoredItem")?.SelectedItem is not CharacterStoredItemRow item)
         {
@@ -270,10 +270,10 @@ public partial class MainWindow
             };
     }
 
-    private async void RestCharacterClick(object? sender, RoutedEventArgs e)
+    public async void RestCharacterClick(object? sender, RoutedEventArgs e)
         => await RunCharacterActionAsync(new RestAtCampground());
 
-    private async void ApplyCharacterMoodClick(object? sender, RoutedEventArgs e)
+    public async void ApplyCharacterMoodClick(object? sender, RoutedEventArgs e)
     {
         var name = this.FindControl<TextBox>("CharacterMoodEffect")?.Text?.Trim();
         if (string.IsNullOrWhiteSpace(name) || !TryReadSkillId(out var id)
@@ -296,7 +296,7 @@ public partial class MainWindow
         });
     }
 
-    private async void CastCharacterSkillClick(object? sender, RoutedEventArgs e)
+    public async void CastCharacterSkillClick(object? sender, RoutedEventArgs e)
     {
         if (TryReadSkillId(out var id) && id > 0)
             await RunCharacterActionAsync(new CastCharacterSkill(id));
@@ -304,7 +304,7 @@ public partial class MainWindow
             SetStatus("Enter a skill name or ID.");
     }
 
-    private async void UnequipCharacterSlotClick(object? sender, RoutedEventArgs e)
+    public async void UnequipCharacterSlotClick(object? sender, RoutedEventArgs e)
     {
         if (this.FindControl<ComboBox>("CharacterSlotPicker")?.SelectedItem is CharacterEquipmentSlot slot)
             await RunCharacterActionAsync(new UnequipInventoryItem(slot));
@@ -312,7 +312,7 @@ public partial class MainWindow
             SetStatus("Select an equipment slot.");
     }
 
-    private async void WearCharacterOutfitClick(object? sender, RoutedEventArgs e)
+    public async void WearCharacterOutfitClick(object? sender, RoutedEventArgs e)
     {
         if (TryReadCharacterId("CharacterOutfitId", out var id) && id != 0)
             await RunCharacterActionAsync(new WearCharacterOutfit(id));
@@ -320,7 +320,7 @@ public partial class MainWindow
             SetStatus("Enter an outfit ID.");
     }
 
-    private async void SwitchCharacterFamiliarClick(object? sender, RoutedEventArgs e)
+    public async void SwitchCharacterFamiliarClick(object? sender, RoutedEventArgs e)
     {
         if (TryReadCharacterId("CharacterFamiliarId", out var id) && id > 0)
             await RunCharacterActionAsync(new SelectCharacterFamiliar(id));
@@ -328,7 +328,7 @@ public partial class MainWindow
             SetStatus("Enter a familiar ID.");
     }
 
-    private async void UnequipCharacterFamiliarClick(object? sender, RoutedEventArgs e)
+    public async void UnequipCharacterFamiliarClick(object? sender, RoutedEventArgs e)
         => await RunFamiliarEquipmentAsync(null);
 
     private Task RunFamiliarEquipmentAsync(int? itemId)
