@@ -18,4 +18,7 @@
     <!-- Windows only at run time (guarded by OperatingSystem.IsWindows); wraps the local secret key with DPAPI. -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KoLibri.Core.Tests" />
+  </ItemGroup>
 </Project>

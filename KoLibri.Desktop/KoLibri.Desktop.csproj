@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
+    <PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
+    <PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
     <ProjectReference Include="../src/KoLibri.Core/KoLibri.Core.csproj" />
     <ProjectReference Include="../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
     <PackageReference Include="Avalonia" Version="11.3.11" />

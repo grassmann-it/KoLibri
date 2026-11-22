@@ -62,6 +62,7 @@
                   Content="⟳"
                   Click="RefreshClick"
                   AutomationProperties.Name="Refresh current tab (F5)" />
+          <Button x:Name="NavBrowser" Classes="secondary" Content="Browser" Tag="Browser" Click="SectionClick" AutomationProperties.Name="Open the KoL relay browser" />
           <Button x:Name="NavCommunication" Classes="secondary" Content="Chat &amp; Mail" Tag="Communication" Click="SectionClick" AutomationProperties.Name="Open chat, clan and KoLmail" />
           <Button x:Name="NavSettings" Classes="secondary" Content="⚙" Tag="Settings" Click="SectionClick" AutomationProperties.Name="Open settings" />
           <Button x:Name="ThemeToggleButton"
@@ -299,6 +300,7 @@
           <local:SkillsEffectsView x:Name="InventorySkillsView" IsVisible="False" />
         </StackPanel>
         <local:DailyView x:Name="DailyPanel" IsVisible="False" />
+        <local:BrowserView x:Name="BrowserPanel" IsVisible="False" Height="620" />
 
         <StackPanel x:Name="SettingsPanel" Spacing="16" IsVisible="False">
           <ContentControl x:Name="SettingsHost" />

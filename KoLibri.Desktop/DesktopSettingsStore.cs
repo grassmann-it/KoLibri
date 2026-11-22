@@ -51,7 +51,8 @@ public sealed class DesktopSettings
 
     public int Version { get; set; } = CurrentVersion;
     public string? DefaultAccount { get; set; }
-    public bool ReloginAutomatically { get; set; }
+    /// <summary>Default ON: stale or missing sessions are renewed from the stored password at start and when KoL asks for a login.</summary>
+    public bool ReloginAutomatically { get; set; } = true;
     /// <summary>Legacy flags kept so old files round-trip. Nothing reads them and the settings page no longer shows them.</summary>
     public bool PricegunDisplay { get; set; } = true;
     /// <inheritdoc cref="PricegunDisplay"/>

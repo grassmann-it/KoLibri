@@ -91,6 +91,7 @@ async Task RunAsync()
             SeedDaily(window, stale: true); await Pump(400); Shot(window, P("daily-stale"));
             SeedDaily(window, stale: false);
             await Section(window, "NavCommunication"); Shot(window, P("chat-mail"));
+            await Section(window, "NavBrowser"); await Pump(600); Shot(window, P("browser"));
             await Section(window, "NavSettings"); Shot(window, P("settings"));
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Pump(400); Shot(window, P("settings-session-log"));
