@@ -208,7 +208,7 @@ public sealed class DesktopManualAdventureHttpTests
 
             await viewModel.RunTurnsAsync(browser, location, 10, "123");
             Assert.True(viewModel.IsSessionActive, viewModel.LastMessage);
-            Assert.Contains("9 turns left", viewModel.LastMessage);
+            Assert.Contains("9 left", viewModel.LastMessage);
             Assert.Equal("/adventure.php", Assert.Single(recording.Requests, r => r.Method == HttpMethod.Post).Path);
             var selected = Assert.Single(browser.Actions, row => row.Id == "1234:2");
             var manual = await viewModel.SubmitStepAsync(browser.BuildStepSpec(selected), browser);
@@ -216,7 +216,7 @@ public sealed class DesktopManualAdventureHttpTests
             await viewModel.RunTurnsAsync(browser, null, 0, null);
 
             Assert.False(viewModel.IsSessionActive);
-            Assert.Contains("0 turns left", viewModel.LastMessage);
+            Assert.Contains("8 left", viewModel.LastMessage);
             Assert.Equal(new[] { "/adventure.php", "/choice.php", "/adventure.php" },
                 recording.Requests.Where(r => r.Method == HttpMethod.Post).Select(r => r.Path));
         }
