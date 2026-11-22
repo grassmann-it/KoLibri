@@ -6,9 +6,17 @@ public sealed record BoundedAdventureRunnerOptions
     public int MaxGatewaySteps { get; init; } = 20;
     public TimeSpan MaxDuration { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Most automatic fight rounds in one run (one adventure); 0 = no extra limit.</summary>
+    public int MaxFightRounds { get; init; }
+
+    /// <summary>Stop before each automatic fight round when HP is below this percentage (or unknown); 0 = off.</summary>
+    public int MinimumHpPercent { get; init; }
+
     public BoundedAdventureRunnerOptions Normalize()
         => this with
         {
+            MaxFightRounds = Math.Clamp(MaxFightRounds, 0, 10_000),
+            MinimumHpPercent = Math.Clamp(MinimumHpPercent, 0, 100),
             MaxGatewaySteps = Math.Clamp(MaxGatewaySteps, 1, 10_000),
             MaxDuration = MaxDuration <= TimeSpan.Zero ? TimeSpan.FromMinutes(5) : MaxDuration
         };
@@ -30,7 +38,11 @@ public enum BoundedAdventureRunStopReason
     GatewayStopped,
     AwaitingManualChoice,
     /// <summary>A choice is open and no policy answered it; see <see cref="BoundedAdventureRunResult.NeedsDecision"/>.</summary>
-    NeedsDecision
+    NeedsDecision,
+    /// <summary>The configured fight round limit was reached; the fight is left open.</summary>
+    FightRoundLimitReached,
+    /// <summary>HP was below the configured minimum (or unknown) before a fight round; the fight is left open.</summary>
+    HpBelowMinimum
 }
 
 public sealed record BoundedAdventureRunResult
@@ -76,6 +88,7 @@ public sealed class BoundedAdventureRunner
         var conditions = (stopWhenSatisfied ?? Array.Empty<AdventureCondition>()).Select(x => x.Normalize()).ToArray();
         var steps = new List<AdventureExecutionResult>();
         var started = _clock.GetUtcNow();
+        var fightRounds = 0;
 
         var initial = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
         if (initial.Any(x => x.IsBlocked))
@@ -106,6 +119,15 @@ public sealed class BoundedAdventureRunner
             if (_clock.GetUtcNow() - started >= settings.MaxDuration)
                 return Result(BoundedAdventureRunStopReason.DeadlineReached, steps, await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false));
 
+            if (current.NextAction is AdventureFightAction)
+            {
+                if (settings.MaxFightRounds > 0 && fightRounds >= settings.MaxFightRounds)
+                    return Result(BoundedAdventureRunStopReason.FightRoundLimitReached, steps, Array.Empty<AdventureConditionResult>());
+                if (settings.MinimumHpPercent > 0 && !HpAtLeast(current, settings.MinimumHpPercent))
+                    return Result(BoundedAdventureRunStopReason.HpBelowMinimum, steps, Array.Empty<AdventureConditionResult>());
+                fightRounds++;
+            }
+
             var observed = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
             if (observed.Any(condition => condition.IsBlocked))
                 return Result(BoundedAdventureRunStopReason.ConditionsBlocked, steps, observed);
@@ -115,6 +137,12 @@ public sealed class BoundedAdventureRunner
             current = await _gateway.ExecutePendingAsync(request.RunId, allowlist, cancellationToken).ConfigureAwait(false);
             steps.Add(current);
         }
+    }
+
+    private static bool HpAtLeast(AdventureExecutionResult result, int percent)
+    {
+        var combat = result.Response?.Encounter?.Combat ?? result.Response?.Observation?.Combat;
+        return combat is { PlayerHp: { } hp, PlayerMaxHp: > 0 and var max } && 100L * hp >= (long)percent * max;
     }
 
     private async ValueTask<IReadOnlyList<AdventureConditionResult>> EvaluateAsync(

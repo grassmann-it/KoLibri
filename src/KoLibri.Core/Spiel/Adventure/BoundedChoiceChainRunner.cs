@@ -78,16 +78,25 @@ public sealed class BoundedChoiceChainRunner
             {
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.Aborted, Steps = results };
             }
+            AdventureChoiceAction? decided = null;
             if (state.PendingAction is not AdventureChoiceAction && checkpoint.ToNeedsDecision() is { } needs)
-                return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.NeedsDecision, Steps = results, NeedsDecision = needs };
-            if (state.PendingAction is not AdventureChoiceAction)
+            {
+                // The user's decision (an explicit rule for exactly this choice, option visible on the
+                // page) is applied first; without one the run still needs a decision.
+                decided = DecidedChoice(checkpoint, state, allowlist);
+                if (decided is null)
+                    return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.NeedsDecision, Steps = results, NeedsDecision = needs };
+            }
+            if (state.PendingAction is not AdventureChoiceAction && decided is null)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.NoChoicePending, Steps = results };
             if (results.Count >= settings.MaxChoices)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.ChoiceLimitReached, Steps = results };
             if (_clock.GetUtcNow() - started >= settings.MaxDuration)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.DeadlineReached, Steps = results };
 
-            var current = await _gateway.ExecutePendingAsync(runId.Trim(), allowlist, cancellationToken).ConfigureAwait(false);
+            var current = decided is null
+                ? await _gateway.ExecutePendingAsync(runId.Trim(), allowlist, cancellationToken).ConfigureAwait(false)
+                : await _gateway.ExecuteManualActionAsync(checkpoint, decided, allowlist, cancellationToken).ConfigureAwait(false);
             results.Add(current);
             if (current.IsAborted)
                 return new BoundedChoiceChainResult { StopReason = BoundedChoiceChainStopReason.Aborted, Steps = results };
@@ -96,5 +105,18 @@ public sealed class BoundedChoiceChainRunner
             if (current.State is AdventureChoiceRunState && current.NextAction is null)
                 continue; // the next loop turn reads the checkpoint and reports NeedsDecision
         }
+    }
+
+    private static AdventureChoiceAction? DecidedChoice(
+        AdventureCheckpoint checkpoint, AdventureRunState state, AdventureActionAllowlist allowlist)
+    {
+        if (state is not AdventureChoiceRunState waiting || string.IsNullOrWhiteSpace(checkpoint.ChoiceId)) return null;
+        var visible = checkpoint.ManualChoiceOptions ?? Array.Empty<string>();
+        if (visible.Count == 0
+            || !allowlist.TryGetChoiceAction(checkpoint.AdventureId, checkpoint.ChoiceId, visible, waiting.EncounterId, out var rule)
+            || !visible.Contains(rule.OptionId, StringComparer.Ordinal))
+            return null;
+        return new AdventureChoiceAction(checkpoint.AdventureId, rule.ChoiceId, rule.OptionId,
+            waiting.EncounterId, checkpoint.PendingChoiceFields);
     }
 }
