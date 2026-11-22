@@ -26,6 +26,9 @@ public partial class CharpaneView : UserControl
     /// <summary>Shows a computed state; the only place that writes the pane's controls.</summary>
     public void Show(CharpaneState state)
     {
+        // Nothing read yet (signed out): hide the wall of "—" placeholders instead of showing them.
+        if (this.FindControl<StackPanel>("SidebarDetails") is { } details)
+            details.IsVisible = !(state.Level.EndsWith('—') && state.Hp.EndsWith('—'));
         SetText("SidebarName", state.Name);
         SetText("SidebarRole", state.Role);
         SetText("SidebarLevel", state.Level);

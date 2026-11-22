@@ -3,68 +3,61 @@
              xmlns:local="clr-namespace:KoLibri.Desktop"
              x:Class="KoLibri.Desktop.InventoryView">
   <StackPanel Spacing="16">
-  <Border Classes="card">
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-      <StackPanel Spacing="8">
-        <TextBlock x:Name="InventorySummaryText"
-                   Text="No entries."
-                   Classes="muted"
-                   FontSize="13" />
+  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+    <Border Classes="card" Padding="8,6">
+      <StackPanel x:Name="InventoryViewStrip" Orientation="Horizontal" Spacing="4">
+        <Button x:Name="InvViewItems" Classes="menu-item active" Content="Items" Tag="Items" Click="InventoryViewClick" />
+        <Button x:Name="InvViewGear" Classes="menu-item" Content="Gear and Familiar" Tag="Gear" Click="InventoryViewClick" />
+        <Button x:Name="InvViewSkills" Classes="menu-item" Content="Skills and Effects" Tag="Skills" Click="InventoryViewClick" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
-        <TextBox x:Name="InventorySearchBox"
-                 Width="240"
-                 Watermark="Filter by name or ID"
-                 TextChanged="InventorySearchChanged"
-                 AutomationProperties.Name="Filter inventory" />
-        <TextBlock x:Name="InventoryLoadedText"
-                   Text="—"
-                   Classes="muted"
-                   FontSize="11"
-                   HorizontalAlignment="Right" />
-      </StackPanel>
-    </Grid>
-  </Border>
-
-  <Border Classes="card" Padding="8,6">
-    <StackPanel x:Name="InventoryViewStrip" Orientation="Horizontal" Spacing="4">
-      <Button x:Name="InvViewItems" Classes="menu-item active" Content="Items" Tag="Items" Click="InventoryViewClick" />
-      <Button x:Name="InvViewGear" Classes="menu-item" Content="Gear and Familiar" Tag="Gear" Click="InventoryViewClick" />
-      <Button x:Name="InvViewSkills" Classes="menu-item" Content="Skills and Effects" Tag="Skills" Click="InventoryViewClick" />
+    </Border>
+    <TextBox x:Name="InventorySearchBox" Grid.Column="1" Width="220" VerticalAlignment="Center"
+             Watermark="Filter by name or ID"
+             TextChanged="InventorySearchChanged"
+             AutomationProperties.Name="Filter inventory" />
+  </Grid>
+  <StackPanel x:Name="InventoryItemsView" Spacing="12">
+  <Border x:Name="InventoryEmptyState" Classes="card" Padding="20,16" IsVisible="False">
+    <StackPanel Spacing="4">
+      <TextBlock x:Name="InventoryEmptyTitle" Text="Inventory not loaded" FontSize="15" FontWeight="SemiBold" />
+      <TextBlock x:Name="InventoryEmptyText" Classes="muted" TextWrapping="Wrap" />
     </StackPanel>
   </Border>
-  <StackPanel x:Name="InventoryItemsView" Spacing="16">
+
+  <StackPanel x:Name="InventoryBrowse" Spacing="12">
   <Border Classes="card" Padding="8,6">
     <StackPanel x:Name="InventoryCategoryStrip" Orientation="Horizontal" Spacing="4" />
   </Border>
+  <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,-4,0,0">
+    <TextBlock x:Name="InventorySummaryText" Classes="muted" FontSize="12" />
+    <TextBlock Text="· loaded" Classes="muted" FontSize="12" />
+    <TextBlock x:Name="InventoryLoadedText" Text="—" Classes="muted" FontSize="12" Margin="-6,0,0,0" />
+  </StackPanel>
 
-  <Grid ColumnDefinitions="2*,3*" ColumnSpacing="14" Height="450">
+  <Grid ColumnDefinitions="*,1.2*" ColumnSpacing="12" Height="520">
 
     <Border Classes="card" Padding="0">
       <Grid RowDefinitions="Auto,*">
-        <TextBlock Grid.Row="0"
-                   Text="Items"
-                   Classes="muted"
-                   Margin="14,12,14,8" />
+        <Grid Grid.Row="0" ColumnDefinitions="*,84,48" Margin="12,6,12,2">
+          <Button x:Name="InvSortName" Classes="menu-item" Content="Name" Tag="Name" HorizontalAlignment="Left"
+                  Padding="4,3" FontSize="12" AutomationProperties.Name="Sort by name" />
+          <Button x:Name="InvSortType" Grid.Column="1" Classes="menu-item" Content="Type" Tag="Type" HorizontalAlignment="Left"
+                  Padding="4,3" FontSize="12" AutomationProperties.Name="Sort by type" />
+          <Button x:Name="InvSortCount" Grid.Column="2" Classes="menu-item" Content="Count" Tag="Count" HorizontalAlignment="Right"
+                  Padding="4,3" FontSize="12" AutomationProperties.Name="Sort by count" />
+        </Grid>
         <ListBox x:Name="InventoryList"
                  Grid.Row="1"
                  SelectionChanged="InventorySelectionChanged"
                  AutomationProperties.Name="Inventory items">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="local:DesktopInventoryItem">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBlock Text="{Binding Name}"
-                             VerticalAlignment="Center" />
-                  <TextBlock Text="{Binding KindLabel}"
-                             Classes="muted"
-                             FontSize="11"
-                             VerticalAlignment="Center" />
-                </StackPanel>
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Quantity}"
-                           Classes="muted"
-                           VerticalAlignment="Center" />
+              <Grid ColumnDefinitions="*,84,48" Margin="0,1">
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding KindLabel}" Classes="muted" FontSize="12"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding Quantity}" HorizontalAlignment="Right"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
@@ -72,19 +65,30 @@
       </Grid>
     </Border>
 
-    <Border Grid.Column="1" Classes="card">
-      <StackPanel Spacing="12">
-        <StackPanel Orientation="Horizontal" Spacing="8">
+    <Border Grid.Column="1" Classes="card" Padding="0">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="12" Margin="16">
+        <StackPanel x:Name="InventoryHeaderPanel" Spacing="2" />
+
+        <StackPanel x:Name="InventoryQuantityRow" Orientation="Horizontal" Spacing="8" IsVisible="False">
           <TextBlock Text="Quantity" Classes="muted" VerticalAlignment="Center" />
-          <NumericUpDown x:Name="InventoryQuantity" Minimum="1" Maximum="99999" Value="1" Width="120"
+          <NumericUpDown x:Name="InventoryQuantity" Minimum="1" Maximum="99999" Value="1" Width="130"
                          FormatString="0" AutomationProperties.Name="Quantity for Use, Eat, Drink or Chew" />
         </StackPanel>
-        <TextBlock x:Name="InventoryActionResult" TextWrapping="Wrap" FontSize="12"
-                   AutomationProperties.Name="Result of the last action" />
-        <StackPanel x:Name="InventoryDetailPanel" Spacing="10">
-          <TextBlock Text="No item selected" Classes="muted" />
-        </StackPanel>
-        <TextBlock Text="Closet and storage" Classes="h3" />
+
+        <StackPanel x:Name="InventoryDetailPanel" Spacing="8" />
+
+        <Border x:Name="InventoryStatusBorder" CornerRadius="6" Padding="10,8"
+                Background="{DynamicResource PanelAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                IsVisible="{Binding #InventoryActionResult.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <TextBlock x:Name="InventoryActionResult" TextWrapping="Wrap" FontSize="13"
+                     AutomationProperties.Name="Result of the last action" />
+        </Border>
+
+        <StackPanel x:Name="InventoryInfoPanel" Spacing="4" />
+
+        <Expander Header="Closet and storage" IsExpanded="False" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="8" Margin="0,8,0,0">
         <TextBlock x:Name="CharacterStorageStatus" TextWrapping="Wrap" />
         <Button Content="Read closet and storage" Click="ReadCharacterStorageClick" />
         <ComboBox x:Name="CharacterStoredItem" HorizontalAlignment="Stretch"
@@ -96,7 +100,10 @@
           </ComboBox.ItemTemplate>
         </ComboBox>
         <Button Content="Take one" Click="TakeCharacterStoredItemClick" />
-        <TextBlock Text="Acquire an item" Classes="h3" />
+        </StackPanel>
+        </Expander>
+        <Expander Header="Acquire an item" IsExpanded="False" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="8" Margin="0,8,0,0">
         <TextBox x:Name="CharacterAcquireItem" Watermark="Exact item name" />
         <WrapPanel>
           <Button Content="Find sources" Click="PreviewCharacterAcquisitionClick" />
@@ -104,10 +111,14 @@
                   Click="CombineCharacterItemClick" />
         </WrapPanel>
         <TextBlock x:Name="CharacterAcquisitionStatus" TextWrapping="Wrap" />
+        </StackPanel>
+        </Expander>
       </StackPanel>
+      </ScrollViewer>
     </Border>
 
   </Grid>
+  </StackPanel>
   </StackPanel>
   </StackPanel>
 </UserControl>
