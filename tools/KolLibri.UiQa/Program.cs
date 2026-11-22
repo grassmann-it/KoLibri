@@ -132,19 +132,21 @@ static List<MallOfferRow> FixtureOffers() =>
 ];
 static MallOfferRow Row(int rank, string item, long price, int? stock) => new()
 {
-    Rank = rank, ItemId = "7000", ItemName = item, ShopId = (100 + rank).ToString(), ShopName = $"Fixture Shop {rank}",
+    Rank = rank, ItemId = "471", ItemName = item, ShopId = (100 + rank).ToString(), ShopName = $"Fixture Shop {rank}",
     UnitPrice = price, Stock = stock, LimitKind = rank == 3 ? MallLimitKind.Limited : MallLimitKind.Unlimited,
     DailyLimit = rank == 3 ? 5 : null, PricegunMedian = 1300, CanBuy = true
 };
 
 static void SeedFixtures(MainWindow w)
 {
+    // Real KoLmafia ids: hot wing, seal-clubbing club, meat paste, disco ball, Knob Goblin harem veil.
+    string[] ItemIds = { "471", "1", "25", "10", "306" };
     var inv = Priv<InventoryViewModel>(w, "_inventory");
-    var items = new[] { ("Hot wing", 12, new[] { "q", "t", "d" }), ("seal-clubbing club", 1, new[] { "t" }),
-        ("Meat paste", 340, new[] { "t", "d" }), ("disco ball", 2, new[] { "g", "t" }), ("Knob Goblin harem veil", 1, new[] { "t" }) };
+    var items = new[] { ("hot wing", 12, new[] { "t", "d" }), ("seal-clubbing club", 1, new[] { "t", "d" }),
+        ("Meat paste", 340, new[] { "t", "d" }), ("disco ball", 2, new[] { "t", "d" }), ("Knob Goblin harem veil", 1, new[] { "t", "d" }) };
     inv.ApplySnapshot(items.Select((i, n) => new DesktopInventoryItem
     {
-        ItemId = (7000 + n).ToString(), Name = i.Item1, Quantity = i.Item2, AccessFlags = i.Item3,
+        ItemId = ItemIds[n], Name = i.Item1, Quantity = i.Item2, AccessFlags = i.Item3,
         Uses = new[] { "Use", "Autosell" }, CheapestMallPrice = 100 * (n + 1)
     }).ToList(), DateTimeOffset.Now);
 }
@@ -173,7 +175,7 @@ sealed class FixtureBackend(List<MallOfferRow> rows) : IMallSearchBackend
         var listings = rows.Select(r => new MallListing(r.ItemId, r.ShopId, r.ShopName, r.UnitPrice, r.Stock ?? 0, r.DailyLimit,
             DateTimeOffset.Now, uri)
         { ItemName = r.ItemName, QuantityKnown = r.Stock is not null, LimitKind = r.LimitKind }).ToList();
-        var page = new MallSearchPage(term, [new MallItemOffers("7000", "Hot wing", listings, 40)], DateTimeOffset.Now, uri);
+        var page = new MallSearchPage(term, [new MallItemOffers("471", "Hot wing", listings, 40)], DateTimeOffset.Now, uri);
         return Task.FromResult(page);
     }
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken ct)

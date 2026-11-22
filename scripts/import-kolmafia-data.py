@@ -16,8 +16,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MAFIA_DATA = REPO_ROOT / "external" / "kolmafia" / "src" / "main" / "resources" / "data"
-OUT = REPO_ROOT / "external" / "kolmafia-data"
+# KOLIBRI_MAFIA_DATA / KOLIBRI_DATA_OUT let a git worktree (which has no vendored
+# external/kolmafia checkout) point at another checkout's data directory.
+MAFIA_DATA = Path(os.environ.get(
+    "KOLIBRI_MAFIA_DATA",
+    REPO_ROOT / "external" / "kolmafia" / "src" / "main" / "resources" / "data"))
+OUT = Path(os.environ.get("KOLIBRI_DATA_OUT", REPO_ROOT / "external" / "kolmafia-data"))
 
 USE_TOKENS = {
     "weapon", "offhand", "hat", "shirt", "pants", "container", "accessory",
@@ -54,7 +58,10 @@ def parse_items(line: str) -> dict | None:
     access_field = parts[5] if len(parts) > 5 else ""
     autosell = parts[6] if len(parts) > 6 else ""
     plural = parts[7] if len(parts) > 7 else ""
-    use_flags = [t for t in use_field.split(",") if t.strip() and (t.strip() in USE_TOKENS or t.strip() in SECONDARY_TOKENS)]
+    # Tokens are separated by ", " upstream: strip once and keep the stripped form,
+    # otherwise "message, combat reusable, smith" loses everything after the first token.
+    use_flags = [t.strip() for t in use_field.split(",")]
+    use_flags = [t for t in use_flags if t and (t in USE_TOKENS or t in SECONDARY_TOKENS)]
     secondary = [t for t in use_flags if t in SECONDARY_TOKENS]
     primary = [t for t in use_flags if t in USE_TOKENS and t not in SECONDARY_TOKENS]
     access_flags = [t for t in access_field if t in ACCESS_TOKENS]
@@ -247,6 +254,86 @@ def parse_familiar(line: str) -> dict | None:
     return {"id": fields[0], "name": fields[1]}
 
 
+# Item name -> id, filled by main() from items.txt before the name-keyed files
+# (fullness, equipment, ...) are converted. None means the name is not an item row.
+ITEM_IDS_BY_NAME: dict[str, str] = {}
+
+
+def _range(value: str) -> tuple[int | None, int | None]:
+    """'5' -> (5, 5), '11-16' -> (11, 16), '' / junk -> (None, None) = unknown."""
+    m = re.fullmatch(r"\s*(-?\d+)(?:\s*-\s*(-?\d+))?\s*", value or "")
+    if not m:
+        return None, None
+    low = int(m.group(1))
+    return low, int(m.group(2)) if m.group(2) else low
+
+
+def _organ_parser(kind: str):
+    def parse(line: str) -> dict | None:
+        """name, size, levelRequired, quality, adventures, muscle, mysticality, moxie, notes"""
+        parts = line.split("\t")
+        if len(parts) < 2 or not parts[1].strip().isdigit():
+            return None
+        parts += [""] * (9 - len(parts))
+        name = parts[0]
+        notes = parts[8]
+        adv_lo, adv_hi = _range(parts[4])
+        record = {
+            "kind": kind,
+            "name": name,
+            "itemId": ITEM_IDS_BY_NAME.get(name),
+            "size": int(parts[1]),
+            "levelRequired": int(parts[2]) if parts[2].strip().isdigit() else None,
+            "quality": parts[3].strip() or None,
+            "adventures": parts[4] or None,
+            "adventuresMin": adv_lo,
+            "adventuresMax": adv_hi,
+            "muscle": parts[5] or None,
+            "mysticality": parts[6] or None,
+            "moxie": parts[7] or None,
+            # Upstream marks values nobody has measured yet with "Unspaded" in the notes.
+            "unspaded": "unspaded" in notes.lower(),
+            "notes": notes,
+        }
+        return record
+    return parse
+
+
+def parse_equipment(line: str) -> dict | None:
+    """name\tpower\trequirement[\tweapon type]; requirement 'none' = no requirement."""
+    parts = line.split("\t")
+    if len(parts) < 3:
+        return None
+    req = parts[2].strip()
+    stat, _, amount = req.partition(":")
+    has_req = req.lower() != "none" and amount.strip().isdigit()
+    return {
+        "name": parts[0],
+        "itemId": ITEM_IDS_BY_NAME.get(parts[0]),
+        "power": int(parts[1]) if parts[1].strip().isdigit() else None,
+        "requirement": req or None,
+        "requirementStat": stat.strip() if has_req else None,
+        "requirementValue": int(amount.strip()) if has_req else None,
+        "weaponType": parts[3].strip() if len(parts) > 3 and parts[3].strip() else None,
+    }
+
+
+def parse_outfits(line: str) -> dict | None:
+    """id\tname\timage\tpart, part, ...\ttreat, treat"""
+    parts = line.split("\t")
+    if len(parts) < 4 or not parts[0].isdigit():
+        return None
+    names = [p.strip() for p in parts[3].split(",") if p.strip()]
+    return {
+        "id": int(parts[0]),
+        "name": parts[1],
+        "image": parts[2],
+        "parts": names,
+        "partIds": [ITEM_IDS_BY_NAME.get(n) for n in names],
+        "treats": [t.strip() for t in parts[4].split(",") if t.strip()] if len(parts) > 4 else [],
+    }
+
+
 PARSERS = {
     "familiars.txt": (parse_familiar, "familiars.jsonl"),
     "items.txt": (parse_items, "items.jsonl"),
@@ -259,6 +346,11 @@ PARSERS = {
     "concoctions.txt": (parse_concoctions, "concoctions.jsonl"),
     "monsterparts.txt": (parse_monsterparts, "monsterparts.jsonl"),
     "restores.txt": (parse_restores, "restores.jsonl"),
+    "fullness.txt": (_organ_parser("food"), "fullness.jsonl"),
+    "inebriety.txt": (_organ_parser("drink"), "inebriety.jsonl"),
+    "spleenhit.txt": (_organ_parser("spleen"), "spleenhit.jsonl"),
+    "equipment.txt": (parse_equipment, "equipment.jsonl"),
+    "outfits.txt": (parse_outfits, "outfits.jsonl"),
 }
 
 
@@ -297,6 +389,10 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     summary = []
     area_monsters = load_area_monsters(MAFIA_DATA / "combats.txt")
+    for raw in strip_comments(MAFIA_DATA / "items.txt"):
+        item = parse_items(raw)
+        if item is not None:
+            ITEM_IDS_BY_NAME.setdefault(item["name"], item["id"])
     for filename, (parser, outname) in PARSERS.items():
         src = MAFIA_DATA / filename
         dst = OUT / outname
