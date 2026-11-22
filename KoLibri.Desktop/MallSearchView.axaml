@@ -3,12 +3,17 @@
              xmlns:local="clr-namespace:KoLibri.Desktop"
              x:Class="KoLibri.Desktop.MallSearchView"
              x:DataType="local:MallSearchViewModel">
+  <UserControl.Styles>
+    <Style Selector="Grid.bargain">
+      <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+    </Style>
+  </UserControl.Styles>
   <StackPanel Spacing="14">
 
     <Border Classes="card">
       <StackPanel Spacing="8">
         <TextBlock Text="Mall search" Classes="h2" />
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBox x:Name="SearchBox"
                    Text="{Binding SearchText, Mode=TwoWay}"
                    Watermark="Item name (partial is fine) or item ID"
@@ -18,6 +23,9 @@
                   Click="SearchClick" />
           <Button x:Name="CancelButton" Grid.Column="2" Content="Cancel"
                   IsVisible="{Binding CanCancel}" Click="CancelClick" />
+          <Button x:Name="CloverButton" Grid.Column="3" Content="11-leaf clover" Classes="secondary"
+                  Click="CloverClick"
+                  ToolTip.Tip="Searches the 11-leaf clover and highlights offers at or under the price threshold (Settings)." />
         </Grid>
         <TextBlock Text="{Binding StatusText}" Classes="muted" TextWrapping="Wrap" />
         <Border x:Name="ErrorBanner" IsVisible="{Binding HasSearchError}"
@@ -57,11 +65,14 @@
           <TextBlock Grid.Column="4" Text="Limit / day" Classes="muted" FontSize="11" />
           <TextBlock Grid.Column="5" Text="Median" Classes="muted" FontSize="11" TextAlignment="Right" />
         </Grid>
+        <TextBlock Text="{Binding HighlightThreshold, StringFormat='Highlighted: offers at or under {0:N0} Meat'}"
+                   IsVisible="{Binding HasThreshold}" Classes="muted" FontSize="12" Margin="14,0,14,4" />
         <ListBox x:Name="OfferList" ItemsSource="{Binding Offers}" MaxHeight="460"
                  AutomationProperties.Name="Market offers">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="local:MallOfferRow">
-              <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="0,2">
+              <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="0,2"
+                    Classes.bargain="{Binding UnderThreshold}">
                 <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="muted" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding ShopName}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />

@@ -356,13 +356,18 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
 
     public bool CanRequest(MallOfferRow offer)
-        => !IsBusy && offer.UnitPrice > 0 && offer.Stock != 0 && long.TryParse(offer.ShopId, out _);
+        => !IsBusy && !offer.IsStale && offer.UnitPrice > 0 && offer.Stock != 0 && long.TryParse(offer.ShopId, out _);
 
     public async Task RequestAsync(MallOfferRow offer, CancellationToken cancellationToken)
     {
         if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
         try
         {
+            if (offer.IsStale)
+            {
+                Say(SessionLogKind.Error, $"Cannot buy {offer.ItemName}: the offer is stale. Search again for a fresh offer.");
+                return;
+            }
             var what = string.Create(CultureInfo.InvariantCulture,
                 $"{offer.ItemName} from {offer.ShopName} at {offer.UnitPrice:N0}");
             var opened = await _open(cancellationToken).ConfigureAwait(true);
@@ -384,7 +389,7 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                Say(SessionLogKind.Error, $"Preview for {what} failed: {exception.Message}");
+                Say(SessionLogKind.Error, $"Preview for {what} failed: {MallPurchaseMessages.Describe(exception)}");
                 return;
             }
             if (chosen is null)
@@ -423,7 +428,7 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
         }
         catch (Exception exception)
         {
-            Say(SessionLogKind.Error, $"Purchase failed: {exception.Message}");
+            Say(SessionLogKind.Error, $"Purchase failed: {MallPurchaseMessages.Describe(exception)}");
         }
         finally
         {

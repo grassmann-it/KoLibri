@@ -72,6 +72,7 @@ async Task RunAsync()
             Click(window, "InvViewItems");
             await Section(window, "NavMall"); Shot(window, P("mall-empty"));
             await SeedMallResults(window); await Pump(500); Shot(window, P("mall-results"));
+            await SeedCloverResults(window); await Pump(500); Shot(window, P("mall-clover"));
             await Section(window, "NavDaily"); Shot(window, P("daily"));
             await Section(window, "NavCommunication"); Shot(window, P("chat-mail"));
             await Section(window, "NavSettings"); Shot(window, P("settings"));
@@ -149,6 +150,16 @@ static void SeedFixtures(MainWindow w)
         ItemId = ItemIds[n], Name = i.Item1, Quantity = i.Item2, AccessFlags = i.Item3,
         Uses = new[] { "Use", "Autosell" }, CheapestMallPrice = 100 * (n + 1)
     }).ToList(), DateTimeOffset.Now);
+}
+
+async Task SeedCloverResults(MainWindow w)
+{
+    var search = w.FindControl<MallSearchView>("MallSearch")!;
+    var model = new MallSearchViewModel(new FixtureBackend(FixtureOffers().Select((r, i) => r with { UnitPrice = 25_500 + i * 1_200 }).ToList()));
+    model.PurchaseRequest = new AllowAll();
+    model.CloverThreshold = () => 27_000;
+    search.Attach(model, Priv<LiveMallViewModel>(w, "_mall"));
+    await model.SearchCloverAsync();
 }
 
 async Task SeedMallResults(MainWindow w)

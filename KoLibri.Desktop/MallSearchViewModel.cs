@@ -39,6 +39,13 @@ public sealed record MallOfferRow
     public int? DailyLimit { get; init; }
     public long? PricegunMedian { get; init; }
     public bool CanBuy { get; init; }
+    public string? SellerName { get; init; }
+    /// <summary>The page this offer came from was served from a stale cache: it is never bought from.</summary>
+    public bool IsStale { get; init; }
+    /// <summary>At or under the active price threshold (the 11-leaf clover quick action).</summary>
+    public bool UnderThreshold { get; init; }
+
+    public string ShopLink => $"https://www.kingdomofloathing.com/mallstore.php?whichstore={ShopId}";
 
     public string RankText => Rank.ToString(CultureInfo.InvariantCulture);
     public string PriceText => $"{UnitPrice:N0}";
@@ -77,6 +84,21 @@ public sealed class MallSearchViewModel : DesktopViewModel
     private string? _notice;
     private bool _isSearching;
     private string? _selectedItemId;
+    private string? _preferredItemId;
+    private long? _threshold;
+
+    public const string CloverName = "11-leaf clover";
+
+    /// <summary>Reads the configured clover price limit (Meat) when the quick action runs.</summary>
+    public Func<long>? CloverThreshold { get; set; }
+
+    /// <summary>Offers at or under this price are highlighted; null switches the highlight off.</summary>
+    public long? HighlightThreshold
+    {
+        get => _threshold;
+        private set { if (SetProperty(ref _threshold, value)) OnPropertyChanged(nameof(HasThreshold)); }
+    }
+    public bool HasThreshold => _threshold is not null;
 
     public MallSearchViewModel(
         IMallSearchBackend backend,
@@ -124,7 +146,31 @@ public sealed class MallSearchViewModel : DesktopViewModel
     public bool HasSearched => _page is not null;
 
     /// <summary>Starts a search for <see cref="SearchText"/>. A search that is still running is replaced, never ignored.</summary>
-    public Task SearchAsync() => RunAsync(SearchText, forceRefresh: false);
+    public Task SearchAsync()
+    {
+        _preferredItemId = null;
+        HighlightThreshold = null;
+        return RunAsync(SearchText, forceRefresh: false);
+    }
+
+    /// <summary>Searches an item the caller already identified (for example from Inventory): the id is kept,
+    /// so a name that matches several items still lands on this one.</summary>
+    public Task SearchItemAsync(string itemId, string name)
+    {
+        SearchText = name;
+        HighlightThreshold = null;
+        _preferredItemId = itemId;
+        return RunAsync(name, forceRefresh: false);
+    }
+
+    /// <summary>Quick action: searches the 11-leaf clover and highlights offers at or under the threshold.</summary>
+    public Task SearchCloverAsync()
+    {
+        SearchText = CloverName;
+        _preferredItemId = null;
+        HighlightThreshold = CloverThreshold?.Invoke() ?? 27_000;
+        return RunAsync(CloverName, forceRefresh: false);
+    }
 
     /// <summary>F5: runs the active search again, bypassing the cache. False when there is nothing to refresh.</summary>
     public bool CanRefresh => _lastTerm.Length > 0;
@@ -187,6 +233,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         {
             var page = await _backend.SearchAsync(term, forceRefresh, cancellation.Token).ConfigureAwait(true);
             if (generation != _generation) return;
+            var preferred = _preferredItemId is { } p && page.Items.Any(i => i.ItemId == p) ? p : null;
             _page = page;
             _lastTerm = typed.Trim();
             Choices.Clear();
@@ -204,6 +251,8 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 StatusText = $"No offers for {typed.Trim()}.";
                 PricegunNote = null;
             }
+            else if (preferred is not null)
+                await ShowItemAsync(page, preferred, cancellation.Token).ConfigureAwait(true);
             else if (page.Items.Count == 1)
             {
                 await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token).ConfigureAwait(true);
@@ -231,7 +280,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         catch (Exception exception)
         {
             if (generation != _generation) return;
-            SearchError = $"Mall search failed: {exception.Message}";
+            SearchError = MallSearchErrors.Describe(exception);
             StatusText = "Search failed.";
         }
         finally
@@ -245,7 +294,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         var group = page.Items.First(i => i.ItemId == itemId);
         _selectedItemId = itemId;
         var name = group.ItemName ?? $"Item #{itemId}";
-        FillOffers(group, name, median: null);
+        FillOffers(group, name, median: null, page.IsStale);
         var notes = new List<string>();
         if (page.Items.Count > 1) notes.Add($"One of {page.Items.Count} matching items.");
         if (group.IsTruncated) notes.Add($"Showing the cheapest {group.Listings.Count:N0} of {group.TotalOffers:N0} offers.");
@@ -266,7 +315,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         if (_selectedItemId != itemId) return;
         if (info is not null)
         {
-            FillOffers(group, name, info.Median);
+            FillOffers(group, name, info.Median, page.IsStale);
             var age = DateTimeOffset.UtcNow - info.FetchedAt;
             PricegunNote = info.Median is null
                 ? "Pricegun has no sales for this item."
@@ -285,7 +334,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private void FillOffers(MallItemOffers group, string name, long? median)
+    private void FillOffers(MallItemOffers group, string name, long? median, bool stale)
     {
         Offers.Clear();
         var rank = 0;
@@ -302,9 +351,12 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 Stock = l.QuantityKnown ? l.Quantity : null,
                 LimitKind = l.LimitKind,
                 DailyLimit = l.PurchaseLimit,
-                PricegunMedian = median
+                PricegunMedian = median,
+                SellerName = l.SellerName,
+                IsStale = stale,
+                UnderThreshold = _threshold is { } limit && l.Price <= limit
             };
-            Offers.Add(row with { CanBuy = PurchaseRequest?.CanRequest(row) ?? false });
+            Offers.Add(row with { CanBuy = !stale && (PurchaseRequest?.CanRequest(row) ?? false) });
         }
         OnPropertyChanged(nameof(HasOffers));
     }
@@ -314,6 +366,17 @@ public sealed class MallSearchViewModel : DesktopViewModel
         : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min"
         : age.TotalDays < 1 ? $"{(int)age.TotalHours} h"
         : $"{(int)age.TotalDays} d";
+}
+
+/// <summary>Readable text for a failed mall search.</summary>
+public static class MallSearchErrors
+{
+    public static string Describe(Exception exception) => exception switch
+    {
+        MallSearchParseException e => $"The mall page could not be read: {e.Message}",
+        HttpRequestException => "Mall search failed: KoL could not be reached. Check your connection and that you are logged in.",
+        _ => $"Mall search failed: {exception.Message}"
+    };
 }
 
 /// <summary>Adapter from the live data provider to the search view model.</summary>

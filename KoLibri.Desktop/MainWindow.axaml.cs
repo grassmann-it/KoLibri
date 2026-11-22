@@ -795,6 +795,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _mallSearchModel = new MallSearchViewModel(
             new LiveMallSearchBackend(_live, _selectedRole), LookupCatalogItems);
         _mallSearchModel.PurchaseRequest = CreatePurchaseCoordinator();
+        _mallSearchModel.CloverThreshold = () => (long)_settings.Get("cloverThreshold");
         WatchMallSearch(_mallSearchModel);
         _mallSearch?.Attach(_mallSearchModel, _mall);
         _accountToken = new object();

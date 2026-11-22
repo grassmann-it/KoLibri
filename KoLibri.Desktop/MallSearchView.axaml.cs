@@ -39,8 +39,13 @@ public partial class MallSearchView : UserControl
     /// <summary>Adds the row context menu; the shell calls it once.</summary>
     public void AttachMenu(IShellHost host)
         => OfferMenu = RowContextMenuController<MallOfferRow>.Attach(this.FindControl<ListBox>("OfferList")!,
-            row => new MallOfferContextMenu(host).Build(
-                new OfferMenuTarget(row.ItemId, row.ItemName, row.ShopName, row.UnitPrice, row.CanBuy)));
+            row => new MallOfferContextMenu(host,
+                    () => _search is null ? Task.CompletedTask : _search.RequestBuyAsync(row),
+                    () => _search is null ? Task.CompletedTask : _search.SearchItemAsync(row.ItemId, row.ItemName))
+                .Build(new OfferMenuTarget(row.ItemId, row.ItemName, row.ShopName, row.UnitPrice, row.CanBuy)
+                {
+                    ShopId = row.ShopId, SellerName = row.SellerName
+                }));
 
     public void FocusSearch() => Dispatcher.UIThread.Post(() =>
     {
@@ -69,6 +74,11 @@ public partial class MallSearchView : UserControl
         if (e.Key != Key.Enter || _search is null) return;
         e.Handled = true;
         await _search.SearchAsync();
+    }
+
+    private async void CloverClick(object? sender, RoutedEventArgs e)
+    {
+        if (_search is not null) await _search.SearchCloverAsync();
     }
 
     private void CancelClick(object? sender, RoutedEventArgs e) => _search?.Cancel();

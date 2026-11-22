@@ -123,7 +123,7 @@ public sealed class DesktopMallPurchaseService
     {
         ArgumentNullException.ThrowIfNull(preview);
         if (!preview.CanConfirm)
-            return NotSent(preview.Problems, "The preview has open problems; nothing was sent.");
+            return NotSent(preview.Problems, (MallPurchaseMessages.Describe(preview.Problems) + " Nothing was sent.").Trim());
         // A preview is spent by its first confirmation, whatever the outcome.
         if (!_consumed.TryAdd(preview.ActionId, 0))
             return NotSent([MallPurchaseAbortReason.CommitRejected],
@@ -187,7 +187,9 @@ public sealed class DesktopMallPurchaseService
         }
 
         return NotSent(reasons, result.Messages.FirstOrDefault()
-            ?? "The offer, limits or meat changed since the preview; nothing was sent.");
+            ?? (MallPurchaseMessages.Describe(reasons) is { Length: > 0 } text
+                ? text + " Nothing was sent."
+                : "The offer, limits or meat changed since the preview; nothing was sent."));
     }
 
     private DesktopMallPurchasePreview ToPreview(MallPurchasePreview inner, MallPurchaseRequest request)
