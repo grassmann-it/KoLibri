@@ -67,7 +67,7 @@ public sealed class RelayHost : IDisposable
     {
         var cookie = session.Credentials.CookieHeader
             ?? throw new InvalidOperationException("No KoL session cookie.");
-        logPath ??= DefaultLogPath();
+        logPath = Path.GetFullPath(logPath ?? DefaultLogPath());
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
         // Every upstream request goes through the process-wide limiter. A caller-supplied handler is used as is (tests)
         // unless a limiter is passed too.

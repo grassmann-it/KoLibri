@@ -734,6 +734,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
             var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
             var id = role == AccountRole.Main ? "main" : "mallbot";
+            _browserPanel?.StopForLogin(); // the old relay host still holds the previous login's cookie
             await _accounts.SetProfileAsync(new AccountProfile
             {
                 Id = id,

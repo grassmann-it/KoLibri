@@ -96,6 +96,9 @@ public static class InventoryActionPlanner
     public static OverfillCheck CheckOverfill(ItemClassification c, int quantity, OrganState state)
     {
         var qty = Math.Max(1, quantity);
+        // An item missing from the catalog has no cost data at all: that is "unknown", never "free".
+        if (!c.Known)
+            return new(false, false, 0, 0, "This item is not in the item catalog, so its organ cost is unknown and overfilling cannot be checked.");
         var costs = c.OrganCosts.Count > 0 ? c.OrganCosts
             : c.OrganCost is { } single ? new[] { single }
             : Array.Empty<ItemOrganCost>();

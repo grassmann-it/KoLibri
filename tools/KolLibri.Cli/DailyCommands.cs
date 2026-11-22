@@ -218,9 +218,9 @@ internal static partial class KolibriCli
     /// </summary>
     private static int DailyBribesSampleAsync(string[] args)
     {
-        var bags = Math.Clamp(ReadInt(args, "--bags", 5), 1, 40);
-        var maxPrice = long.TryParse(GetOption(args, "--max-price"), out var mp) ? mp : 40_000;
-        var reserve = long.TryParse(GetOption(args, "--reserve"), out var rv) ? rv : 1_000_000;
+        var bags = StrictOptions.Int(args, "--bags", 5, 1, 40);
+        var maxPrice = StrictOptions.Long(args, "--max-price", 40_000, 1, 2_000_000_000);
+        var reserve = StrictOptions.Long(args, "--reserve", 1_000_000, 0, 2_000_000_000);
         var execute = HasFlag(args, "--execute");
         var mallbotCredentials = TryGetCredentials(AccountRole.Mallbot);
         var mainCredentials = TryGetCredentials(AccountRole.Main);

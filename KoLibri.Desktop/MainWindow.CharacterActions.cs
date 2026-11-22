@@ -413,9 +413,26 @@ public partial class MainWindow
         {
             using var session = await CharacterSession.OpenAsync(role, _accounts, token);
             if (!ReferenceEquals(inventory, _inventory)) return;
-            var snapshot = action is null
-                ? await session.ReadAsync(token)
-                : await session.ExecuteAsync(action, token);
+            // Cast and rest go through the verified single actions (confirmation by observed MP/HP/adventure change).
+            string? verifiedMessage = null;
+            CharacterActionSnapshot snapshot;
+            if (action is CastCharacterSkill cast)
+            {
+                var outcome = await session.CastAsync(cast.SkillId, 1, token);
+                snapshot = outcome.After;
+                verifiedMessage = DescribeVerifiedCast(cast.SkillId, outcome);
+            }
+            else if (action is RestAtCampground)
+            {
+                var before = await session.ReadAsync(token);
+                var outcome = await session.RestAsync(1, token);
+                snapshot = await session.ReadAsync(token);
+                verifiedMessage = DescribeVerifiedRest(outcome, before.Status, snapshot.Status);
+            }
+            else
+                snapshot = action is null
+                    ? await session.ReadAsync(token)
+                    : await session.ExecuteAsync(action, token);
             if (!ReferenceEquals(inventory, _inventory)) return;
 
             if (this.FindControl<TextBlock>("CharacterEquipmentStatus") is { } status)
@@ -450,10 +467,28 @@ public partial class MainWindow
                 ShowCharacterStorage(storage, role);
             }
             if (ReferenceEquals(inventory, _inventory))
-                SetStatus(snapshot.RejectionReason ?? (snapshot.Status.IsStale || snapshot.Inventory.IsStale
+                SetStatus(verifiedMessage ?? snapshot.RejectionReason ?? (snapshot.Status.IsStale || snapshot.Inventory.IsStale
                     ? "KoL did not return a fresh character state."
                     : DescribeCharacterAction(action, snapshot.Status)));
         });
+    }
+
+    internal static string DescribeVerifiedCast(int skillId, CharacterCastOutcome outcome)
+    {
+        var spent = outcome.Before.Status.IsStale || outcome.After.Status.IsStale
+            ? "adventures used: unknown"
+            : $"adventures used: {Math.Max(0, outcome.Before.Status.Adventures - outcome.After.Status.Adventures)}";
+        return outcome.Confirmed
+            ? $"Cast of skill {skillId} confirmed ({spent})."
+            : $"Cast of skill {skillId} not confirmed: {outcome.Problem ?? "no observed change"} ({spent}).";
+    }
+
+    internal static string DescribeVerifiedRest(CharacterRestOutcome outcome, KoLStatusSnapshot before, KoLStatusSnapshot after)
+    {
+        var adv = $"adventures used: {outcome.AdventuresSpent}";
+        if (outcome.Rests.Count == 1 && outcome.Problem is null)
+            return $"Rest confirmed: HP {after.CurrentHp}/{after.MaximumHp}, MP {after.CurrentMp}/{after.MaximumMp} ({adv}).";
+        return $"Rest not confirmed: {outcome.Problem ?? "no observed change"} ({adv}).{(outcome.Unclear ? " Check the account before resting again." : "")}";
     }
 
     private static string DescribeCharacterAction(CharacterAction? action, KoLStatusSnapshot status)

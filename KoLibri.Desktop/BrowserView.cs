@@ -25,6 +25,7 @@ public sealed class BrowserView : UserControl, IDisposable
     private Func<bool> _autoLogin = () => true;
     private RelayHost? _host;
     private AccountRole? _hostRole;
+    private string? _hostBinding;
     private Control? _web;
     private bool _engineSeen;
     private bool _disposed;
@@ -113,7 +114,9 @@ public sealed class BrowserView : UserControl, IDisposable
     {
         if (_accounts is null || _disposed) return;
         var role = _role();
-        if (_host is not null && _hostRole == role) return; // already running for this role
+        // Reuse only while the role is still bound to the same player and login cookie (BindingKey).
+        var current = await _accounts.GetSessionAsync(role, includeExpired: true);
+        if (_host is not null && _hostRole == role && _hostBinding is not null && _hostBinding == current?.BindingKey()) return;
         StopHost();
         var generation = ++_generation;
         ShowMessage($"Checking the {role} session…");
@@ -129,9 +132,11 @@ public sealed class BrowserView : UserControl, IDisposable
                 return;
             }
             ShowMessage($"Starting the relay for {role}…");
-            var host = await RelayHost.StartAsync(_accounts, role);
+            var started = await _accounts.GetSessionAsync(role)
+                ?? throw new InvalidOperationException($"{role} is not logged in. Log in first.");
+            var host = RelayHost.Start(started);
             if (generation != _generation || _disposed) { host.Dispose(); return; }
-            _host = host; _hostRole = role;
+            _host = host; _hostRole = role; _hostBinding = started.BindingKey();
             _log($"Relay browser started for {role} on {host.Origin} (token not logged).");
         }
         catch (InvalidOperationException exception)
@@ -315,7 +320,7 @@ public sealed class BrowserView : UserControl, IDisposable
         _generation++;
         _web = null;
         _host?.Dispose();
-        _host = null; _hostRole = null;
+        _host = null; _hostRole = null; _hostBinding = null;
         _address.Text = "";
     }
 
@@ -326,6 +331,9 @@ public sealed class BrowserView : UserControl, IDisposable
         StopHost();
         ShowMessage("The account changed. Open the browser again to start a relay for it.");
     }
+
+    /// <summary>Stops the running relay (its cookie belongs to the previous login); the next open starts a fresh one.</summary>
+    public void StopForLogin() => StopHost();
 
     public void Dispose()
     {

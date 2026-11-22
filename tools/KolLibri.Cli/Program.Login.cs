@@ -136,9 +136,9 @@ internal static partial class KolibriCli
         return 0;
     }
 
-    private static async Task<int> LoginClearAsync(string[] args)
+    internal static async Task<int> LoginClearAsync(string[] args)
     {
-        var roleValue = GetOption(args, "--role");
+        var roleValue = StrictOptions.Value(args, "--role");
         var roles = ResolveLoginRoles(roleValue);
         var accounts = AccountSessionManager.CreateDefault();
         await accounts.InitializeAsync();
