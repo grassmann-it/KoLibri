@@ -224,8 +224,16 @@ public sealed class MallBuyClient
         {
             var tail = text[at..Math.Min(text.Length, at + 240)];
             var n = System.Text.RegularExpressions.Regex.Match(tail, @"\((\d[\d,]*)\)");
-            byItems = n.Success && int.TryParse(n.Groups[1].Value.Replace(",", ""), NumberStyles.None, CultureInfo.InvariantCulture, out var count)
-                ? count : 1;
+            if (n.Success && int.TryParse(n.Groups[1].Value.Replace(",", ""), NumberStyles.None, CultureInfo.InvariantCulture, out var count))
+                byItems = count;
+            else if (requested == 1)
+                byItems = 1;
+            else if (byMeat is null)
+                // A bare/truncated "You acquire" proves no count, and no Meat line backs it up:
+                // for a multi-unit order that is indeterminate, never one confirmed unit.
+                return new(0, true, "the receipt is truncated after 'You acquire' and shows no count.");
+            else
+                byItems = byMeat;   // the Meat line decides; the bare text adds nothing
         }
 
         if (byMeat is null && byItems is null)

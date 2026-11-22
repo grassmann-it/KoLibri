@@ -128,8 +128,11 @@ public sealed partial class KolibriClientActions
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
         IReadOnlyList<KoLibri.Core.Spiel.KoLMailAttachment> items = itemId is { } id
             ? [new KoLibri.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
-        var sent = await client.SendKMailAsync(profile.CharacterName, text, items, 0, ct).ConfigureAwait(false);
-        if (!sent) return (false, "KoL did not confirm the message.");
+        var outcome = await client.SendKMailOutcomeAsync(profile.CharacterName, text, items, 0, ct).ConfigureAwait(false);
+        // The mail may have arrived although the reply is lost: keep the budget held as unresolved, spend no points.
+        if (outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Unconfirmed)
+            throw new UnreconciledPurchaseException("The reward KMail was sent but KoL's answer is missing; it may have arrived. Check the outbox.");
+        if (outcome != KoLibri.Core.Spiel.KoLMailSendOutcome.Sent) return (false, "KoL did not confirm the message.");
         if (pointsCost > 0)
             await _crm.SaveAsync(BuyerCrmService.SpendPoints(database, buyerKey, pointsCost), ct).ConfigureAwait(false);
         return (true, null);

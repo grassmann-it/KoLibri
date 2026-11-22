@@ -143,4 +143,70 @@ public sealed class MoneyPathBlockerTests
         hold.Release();
         Assert.Equal(0, other.UsedToday("g", "mall.buy"));
     }
+
+    // ---- residuals ----
+
+    [Fact]
+    public void Receipt_truncated_after_you_acquire_is_unverified_for_a_multi_unit_order()
+    {
+        var truncated = MallBuyClient.ReadReceipt("<b>You acquire", 8763, 100, 5);
+        Assert.True(truncated.Unverified);
+        Assert.Equal(0, truncated.Quantity);
+        Assert.False(MallBuyClient.ReadReceipt("<b>You acquire an item", 8763, 100, 1).Unverified);
+        Assert.Equal(3, MallBuyClient.ReadReceipt("You spent 300 Meat. You acquire an item (3)", 8763, 100, 5).Quantity);
+    }
+
+    [Fact]
+    public async Task Mail_cancelled_after_the_post_started_is_unconfirmed_but_before_it_is_a_cancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        using var http = new HttpClient(new CancelAfterPost(cts));
+        Assert.Equal(KoLMailSendOutcome.Unconfirmed,
+            await KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [new KoLMailAttachment(5, 1)], 0, cts.Token));
+        using var pre = new CancellationTokenSource();
+        pre.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100, pre.Token));
+    }
+
+    private sealed class CancelAfterPost(CancellationTokenSource cts) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(Page(""));
+        }
+    }
+
+    [Fact]
+    public void A_damaged_journal_refuses_booking_and_release_and_keeps_the_hold()
+    {
+        var path = TempLedger();
+        var ledger = new UsageLedger(path);
+        var hold = ledger.TryReserve("g", "mall.buy", "buy", "Main", 600, 1_000)!;
+        File.AppendAllText(path, "{\"seq\":1,\"kolDay\":\"x"); // aborted write: no newline
+        hold.Commit(600, "bought");
+        Assert.Equal(File.ReadAllText(path), "{\"seq\":1,\"kolDay\":\"x");   // nothing glued onto the tail
+        Assert.Null(ledger.TryReserve("g", "mall.buy", "buy", "Main", 1, 1_000));
+        var restarted = new UsageLedger(path, ownerAlive: _ => false);
+        Assert.Null(restarted.TryReserve("g", "mall.buy", "buy", "Main", 1, 1_000));
+        Assert.Equal(File.ReadAllText(path), "{\"seq\":1,\"kolDay\":\"x");
+        Assert.Equal(600, restarted.UsedToday("g", "mall.buy"));   // hold still counts
+    }
+
+    [Fact]
+    public void A_booking_starts_on_a_fresh_line_after_an_unterminated_tail()
+    {
+        var path = TempLedger();
+        var ledger = new UsageLedger(path);
+        var a = ledger.TryReserve("g", "mall.buy", "buy", "Main", 100, 1_000)!;
+        a.Commit(100, "one");
+        File.WriteAllText(path, File.ReadAllText(path).TrimEnd('\n'));   // valid line, newline lost
+        var fresh = new UsageLedger(path);
+        fresh.TryReserve("g", "mall.buy", "buy", "Main", 50, 1_000)!.Commit(50, "two");
+        Assert.Equal(2, fresh.Entries("g").Count);
+        Assert.Equal(150, fresh.UsedToday("g", "mall.buy"));
+        Assert.True(fresh.VerifyChain());
+    }
 }
