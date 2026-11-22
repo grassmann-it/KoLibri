@@ -133,16 +133,24 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
 
     private void ApplyFilter()
     {
-        var filter = _filterText.Trim();
         Locations.Clear();
-        foreach (var row in BuildLocations(_catalog)
-                     .Where(r => string.IsNullOrEmpty(filter)
-                                 || r.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                                 || r.Zone.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                                 || (r.Description?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false)))
-        {
+        foreach (var row in BuildLocations(_catalog).Where(r => MatchesFilter(r, _filterText)))
             Locations.Add(row);
-        }
+    }
+
+    /// <summary>
+    /// Every word of the filter must appear in the name, zone, description, snarfblat or id
+    /// (case-insensitive), so "smut orc", "logging camp" and "295" all find The Smut Orc Logging Camp.
+    /// </summary>
+    public static bool MatchesFilter(EncounterBrowserLocationRow row, string? filter)
+    {
+        var words = (filter ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return words.All(word =>
+            row.DisplayName.Contains(word, StringComparison.OrdinalIgnoreCase)
+            || row.Zone.Contains(word, StringComparison.OrdinalIgnoreCase)
+            || row.LocationId.Contains(word, StringComparison.OrdinalIgnoreCase)
+            || (row.Snarfblat > 0 && row.Snarfblat.ToString() == word.TrimStart('#'))
+            || (row.Description?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false));
     }
 
     private void RebuildMonsters()

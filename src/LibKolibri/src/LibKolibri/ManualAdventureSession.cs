@@ -94,17 +94,20 @@ public sealed class ManualAdventureSession : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(remainingTurns);
         BoundedAdventureRunResult? last = null;
         var started = 0;
+        var drops = new List<QuestDrop>();
         while (started < remainingTurns)
         {
             var request = template with { RunId = Guid.NewGuid().ToString("N") };
             last = await RunUntilChoiceAsync(request, allowlist, conditions, settings, cancellationToken)
                 .ConfigureAwait(false);
             if (last.Steps.Count > 0) started++;
+            foreach (var step in last.Steps)
+                if (step.Response?.Html is { } html) drops.AddRange(DropTracker.ReadDrops(html));
             if (last.StopReason != BoundedAdventureRunStopReason.Complete
                 || last.Conditions.Count > 0 && last.Conditions.All(condition => condition.IsSatisfied))
                 break;
         }
-        return new ManualAdventureBatchResult(started, remainingTurns - started, last!);
+        return new ManualAdventureBatchResult(started, remainingTurns - started, last!) { Drops = drops };
     }
 
     public async Task<KoLLocationAccess> ReadLocationAccessAsync(
@@ -127,6 +130,15 @@ public sealed class ManualAdventureSession : IAsyncDisposable
         return KoLQuestAccess.Evaluate(snarfblat, status, quests, inventory);
     }
 
+    /// <summary>Read only: is a choice or fight open on this account?</summary>
+    public Task<OpenChoiceDetection> DetectOpenChoiceAsync(CancellationToken cancellationToken = default)
+        => _session.DetectOpenChoiceAsync(cancellationToken);
+
+    /// <summary>Submits one option to the open choice (one POST); callers need the user's decision.</summary>
+    public Task<OpenChoiceSubmitResult> SubmitOpenChoiceAsync(
+        string choiceId, int option, CancellationToken cancellationToken = default)
+        => _session.SubmitOpenChoiceAsync(choiceId, option, cancellationToken);
+
     public Task<KoLStatusSnapshot> ReadStatusAsync(CancellationToken cancellationToken = default)
         => _session.AccountReader.FetchStatusAsync(forceRefresh: true, cancellationToken: cancellationToken);
 
@@ -134,4 +146,8 @@ public sealed class ManualAdventureSession : IAsyncDisposable
 }
 
 public sealed record ManualAdventureBatchResult(
-    int TurnsStarted, int TurnsRemaining, BoundedAdventureRunResult LastRun);
+    int TurnsStarted, int TurnsRemaining, BoundedAdventureRunResult LastRun)
+{
+    /// <summary>Everything the fight pages of this batch reported as acquired.</summary>
+    public IReadOnlyList<QuestDrop> Drops { get; init; } = Array.Empty<QuestDrop>();
+}

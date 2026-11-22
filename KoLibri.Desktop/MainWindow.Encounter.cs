@@ -77,17 +77,20 @@ public partial class MainWindow
             _encounterStartButton.Click += async (_, _) =>
             {
                 if (_encounterLocationsGrid?.SelectedItem is EncounterBrowserLocationRow row)
-                {
-                    _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
-                    await _encounterBrowser.StartAdventureAsync(row);
-                }
+                    await StartLocationAsync(row, 1);
+                else
+                    UpdateEncounterStatus("Select a location in the list first.");
                 RefreshEncounterStepLog();
             };
 
         if (this.FindControl<Button>("EncounterBatchStart") is { } runTurns)
             runTurns.Click += async (_, _) =>
             {
-                if (_encounterLocationsGrid?.SelectedItem is not EncounterBrowserLocationRow row) return;
+                if (_encounterLocationsGrid?.SelectedItem is not EncounterBrowserLocationRow row)
+                {
+                    UpdateEncounterStatus("Select a location in the list first.");
+                    return;
+                }
                 var budget = (int)(this.FindControl<NumericUpDown>("EncounterBatchTurns")?.Value ?? 1);
                 var item = this.FindControl<TextBox>("EncounterBatchItem")?.Text?.Trim();
                 if (!string.IsNullOrEmpty(item) && (!int.TryParse(item, out var id) || id <= 0))
@@ -112,6 +115,8 @@ public partial class MainWindow
             {
                 if (_encounterActionsGrid?.SelectedItem is EncounterBrowserActionRow row)
                     await _encounterBrowser.SubmitStepAsync(row);
+                else
+                    UpdateEncounterStatus("Pick an action in the Actions list first.");
                 RefreshEncounterStepLog();
             };
 
@@ -129,10 +134,98 @@ public partial class MainWindow
                 RefreshEncounterStepLog();
             };
 
+        WireDecisionPanel();
+        if (_adventuresView is not null)
+            _adventuresView.AdventureHere = (target, turns) => _ = AdventureAtAsync(target, turns);
     }
+
+    /// <summary>Starts one adventure (turns = 1) or a bounded batch at a location.</summary>
+    private async Task StartLocationAsync(EncounterBrowserLocationRow row, int turns)
+    {
+        if (_encounterBrowser is null) { UpdateEncounterStatus("The adventure catalog is not loaded."); return; }
+        _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
+        if (turns <= 1) await _encounterBrowser.StartAdventureAsync(row);
+        else await _encounterBrowser.RunTurnsAsync(row, turns, null);
+    }
+
+    private async Task AdventureAtAsync(ContextMenus.LocationMenuTarget target, int turns)
+    {
+        var row = _encounterBrowser?.Browser?.Locations.FirstOrDefault(r => r.LocationId == target.LocationId);
+        if (row is null)
+        {
+            UpdateEncounterStatus($"{target.Name} is hidden by the filter or not in the catalog; clear the filter and try again.");
+            return;
+        }
+        if (_encounterLocationsGrid is not null) _encounterLocationsGrid.SelectedItem = row;
+        await StartLocationAsync(row, turns);
+        RefreshEncounterStepLog();
+    }
+
+    /// <summary>Screenshot QA only: shows a choice in the decision panel without any request.</summary>
+    public void ShowDecisionForQa(KoLibri.Core.Spiel.NeedsDecisionInfo info)
+    {
+        _encounterBrowser?.Session?.Decisions.Show(info);
+        SyncDecisionPanel();
+    }
+
+    private AdventureDecisionController? _boundDecisions;
+
+    private void WireDecisionPanel()
+    {
+        if (this.FindControl<ItemsControl>("DecisionOptions") is { } options)
+            options.AddHandler(Button.ClickEvent, async (_, e) =>
+            {
+                if (e.Source is Button { Tag: int number } && _encounterBrowser is not null)
+                {
+                    await _encounterBrowser.SubmitDecisionAsync(number);
+                    RefreshEncounterStepLog();
+                    SyncDecisionPanel();
+                }
+            });
+        if (this.FindControl<Button>("DecisionApplyPolicy") is { } apply)
+            apply.Click += async (_, _) =>
+            {
+                if (_encounterBrowser is null) return;
+                await _encounterBrowser.ApplyPolicyAsync();
+                SyncDecisionPanel();
+            };
+        if (this.FindControl<Button>("DecisionRefresh") is { } refresh)
+            refresh.Click += async (_, _) =>
+            {
+                if (_encounterBrowser is null) return;
+                await _encounterBrowser.RefreshDecisionAsync();
+                SyncDecisionPanel();
+            };
+    }
+
+    /// <summary>Mirrors the session's open choice into the panel; re-binds when the account changed.</summary>
+    private void SyncDecisionPanel()
+    {
+        if (this.FindControl<Border>("DecisionPanel") is not { } panel) return;
+        var decisions = _encounterBrowser?.Session?.Decisions;
+        if (!ReferenceEquals(decisions, _boundDecisions))
+        {
+            if (_boundDecisions is not null) _boundDecisions.PropertyChanged -= OnDecisionChanged;
+            _boundDecisions = decisions;
+            if (decisions is not null) decisions.PropertyChanged += OnDecisionChanged;
+            if (this.FindControl<ItemsControl>("DecisionOptions") is { } list) list.ItemsSource = decisions?.Options;
+        }
+        panel.IsVisible = decisions?.IsVisible == true;
+        if (decisions is null) return;
+        if (this.FindControl<TextBlock>("DecisionTitle") is { } title)
+            title.Text = decisions.IsFightOpen ? "Open fight"
+                : decisions.ChoiceId is null ? "Open choice"
+                : $"Choice {decisions.ChoiceId}{(string.IsNullOrWhiteSpace(decisions.Title) ? "" : " · " + decisions.Title)}";
+        if (this.FindControl<TextBlock>("DecisionMessage") is { } message) message.Text = decisions.Message;
+        if (this.FindControl<Button>("DecisionApplyPolicy") is { } apply) apply.IsEnabled = decisions.ChoiceId is not null;
+    }
+
+    private void OnDecisionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => Avalonia.Threading.Dispatcher.UIThread.Post(SyncDecisionPanel);
 
     private void UpdateEncounterStatus(string message)
     {
+        SyncDecisionPanel();
         if (_encounterStatusText is null) return;
         _encounterStatusText.Text = $"{DateTime.Now:HH:mm:ss} · {message}";
         _log.Adventure(message);

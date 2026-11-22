@@ -72,6 +72,25 @@
               </WrapPanel>
             </StackPanel>
           </Grid>
+          <Border x:Name="DecisionPanel" Classes="panel-subtle" Padding="10" IsVisible="False">
+            <StackPanel Spacing="6">
+              <TextBlock x:Name="DecisionTitle" Text="Open choice" Classes="h3" TextWrapping="Wrap" />
+              <TextBlock x:Name="DecisionMessage" Classes="muted" TextWrapping="Wrap" />
+              <ItemsControl x:Name="DecisionOptions">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:DecisionOptionRow">
+                    <Button Content="{Binding Label}" Tag="{Binding Number}" Margin="0,0,0,4"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            AutomationProperties.Name="Choose this option" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button x:Name="DecisionApplyPolicy" Content="Apply policy" Classes="secondary" />
+                <Button x:Name="DecisionRefresh" Content="Re-read choice" Classes="secondary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
           <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Height="270">
             <DockPanel>
               <TextBlock Text="Locations" Classes="muted" DockPanel.Dock="Top" />

@@ -2,15 +2,28 @@ namespace KoLibri.Desktop.ContextMenus;
 
 public sealed record LocationMenuTarget(string LocationId, string Name, string? Zone = null, int RunTurns = 10);
 
-/// <summary>Adventure location rows: adventure once, run N turns, info and copy.</summary>
-public sealed class LocationContextMenu(IShellHost host)
+/// <summary>
+/// Adventure location rows: adventure here (once or N turns), copy name/id and the wiki page.
+/// <paramref name="adventure"/> starts the run in the adventure tab (turns = 1 for "here"); without
+/// a live adventure tab the entries say so instead of doing nothing.
+/// </summary>
+public sealed class LocationContextMenu(IShellHost host, Action<LocationMenuTarget, int>? adventure = null)
 {
     public IReadOnlyList<ContextMenuItem> Build(LocationMenuTarget location) =>
     [
-        ContextMenuItem.Action("Adventure once", MenuActions.NotImplemented(host, $"Adventure once in {location.Name}")),
-        ContextMenuItem.Action($"Run {location.RunTurns} turns", MenuActions.NotImplemented(host, $"Run {location.RunTurns} turns in {location.Name}")),
+        ContextMenuItem.Action("Adventure here", () => Run(location, 1)),
+        ContextMenuItem.Action($"Run {location.RunTurns} turns", () => Run(location, location.RunTurns)),
         ContextMenuItem.Separator,
-        ContextMenuItem.Action("Info", MenuActions.NotImplemented(host, $"Info {location.Name}")),
-        ContextMenuItem.Action("Copy name", MenuActions.Copy(host, location.Name, "location name"))
+        ContextMenuItem.Action("Copy name", MenuActions.Copy(host, location.Name, "location name")),
+        ContextMenuItem.Action("Copy id", MenuActions.Copy(host, location.LocationId, "location id")),
+        ContextMenuItem.Action("Wiki page", MenuActions.Wiki(host, location.Name))
     ];
+
+    private void Run(LocationMenuTarget location, int turns)
+    {
+        if (adventure is null)
+            host.SessionLog.Error($"Cannot adventure in {location.Name}: the adventure tab has no live session yet.");
+        else
+            adventure(location, turns);
+    }
 }

@@ -171,12 +171,40 @@ public sealed class EncounterBrowserPane : IDisposable
         catch (Exception exception)
         {
             if (ReferenceEquals(Session, session))
-                _setStatus(exception.Message);
+            {
+                _setStatus(AdventureFailureMapper.Describe(exception).Text);
+                // A redirect to choice.php/fight.php means something is open: show it as buttons.
+                if (exception is OpenChoiceException or AdventureHttpTransportException
+                    && AdventureFailureMapper.Describe(exception).Kind is AdventureFailureKind.OpenChoice or AdventureFailureKind.OpenFight)
+                    await session.Decisions.RefreshAsync(CancellationToken.None);
+            }
         }
         finally
         {
             _operationCancellation = null;
         }
+    }
+
+    public async ValueTask SubmitDecisionAsync(int option)
+    {
+        if (Session is not { } session || _operationCancellation is not null) return;
+        _operationCancellation = new CancellationTokenSource();
+        try { _setStatus(await session.Decisions.SubmitAsync(option, _operationCancellation.Token)); }
+        finally { _operationCancellation = null; }
+    }
+
+    public async ValueTask ApplyPolicyAsync()
+    {
+        if (Session is not { } session || _operationCancellation is not null) return;
+        _operationCancellation = new CancellationTokenSource();
+        try { _setStatus(await session.Decisions.ApplyPolicyAsync(_operationCancellation.Token)); }
+        finally { _operationCancellation = null; }
+    }
+
+    public async ValueTask RefreshDecisionAsync()
+    {
+        if (Session is not { } session || _operationCancellation is not null) return;
+        _setStatus(await session.Decisions.RefreshAsync());
     }
 
     public void EndSession()
