@@ -69,6 +69,8 @@ async Task RunAsync()
             {
                 Click(window, $"InvView{v}"); await Pump(400); Shot(window, P($"inventory-{v.ToLower()}"));
             }
+            SeedCharpane(window);
+            await Pump(300); Shot(window, P("charpane-skills"));
             Click(window, "InvViewItems");
             await Section(window, "NavMall"); Shot(window, P("mall-empty"));
             await SeedMallResults(window); await Pump(500); Shot(window, P("mall-results"));
@@ -102,6 +104,18 @@ async Task RunAsync()
         }
     }
     finally { try { tmp.Delete(true); } catch { } }
+}
+
+static void SeedCharpane(MainWindow w)
+{
+    var now = DateTimeOffset.UtcNow;
+    var status = new KoLibri.Core.Spiel.KoLStatusSnapshot("QA Tester", 87, 2345678, 13, now)
+    {
+        CurrentHp = 120, MaximumHp = 200, CurrentMp = 85, MaximumMp = 150,
+        Fullness = 5, Inebriety = 3, Spleen = 7, FamiliarId = "9", FamiliarWeight = 20,
+        TimedEffects = [new("Ode to Booze", 14), new("Ur-Kel's Aria of Annoyance", 120), new("Polka of Plenty", 1)]
+    };
+    w.FindControl<CharpaneView>("CharacterPane")!.Show(CharpaneState.FromStatus(status, "Main", now));
 }
 
 static async Task Pump(int ms) => await Task.Delay(ms);

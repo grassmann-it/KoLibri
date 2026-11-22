@@ -57,5 +57,8 @@ public sealed class CharacterSession : IDisposable
         CharacterAction action, CancellationToken cancellationToken = default)
         => _actions.ExecuteAsync(action, cancellationToken);
 
+    public Task<CharacterCastOutcome> CastAsync(int skillId, int times, CancellationToken cancellationToken = default)
+        => _actions.CastAsync(skillId, times, cancellationToken);
+
     public void Dispose() => _http.Dispose();
 }
