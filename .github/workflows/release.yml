@@ -27,9 +27,21 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
+      - name: Check that the tag matches the project version
+        shell: bash
+        run: |
+          version=$(sed -n 's:.*<KoLibriVersion>\(.*\)</KoLibriVersion>.*:\1:p' Directory.Build.props)
+          echo "Directory.Build.props version: $version, tag: ${GITHUB_REF_NAME}"
+          [[ "${GITHUB_REF_NAME}" == "v$version" ]] || { echo "Tag ${GITHUB_REF_NAME} does not match version $version"; exit 1; }
       - name: Package
         shell: bash
         run: scripts/package.sh ${{ matrix.rid }}
+      - name: Package smoke (unpacked CLI starts)
+        shell: bash
+        run: |
+          d=$(ls -d dist/KoLibri-*-${{ matrix.rid }})
+          # The runner can start its own architecture only (osx-x64 is built on an arm64 runner and is not started).
+          if [[ "${{ matrix.rid }}" != "osx-x64" ]]; then "$d/kolibri" --help < /dev/null | head -3; fi
       - name: Archive
         shell: bash
         run: |
@@ -52,9 +64,15 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Check the archives (four platforms, one version, one commit)
+        run: |
+          ls -l artifacts
+          test "$(ls artifacts | wc -l)" -eq 4
+          v="${GITHUB_REF_NAME#v}"
+          for rid in linux-x64 win-x64 osx-arm64 osx-x64; do ls artifacts | grep -q "^KoLibri-$v-$rid\." || { echo "missing archive for $rid $v"; exit 1; }; done
       - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" artifacts/* --repo "${{ github.repository }}" \
-            --title "KoLibri ${{ github.ref_name }}" --generate-notes --draft
+            --title "KoLibri ${{ github.ref_name }} (early alpha)" --generate-notes --draft --prerelease

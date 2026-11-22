@@ -14,7 +14,7 @@ public partial class KolibriMcpServer
     private void RegisterDailyPlanExecutionTools()
     {
         Register("kol_plan_daily_adventures_execute",
-            "Build (and optionally execute) a daily adventure plan from snapshots. Live path requires execute=true and approvalToken.",
+            "Build (and optionally execute) a daily adventure plan from snapshots. Without execute it previews. Live path: execute=true returns a planId first, then the same call plus planId runs once (approvalToken only for an ungated host).",
             DailyPlanExecuteSchema(),
             DailyPlanExecuteAsync);
 
@@ -46,7 +46,7 @@ public partial class KolibriMcpServer
                 approvalRequired = true,
                 state,
                 plan,
-                note = "Preview only. Pass execute=true plus approvalToken to drive the bounded runner."
+                note = "Preview only. Pass execute=true (and planId on the second call, or approvalToken on an ungated host) to drive the bounded runner."
             };
         }
 

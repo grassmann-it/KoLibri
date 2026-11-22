@@ -297,7 +297,7 @@ public partial class KolibriMcpServer
             protocolVersion = _options.ProtocolVersion,
             capabilities = new { tools = new { } },
             serverInfo = new { name = _options.ServerName, version = _options.ServerVersion },
-            instructions = "Read-only KoLibri status, inventory, pricing, underprice, workflow and preview tools. Read tools accept an optional Main or Mallbot role; credentials stay in the configured account runtime."
+            instructions = $"KoLibri {_options.ServerVersion} (early alpha): read tools for status, inventory, pricing, shop, arbitrage plans and workflow previews, plus write tools (mall buy, transfer, messages, item use, consume, rest, reprice, meme shop, adventures) that need a granted right. Every write is two-step: the first call only previews and returns a planId, the second call with the same arguments plus planId executes once. Preview and read tools send no purchase or action. Always show the user the preview and get their confirmation before executing; if a result has needsDecision, ask the user instead of guessing. Credentials stay in the configured account runtime."
         };
 
     private void RegisterReadOnlyTools()

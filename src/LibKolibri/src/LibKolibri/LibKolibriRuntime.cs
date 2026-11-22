@@ -37,6 +37,14 @@ public sealed class LibKolibriRuntime
     }
 
     /// <summary>Returns the runtime name, version and registered modules.</summary>
-    public KolibriRuntimeDescriptor Describe(string version = "0.1.0")
-        => new("LibKolibri", version, _services.Values.OfType<IKolibriModule>().ToArray());
+    public KolibriRuntimeDescriptor Describe(string? version = null)
+        => new("LibKolibri", version ?? CurrentVersion(), _services.Values.OfType<IKolibriModule>().ToArray());
+
+    private static string CurrentVersion()
+    {
+        var assembly = typeof(LibKolibriRuntime).Assembly;
+        var info = System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion?.Split('+')[0];
+        return string.IsNullOrWhiteSpace(info) ? (assembly.GetName().Version?.ToString(3) ?? "0.0.0") : info;
+    }
 }
