@@ -58,12 +58,33 @@ public sealed class RelayHost : IDisposable
         var cookie = session.Credentials.CookieHeader;
         if (string.IsNullOrWhiteSpace(cookie))
             throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
-        return Start(session, port, logPath, browserUserAgent, console, upstreamHandler, kolOrigin, limiter);
+        return Start(session, port, logPath, browserUserAgent, console, upstreamHandler, kolOrigin, limiter,
+            SessionBindingCheck(accounts, role, session.BindingKey()));
+    }
+
+    /// <summary>
+    /// Builds a per-request check that the role still holds the login the relay started with (same player and cookie).
+    /// The stored session is re-read at most once a second. Returns null while it matches, else a clear message.
+    /// </summary>
+    public static Func<Task<string?>> SessionBindingCheck(AccountSessionManager accounts, AccountRole role, string bindingKey)
+    {
+        var gate = new object(); long checkedAt = 0; string? last = null;
+        return async () =>
+        {
+            var now = Environment.TickCount64;
+            lock (gate) { if (checkedAt != 0 && now - checkedAt < 1000) return last; }
+            var current = await accounts.GetSessionAsync(role, includeExpired: true).ConfigureAwait(false);
+            var msg = current is not null && current.BindingKey() == bindingKey ? null
+                : $"The {role} login changed since this relay started. Close this tab and open the browser again.";
+            lock (gate) { checkedAt = Math.Max(1, now); last = msg; }
+            return msg;
+        };
     }
 
     public static RelayHost Start(AccountSession session, int port = 0, string? logPath = null, bool browserUserAgent = false,
         Action<string>? console = null, HttpMessageHandler? upstreamHandler = null,
-        string kolOrigin = "https://www.kingdomofloathing.com", KoLRateLimiter? limiter = null)
+        string kolOrigin = "https://www.kingdomofloathing.com", KoLRateLimiter? limiter = null,
+        Func<Task<string?>>? sessionCheck = null)
     {
         var cookie = session.Credentials.CookieHeader
             ?? throw new InvalidOperationException("No KoL session cookie.");
@@ -89,6 +110,7 @@ public sealed class RelayHost : IDisposable
                 SessionUserAgent = session.Credentials.UserAgent ?? KoLUserAgent.LegacyValue,
                 BrowserUserAgent = browserUserAgent,
                 KolOrigin = kolOrigin,
+                SessionCheck = sessionCheck,
                 Log = line => { lock (logLock) File.AppendAllText(logPath, line + "\n"); },
                 Console = console ?? (_ => { }),
             });

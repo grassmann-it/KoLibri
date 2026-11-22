@@ -77,7 +77,11 @@ public sealed class BrowserView : UserControl, IDisposable
         root.Children.Add(bar);
         _signInButton.SetValue(Avalonia.Automation.AutomationProperties.NameProperty, "Sign in to use the browser");
         _signInButton.Click += (_, _) => _signIn?.Invoke();
-        _retryButton.Click += async (_, _) => { StopHost(); await OpenAsync(); };
+        _retryButton.Click += async (_, _) =>
+        {
+            try { StopHost(); await OpenAsync(); }
+            catch (Exception exception) { ShowMessage($"The browser could not open ({exception.GetType().Name}).", offerSignIn: _signIn is not null, retry: true); }
+        };
         _messagePanel.Child = new StackPanel
         {
             Spacing = 12,
@@ -115,13 +119,14 @@ public sealed class BrowserView : UserControl, IDisposable
         if (_accounts is null || _disposed) return;
         var role = _role();
         // Reuse only while the role is still bound to the same player and login cookie (BindingKey).
-        var current = await _accounts.GetSessionAsync(role, includeExpired: true);
-        if (_host is not null && _hostRole == role && _hostBinding is not null && _hostBinding == current?.BindingKey()) return;
-        StopHost();
-        var generation = ++_generation;
-        ShowMessage($"Checking the {role} session…");
+        var generation = _generation;
         try
         {
+            var current = await _accounts.GetSessionAsync(role, includeExpired: true);
+            if (_host is not null && _hostRole == role && _hostBinding is not null && _hostBinding == current?.BindingKey()) return;
+            StopHost();
+            generation = ++_generation;
+            ShowMessage($"Checking the {role} session…");
             // Not signed in: renew from the stored password when automatic log-in is on, else offer Sign in.
             var gate = await BrowserGate.CheckAsync(_accounts, role, _autoLogin());
             if (generation != _generation || _disposed) return;
@@ -134,7 +139,7 @@ public sealed class BrowserView : UserControl, IDisposable
             ShowMessage($"Starting the relay for {role}…");
             var started = await _accounts.GetSessionAsync(role)
                 ?? throw new InvalidOperationException($"{role} is not logged in. Log in first.");
-            var host = RelayHost.Start(started);
+            var host = RelayHost.Start(started, sessionCheck: RelayHost.SessionBindingCheck(_accounts, role, started.BindingKey()));
             if (generation != _generation || _disposed) { host.Dispose(); return; }
             _host = host; _hostRole = role; _hostBinding = started.BindingKey();
             _log($"Relay browser started for {role} on {host.Origin} (token not logged).");

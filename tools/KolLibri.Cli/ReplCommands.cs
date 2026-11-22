@@ -330,7 +330,9 @@ public sealed class ReplDispatcher
             }
             case "clear":
             {
-                var role = ResolveLoginRoleFromArgs(args, 2, "all");
+                IReadOnlyList<AccountRole> role;
+                try { role = StrictOptions.LoginRoles(args[2..]); }
+                catch (ArgumentException exception) { return ReplResult.Plain($"login clear: {exception.Message} Nothing was cleared."); }
                 var cleared = await ctx.ClearLoginAsync(role, token);
                 return ReplResult.Plain($"login clear: {cleared} role(s) cleared.");
             }
@@ -351,28 +353,6 @@ public sealed class ReplDispatcher
         }
     }
 
-    private static IEnumerable<AccountRole> ResolveLoginRoleFromArgs(string[] args, int startIndex, string defaultValue)
-    {
-        for (var i = startIndex; i < args.Length; i++)
-        {
-            if (string.Equals(args[i], "--role", StringComparison.OrdinalIgnoreCase)
-                && i + 1 < args.Length)
-            {
-                var value = args[i + 1].ToLowerInvariant();
-                if (value is "all" or "both") return new[] { AccountRole.Main, AccountRole.Mallbot };
-                return Enum.TryParse<AccountRole>(value, true, out var role)
-                    ? new[] { role }
-                    : Array.Empty<AccountRole>();
-            }
-        }
-        return defaultValue.ToLowerInvariant() switch
-        {
-            "all" or "both" => new[] { AccountRole.Main, AccountRole.Mallbot },
-            _ => Enum.TryParse<AccountRole>(defaultValue, true, out var role)
-                ? new[] { role }
-                : Array.Empty<AccountRole>()
-        };
-    }
 
     internal static DailyRoutineSnapshot ParseRoutineSnapshot(string[] args)
     {

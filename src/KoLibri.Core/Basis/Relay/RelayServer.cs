@@ -13,6 +13,11 @@ public sealed class RelayOptions
     public bool BrowserUserAgent { get; init; }
     public Action<string> Log { get; init; } = _ => { };
     public Action<string> Console { get; init; } = _ => { };
+    /// <summary>
+    /// Optional per-request check that the login this relay was started with is still the stored one.
+    /// Returns null when fine, else a short message; the request is then refused (409) and nothing is sent upstream.
+    /// </summary>
+    public Func<Task<string?>>? SessionCheck { get; init; }
     public TimeSpan UpstreamTimeout { get; init; } = TimeSpan.FromSeconds(60);
     public int MaxConcurrency { get; init; } = 8;
     public TimeSpan ConcurrencyWait { get; init; } = TimeSpan.FromSeconds(30);
@@ -228,6 +233,17 @@ public sealed class RelayServer : IDisposable
             if (req.ContentLength64 > _o.MaxRequestBodyBytes)
             {
                 outcome = "denied:too-large"; status = 413; await WriteTextAsync(res, 413, "Request too large."); return;
+            }
+            if (_o.SessionCheck is { } check)
+            {
+                string? stale;
+                try { stale = await check().ConfigureAwait(false); }
+                catch { stale = "The stored login could not be read. Close this tab and open the browser again."; }
+                if (stale is not null)
+                {
+                    outcome = "denied:session-changed"; status = 409;
+                    await WriteTextAsync(res, 409, stale); return;
+                }
             }
             acquired = await _slots.WaitAsync(_o.ConcurrencyWait, stop).ConfigureAwait(false);
             if (!acquired)

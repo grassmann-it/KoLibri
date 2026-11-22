@@ -990,6 +990,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _inventoryView.FindControl<TextBlock>("InventoryEmptyText")!.Text = _inventory.SummaryText;
     }
 
+    private object? _sortWiredView;
+
     private void WireInventorySortButtons()
     {
         var map = new (string Name, InventorySortKey Key, string Label)[]
@@ -1006,9 +1008,14 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                 button.Classes.Set("active", active);
             }
         }
-        foreach (var (name, key, _) in map)
-            if (_inventoryView?.FindControl<Button>(name) is { } button)
-                button.Click += (_, _) => { _inventory.SortBy(key); Refresh(); };
+        // Handlers read the current view model, so they are registered once per view, not on every account switch.
+        if (!ReferenceEquals(_sortWiredView, _inventoryView))
+        {
+            _sortWiredView = _inventoryView;
+            foreach (var (name, key, _) in map)
+                if (_inventoryView?.FindControl<Button>(name) is { } button)
+                    button.Click += (_, _) => { _inventory.SortBy(key); Refresh(); };
+        }
         Refresh();
     }
 

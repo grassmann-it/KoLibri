@@ -62,6 +62,19 @@ internal static class StrictOptions
             var other => throw new ArgumentException($"--role must be main or mallbot, got '{other}'.")
         };
 
+    /// <summary>Roles from --role for login clear: all/both only when the option is left out or says so; anything else invalid is an error.</summary>
+    public static IReadOnlyList<AccountRole> LoginRoles(string[] args)
+    {
+        Only(args, new[] { "--role" }, Array.Empty<string>());
+        return Value(args, "--role")?.Trim().ToLowerInvariant() switch
+        {
+            null or "all" or "both" => new[] { AccountRole.Main, AccountRole.Mallbot },
+            "main" => new[] { AccountRole.Main },
+            "mallbot" => new[] { AccountRole.Mallbot },
+            var other => throw new ArgumentException($"--role must be main, mallbot or all, got '{other}'.")
+        };
+    }
+
     /// <summary>Rejects anything that is not one of the known value options or flags (typos like --qtty).</summary>
     public static void Only(string[] args, IReadOnlyCollection<string> valueOptions, IReadOnlyCollection<string> flags)
     {
