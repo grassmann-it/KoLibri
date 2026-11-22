@@ -3,7 +3,7 @@
 > **Early Alpha (0.4.0).** KoLibri is usable but not stable; commands, options and file formats may change before 1.0.
 > - **Included:** `LibKolibri` (library, source checkout; NuGet planned for 0.5), `kolicli` / `kolibri` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early example client, not broadly tested live).
 > - **Unstable:** the desktop UI, MCP tool names and schemas, daily/arbitrage planners, and the Windows and macOS builds (validated manually; CI test failures there are tolerated for this release).
-> - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited (default one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
+> - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
 > - Details: [CHANGELOG.md](../CHANGELOG.md).
 
 

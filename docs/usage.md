@@ -3,7 +3,7 @@
 > **Early Alpha (0.4.0).** KoLibri is usable but not stable; commands, options and file formats may change before 1.0.
 > - **Included:** `LibKolibri` (library, source checkout; NuGet planned for 0.5), `kolicli` / `kolibri` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early example client, not broadly tested live).
 > - **Unstable:** the desktop UI, MCP tool names and schemas, daily/arbitrage planners, and the Windows and macOS builds (validated manually; CI test failures there are tolerated for this release).
-> - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited (default one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
+> - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
 > - Details: [CHANGELOG.md](../CHANGELOG.md).
 
 
@@ -82,11 +82,26 @@ and the limits (Meat per day, price ceiling, reserve). Everything outside that i
 
 ## Request rate
 
-KoLibri sends at most one request to the game every 2 seconds, counted per process: all accounts and roles
-(Main, Mallbot), every manually followed redirect and every tool inside the process share one limiter. Raise it
-with `KOLIBRI_MIN_REQUEST_INTERVAL_MS` (never below 1000). Separate processes (for example the CLI and the
-desktop app running at once) do not coordinate, so together they can exceed it. Pricegun is a different host with
-its own per-process limiter (2 s, `KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`); cached results send nothing.
+Requests go through one limiter per process, shared by all accounts and roles (Main, Mallbot), every manually followed
+redirect and every tool, with two lanes like a browser's main frame and sidebar:
+
+- **Action lane**: anything that changes state or spends turns (adventure, fight, choice, eat/drink/spleen, mall buys,
+  kmail, every POST, and any page not known to be a plain read). Strictly one at a time, started at least 2 s apart
+  (`KOLIBRI_MIN_REQUEST_INTERVAL_MS`, never below 1000). The lane stays occupied until the response has arrived.
+- **Read lane**: idempotent display reads (`api.php` status, `charpane.php`, inventory, mall search, item descriptions).
+  Default: starts 1 s apart, at most 2 in flight, so a sidebar or status refresh runs next to an adventure step instead of
+  queueing behind it.
+- **Global cap**: at most 2 request starts per second over both lanes (a safety net, never above 5).
+
+Presets and overrides: `KOLIBRI_LIMITER_PRESET=browser-like` (or `"limiterPreset": "browser-like"` in the settings file)
+reads every 0.4 s, 3 in flight, cap 4 per second; actions keep their 2 s. Single values: `KOLIBRI_READ_INTERVAL_MS`
+(min 200), `KOLIBRI_READ_CONCURRENCY` (1 to 4), `KOLIBRI_MAX_REQUESTS_PER_SECOND` (1 to 5); environment beats settings
+(`kolReadIntervalSeconds`, `kolReadConcurrency`, `kolMaxPerSecond`), settings beat the preset. After an adventure step the
+status and inventory refresh is one parallel read pair, not a second sequential round trip.
+
+Separate processes (for example the CLI and the desktop app running at once) do not coordinate, so together they can
+exceed these limits. Pricegun is a different host with its own per-process limiter (2 s,
+`KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`); cached results send nothing.
 
 Both intervals, the cache duration, budgets and combat limits are also editable in the desktop **Settings** view
 (saved as `desktop-settings.json` in the KoLibri data folder, no secrets; every value has a default, minimum and

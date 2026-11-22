@@ -6,7 +6,7 @@ First tagged early-alpha release. Included: **LibKolibri**, the CLI (`kolibri` /
 and the **desktop UI** (an early example client). It is usable but not stable; interfaces may change before 1.0.
 
 ### Highlights
-- **Rate limiter:** one process-wide limiter for all KoL requests (default one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`), shared by both account roles, redirect hops and Pricegun.
+- **Rate limiter:** one process-wide limiter with an action lane (serialized, one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`) and a read lane (display reads, 2 in flight) under a global per-second cap, shared by both account roles and redirect hops; `browser-like` preset and env/settings overrides (see usage). Pricegun has its own limiter.
 - **Relay:** `kolibri relay` browses KoL in your own browser through the stored session; loopback only, per-run secret cookie, request log without secrets.
 - **Interstitial handling:** pages that interrupt a request are recognised and reported instead of being treated as results.
 - **Choice policy and `needsDecision`:** choice adventures follow a configurable policy; when no rule applies the run stops and asks (CLI and MCP) instead of guessing.

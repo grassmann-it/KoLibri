@@ -34,6 +34,9 @@ public sealed class DesktopSettings
         new("cloverThreshold", "11-leaf clover highlight price", 27_000, 1_000, 1_000_000, "Meat"),
         new("resultLimit", "Result / page limit", 50, 1, 500, "rows"),
         new("kolIntervalSeconds", "KoL request interval", 2, 1, 60, "s"),
+        new("kolReadIntervalSeconds", "KoL read interval (sidebar, status, searches)", 1, 0.2, 60, "s"),
+        new("kolReadConcurrency", "KoL reads in flight at once", 2, 1, 4, "requests"),
+        new("kolMaxPerSecond", "KoL requests per second, all lanes", 2, 1, 5, "req/s"),
         new("pricegunIntervalSeconds", "Pricegun request interval", 2, 1, 60, "s"),
         new("cacheMinutes", "Cache duration", 20, 1, 1_440, "min"),
         new("maxStaleHours", "Maximum age of stale data", 12, 1, 168, "h"),
@@ -59,6 +62,8 @@ public sealed class DesktopSettings
     public bool DailyDefaults { get; set; } = true;
     public bool OptionalTools { get; set; } = true;
     public string Theme { get; set; } = "Light";
+    /// <summary>"conservative" (default) or "browser-like": base values of the read lane and the global cap; explicit numbers and environment variables still win.</summary>
+    public string LimiterPreset { get; set; } = "conservative";
     public Dictionary<string, double> Numbers { get; set; } = new();
 
     /// <summary>Booze the Daily tab drinks, chosen by the user (no built-in items).</summary>
@@ -151,11 +156,29 @@ public sealed class DesktopSettings
         return new EffectiveSetting(span.TotalSeconds, over, over ? variable : null);
     }
 
+    /// <summary>Lane limits: preset (environment wins over settings), then explicitly set numbers, then environment values; clamped.</summary>
+    public KoLLimiterOptions ToLimiterOptions(Func<string, string?>? env = null)
+    {
+        env ??= Environment.GetEnvironmentVariable;
+        var options = KoLLimiterOptions.Preset(env(KoLLimiterOptions.PresetEnvironmentVariable) ?? LimiterPreset) with
+        {
+            ActionInterval = KoLRateLimiter.EffectiveInterval(TimeSpan.FromSeconds(Get("kolIntervalSeconds")), env(KoLRateLimiter.IntervalEnvironmentVariable))
+        };
+        if (Numbers.ContainsKey("kolReadIntervalSeconds")) options = options with { ReadInterval = TimeSpan.FromSeconds(Get("kolReadIntervalSeconds")) };
+        if (Numbers.ContainsKey("kolReadConcurrency")) options = options with { ReadConcurrency = (int)Get("kolReadConcurrency") };
+        if (Numbers.ContainsKey("kolMaxPerSecond")) options = options with { MaxPerSecond = Get("kolMaxPerSecond") };
+        var fromEnv = KoLLimiterOptions.FromEnvironment(env);
+        if (double.TryParse(env(KoLLimiterOptions.ReadIntervalEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { ReadInterval = fromEnv.ReadInterval };
+        if (double.TryParse(env(KoLLimiterOptions.ReadConcurrencyEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { ReadConcurrency = fromEnv.ReadConcurrency };
+        if (double.TryParse(env(KoLLimiterOptions.MaxPerSecondEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { MaxPerSecond = fromEnv.MaxPerSecond };
+        return options.Clamped();
+    }
+
     /// <summary>Hands the configured intervals to the process-wide limiters; call once at startup, before the first request.</summary>
     public void ApplyToLimiters(Func<string, string?>? env = null)
     {
         var get = env ?? Environment.GetEnvironmentVariable;
-        KoLRateLimiter.Shared.ApplyConfigured(TimeSpan.FromSeconds(Get("kolIntervalSeconds")), get(KoLRateLimiter.IntervalEnvironmentVariable));
+        KoLRateLimiter.Shared.ApplyOptions(ToLimiterOptions(get));
         PricegunRateLimit.Shared.ApplyConfigured(TimeSpan.FromSeconds(Get("pricegunIntervalSeconds")), get(PricegunRateLimit.IntervalEnvironmentVariable));
     }
 }
