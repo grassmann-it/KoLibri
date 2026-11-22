@@ -157,12 +157,19 @@ public sealed class MallBuyClient
         var status = (int)response.StatusCode;
         var confirmed = IsConfirmedPurchase(status, body);
         if (!confirmed)
+        {
+            // A 2xx page that neither confirms nor names a known refusal (empty, garbled, truncated) says nothing:
+            // the POST may have bought. That is Unverified (indeterminate), never a rejection.
+            var unreadable = status is >= 200 and < 300 && !IsKnownRefusal(body);
             return new MallBuyResult
             {
                 RequestId = Guid.NewGuid().ToString("N"), StatusCode = status, Accepted = false,
+                Unverified = unreadable,
                 StoreId = storeId, ItemId = itemId, UnitPrice = unitPrice, Quantity = quantity,
-                TotalPrice = unitPrice * quantity, Message = snippet, RequestedQuantity = quantity
+                TotalPrice = unitPrice * quantity, RequestedQuantity = quantity,
+                Message = unreadable ? $"Unverified receipt: the answer neither confirms nor refuses the purchase. {snippet}" : snippet
             };
+        }
         var receipt = ReadReceipt(body, itemId, unitPrice, quantity);
         return new MallBuyResult
         {
@@ -241,6 +248,18 @@ public sealed class MallBuyClient
         => statusCode is >= 200 and < 300 && !string.IsNullOrEmpty(body)
            && (body.Contains("You acquire", StringComparison.OrdinalIgnoreCase)
                || body.Contains("You spent", StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] RefusalMarkers =
+    {
+        DailyLimitRefusal, "doesn't have", "does not have", "don't have enough", "not enough meat",
+        "sold out", "no longer", "out of stock", "can't afford", "cannot afford", "too expensive"
+    };
+
+    /// <summary>True when a 2xx page names a refusal KoL is known to give. Anything else that is not a
+    /// confirmation is unreadable, so the outcome is indeterminate.</summary>
+    public static bool IsKnownRefusal(string body)
+        => !string.IsNullOrEmpty(body)
+           && RefusalMarkers.Any(m => body.Contains(m, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>KoL's mall rows expose the store id as a string; the
     /// purchase needs the numeric form.</summary>

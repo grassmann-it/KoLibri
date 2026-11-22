@@ -203,7 +203,7 @@ public sealed class ItemArbitrageExecutor
         var reasons = commit.AbortReasons;
         var message = commit.Receipt?.Message ?? commit.Messages.FirstOrDefault() ?? "";
         var maybeSent = commit.Receipt is { } receipt
-            && (receipt.Accepted || message.Contains("indeterminate", StringComparison.OrdinalIgnoreCase));
+            && receipt.MaybeSent;
         if (maybeSent || (reasons.Contains(MallPurchaseAbortReason.TransportFailure) && commit.Before is not null))
         {
             _ledger.MarkUnclear(_account, step.Total);

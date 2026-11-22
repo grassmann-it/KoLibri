@@ -219,6 +219,19 @@ public sealed class KolibriClient : IDisposable
             .ConfigureAwait(false);
     }
 
+    /// <summary>Typed variant of <see cref="SendKMailAsync"/>: a lost reply is Unconfirmed, not "not sent".</summary>
+    public async Task<KoLMailSendOutcome> SendKMailOutcomeAsync(
+        string recipient, string message, IReadOnlyList<KoLMailAttachment>? items = null, long meat = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
+            .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new InvalidOperationException("No request hash for this account; nothing was sent.");
+        return await KoLMailbox.SendWithOutcomeAsync(_http, hash, recipient, message, items ?? [], meat, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Uses an inventory item <paramref name="quantity"/> times (one request each, stops at the first
     /// refusal). Returns how many uses KoL confirmed by the inventory count going down.
