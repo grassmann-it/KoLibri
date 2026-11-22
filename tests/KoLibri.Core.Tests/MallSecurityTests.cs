@@ -44,7 +44,8 @@ public sealed class MallSecurityTests
         var client = new KoLMallReadClient(
             http,
             new Uri("https://www.kingdomofloathing.com/"),
-            new MallReadPolicy { MinimumRequestInterval = TimeSpan.Zero });
+            new MallReadPolicy { MinimumRequestInterval = TimeSpan.Zero },
+            itemNameResolver: id => id == "42" ? "test item" : null);
 
         var result = await client.SearchAsync("42");
 
@@ -63,7 +64,8 @@ public sealed class MallSecurityTests
         var client = new KoLMallReadClient(
             loginHttp,
             new Uri("https://www.kingdomofloathing.com/"),
-            new MallReadPolicy { MinimumRequestInterval = TimeSpan.Zero });
+            new MallReadPolicy { MinimumRequestInterval = TimeSpan.Zero },
+            itemNameResolver: id => id == "42" ? "test item" : null);
 
         var exception = await Assert.ThrowsAsync<KoLHtmlResponseException>(() => client.SearchAsync("42"));
         Assert.Equal(KoLHtmlResponseKind.LoginPage, exception.Kind);
