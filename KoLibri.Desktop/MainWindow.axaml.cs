@@ -10,8 +10,33 @@ using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, IInventoryViewHandlers,
+    IGearViewHandlers, ISkillsEffectsViewHandlers, IDailyViewHandlers
 {
+    // The tab views own their own name scopes; the shell keeps looking controls up by name
+    // (and the tests do too), so the lookup falls through to the views.
+    private Control?[] ViewScopes => new Control?[]
+    {
+        _charpaneView, _adventuresView, _inventoryView, _gearView, _skillsEffectsView, _dailyView
+    };
+
+    private CharpaneView? _charpaneView;
+    private AdventuresView? _adventuresView;
+    private InventoryView? _inventoryView;
+    private GearView? _gearView;
+    private SkillsEffectsView? _skillsEffectsView;
+    private DailyView? _dailyView;
+
+    /// <summary>Finds a control by x:Name in the shell or in one of the tab views.</summary>
+    public T? FindControl<T>(string name) where T : Control
+    {
+        if (ControlExtensions.FindControl<T>(this, name) is { } own) return own;
+        foreach (var view in ViewScopes)
+            if (view is not null && ControlExtensions.FindControl<T>(view, name) is { } found)
+                return found;
+        return null;
+    }
+
     private StackPanel? _contentRoot;
     private Button? _themeToggleButton;
     private bool _isOpsDark;
@@ -41,7 +66,7 @@ public partial class MainWindow : Window
     private int _navigationVersion;
     private TextBlock? _shellPageTitle;
     private TextBlock? _shellPageDescription;
-    private Border? _adventurePanel;
+    private Control? _adventurePanel;
     private TextBlock? _adventureAccountLabel;
     private TextBlock? _adventureTurnsLabel;
     private TextBlock? _adventureKnucklebonesLabel;
@@ -97,7 +122,7 @@ public partial class MainWindow : Window
     private TextBlock? _arbitrageSummaryText;
     private ListBox? _arbitrageRules;
     private TextBlock? _arbitragePlanText;
-    private StackPanel? _dailyPanel;
+    private Control? _dailyPanel;
     private ListBox? _dailyRows;
     private TextBlock? _dailySnapshotText;
     private TextBlock? _dailySummaryText;
@@ -124,6 +149,25 @@ public partial class MainWindow : Window
             () => _settingsStore.Load().ReloginAutomatically);
         _catalog = TryLoadCatalog();
         InitializeComponent();
+        _charpaneView = ControlExtensions.FindControl<CharpaneView>(this, "CharacterPane");
+        _adventuresView = ControlExtensions.FindControl<AdventuresView>(this, "AdventurePanel");
+        _inventoryView = ControlExtensions.FindControl<InventoryView>(this, "InventoryTab");
+        _gearView = ControlExtensions.FindControl<GearView>(this, "InventoryGearView");
+        _skillsEffectsView = ControlExtensions.FindControl<SkillsEffectsView>(this, "InventorySkillsView");
+        _dailyView = ControlExtensions.FindControl<DailyView>(this, "DailyPanel");
+        _charpaneView?.Attach(this);
+        _adventuresView?.Attach(this, this);
+        _inventoryView?.Attach(this, this);
+        _gearView?.Attach(this, this);
+        _skillsEffectsView?.Attach(this, this);
+        _dailyView?.Attach(this, this);
+        ControlExtensions.FindControl<MallSearchView>(this, "MallSearch")?.AttachMenu(this);
+        if (_inventoryView is not null)
+            _inventoryView.SubViewChanged += view =>
+            {
+                if (_gearView is not null) _gearView.IsVisible = view == "Gear";
+                if (_skillsEffectsView is not null) _skillsEffectsView.IsVisible = view == "Skills";
+            };
         _pageScroll = this.FindControl<ScrollViewer>("PageScroll");
         _contentRoot = this.FindControl<StackPanel>("ContentRoot");
         _inventoryPanel = this.FindControl<StackPanel>("InventoryPanel");
@@ -144,7 +188,7 @@ public partial class MainWindow : Window
         _communicationPanel = this.FindControl<StackPanel>("CommunicationPanel");
         _settingsPanel = this.FindControl<StackPanel>("SettingsPanel");
         _arbitrageExpander = this.FindControl<Expander>("ArbitrageExpander");
-        _dailyPanel = this.FindControl<StackPanel>("DailyPanel");
+        _dailyPanel = this.FindControl<Control>("DailyPanel");
         _arbitragePanel = this.FindControl<StackPanel>("ArbitragePanel");
         _arbitrageRows = this.FindControl<ListBox>("ArbitrageRows");
         _arbitrageSummaryText = this.FindControl<TextBlock>("ArbitrageSummaryText");
@@ -170,7 +214,7 @@ public partial class MainWindow : Window
         _statusBar = this.FindControl<Border>("StatusBar");
         _shellPageTitle = this.FindControl<TextBlock>("ShellPageTitle");
         _shellPageDescription = this.FindControl<TextBlock>("ShellPageDescription");
-        _adventurePanel = this.FindControl<Border>("AdventurePanel");
+        _adventurePanel = this.FindControl<Control>("AdventurePanel");
         _encounterLocationsGrid = this.FindControl<ListBox>("EncounterLocationsGrid");
         _encounterMonstersGrid = this.FindControl<ListBox>("EncounterMonstersGrid");
         _encounterActionsGrid = this.FindControl<ListBox>("EncounterActionsGrid");
@@ -349,7 +393,7 @@ public partial class MainWindow : Window
             await RefreshSectionAsync(forceRefresh: false);
     }
 
-    private async void RefreshClick(object? sender, RoutedEventArgs e)
+    public async void RefreshClick(object? sender, RoutedEventArgs e)
     {
         await RefreshSectionAsync(forceRefresh: true);
         await RefreshSidebarAsync(forceRefresh: true);
@@ -872,13 +916,13 @@ public partial class MainWindow : Window
         RenderInventoryActions(detail);
     }
 
-    private void InventorySearchChanged(object? sender, TextChangedEventArgs e)
+    public void InventorySearchChanged(object? sender, TextChangedEventArgs e)
     {
         if (_inventorySearchBox is null) return;
         _inventory.SearchText = _inventorySearchBox.Text ?? string.Empty;
     }
 
-    private void InventorySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    public void InventorySelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_inventoryList?.SelectedItem is DesktopInventoryItem item)
             _inventory.SelectedItem = item;

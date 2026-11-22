@@ -13,14 +13,14 @@ namespace KoLibri.Desktop;
 
 public partial class MainWindow
 {
-    private void DailySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    public void DailySelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_dailyRows?.SelectedItem is not DailyBriefingRow row) return;
         if (_dailyStatusText is not null)
             _dailyStatusText.Text = $"{row.Surface}: {row.Description} — {row.Detail}";
     }
 
-    private async void DailyRunClick(object? sender, RoutedEventArgs e)
+    public async void DailyRunClick(object? sender, RoutedEventArgs e)
     {
         var token = Guid.NewGuid().ToString("N");
         var role = _selectedRole;

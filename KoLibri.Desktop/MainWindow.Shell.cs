@@ -127,17 +127,6 @@ public partial class MainWindow
         }
     }
 
-    private void InventoryViewClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string view }) return;
-        if (this.FindControl<StackPanel>("InventoryItemsView") is { } items) items.IsVisible = view == "Items";
-        if (this.FindControl<Border>("InventoryGearView") is { } gear) gear.IsVisible = view == "Gear";
-        if (this.FindControl<Border>("InventorySkillsView") is { } skills) skills.IsVisible = view == "Skills";
-        foreach (var name in new[] { "InvViewItems", "InvViewGear", "InvViewSkills" })
-            if (this.FindControl<Button>(name) is { } button)
-                button.Classes.Set("active", Equals(button.Tag, view));
-    }
-
     private async void SessionLogCopyClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(_log.ToText());
