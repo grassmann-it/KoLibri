@@ -276,6 +276,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php and the adventure state could not be re-read; not retrying.", ex);
                             }
+                            if (!afterState.Fresh || !baseline.Fresh)
+                                throw new AdventureHttpTransportException(
+                                    "KoL adventure start was redirected to main.php but the adventure counter is stale; not retrying.");
                             if (afterState.EncounterOpen || afterState.Adventures != baseline.Adventures)
                                 throw new AdventureHttpTransportException(
                                     $"KoL adventure start was redirected to main.php but the state changed (adventures {baseline.Adventures} -> {afterState.Adventures}, encounter open: {afterState.EncounterOpen}); not retrying.");

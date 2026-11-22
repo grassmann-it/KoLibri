@@ -615,7 +615,7 @@ public partial class KoLCombatObservationParser : ICombatObservationParser
     {
         var text = CleanText(html);
         if (Regex.IsMatch(text,
-            @"(?:you\s+(?:have\s+been\s+)?defeated|you\s+lose(?:\s+the\s+fight)?|you\s+died|you\s+are\s+dead|fight\s+lost|defeat)",
+            @"(?:you\s+have\s+been\s+defeated|you\s+slink\s+away,?\s+defeated|you\s+lose\s+the\s+fight|you\s+died|you\s+are\s+dead|fight\s+lost)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             return CombatOutcome.Defeat;
         if (Regex.IsMatch(text,

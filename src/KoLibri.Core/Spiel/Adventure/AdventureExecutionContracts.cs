@@ -242,7 +242,8 @@ public sealed class AdventureResponseTooLargeException : AdventureHttpTransportE
 
 /// <summary>Options for the guarded adventure HTTP adapter.</summary>
 /// <summary>Adventures left and whether a fight or choice is open, read before and after an interstitial.</summary>
-public sealed record AdventureStateSnapshot(int Adventures, bool EncounterOpen);
+/// <param name="Fresh">False when the counter came from a stale/cached status; such a snapshot cannot release a second start.</param>
+public sealed record AdventureStateSnapshot(int Adventures, bool EncounterOpen, bool Fresh = true);
 
 public record AdventureHttpTransportOptions
 {

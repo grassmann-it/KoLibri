@@ -78,8 +78,8 @@ public static class KoLAdventureSessionFactory
     }
 
     /// <summary>Adventures from the status API; an encounter counts as open when fight.php or choice.php answers 200 instead of redirecting.</summary>
-    private static async Task<AdventureStateSnapshot> ReadAdventureStateAsync(
-        HttpClient http, KoLAccountReadClient reader, Uri baseUri, CancellationToken ct)
+    internal static async Task<AdventureStateSnapshot> ReadAdventureStateAsync(
+        HttpClient http, IAccountReadClient reader, Uri baseUri, CancellationToken ct)
     {
         var status = await reader.FetchStatusAsync(forceRefresh: true, ct).ConfigureAwait(false);
         var open = false;
@@ -87,9 +87,14 @@ public static class KoLAdventureSessionFactory
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, page));
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            var code = (int)response.StatusCode;
             if (response.StatusCode == HttpStatusCode.OK) open = true;
+            else if (code is < 300 or >= 400)
+                // Errors (429, 5xx, 403 ...) are "unknown", not "no encounter": stop instead of guessing.
+                throw new HttpRequestException(
+                    $"Encounter probe {page} answered {code}; encounter state unknown.");
         }
-        return new AdventureStateSnapshot(status.Adventures, open);
+        return new AdventureStateSnapshot(status.Adventures, open, Fresh: !status.IsStale);
     }
 }
 
