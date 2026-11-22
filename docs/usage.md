@@ -22,6 +22,14 @@ kolibri reprice --role mallbot      # price suggestions against the mall floor
 
 The CLI never changes the account without `--execute` or `--commit`.
 
+### Relay browser (debugging)
+
+```bash
+kolibri relay --role main           # then open http://127.0.0.1:8765/main.php
+```
+
+A local proxy that lets your own browser use the stored KoLibri session, so you can click through the game and compare it with what the CLI does. Every request is logged to `~/.local/share/KoLibri/relay-log.jsonl` (headers, form field names, status, redirect target; cookies and `pwd` hashes are never logged). It listens on 127.0.0.1 only. Logging in to KoL separately in a browser can end the stored session, so browse through the relay instead and run `kolibri login refresh --role main` if KoL redirects to the login page.
+
 ## With an AI assistant
 
 ```bash
