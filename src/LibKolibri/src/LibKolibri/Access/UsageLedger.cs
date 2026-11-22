@@ -30,11 +30,14 @@ public sealed class UsageReservation
     private readonly UsageLedger _ledger;
     private int _settled;
 
-    internal UsageReservation(UsageLedger ledger, string grantId, string right, string operation, string? account, string day, long amount)
+    internal UsageReservation(UsageLedger ledger, string grantId, string right, string operation, string? account, string day, long amount, string id = "")
     {
+        Id = id;
         _ledger = ledger; GrantId = grantId; Right = right; Operation = operation; Account = account; Day = day; Amount = amount;
     }
 
+    /// <summary>Id of the persisted hold (empty for a ledger without file).</summary>
+    internal string Id { get; }
     public string GrantId { get; }
     public string Right { get; }
     public string Operation { get; }
@@ -80,22 +83,106 @@ public sealed class UsageLedger
     private readonly TimeProvider _clock;
     private readonly object _gate = new();
     private readonly Dictionary<string, long> _booked = new();
-    private readonly Dictionary<string, long> _held = new();
+    private readonly HashSet<string> _myHolds = new(StringComparer.Ordinal);
+    private readonly Func<string, bool> _ownerAlive;
+    private readonly string _holdsPath;
+    private readonly string _lockPath;
+    private readonly string _owner;
     private long _seq;
     private string _lastHash = Genesis;
 
-    public UsageLedger(string? path = null, TimeProvider? clock = null)
+    /// <summary>A hold that is written to disk before the action's POST, so a crash cannot lose it.</summary>
+    internal sealed record Hold(string Id, string Key, string GrantId, string Right, string Operation, string? Account, string Day, long Amount, string Owner);
+
+    /// <param name="ownerAlive">Tells whether the process that wrote a hold ("pid:startTicks") still runs.
+    /// Holds of dead processes are adopted at startup as unreconciled spends.</param>
+    public UsageLedger(string? path = null, TimeProvider? clock = null, Func<string, bool>? ownerAlive = null)
     {
         _clock = clock ?? TimeProvider.System;
         _path = path ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "usage.jsonl");
+        _holdsPath = _path + ".holds";
+        _lockPath = _path + ".lock";
+        _owner = OwnerOf(Environment.ProcessId) ?? Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _ownerAlive = ownerAlive ?? DefaultOwnerAlive;
+        lock (_gate)
+            using (FileLock())
+            {
+                Refresh();
+                // Adopt: a hold left by a process that is gone (crash after the POST) becomes an unreconciled
+                // spend that counts against the budget until the user reconciles it.
+                var holds = ReadHolds();
+                var dead = holds.Where(h => !_ownerAlive(h.Owner)).ToList();
+                if (dead.Count > 0)
+                {
+                    foreach (var h in dead)
+                        Append(h.Key, h.GrantId, h.Right, h.Day, UnclearPrefix + h.Operation, h.Account, h.Amount,
+                            "adopted: the process holding this reservation ended before it was settled");
+                    WriteHolds(holds.Where(h => dead.All(d => d.Id != h.Id)).ToList());
+                }
+            }
+    }
+
+    private static string? OwnerOf(int pid)
+    {
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            return $"{pid}:{p.StartTime.ToUniversalTime().Ticks}";
+        }
+        catch { return null; }
+    }
+
+    private static bool DefaultOwnerAlive(string owner)
+    {
+        var parts = owner.Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var pid)) return false;
+        return OwnerOf(pid) == owner;
+    }
+
+    /// <summary>Cross-process lock: only one process at a time checks the budget and writes the file.</summary>
+    private FileStream FileLock()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_lockPath))!);
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (true)
+        {
+            try { return new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) when (DateTime.UtcNow < deadline) { Thread.Sleep(25); }
+            catch (UnauthorizedAccessException) when (DateTime.UtcNow < deadline) { Thread.Sleep(25); }
+        }
+    }
+
+    /// <summary>Re-reads what other processes wrote. Call under the file lock.</summary>
+    private void Refresh()
+    {
+        _booked.Clear();
+        _seq = 0; _lastHash = Genesis;
         foreach (var entry in ReadAll())
         {
             _seq = entry.Seq;
             _lastHash = entry.Hash;
-            _booked[Key(entry.GrantId, entry.Right, entry.KolDay)] = _booked.GetValueOrDefault(Key(entry.GrantId, entry.Right, entry.KolDay)) + entry.Amount;
+            var k = Key(entry.GrantId, entry.Right, entry.KolDay);
+            _booked[k] = _booked.GetValueOrDefault(k) + entry.Amount;
         }
     }
+
+    private List<Hold> ReadHolds()
+    {
+        if (!File.Exists(_holdsPath)) return new();
+        try { return JsonSerializer.Deserialize<List<Hold>>(File.ReadAllText(_holdsPath), Json) ?? new(); }
+        catch (JsonException) { throw new IOException("The reservation file is unreadable; refusing to continue."); }
+    }
+
+    /// <summary>Atomic replace: write a temp file, then move it over.</summary>
+    private void WriteHolds(List<Hold> holds)
+    {
+        var tmp = _holdsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(holds, Json));
+        File.Move(tmp, _holdsPath, overwrite: true);
+    }
+
+    private long HeldFor(List<Hold> holds, string key) => holds.Where(h => h.Key == key).Sum(h => h.Amount);
 
     public string Today => DailyDoneStore.KolDay(_clock.GetUtcNow());
 
@@ -103,7 +190,12 @@ public sealed class UsageLedger
     public long UsedToday(string grantId, string right)
     {
         var key = Key(grantId, right, Today);
-        lock (_gate) return _booked.GetValueOrDefault(key) + _held.GetValueOrDefault(key);
+        lock (_gate)
+            using (FileLock())
+            {
+                Refresh();
+                return _booked.GetValueOrDefault(key) + HeldFor(ReadHolds(), key);
+            }
     }
 
     /// <summary>Holds <paramref name="amount"/> if it fits under the budget; null otherwise.</summary>
@@ -113,10 +205,24 @@ public sealed class UsageLedger
         var key = Key(grantId, right, day);
         lock (_gate)
         {
-            var used = _booked.GetValueOrDefault(key) + _held.GetValueOrDefault(key);
-            if (amount < 0 || used + amount > dailyBudget) return null;
-            _held[key] = _held.GetValueOrDefault(key) + amount;
-            return new UsageReservation(this, grantId, right, operation, account, day, amount);
+            try
+            {
+                using (FileLock())
+                {
+                    // Check and reserve under one cross-process lock; the hold is on disk before the caller may POST.
+                    Refresh();
+                    var holds = ReadHolds();
+                    var used = _booked.GetValueOrDefault(key) + HeldFor(holds, key);
+                    if (amount < 0 || used + amount > dailyBudget) return null;
+                    var id = Guid.NewGuid().ToString("N");
+                    holds.Add(new Hold(id, key, grantId, right, operation, account, day, amount, _owner));
+                    WriteHolds(holds);
+                    _myHolds.Add(id);
+                    return new UsageReservation(this, grantId, right, operation, account, day, amount, id);
+                }
+            }
+            catch (IOException) { return null; }               // no safe reservation: no spend
+            catch (UnauthorizedAccessException) { return null; }
         }
     }
 
@@ -129,11 +235,16 @@ public sealed class UsageLedger
     {
         var key = Key(reservation.GrantId, reservation.Right, reservation.Day);
         lock (_gate)
-        {
-            _held[key] = Math.Max(0, _held.GetValueOrDefault(key) - reservation.Amount);
-            if (confirmed > 0) Append(key, reservation, reservation.Operation, confirmed, detail);
-            if (unclear > 0) Append(key, reservation, UnclearPrefix + reservation.Operation, unclear, detail);
-        }
+            using (FileLock())
+            {
+                Refresh();
+                if (confirmed > 0) Append(key, reservation, reservation.Operation, confirmed, detail);
+                if (unclear > 0) Append(key, reservation, UnclearPrefix + reservation.Operation, unclear, detail);
+                // The hold goes last: a crash in between over-counts (safe) instead of losing the amount.
+                var holds = ReadHolds();
+                if (holds.RemoveAll(h => h.Id == reservation.Id) > 0) WriteHolds(holds);
+                _myHolds.Remove(reservation.Id);
+            }
     }
 
     private UsageEntry Append(string key, UsageReservation r, string operation, long amount, string? detail)
@@ -177,7 +288,9 @@ public sealed class UsageLedger
     public bool Reconcile(long seq, long actualAmount, string? note = null)
     {
         lock (_gate)
+        using (FileLock())
         {
+            Refresh();
             var entry = Unreconciled().FirstOrDefault(e => e.Seq == seq);
             if (entry is null) return false;
             var delta = Math.Clamp(actualAmount, 0, entry.Amount) - entry.Amount;

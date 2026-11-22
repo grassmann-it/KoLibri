@@ -93,7 +93,11 @@ public sealed partial class KolibriClientActions : IAccountActions
             ?? throw new InvalidOperationException("The other account is not stored; nothing was sent.");
         IReadOnlyList<KoLibri.Core.Spiel.KoLMailAttachment> items = itemId is { } id
             ? [new KoLibri.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
-        return await client.SendKMailAsync(to, "Sent with KoLibri.", items, meat, ct).ConfigureAwait(false);
+        var outcome = await client.SendKMailOutcomeAsync(to, "Sent with KoLibri.", items, meat, ct).ConfigureAwait(false);
+        // The mail may have arrived although the reply is lost: keep the budget held as unresolved, never release it.
+        if (outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Unconfirmed)
+            throw new UnreconciledPurchaseException("The transfer KMail was sent but KoL's answer is missing; it may have arrived. Check both accounts.");
+        return outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Sent;
     }
 
     public async Task<bool> MessageAsync(AccountRole from, string recipient, string text, CancellationToken ct)

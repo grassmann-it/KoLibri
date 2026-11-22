@@ -398,7 +398,7 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
                 applied
                     ? $"{message ?? "Mall POST outcome was indeterminate."} Fresh read shows the purchase applied."
                     : $"{message ?? "Mall POST outcome was indeterminate."} Fresh read did not show the exact purchase delta.",
-                _clock.GetUtcNow());
+                _clock.GetUtcNow()) { Indeterminate = !applied };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -411,7 +411,7 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
                 before,
                 before,
                 $"{message ?? "Mall POST outcome was indeterminate."} Fresh reconciliation failed: {SafeMessage(exception)}",
-                _clock.GetUtcNow());
+                _clock.GetUtcNow()) { Indeterminate = true };
         }
     }
 

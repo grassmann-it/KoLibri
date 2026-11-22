@@ -481,6 +481,14 @@ public sealed record MallPurchaseTransportReceipt
 
     public bool Accepted { get; init; }
     public bool Committed => Accepted;
+    /// <summary>
+    /// Typed outcome flag: the POST may have been applied but could not be proven (timeout, 5xx, 429, unreadable
+    /// answer, failed reconciliation). Not <see cref="Accepted"/> and not a certain rejection: the spend stays
+    /// reserved until reconciled. Never derived from <see cref="Message"/>.
+    /// </summary>
+    public bool Indeterminate { get; init; }
+    /// <summary>The purchase is confirmed or may have happened; only a receipt without this is a certain rejection.</summary>
+    public bool MaybeSent => Accepted || Indeterminate;
     public MallPurchaseObservation Before { get; init; } = new(
         new MallPurchaseOffer(), new MallPurchaseAccountState(), DateTimeOffset.MinValue);
     public MallPurchaseObservation After { get; init; } = new(

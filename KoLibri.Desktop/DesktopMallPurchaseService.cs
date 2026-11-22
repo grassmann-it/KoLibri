@@ -144,7 +144,7 @@ public sealed class DesktopMallPurchaseService
             var message = receipt.Message ?? string.Empty;
             // Accepted but unverified, or an indeterminate POST that the fresh read did not
             // prove: the POST may have landed. Report, never retry.
-            if (receipt.Accepted || message.Contains("indeterminate", StringComparison.OrdinalIgnoreCase))
+            if (receipt.MaybeSent)
                 return new DesktopMallPurchaseResult
                 {
                     Status = DesktopMallPurchaseStatus.Unclear,

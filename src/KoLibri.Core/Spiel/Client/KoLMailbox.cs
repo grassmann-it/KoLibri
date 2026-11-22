@@ -119,6 +119,34 @@ public static partial class KoLMailbox
         return SentConfirmation().IsMatch(html);
     }
 
+    /// <summary>
+    /// Like <see cref="SendAsync"/> but typed: once the POST is on its way, a lost reply, a timeout, a 5xx or an
+    /// unreadable answer is <see cref="KoLMailSendOutcome.Unconfirmed"/> (the mail may have arrived), never "not sent".
+    /// Only a clear refusal (4xx, or a page naming a known refusal) is <see cref="KoLMailSendOutcome.NotSent"/>.
+    /// Argument errors still throw before anything is sent.
+    /// </summary>
+    public static async Task<KoLMailSendOutcome> SendWithOutcomeAsync(
+        HttpClient http, string sessionHash, string recipient, string message,
+        IReadOnlyList<KoLMailAttachment> attachments, long meat, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        try
+        {
+            return await SendAsync(http, sessionHash, recipient, message, attachments, meat, cancellationToken).ConfigureAwait(false)
+                ? KoLMailSendOutcome.Sent : KoLMailSendOutcome.Unconfirmed;
+        }
+        catch (ArgumentException) { throw; }                       // nothing was sent
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (HttpRequestException e) when (e.StatusCode is { } code && (int)code is >= 400 and < 500 && (int)code != 408 && (int)code != 429)
+        {
+            return KoLMailSendOutcome.NotSent;                      // KoL answered with a client-error status: refused
+        }
+        catch
+        {
+            return KoLMailSendOutcome.Unconfirmed;                  // reply lost after the POST: unknown
+        }
+    }
+
     [GeneratedRegex("""<img\s+src=["'](?:https?://[^/"']+\.cloudfront\.net|https?://images\.kingdomofloathing\.com|/images)/itemimages/meat\.gif["']\s+height=30\s+width=30\s+alt="Meat"\s*>\s*You gain (?<amount>[0-9,]+) Meat\b""", RegexOptions.IgnoreCase)]
     private static partial Regex MeatAttachment();
 
@@ -147,4 +175,15 @@ public static partial class KoLMailbox
 
     [GeneratedRegex("""<[^>]+>""")]
     private static partial Regex Tags();
+}
+
+/// <summary>Result of a KMail send whose POST may have reached KoL.</summary>
+public enum KoLMailSendOutcome
+{
+    /// <summary>KoL showed its "Message sent" confirmation.</summary>
+    Sent,
+    /// <summary>KoL certainly refused it.</summary>
+    NotSent,
+    /// <summary>The POST went out but the answer is missing or unreadable: the mail may have arrived.</summary>
+    Unconfirmed
 }
