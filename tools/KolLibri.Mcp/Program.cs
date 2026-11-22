@@ -22,12 +22,13 @@ if (portIndex >= 0 && (portIndex + 1 >= args.Length || !int.TryParse(args[portIn
     return 2;
 }
 
-var runtime = await McpRuntimeBootstrap.CreateConfiguredAsync();
+using var binder = await McpRuntimeBootstrap.CreateBinderAsync();
+var runtime = binder.Runtime;
 var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
 await using var adventures = new KoLAdventureGatewayFactory();
 using var bridge = new AdventureMcpExecutionBridge(adventures, new InMemoryAdventureRunCheckpointStore());
-var server = new KolibriMcpServer(runtime, executionBridge: bridge);
+var server = new KolibriMcpServer(runtime, executionBridge: bridge) { BeforeToolCall = binder.RefreshAsync };
 server.Tools.Remove("kol_plan_daily_adventures_execute");
 server.Tools.Remove("kol_login_clear");     // session management stays with the user
 server.Tools.Remove("kol_login_refresh");   // runs on a mock transport, not live

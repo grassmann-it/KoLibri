@@ -64,7 +64,7 @@
                 <Button x:Name="EncounterEndButton" Content="End run" Classes="secondary" />
               </StackPanel>
               <WrapPanel>
-                <NumericUpDown x:Name="EncounterBatchTurns" Value="10" Minimum="1" Maximum="100"
+                <NumericUpDown x:Name="EncounterBatchTurns" Value="100" Minimum="1" Maximum="1000"
                                Width="120" Margin="0,0,6,6" AutomationProperties.Name="Adventure turn budget" />
                 <TextBox x:Name="EncounterBatchItem" Watermark="Stop when owned (item ID)" Width="230" Margin="0,0,6,6" />
                 <Button x:Name="EncounterBatchStart" Content="Run turns" Classes="secondary" />

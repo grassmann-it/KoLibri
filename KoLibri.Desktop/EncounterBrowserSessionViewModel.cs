@@ -28,6 +28,8 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     private string _approvalToken = string.Empty;
     private string? _lastEncounterSummary;
     private AdventureEncounterState? _currentEncounter;
+    private EncounterBrowserViewModel? _browser;
+    private int _generation;
 
     public EncounterBrowserSessionViewModel(
         AdventureManualDriver driver,
@@ -77,7 +79,24 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
     /// <summary>The open choice or fight with its option buttons and the choice policy.</summary>
     public AdventureDecisionController Decisions => _decisions ??= new AdventureDecisionController(
-        _openSession is null ? null : new LiveOpenChoicePort(OpenLiveAsync));
+        _openSession is null ? null : new LiveOpenChoicePort(OpenLiveAsync))
+    { ActiveRunSubmit = SubmitDecisionToRunAsync };
+
+    /// <summary>
+    /// Answers the open choice of the active run through the run's own checkpoint, so RunId, the
+    /// encounter and the remaining budget stay in step with KoL. Null when no run owns this choice.
+    /// </summary>
+    private async Task<string?> SubmitDecisionToRunAsync(string choiceId, int option, CancellationToken cancellationToken)
+    {
+        if (RunId is null || _browser is null || _currentEncounter is not
+            { Kind: AdventureEncounterKind.Choice, ChoiceId: { } current } || current != choiceId)
+            return null;
+        var outcome = await SubmitStepAsync(new ChoiceStepSpec(choiceId, option.ToString()), _browser, cancellationToken);
+        var message = LastMessage ?? "No result.";
+        return outcome is { RequestId: not null, IsAborted: false }
+            ? $"Chose option {option}. {message}"
+            : $"Not sent: {message}";
+    }
 
     /// <summary>The report of the last bounded batch (turns, drops, stop reason).</summary>
     public BoundedRunReport? LastReport { get; private set; }
@@ -136,6 +155,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     {
         ArgumentNullException.ThrowIfNull(location);
         ArgumentNullException.ThrowIfNull(browser);
+        _browser = browser;
         if (string.IsNullOrWhiteSpace(ApprovalToken))
         {
             LastMessage = "An approval token is required before starting an adventure.";
@@ -190,6 +210,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(step);
+        _browser = browser;
         if (RunId is null)
         {
             LastMessage = "Start an adventure before submitting steps.";
@@ -302,8 +323,9 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
     public async ValueTask<ManualStepOutcome?> RunTurnsAsync(
         EncounterBrowserViewModel browser, AdventureLocation? location, int maxTurns, string? itemId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0)
     {
+        _browser = browser;
         if (_openSession is null || RunId is not null)
         {
             LastMessage = "Resolve the current adventure before running more turns.";
@@ -345,8 +367,12 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
                 return null;
             }
         }
+        var generation = _generation;
         var batch = await live.RunTurnsAsync(_batchTemplate, _allowlist, _batchRemaining, _batchConditions,
-            cancellationToken: cancellationToken);
+            new BoundedAdventureRunnerOptions { MaxFightRounds = maxFightRounds, MinimumHpPercent = minimumHpPercent },
+            cancellationToken);
+        // "End run" while the batch was in flight: do not resurrect the ended session.
+        if (generation != _generation) return null;
         _batchRemaining = batch.TurnsRemaining;
         var stopReason = batch.LastRun.StopReason;
         var failure = batch.LastRun.LastStep is { } failed && failed.IsAborted ? failed.State.AbortMessage : null;
@@ -372,6 +398,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     public async ValueTask<ManualStepOutcome?> RecheckAsync(
         EncounterBrowserViewModel browser, CancellationToken cancellationToken = default)
     {
+        _browser = browser;
         if (RunId is not { } runId || _openSession is null)
         {
             LastMessage = "There is no live adventure to recheck.";
@@ -423,6 +450,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
     public void EndSession()
     {
+        _generation++;
         _batchTemplate = null;
         _batchRemaining = 0;
         _requiresRecheck = false;

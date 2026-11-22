@@ -57,6 +57,7 @@ internal static partial class KolibriCli
         using var http = await ReadAuthenticatedHttpAsync(role);
         var detection = await new OpenChoiceClient(http).DetectAsync();
         WriteJson(new { command = "choice pending", readOnly = true, role = role.ToString(), result = OpenChoiceDocument(detection, role) });
+        if (detection.IsUnavailable) return 5; // could not ask KoL: never report "free"
         return detection.IsOpen ? 4 : 0;
     }
 
@@ -191,6 +192,8 @@ internal static partial class KolibriCli
         try
         {
             var detection = await session.DetectOpenChoiceAsync().ConfigureAwait(false);
+            if (detection.IsUnavailable)
+                return new { open = (bool?)null, message = detection.Message };
             return detection.IsOpen ? OpenChoiceDocument(detection, session.Role) : null;
         }
         catch (Exception e) when (e is not OperationCanceledException)

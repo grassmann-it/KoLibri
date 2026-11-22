@@ -41,14 +41,21 @@ internal static partial class KolibriCli
         var rememberPassword = !HasFlag(args, "--no-remember-password");
         var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword);
         var accounts = AccountSessionManager.CreateDefault();
-        await accounts.SetProfileAsync(new AccountProfile
+        var verified = await ReadLoginIdentityAsync(login.Credentials);
+        if (verified is not null)
+            await accounts.ApplyVerifiedLoginAsync(role, verified, login.Credentials, allowAccountChange: true);
+        else
         {
-            Id = role == AccountRole.Main ? "main" : "mallbot",
-            DisplayName = username,
-            Role = role,
-            Enabled = true
-        });
-        await accounts.SetCredentialsAsync(role, login.Credentials);
+            Console.Error.WriteLine("login: could not verify the player id; saving without it.");
+            await accounts.SetProfileAsync(new AccountProfile
+            {
+                Id = role == AccountRole.Main ? "main" : "mallbot",
+                DisplayName = username,
+                Role = role,
+                Enabled = true
+            });
+            await accounts.SetCredentialsAsync(role, login.Credentials);
+        }
         WriteJson(new { ok = true, role = role.ToString(), username, rememberPassword, loggedInAt = login.LoggedInAt });
         return 0;
     }
@@ -188,16 +195,38 @@ internal static partial class KolibriCli
         // Keep the earlier choice: an account that had no password stored keeps having none, unless told otherwise.
         var rememberPassword = rememberFlag ?? (current is null || storedPassword);
         var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword);
-        await accounts.SetCredentialsAsync(role, login.Credentials);
+        var verified = await ReadLoginIdentityAsync(login.Credentials)
+            ?? throw new InvalidOperationException(
+                "login refresh: KoL did not report which player this session belongs to; nothing was saved.");
+        AccountIdentityChange change;
+        try
+        {
+            change = await accounts.ApplyVerifiedLoginAsync(
+                role, verified, login.Credentials, allowAccountChange: HasFlag(args, "--switch-account"));
+        }
+        catch (AccountIdentityMismatchException exception)
+        {
+            WriteJson(new { command = "login refresh", role = role.ToString(), ok = false, error = exception.Message });
+            return 1;
+        }
         WriteJson(new
         {
             command = "login refresh",
             role = role.ToString(),
             ok = true,
             rememberPassword,
+            player = verified.Name,
+            playerId = verified.PlayerId,
+            accountChanged = change == AccountIdentityChange.Switched,
             loggedInAt = login.LoggedInAt
         });
         return 0;
+    }
+
+    private static async Task<KoLPlayerIdentity?> ReadLoginIdentityAsync(AccountCredentials credentials)
+    {
+        using var http = KoLLoginClient.CreateAuthenticatedClient(credentials, new Uri("https://www.kingdomofloathing.com/"));
+        return await KoLPwdHashResolver.TryReadIdentityAsync(http);
     }
 
     private static async Task<int> DailyAuditCommandAsync(string[] args)
