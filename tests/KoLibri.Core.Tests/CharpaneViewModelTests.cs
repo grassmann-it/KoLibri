@@ -92,6 +92,21 @@ public sealed class CharpaneViewModelTests
     }
 
     [Fact]
+    public async Task Role_switch_discards_pending_cast_and_text_names_the_role()
+    {
+        var m = Model();
+        m.Role = "Main";
+        m.SelectedSkill = m.Skills.First(s => s.Name == "Cannelloni Cocoon");
+        Assert.True(m.RequestCast());
+        Assert.Equal("Cast Cannelloni Cocoon ×1 as Main for 20 MP?", m.PendingText);
+        m.Role = "Mallbot";
+        Assert.False(m.HasPending);
+        var calls = 0;
+        Assert.Null(await m.ConfirmCastAsync((_, _, _) => { calls++; return Task.FromResult(Outcome(1, 1, 1, 1, true)); }));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
     public async Task Confirmed_cast_reports_hp_mp_change_and_updates_effects()
     {
         var m = Model();

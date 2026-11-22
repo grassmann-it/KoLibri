@@ -107,6 +107,20 @@ public sealed class RelayCommandTests : IDisposable
         Assert.Equal(0, UpstreamCalls());
     }
 
+    [Fact]
+    public async Task Other_loopback_port_or_localhost_host_is_refused_even_with_the_cookie()
+    {
+        using var s = Start((_, _) => Task.FromResult(Ok("x")));
+        using var c = Client();
+        var port = new Uri(s.Origin).Port;
+        foreach (var host in new[] { $"127.0.0.1:{FreePort()}", $"localhost:{port}", $"abc.localhost:{port}", $"[::1]:{port}" })
+        {
+            var r = Get(s, "/main.php"); r.Headers.Host = host;
+            Assert.Contains((await c.SendAsync(r)).StatusCode, new[] { HttpStatusCode.Forbidden, HttpStatusCode.NotFound, HttpStatusCode.BadRequest });
+        }
+        Assert.Equal(0, UpstreamCalls());
+    }
+
     [Theory]
     [InlineData("Sec-Fetch-Site", "cross-site")]
     [InlineData("Sec-Fetch-Site", "same-site")]

@@ -1,3 +1,4 @@
+using System.Net;
 using KoLibri.Core.Basis;
 
 namespace KoLibri.Core.Spiel;
@@ -55,8 +56,11 @@ public static class KoLAdventureSessionFactory
             session.Profile.Role, session.Profile.Id, session.Profile.DisplayName);
         try
         {
-            var transport = new HttpAdventureExecutionTransport(http, binding, options);
             var accountReader = new KoLAccountReadClient(http);
+            var effective = options ?? new AdventureHttpTransportOptions();
+            if (effective.StateProbe is null)
+                effective = effective with { StateProbe = ct => ReadAdventureStateAsync(http, accountReader, effective.BaseUri, ct) };
+            var transport = new HttpAdventureExecutionTransport(http, binding, effective);
             var journal = auditJournal ?? new AuditEventJournal(DefaultAuditPath);
             var hooks = new AuditedAdventureHooks(approval, verification, journal);
             var gateway = new AdventureExecutionGateway(
@@ -71,6 +75,21 @@ public static class KoLAdventureSessionFactory
             http.Dispose();
             throw;
         }
+    }
+
+    /// <summary>Adventures from the status API; an encounter counts as open when fight.php or choice.php answers 200 instead of redirecting.</summary>
+    private static async Task<AdventureStateSnapshot> ReadAdventureStateAsync(
+        HttpClient http, KoLAccountReadClient reader, Uri baseUri, CancellationToken ct)
+    {
+        var status = await reader.FetchStatusAsync(forceRefresh: true, ct).ConfigureAwait(false);
+        var open = false;
+        foreach (var page in new[] { "fight.php", "choice.php" })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, page));
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.OK) open = true;
+        }
+        return new AdventureStateSnapshot(status.Adventures, open);
     }
 }
 

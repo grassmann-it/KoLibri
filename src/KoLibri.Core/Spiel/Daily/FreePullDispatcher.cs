@@ -30,10 +30,32 @@ public sealed class FreePullDispatcher
     private readonly HttpClient _http;
     private readonly Uri _baseUri;
 
+    /// <summary>
+    /// Requires a client created by <c>KoLLoginClient.CreateAuthenticatedClient</c> (allowlist handler,
+    /// no auto-redirect). An arbitrary client could follow a redirect with the cookie before any check here
+    /// runs, so it is refused; use the handler constructor to supply a custom transport.
+    /// </summary>
     public FreePullDispatcher(HttpClient http, Uri baseUri)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _baseUri = baseUri ?? throw new ArgumentNullException(nameof(baseUri));
+        if (!KoLAllowlistHandler.IsTrusted(http))
+            throw new KoLSecurityException("FreePullDispatcher needs a KoL-authenticated client; use the handler constructor for a custom transport.");
+    }
+
+    /// <summary>Builds its own client around <paramref name="inner"/>: allowlist for the base host in front, auto-redirect handlers rejected.</summary>
+    public FreePullDispatcher(HttpMessageHandler inner, Uri baseUri)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        _baseUri = baseUri ?? throw new ArgumentNullException(nameof(baseUri));
+        KoLAllowlistHandler.EnsureNoAutoRedirect(inner);
+        var policy = new KoLSecurityPolicy
+        {
+            AllowedHosts = [baseUri.Host],
+            RequireHttps = string.Equals(baseUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        };
+        _http = new HttpClient(new KoLAllowlistHandler(inner, policy));
+        KoLAllowlistHandler.MarkTrusted(_http);
     }
 
     /// <summary>Single choke point for every request that carries the cookie:

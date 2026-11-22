@@ -88,6 +88,11 @@ internal sealed class RelayOptions
 /// Local reverse proxy for the user's own browser. Security model: it binds 127.0.0.1 only, accepts only the exact
 /// Host "127.0.0.1:PORT" (DNS rebinding), and requires a per-run session cookie (SameSite=Strict, HttpOnly) that is only
 /// handed out for the secret token in the first URL. Cross-site Origin/Referer/Sec-Fetch-Site are rejected.
+/// Known limit: browsers share cookies between ports of the same host, so another local server on a different
+/// 127.0.0.1 port would receive the (random-named, HttpOnly) cookie if you browsed to it. A per-run
+/// "&lt;random&gt;.localhost" origin was evaluated and rejected: HttpListener answers 404 for Host values outside its
+/// prefixes and resolves a named prefix through DNS (it came back as ::1 first), so the relay would not reliably
+/// listen on IPv4 loopback only. Do not browse other local servers with the relay tab's browser profile open.
 /// </summary>
 internal sealed class RelayServer : IDisposable
 {

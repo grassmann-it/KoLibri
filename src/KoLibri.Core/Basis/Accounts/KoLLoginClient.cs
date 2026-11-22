@@ -310,6 +310,7 @@ public sealed class KoLLoginClient
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent ?? credentials.UserAgent ?? KoLUserAgent.LegacyValue);
         client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", credentials.CookieHeader);
+        KoLAllowlistHandler.MarkTrusted(client);
         return client;
     }
 
