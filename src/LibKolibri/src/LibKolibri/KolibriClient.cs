@@ -274,6 +274,15 @@ public sealed class KolibriClient : IDisposable
         return seen;
     }
 
+    /// <summary>Casts a skill <paramref name="times"/> times in one request (e.g. Soul Food, id 7185). Returns HP/MP after and KoL's refusal, if any.</summary>
+    public async Task<(int Hp, int Mp, string? Rejection, string? Page)> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
+        var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
+        var result = await actions.ExecuteAsync(new CastCharacterSkill(skillId, times), cancellationToken).ConfigureAwait(false);
+        return (result.Status.CurrentHp, result.Status.CurrentMp, result.RejectionReason, result.ResponseExcerpt);
+    }
+
     /// <summary>Changes prices in the account's own mall store. Without <paramref name="commit"/> only checks.</summary>
     public Task<KoLibri.Core.Markt.ShopMutationResult> RepriceShopAsync(
         IEnumerable<KoLibri.Core.Markt.ShopPriceUpdate> updates, bool commit, CancellationToken cancellationToken = default)

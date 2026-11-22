@@ -43,6 +43,9 @@ public sealed record CharacterStorageSnapshot(
 public sealed record CharacterActionSnapshot(KoLStatusSnapshot Status, KoLInventorySnapshot Inventory)
 {
     public string? RejectionReason { get; init; }
+
+    /// <summary>First part of the page KoL answered with, tags stripped (for messages like "not enough soulsauce").</summary>
+    public string? ResponseExcerpt { get; init; }
 }
 
 /// <summary>Submits one explicit character action and returns fresh account observations.</summary>
@@ -97,7 +100,10 @@ public sealed class CharacterActionClient
         if (action is CombineCharacterItems craft && before is not null &&
             (snapshot.Inventory.IsStale || CountItem(snapshot.Inventory, craft.OutputId) <= CountItem(before, craft.OutputId)))
             rejection = "KoL did not confirm a crafted item in inventory.";
-        return snapshot with { RejectionReason = rejection };
+        var plain = System.Text.RegularExpressions.Regex.Replace(
+            System.Text.RegularExpressions.Regex.Replace(responseText, @"(?is)<(script|style).*?</\1>", " "), "<[^>]+>", " ");
+        plain = System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(plain), @"\s+", " ").Trim();
+        return snapshot with { RejectionReason = rejection, ResponseExcerpt = plain.Length > 300 ? plain[..300] : plain };
     }
 
     private static int CountItem(KoLInventorySnapshot inventory, int id)

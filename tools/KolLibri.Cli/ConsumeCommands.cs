@@ -50,4 +50,24 @@ internal static partial class KolibriCli
             afterEach = rests.Select(r => new { r.Hp, r.Mp }).ToArray() });
         return 0;
     }
+
+    /// <summary>cast --role R --skill ID [--times N] [--execute]  (Soul Food = 7185)</summary>
+    private static async Task<int> CastAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var skill = ReadNullableInt(args, "--skill") ?? throw new ArgumentException("--skill SKILL_ID is required (Soul Food = 7185).");
+        var times = Math.Clamp(ReadInt(args, "--times", 1), 1, 100);
+        if (!HasFlag(args, "--execute"))
+        {
+            WriteJson(new { command = "cast", previewOnly = true, executed = false, role = role.ToString(), skill, times,
+                note = "Preview only. Add --execute to cast." });
+            return 0;
+        }
+        using var kol = await KolibriClient.OpenAsync(role);
+        var before = await kol.GetStatusAsync(true);
+        var (hp, mp, rejection, page) = await kol.CastSkillAsync(skill, times);
+        WriteJson(new { command = "cast", executed = true, role = role.ToString(), skill, times, rejection, page,
+            before = new { before.CurrentHp, before.CurrentMp }, after = new { Hp = hp, Mp = mp } });
+        return rejection is null ? 0 : 3;
+    }
 }

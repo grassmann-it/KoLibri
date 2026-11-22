@@ -45,6 +45,7 @@ internal static partial class KolibriCli
                 "crm" => await CrmAsync(args[1..]),
                 "consume" => await ConsumeAsync(args[1..]),
                 "rest" => await RestAsync(args[1..]),
+                "cast" => await CastAsync(args[1..]),
                 "relay" => await RelayAsync(args[1..]),
                 "crm-block" => await CrmBlockAsync(args[1..]),
                 "mall" => await MallAsync(args[1..]),
@@ -295,6 +296,7 @@ internal static partial class KolibriCli
     private static void PrintHelp()
     {
         Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
+        Console.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
         Console.WriteLine("  relay --role main|mallbot [--port 8765] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");
         Console.WriteLine("  login status [--role main|mallbot|all]       shows stored sessions + cookies");
