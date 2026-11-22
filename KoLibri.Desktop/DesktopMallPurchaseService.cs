@@ -58,7 +58,9 @@ public enum DesktopMallPurchaseStatus
     /// <summary>KoL answered with a clear refusal.</summary>
     Rejected,
     /// <summary>A POST may have been applied but meat/inventory do not prove it. Never retry: check inventory.</summary>
-    Unclear
+    Unclear,
+    /// <summary>Deferred verification: the POST was sent (see <see cref="DesktopMallPurchaseResult.Confirmed"/>); a later inventory read settles it.</summary>
+    Sent
 }
 
 public sealed record DesktopMallPurchaseResult
@@ -67,6 +69,10 @@ public sealed record DesktopMallPurchaseResult
     public bool Succeeded => Status is DesktopMallPurchaseStatus.Purchased or DesktopMallPurchaseStatus.Partial;
     /// <summary>Units the inventory read proves arrived.</summary>
     public int ReceivedQuantity { get; init; }
+    /// <summary>For <see cref="DesktopMallPurchaseStatus.Sent"/>: KoL's answer was recognised as a purchase receipt.</summary>
+    public bool Confirmed { get; init; }
+    /// <summary>The unit price the purchase was bound to (the offer read at send time).</summary>
+    public long UnitPrice { get; init; }
     /// <summary>Meat the purchase cost at the price actually bound (0 when nothing was bought or the outcome is unclear).</summary>
     public long SpentMeat { get; init; }
     public required string Message { get; init; }
@@ -151,11 +157,11 @@ public sealed class DesktopMallPurchaseService
     /// </summary>
     public async Task<DesktopMallPurchaseResult> BuyAsync(
         string role, string itemId, string shopId, long shownUnitPrice, int quantity,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool deferVerification = false)
     {
         var request = new MallPurchaseRequest(shopId, shopId, itemId, shownUnitPrice, quantity,
             accountId: string.IsNullOrWhiteSpace(role) ? "default" : role);
-        var result = await _gateway.PurchaseNowAsync(request, cancellationToken).ConfigureAwait(false);
+        var result = await _gateway.PurchaseNowAsync(request, cancellationToken, deferVerification).ConfigureAwait(false);
         return await MapAsync(result, quantity, shownUnitPrice, null, cancellationToken).ConfigureAwait(false);
     }
 
@@ -164,6 +170,14 @@ public sealed class DesktopMallPurchaseService
         DesktopMallPurchasePreview? preview, CancellationToken cancellationToken)
     {
         var unit = result.Before?.Offer.UnitPrice is > 0 and var u && u <= shownUnitPrice ? u : shownUnitPrice;
+        if (result.Status == MallPurchaseVerificationStatus.Pending)
+            return new DesktopMallPurchaseResult
+            {
+                Status = DesktopMallPurchaseStatus.Sent,
+                Confirmed = result.Accepted,
+                UnitPrice = unit,
+                Message = result.Messages.FirstOrDefault() ?? (result.Accepted ? "KoL acknowledged the purchase." : "KoL's answer was unclear.")
+            };
         if (result.Verified)
             return new DesktopMallPurchaseResult
             {
@@ -248,17 +262,19 @@ public sealed class DesktopMallPurchaseService
         const string Tail = "Check your inventory before buying again; use 'Reconcile unclear purchases' once you know.";
         var reads = result.RereadCount > 0
             ? string.Create(CultureInfo.InvariantCulture, $" after {result.RereadCount} more inventory read(s)") : "";
+        var detail = string.Join(" ", result.Messages.Append(transportMessage).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct());
+        if (detail.Length > 0) detail = " Details: " + detail;
         if (reasons.Contains(MallPurchaseAbortReason.MeatVerificationFailed))
-            return "The item arrived, but your Meat fell by more than the purchase explains. " + Tail;
+            return "The item arrived, but your Meat fell by more than the purchase explains. " + Tail + detail;
         if (reasons.Contains(MallPurchaseAbortReason.UnexpectedQuantity))
-            return "The inventory rose by more than the ordered quantity, so the purchase cannot be matched. " + Tail;
+            return "The inventory rose by more than the ordered quantity, so the purchase cannot be matched. " + Tail + detail;
         if (reasons.Contains(MallPurchaseAbortReason.StaleAccount) || reasons.Contains(MallPurchaseAbortReason.SessionInvalid))
             return (confirmed ? "KoL confirmed the purchase" : "KoL's answer was unclear")
-                + ", but the inventory could not be read fresh" + reads + ". " + Tail;
+                + ", but the inventory could not be read fresh" + reads + ". " + Tail + detail;
         if (reasons.Contains(MallPurchaseAbortReason.ItemNotReceived))
             return (confirmed ? "KoL confirmed the purchase" : "KoL's answer was unclear")
-                + ", but the inventory still does not show the item" + reads + ". " + Tail;
-        return "KoL's answer could not be matched to an inventory change. " + Tail + " " + transportMessage;
+                + ", but the inventory still does not show the item" + reads + ". " + Tail + detail;
+        return "KoL's answer could not be matched to an inventory change. " + Tail + detail;
     }
 
     private DesktopMallPurchasePreview ToPreview(MallPurchasePreview inner, MallPurchaseRequest request)

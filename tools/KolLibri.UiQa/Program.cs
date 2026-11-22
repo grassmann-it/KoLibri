@@ -87,6 +87,7 @@ async Task RunAsync()
             await Section(window, "NavMall"); Shot(window, P("mall-empty"));
             await SeedMallResults(window); await Pump(500); Shot(window, P("mall-results"));
             await SeedCloverResults(window); await Pump(500); Shot(window, P("mall-clover"));
+            await SeedQueuedBuys(window); await Pump(900); Shot(window, P("mall-queued-buys"));
             await Section(window, "NavDaily"); SeedDaily(window, stale: false); await Pump(400); Shot(window, P("daily"));
             SeedDaily(window, stale: true); await Pump(400); Shot(window, P("daily-stale"));
             SeedDaily(window, stale: false);
@@ -245,6 +246,50 @@ async Task SeedMallResults(MainWindow w)
     search.Attach(model, Priv<LiveMallViewModel>(w, "_mall"));
     model.SearchText = "Hot wing";
     await model.SearchAsync();
+}
+
+/// <summary>Several buys in different states: refused, settled, unclear, sending and two still queued.</summary>
+async Task SeedQueuedBuys(MainWindow w)
+{
+    var search = w.FindControl<MallSearchView>("MallSearch")!;
+    var model = new MallSearchViewModel(new FixtureBackend(FixtureOffers()));
+    var log = Priv<SessionLogViewModel>(w, "_log");
+    var ledger = new MallSpendLedger();
+    var queue = new MallBuyQueue("Mallbot", ledger, log, a => Avalonia.Threading.Dispatcher.UIThread.Post(a),
+        verifyDelay: TimeSpan.FromMilliseconds(50), batchWait: TimeSpan.FromMilliseconds(50));
+    model.PurchaseRequest = new MallPurchaseCoordinator("Mallbot", _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>(null),
+        null!, log, ledger, queue: queue);
+    search.Attach(model, Priv<LiveMallViewModel>(w, "_mall"));
+    model.SearchText = "Hot wing";
+    await model.SearchAsync();
+    var options = new DesktopMallPurchaseOptions { MaxDailySpend = 500_000, MaxMeatPerPurchase = 250_000, MaxQuantityPerPurchase = 10 };
+    var engine = new QaEngine();
+    var rows = FixtureOffers();
+    MallBuyOrder O(int i, int qty) => new(rows[i].ItemId, rows[i].ItemName, rows[i].ShopId, rows[i].ShopName, rows[i].UnitPrice, qty);
+    queue.Enqueue(O(0, 1), engine, options);   // refused by KoL
+    queue.Enqueue(O(1, 2), engine, options);   // delivered
+    queue.Enqueue(O(2, 1), engine, options);   // never shows up: unclear
+    queue.Enqueue(O(0, 3), engine, options);   // blocks: sending
+    queue.Enqueue(O(1, 1), engine, options);   // queued
+    queue.Enqueue(O(2, 2), engine, options);   // queued
+    model.RefreshUnclear();
+}
+
+sealed class QaEngine : IMallBuyEngine
+{
+    private readonly Dictionary<string, int> _items = new();
+    private int _sends;
+    public Task<MallAccountReading> ReadAccountAsync(CancellationToken ct)
+        => Task.FromResult(new MallAccountReading(1_000_000, new Dictionary<string, int>(_items), true));
+    public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken ct)
+    {
+        var n = Interlocked.Increment(ref _sends);
+        if (n == 1)
+            return new DesktopMallPurchaseResult { Status = DesktopMallPurchaseStatus.Rejected, Message = "The shop no longer has the item at that price (sold or repriced)." };
+        if (n == 4) await Task.Delay(Timeout.Infinite, ct);
+        if (n == 2) _items[order.ItemId] = _items.GetValueOrDefault(order.ItemId) + order.Quantity;
+        return new DesktopMallPurchaseResult { Status = DesktopMallPurchaseStatus.Sent, Confirmed = true, UnitPrice = order.ShownUnitPrice, Message = "ok" };
+    }
 }
 
 sealed class AllowAll : IMallPurchaseRequest

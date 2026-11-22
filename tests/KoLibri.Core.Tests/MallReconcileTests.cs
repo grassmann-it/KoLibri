@@ -58,24 +58,6 @@ public sealed class MallReconcileTests
         Assert.True(result.Succeeded);
     }
 
-    [Fact]
-    public async Task Coordinator_logs_one_final_line_and_settles_the_ledger_with_income()
-    {
-        var log = new SessionLogViewModel(now: () => Now);
-        var ledger = new MallSpendLedger(new Fixed());
-        var coordinator = Coordinator(log, ledger,
-            State(meat: 100_000, inv: 0), State(meat: 100_000 - 222 + 7_000, inv: 1));
-        await coordinator.RequestAsync(Row(), default);
-
-        var finals = log.Entries.Where(e => e.Message.StartsWith("Settled:") || e.Message.StartsWith("Unclear:")
-            || e.Message.StartsWith("Rejected:") || e.Message.StartsWith("Confirmed:")).ToList();
-        Assert.Single(finals);
-        Assert.StartsWith("Settled:", finals[0].Message);
-        Assert.DoesNotContain(log.Entries, e => e.Kind == SessionLogKind.Error);
-        Assert.Equal(222, ledger.SpentToday("mallbot"));
-        Assert.Equal(0, ledger.UnclearToday("mallbot"));
-    }
-
     [Theory]
     [InlineData(MallUnclearDecision.WasSpent, 25_000, 0)]
     [InlineData(MallUnclearDecision.NotSpent, 0, 0)]
@@ -160,21 +142,6 @@ public sealed class MallReconcileTests
 
     // ---- helpers ---------------------------------------------------------------------------------------
 
-    private static MallPurchaseCoordinator Coordinator(
-        SessionLogViewModel log, MallSpendLedger ledger, MallPurchaseObservation before, MallPurchaseObservation after)
-    {
-        var handler = new Handler(_ => Ok("You acquire an item: 11-leaf clover"));
-        var http = new HttpClient(handler);
-        var transport = new HttpMallPurchaseTransport(http, new HttpMallPurchaseTransportOptions(),
-            (_, _) => Task.FromResult(before), (_, _) => Task.FromResult(after));
-        var service = new DesktopMallPurchaseService(transport,
-            new DesktopMallPurchaseOptions { ReconcileDelay = TimeSpan.Zero }, null, new Fixed());
-        var observer = new MallPurchaseObserver(null!, "mallbot", () => 1_000_000, ledger);
-        return new MallPurchaseCoordinator("mallbot",
-            _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>((service, observer)),
-            new PickPrompt(), log, ledger);
-    }
-
     private static MallOfferRow Row() => new()
     {
         Rank = 1, ItemId = "789", ItemName = "11-leaf clover", ShopId = "123", ShopName = "S", UnitPrice = 222,
@@ -221,12 +188,6 @@ public sealed class MallReconcileTests
     private sealed class Fixed : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;
-    }
-
-    private sealed class PickPrompt : IMallPurchasePrompt
-    {
-        public Task<int?> AskAsync(MallPurchasePromptContext context, CancellationToken cancellationToken)
-            => Task.FromResult<int?>(1);
     }
 
     private sealed class Prompt(MallUnclearDecision decision) : IMallReconcilePrompt

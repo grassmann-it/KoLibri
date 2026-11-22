@@ -44,6 +44,28 @@
       </StackPanel>
     </Border>
 
+    <Border Classes="card" IsVisible="{Binding HasPurchases}">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Purchases" Classes="h2" />
+        <TextBlock Text="{Binding PurchasesTotal}" Classes="muted" TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding Purchases}" AutomationProperties.Name="Queued purchases">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="local:MallBuyTicket">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,4">
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding StateText}" FontWeight="SemiBold" Margin="10,0,0,0"
+                           IsVisible="{Binding !IsProblem}" />
+                <TextBlock Grid.Column="1" Text="{Binding StateText}" FontWeight="SemiBold" Margin="10,0,0,0"
+                           Foreground="{DynamicResource ErrorBrush}" IsVisible="{Binding IsProblem}" />
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Message}" Classes="muted" FontSize="12"
+                           TextWrapping="Wrap" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
     <Border Classes="card" IsVisible="{Binding NeedsPick}">
       <StackPanel Spacing="6">
         <TextBlock Text="Pick item" Classes="h2" />

@@ -133,7 +133,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
     /// </summary>
     public Task<MallPurchaseCommitResult> PurchaseNowAsync(
         MallPurchaseRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool deferVerification = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         return _lane.ExecuteAsync(async token =>
@@ -167,7 +168,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             var preview = BuildPreview(bound, before, now);
             if (preview.AbortReasons.Count > 0)
                 return Abort(actionId, preview.AbortReasons, [], before);
-            return await CommitCoreAsync(preview, null, token, before).ConfigureAwait(false);
+            return await CommitCoreAsync(preview, null, token, before, deferVerification).ConfigureAwait(false);
         }, cancellationToken);
     }
 
@@ -202,12 +203,12 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             case MallPurchaseSettlementKind.NotReceived:
                 Add(reasons, MallPurchaseAbortReason.ItemNotReceived);
                 Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed 0.");
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed 0 (inventory of item {preview.Request.ItemId}: {before.InventoryQuantity(preview.Request.ItemId)} before, {after.InventoryQuantity(preview.Request.ItemId)} after).");
                 break;
             case MallPurchaseSettlementKind.Partial:
                 Add(reasons, MallPurchaseAbortReason.PartialQuantity);
                 Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {settlement.Received}.");
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {settlement.Received} (inventory of item {preview.Request.ItemId}: {before.InventoryQuantity(preview.Request.ItemId)} before, {after.InventoryQuantity(preview.Request.ItemId)} after).");
                 break;
             case MallPurchaseSettlementKind.Excess:
                 Add(reasons, MallPurchaseAbortReason.UnexpectedQuantity);
@@ -289,7 +290,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         MallPurchasePreview preview,
         string? approvalToken,
         CancellationToken cancellationToken,
-        MallPurchaseObservation? knownBefore = null)
+        MallPurchaseObservation? knownBefore = null,
+        bool deferVerification = false)
     {
         var actionId = preview.ActionId;
         var now = _clock.GetUtcNow();
@@ -335,7 +337,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         try
         {
             receipt = await _transport.CommitAsync(
-                new MallPurchaseTransportCommit(preview, before, approvalToken, now),
+                new MallPurchaseTransportCommit(preview, before, approvalToken, now) { DeferVerification = deferVerification },
                 cancellationToken).ConfigureAwait(false);
             receipt.Before.Validate();
             receipt.After.Validate();
@@ -368,6 +370,19 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 Receipt = receipt
             };
         }
+
+        if (deferVerification)
+            return new MallPurchaseCommitResult
+            {
+                ActionId = actionId,
+                Status = MallPurchaseVerificationStatus.Pending,
+                Accepted = receipt.Accepted,
+                Committed = receipt.Accepted,
+                Messages = string.IsNullOrWhiteSpace(receipt.Message) ? Array.Empty<string>() : [receipt.Message],
+                Before = receipt.Before,
+                After = receipt.After,
+                Receipt = receipt
+            };
 
         // KoL confirmed the purchase or the outcome is unknown: the inventory decides. When the item is not
         // visible yet (or the read was stale), re-read a bounded number of times before giving up.

@@ -190,7 +190,24 @@ public sealed class MallSearchViewModel : DesktopViewModel
     public string UnclearText => string.Create(System.Globalization.CultureInfo.InvariantCulture,
         $"{_unclearAmount:N0} Meat of today's purchases are counted as unclear against the daily budget.");
 
-    public void RefreshUnclear() => UnclearAmount = Reconciler?.UnclearAmount ?? 0;
+    private bool _queueHooked;
+
+    /// <summary>The buys queued in the background (empty until the first Buy).</summary>
+    public System.Collections.ObjectModel.ObservableCollection<MallBuyTicket>? Purchases => Reconciler?.Queue.Tickets;
+    public bool HasPurchases => Purchases is { Count: > 0 };
+    public string PurchasesTotal => Reconciler?.Queue.TotalText ?? string.Empty;
+
+    public void RefreshUnclear()
+    {
+        UnclearAmount = Reconciler?.UnclearAmount ?? 0;
+        if (Reconciler?.Queue is { } queue && !_queueHooked)
+        {
+            _queueHooked = true;
+            queue.Tickets.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(HasPurchases)); OnPropertyChanged(nameof(PurchasesTotal)); };
+            queue.Changed += () => { OnPropertyChanged(nameof(PurchasesTotal)); UnclearAmount = Reconciler?.UnclearAmount ?? 0; };
+            OnPropertyChanged(nameof(Purchases));
+        }
+    }
 
     public async Task ReconcileUnclearAsync()
     {
