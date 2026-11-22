@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
+using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;
 
@@ -25,20 +26,58 @@ public sealed class InventoryViewModel : DesktopViewModel
     private string _selectedCategoryId = InventoryFilterCategory.AllId;
     private DateTimeOffset? _loadedAt;
 
+    private readonly ItemClassifier? _classifier;
+    private OrganState _organs = OrganState.Unknown;
+    private string _actionResult = string.Empty;
+
     public InventoryViewModel(
         AccountRole role = AccountRole.Main,
         DesktopLiveDataProvider? provider = null,
-        KoLmafiaCatalog? catalog = null)
+        KoLmafiaCatalog? catalog = null,
+        ItemClassifier? classifier = null)
     {
         _role = role;
         _provider = provider ?? new DesktopLiveDataProvider();
         _catalog = catalog;
-        var categories = BuildCategories();
+        _classifier = classifier ?? (catalog is null ? null : new ItemClassifier(catalog));
+        var categories = BuildCategories(this);
         Categories = new ObservableCollection<DesktopInventoryCategory>(categories);
         SelectedCategory = categories.First(c => c.Id == InventoryFilterCategory.AllId);
     }
 
     public AccountRole Role => _role;
+
+    /// <summary>Classification of a row; unknown ids (or no catalog) classify as Misc.</summary>
+    public ItemClassification Classify(DesktopInventoryItem item)
+        => _classifier?.Classify(item.ItemId) ?? new ItemClassification { ItemId = item.ItemId, Name = item.Name };
+
+    /// <summary>Last observed fullness, inebriety and spleen, for the overfill warning.</summary>
+    public OrganState Organs
+    {
+        get => _organs;
+        set
+        {
+            if (SetProperty(ref _organs, value)) OnPropertyChanged(nameof(OrganSummary));
+        }
+    }
+
+    public string OrganSummary => _organs.Summary;
+
+    /// <summary>The readable result (or error) of the last inventory action; empty before the first one.</summary>
+    public string ActionResult
+    {
+        get => _actionResult;
+        set => SetProperty(ref _actionResult, value);
+    }
+
+    /// <summary>The context-menu target: use kind and equip slots come from the item classification,
+    /// so a row never offers an action it cannot do.</summary>
+    public ItemMenuTarget ToMenuTarget(DesktopInventoryItem item)
+    {
+        var c = Classify(item);
+        return new ItemMenuTarget(item.ItemId, item.Name, item.Quantity,
+            InventoryActionPlanner.UseKindOf(c), InventoryActionPlanner.EquipSlotsOf(c));
+    }
 
     /// <summary>The search text. Setting it re-filters the list.</summary>
     public string SearchText
@@ -127,7 +166,8 @@ public sealed class InventoryViewModel : DesktopViewModel
     /// network.</summary>
     public void ApplySnapshot(IReadOnlyList<DesktopInventoryItem> items, DateTimeOffset? observedAt = null)
     {
-        _allItems = new ObservableCollection<DesktopInventoryItem>(items);
+        _allItems = new ObservableCollection<DesktopInventoryItem>(items.Select(item =>
+            item with { KindLabel = InventoryActionPlanner.Label(Classify(item)) }));
         if (observedAt is { } at) LoadedAt = at;
         ApplyFilter();
         OnPropertyChanged(nameof(TotalCount));
@@ -193,49 +233,22 @@ public sealed class InventoryViewModel : DesktopViewModel
         OnPropertyChanged(nameof(TotalCount));
     }
 
-    private static IReadOnlyList<DesktopInventoryCategory> BuildCategories()
+    private static IReadOnlyList<DesktopInventoryCategory> BuildCategories(InventoryViewModel owner)
     {
-        static bool HasFlag(DesktopInventoryItem item, string flag)
-            => item.AccessFlags.Any(f => string.Equals(f, flag, StringComparison.OrdinalIgnoreCase));
+        DesktopInventoryCategory Make(string id, string label, ItemCategory? category) => new()
+        {
+            Id = id,
+            Label = label,
+            Matches = category is null ? _ => true : item => owner.Classify(item).Matches(category.Value)
+        };
 
         return new[]
         {
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.AllId,
-                Label = "All",
-                Matches = _ => true
-            },
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.ConsumableId,
-                Label = "Consumable",
-                Matches = item => HasFlag(item, "q")
-            },
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.GadgetId,
-                Label = "Gadget",
-                Matches = item => HasFlag(item, "g")
-            },
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.TransferableId,
-                Label = "Transferable",
-                Matches = item => HasFlag(item, "t")
-            },
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.DiscardableId,
-                Label = "Discardable",
-                Matches = item => HasFlag(item, "d")
-            },
-            new DesktopInventoryCategory
-            {
-                Id = InventoryFilterCategory.UncategorizedId,
-                Label = "Other",
-                Matches = item => item.AccessFlags.Count == 0
-            }
+            Make(InventoryFilterCategory.AllId, "All", null),
+            Make(InventoryFilterCategory.ConsumableId, "Consumables", ItemCategory.Consumable),
+            Make(InventoryFilterCategory.EquipmentId, "Equipment", ItemCategory.Gear),
+            Make(InventoryFilterCategory.QuestId, "Quest", ItemCategory.Quest),
+            Make(InventoryFilterCategory.UncategorizedId, "Misc", ItemCategory.Other)
         };
     }
 }
@@ -249,6 +262,8 @@ public static class InventoryFilterCategory
     public const string TransferableId = "transferable";
     public const string DiscardableId = "discardable";
     public const string UncategorizedId = "uncategorized";
+    public const string EquipmentId = "equipment";
+    public const string QuestId = "quest";
 }
 
 /// <summary>The detail pane content for the selected inventory row.</summary>

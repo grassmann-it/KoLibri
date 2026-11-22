@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using LibKolibri;
 using KoLibri.Core.Markt;
 using KoLibri.Core.Spiel;
+using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;
 
@@ -164,35 +165,33 @@ public partial class MainWindow
         }
 
         AddButton("Move one to closet", () => RunCharacterActionAsync(new MoveClosetItem(id, 1, IntoCloset: true)));
-        var item = _catalog?.Items.FirstOrDefault(record => record.Id == detail.ItemId);
-        if (detail.Uses.Any(use => use is "usable" or "multiple" or "reusable")
-            && item?.PrimaryUse.Any(use => use is "food" or "drink" or "spleen") != true)
-            AddButton("Use one", () => RunCharacterActionAsync(new UseInventoryItem(id)));
 
-        if (item?.PrimaryUse.Contains("food") == true)
-            AddButton("Eat one", () => RunCharacterActionAsync(new ConsumeCharacterItem(id, CharacterConsumableKind.Food)));
-        if (item?.PrimaryUse.Contains("drink") == true)
-            AddButton("Drink one", () => RunCharacterActionAsync(new ConsumeCharacterItem(id, CharacterConsumableKind.Drink)));
-        if (item?.PrimaryUse.Contains("spleen") == true)
-            AddButton("Use one (spleen)", () => RunCharacterActionAsync(new ConsumeCharacterItem(id, CharacterConsumableKind.Spleen)));
-
-        var slots = item?.PrimaryUse.FirstOrDefault() switch
+        // Use/Eat/Drink/Chew and Equip come from the item classification and share one code path
+        // with the context menu (overfill warning, gates, readable result).
+        var row = _inventory.SelectedItem;
+        if (row is null) return;
+        var target = _inventory.ToMenuTarget(row);
+        var quantityBox = _inventoryView?.FindControl<NumericUpDown>("InventoryQuantity");
+        if (quantityBox is not null)
         {
-            "hat" => new[] { CharacterEquipmentSlot.Hat },
-            "weapon" => new[] { CharacterEquipmentSlot.Weapon },
-            "offhand" => new[] { CharacterEquipmentSlot.Offhand },
-            "container" => new[] { CharacterEquipmentSlot.Container },
-            "shirt" => new[] { CharacterEquipmentSlot.Shirt },
-            "pants" => new[] { CharacterEquipmentSlot.Pants },
-            "accessory" => new[] { CharacterEquipmentSlot.Accessory1, CharacterEquipmentSlot.Accessory2,
-                CharacterEquipmentSlot.Accessory3 },
-            _ => Array.Empty<CharacterEquipmentSlot>()
-        };
-        foreach (var slot in slots)
-            AddButton($"Equip · {slot}", () => RunCharacterActionAsync(new EquipInventoryItem(id, slot)));
-
-        if (item?.PrimaryUse.Contains("familiar") == true)
-            AddButton("Equip on familiar", () => RunFamiliarEquipmentAsync(id));
+            quantityBox.Maximum = Math.Max(1, row.Quantity);
+            if (quantityBox.Value is null || quantityBox.Value > row.Quantity) quantityBox.Value = 1;
+        }
+        int Quantity() => (int)Math.Clamp(quantityBox?.Value ?? 1, 1, Math.Max(1, row.Quantity));
+        if (target.Use != ItemUseKind.None)
+            AddButton(target.Use.ToString(), () => RunInventoryConsumeAsync(target, target.Use, Quantity()));
+        foreach (var slot in target.EquipSlots ?? Array.Empty<string>())
+            AddButton($"Equip · {slot}", () => RunInventoryEquipAsync(target, slot));
+        var organ = _inventory.Classify(row);
+        if (organ.Organ != ItemOrgan.None)
+        {
+            var cost = organ.OrganCost?.Size is { } size ? $"{size} per unit" : "cost unknown";
+            _inventoryDetailPanel.Children.Add(new TextBlock
+            {
+                Text = $"{InventoryActionPlanner.Label(organ)}: {cost} · {_inventory.OrganSummary}",
+                FontSize = 12, Classes = { "muted" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap
+            });
+        }
     }
 
     public async void CompareCharacterEquipmentClick(object? sender, RoutedEventArgs e)
@@ -377,8 +376,8 @@ public partial class MainWindow
             if (!ReferenceEquals(inventory, _inventory)) return;
 
             if (this.FindControl<TextBlock>("CharacterEquipmentStatus") is { } status)
-                status.Text = string.Join(" · ", new[] { $"Familiar {snapshot.Status.FamiliarId ?? "unknown"}" }
-                    .Concat(snapshot.Status.Equipment.Select(pair => $"{pair.Key} {pair.Value}")));
+                status.Text = string.Join(" · ", new[] { $"Familiar {FamiliarNameOrId(snapshot.Status.FamiliarId)}" }
+                    .Concat(snapshot.Status.Equipment.Select(pair => $"{pair.Key} {ItemNameOrId(pair.Value)}")));
             if (this.FindControl<TextBlock>("CharacterResourceStatus") is { } resources)
             {
                 var observed = snapshot.Status;

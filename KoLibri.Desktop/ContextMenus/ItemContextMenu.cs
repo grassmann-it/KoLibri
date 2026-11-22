@@ -9,8 +9,18 @@ public sealed record ItemMenuTarget(
     IReadOnlyList<string>? EquipSlots = null,
     bool CanCloset = true);
 
+/// <summary>Real item actions a tab supplies. Without one the menu entries are "not implemented yet" placeholders.</summary>
+public interface IItemMenuActions
+{
+    /// <summary>Eat, drink, chew or use <paramref name="quantity"/> of the item (through the shell's gates and confirmations).</summary>
+    void Consume(ItemMenuTarget item, ItemUseKind kind, int quantity);
+
+    /// <summary>Equip the item to the named slot ("Familiar" for familiar equipment).</summary>
+    void Equip(ItemMenuTarget item, string slot);
+}
+
 /// <summary>Item rows: use with quantity, equip to slot, closet, mall search, info, wiki and copy.</summary>
-public sealed class ItemContextMenu(IShellHost host)
+public sealed class ItemContextMenu(IShellHost host, IItemMenuActions? actions = null)
 {
     public IReadOnlyList<ContextMenuItem> Build(ItemMenuTarget item)
     {
@@ -23,12 +33,16 @@ public sealed class ItemContextMenu(IShellHost host)
             if (item.Quantity > 1) amounts.Add(item.Quantity);
             var entries = amounts.Distinct().Select(n => ContextMenuItem.Action(
                 n == item.Quantity && n > 1 ? $"{verb} all ({n})" : $"{verb} {n}",
-                MenuActions.NotImplemented(host, $"{verb} {n} {item.Name}"))).ToArray();
+                actions is null
+                    ? MenuActions.NotImplemented(host, $"{verb} {n} {item.Name}")
+                    : () => actions.Consume(item, item.Use, n))).ToArray();
             items.Add(entries.Length == 1 ? entries[0] : ContextMenuItem.Sub(verb, entries));
         }
         if (item.EquipSlots is { Count: > 0 } slots)
             items.Add(ContextMenuItem.Sub("Equip to slot", slots.Select(slot => ContextMenuItem.Action(
-                slot, MenuActions.NotImplemented(host, $"Equip {item.Name} to {slot}"))).ToArray()));
+                slot, actions is null
+                    ? MenuActions.NotImplemented(host, $"Equip {item.Name} to {slot}")
+                    : () => actions.Equip(item, slot))).ToArray()));
         if (item.CanCloset)
             items.Add(ContextMenuItem.Action("Closet", MenuActions.NotImplemented(host, $"Closet {item.Name}")));
         if (items.Count > 0) items.Add(ContextMenuItem.Separator);

@@ -61,40 +61,15 @@ public sealed class InventoryViewModelTests
     [Fact]
     public void Search_combines_with_the_category_filter()
     {
-        var viewModel = Build(
-            Item("1", "consumable thing", 1, "q"),
-            Item("2", "gadget thing", 1, "g"),
-            Item("3", "consumable other", 1, "q"));
+        var viewModel = InventoryTestCatalog.Build(
+            InventoryTestCatalog.Item("471", "hot wing", 3),
+            InventoryTestCatalog.Item("41", "ice-cold Sir Schlitz", 2),
+            InventoryTestCatalog.Item("1", "seal-clubbing club"));
         viewModel.SelectedCategory = viewModel.Categories
             .First(c => c.Id == InventoryFilterCategory.ConsumableId);
-        viewModel.SearchText = "other";
+        viewModel.SearchText = "wing";
         Assert.Single(viewModel.Items);
-        Assert.Equal("consumable other", viewModel.Items[0].Name);
-    }
-
-    [Fact]
-    public void Category_consumable_keeps_only_flagged_items()
-    {
-        var viewModel = Build(
-            Item("1", "a", 1, "q"),
-            Item("2", "b", 1, "g"),
-            Item("3", "c", 1, "t", "d"));
-        viewModel.SelectedCategory = viewModel.Categories
-            .First(c => c.Id == InventoryFilterCategory.ConsumableId);
-        Assert.Single(viewModel.Items);
-        Assert.Equal("a", viewModel.Items[0].Name);
-    }
-
-    [Fact]
-    public void Category_uncategorized_keeps_items_without_flags()
-    {
-        var viewModel = Build(
-            Item("1", "flagged", 1, "q"),
-            Item("2", "unflagged"));
-        viewModel.SelectedCategory = viewModel.Categories
-            .First(c => c.Id == InventoryFilterCategory.UncategorizedId);
-        Assert.Single(viewModel.Items);
-        Assert.Equal("unflagged", viewModel.Items[0].Name);
+        Assert.Equal("hot wing", viewModel.Items[0].Name);
     }
 
     [Fact]

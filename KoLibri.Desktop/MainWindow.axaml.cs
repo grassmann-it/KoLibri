@@ -157,7 +157,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _dailyView = ControlExtensions.FindControl<DailyView>(this, "DailyPanel");
         _charpaneView?.Attach(this);
         _adventuresView?.Attach(this, this);
-        _inventoryView?.Attach(this, this);
+        _inventoryView?.Attach(this, this, this);
         _gearView?.Attach(this, this);
         _skillsEffectsView?.Attach(this, this);
         _dailyView?.Attach(this, this);
@@ -868,6 +868,13 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                     if (_inventoryLoadedText is not null) _inventoryLoadedText.Text = _inventory.LoadedAtText;
                     break;
                 case nameof(InventoryViewModel.Detail):
+                    RenderInventoryDetail();
+                    break;
+                case nameof(InventoryViewModel.ActionResult):
+                    if (_inventoryView?.FindControl<TextBlock>("InventoryActionResult") is { } result)
+                        result.Text = _inventory.ActionResult;
+                    break;
+                case nameof(InventoryViewModel.OrganSummary):
                     RenderInventoryDetail();
                     break;
             }

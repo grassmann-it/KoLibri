@@ -4,6 +4,12 @@ using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;
 
+/// <summary>Item menu actions plus the row-to-menu mapping (needs the classifier of the current view model).</summary>
+public interface IInventoryItemActions : IItemMenuActions
+{
+    ItemMenuTarget ToTarget(DesktopInventoryItem row);
+}
+
 /// <summary>View for the InventoryView tab area; its handlers forward to <see cref="IInventoryViewHandlers"/> until the tab worker moves them here.</summary>
 public partial class InventoryView : UserControl
 {
@@ -18,12 +24,12 @@ public partial class InventoryView : UserControl
     /// <summary>Right-click and keyboard menu of the item list.</summary>
     public RowContextMenuController<DesktopInventoryItem>? ItemMenu { get; private set; }
 
-    public void Attach(IShellHost host, IInventoryViewHandlers handlers)
+    public void Attach(IShellHost host, IInventoryViewHandlers handlers, IInventoryItemActions? actions = null)
     {
         _host = host;
         _handlers = handlers;
         ItemMenu = RowContextMenuController<DesktopInventoryItem>.Attach(this.FindControl<ListBox>("InventoryList")!,
-            row => new ItemContextMenu(host).Build(ItemManagerViewModel.ToMenuTarget(row)));
+            row => new ItemContextMenu(host, actions).Build(actions?.ToTarget(row) ?? ItemManagerViewModel.ToMenuTarget(row)));
     }
 
     /// <summary>Raised with Items, Gear or Skills when the strip switches the sub-view.</summary>
