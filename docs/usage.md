@@ -7,15 +7,15 @@ KoLibri has four ways in. All of them use the same stored game sessions and the 
 | a player at the keyboard | CLI | `kolibri` (alias `kolicli`) |
 | a player who prefers windows | Desktop app (early alpha) | `kolibri-desktop` |
 | an AI assistant (Claude, Codex, ...) | MCP server | `kolibri-mcp --http`, then add `http://127.0.0.1:8765/mcp` as a connector |
-| a .NET developer | Library | `dotnet add package KoLibri.LibKolibri` |
+| a .NET developer | Library | source checkout (`dotnet add reference`); NuGet package planned for 0.5 |
 
 ## Everyday
 
 ```bash
 kolibri login main                  # once per account; password is asked, session stored encrypted
 kolibri status --role main
-kolibri daily-go --role all         # preview of the day
-kolibri daily-go --role all --execute
+kolibri daily go --role all         # preview of the day
+kolibri daily go --role all --execute
 kolibri crm --role mallbot          # own shop: who bought what, loyalty points
 kolibri reprice --role mallbot      # price suggestions against the mall floor
 ```

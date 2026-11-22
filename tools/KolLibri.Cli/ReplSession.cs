@@ -106,23 +106,7 @@ public sealed class KoLibriReplContext : IReplContext
     {
         var manager = KoLibri.Core.Basis.AccountSessionManager.CreateDefault();
         await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var cleared = 0;
-        foreach (var role in roles)
-        {
-            var profile = await manager.GetProfileAsync(role, cancellationToken).ConfigureAwait(false);
-            if (profile is null) continue;
-            try
-            {
-                await manager.SetCredentialsAsync(role, new KoLibri.Core.Basis.AccountCredentials
-                {
-                    Password = string.Empty,
-                    CookieHeader = string.Empty,
-                    ExpiresAt = DateTimeOffset.MinValue
-                }, cancellationToken).ConfigureAwait(false);
-                cleared++;
-            }
-            catch (KoLibri.Core.Basis.AccountConfigurationException) { }
-        }
+        var cleared = (await LoginClear.ClearAsync(manager, roles, cancellationToken).ConfigureAwait(false)).Count;
         return cleared;
     }
 

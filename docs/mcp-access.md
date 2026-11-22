@@ -30,7 +30,7 @@ A client may suggest limits with the extra authorize parameters `kolibri_limits`
 | `mall.buy` | meat per day, max price per unit, meat reserve |
 | `daily.run` | runs per day |
 | `transfer.meat`, `transfer.items` | amount per day |
-| `message.send`, `item.use` | count per day |
+| `message.send`, `item.use` | count per day (`item.use` also covers `kol_consume` and `kol_rest`) |
 | `shop.reprice` | changes per day, max change in percent |
 
 Usage is counted per KoL day (rollover about 03:30 US Eastern), held while an action runs and booked only
@@ -77,10 +77,12 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - Write tools over MCP: `kol_mall_buy` (`mall.buy`), `kol_meme_shop` (`daily.run`), `kol_transfer`
   (`transfer.items` / `transfer.meat`, only to the user's other account, both accounts must be approved),
   `kol_send_message` (`message.send`, any KoL player, text shown in the preview), `kol_use_item` (`item.use`),
+  `kol_consume` (`item.use`, eat/drink/spleen), `kol_rest` (`item.use`, plus the `adventure` right because a rest that is not free costs adventures; both are reserved for the worst case),
   `kol_reprice_shop` (`shop.reprice`, preview reads the store page), `kol_reward_buyer` (`message.send`, plus
   `transfer.items` with a gift; the AI only sees buyer keys, never character names), and the adventure tools
   `kol_adventure_run_execute` / `kol_choice_chain_execute` (`adventure`). All writes are two-step: the first
   call previews and returns a `planId`, the second call with the same arguments executes once.
+- `cast` and `relay` exist only in the CLI; there is no MCP tool for them.
 - BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
   The adventure session is created once per account when first used; if KoL ends it, restart `kolibri-mcp`.

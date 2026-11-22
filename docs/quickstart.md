@@ -12,14 +12,9 @@ limits you approve.
 beside the programs. On macOS the programs are not signed yet: allow them once under
 System Settings, Privacy & Security. On Windows SmartScreen may warn for the same reason.
 
-**dotnet tools (needs the .NET 8 SDK or newer).**
+**dotnet tools.** Publishing `KoLibri.Cli` and `KoLibri.Mcp` on nuget.org is planned for 0.5; `dotnet tool install` does not work yet.
 
-```bash
-dotnet tool install -g KoLibri.Cli      # command: kolibri
-dotnet tool install -g KoLibri.Mcp      # command: kolibri-mcp
-```
-
-Or from source: `dotnet build KoLibri.slnx`, then `dotnet run --project tools/KolLibri.Cli -- --help`.
+**From source (needs the .NET 8 SDK or newer):** `dotnet build KoLibri.slnx`, then `dotnet run --project tools/KolLibri.Cli -- --help`.
 
 ## 2. Sign in
 
@@ -58,8 +53,8 @@ kolibri-mcp grants revoke <id>   # cut one client off immediately
 ## 4. Daily routine yourself
 
 ```bash
-kolibri daily-go --role all                 # preview of the whole routine from the live accounts
-kolibri daily-go --role all --execute       # run the confirmed steps
+kolibri daily go --role all                 # preview of the whole routine from the live accounts
+kolibri daily go --role all --execute       # run the confirmed steps
 kolibri daily meme-shop --role main --execute   # Internet Meme Shop (BACON top-up is on by default; --no-top-up)
 ```
 

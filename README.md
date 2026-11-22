@@ -76,7 +76,7 @@ anything is sent.
 ### Multi-account
 
 Main and Mallbot are first-class roles with their own sessions, their
-own meat pools and their own daily shop limits. `daily-go --role all`
+own meat pools and their own daily shop limits. `daily go --role all`
 runs both, in parallel, with one hash-chained audit trail across the
 whole run.
 
@@ -106,7 +106,8 @@ python3 scripts/import-kolmafia-data.py   # refresh from a KoLmafia checkout
 The library:
 
 ```xml
-<PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
+<!-- NuGet publishing is planned for 0.5; until then reference the project from a source checkout -->
+<ProjectReference Include="path/to/KoLibri/src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
 ```
 
 ```csharp
@@ -118,7 +119,7 @@ var status = await kol.GetStatusAsync();
 Console.WriteLine($"{status.PlayerName}: {status.Meat} meat");
 ```
 
-The CLI and the MCP server install as dotnet tools (`KoLibri.Cli`, `KoLibri.Mcp`) or build from source:
+Build from source (NuGet packages for the library, CLI and MCP server are planned for 0.5; until then use the release archives or a source build):
 
 ```bash
 dotnet build KoLibri.slnx

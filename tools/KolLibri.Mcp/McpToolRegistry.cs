@@ -69,11 +69,20 @@ public sealed class McpToolRegistry
 public record KolibriMcpServerOptions
 {
     public string ServerName { get; init; } = "KoLibri.Mcp";
-    public string ServerVersion { get; init; } = "0.1.0";
+    public string ServerVersion { get; init; } = AssemblyVersionText();
     public string ProtocolVersion { get; init; } = "2024-11-05";
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(60);
     /// <summary>Fallback role used when a read tool omits its optional role.</summary>
     public AccountRole DefaultRole { get; init; } = AccountRole.Main;
+
+    private static string AssemblyVersionText()
+    {
+        var assembly = typeof(KolibriMcpServerOptions).Assembly;
+        var info = System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion;
+        var version = info?.Split('+')[0];
+        return string.IsNullOrWhiteSpace(version) ? (assembly.GetName().Version?.ToString(3) ?? "0.0.0") : version;
+    }
 
     public void Validate()
     {
