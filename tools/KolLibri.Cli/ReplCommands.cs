@@ -153,7 +153,6 @@ public sealed class ReplDispatcher
         "  campfire [--leaves N ...]             plan campfire leaves / day shortner",
         "  hermit [--permits N ...]              plan hermit permits + clovers",
         "  internet-shop [--already-claimed X]  plan daily free pulls",
-        "  bacon [--mall-price N ...]            plan Infinite Bacon Machine arbitrage",
         "  reprice [--limit N]                   reprice the current mall store",
         "  tokens                                show stored approval-token files",
         "  login status | clear [--role ...] |    manage stored account sessions",

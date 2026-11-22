@@ -42,11 +42,14 @@ public sealed class KoLRateLimiterTests
         }
     }
 
+    // Timers may fire early (Windows ~15 ms granularity) and the stopwatch is read after the handler is scheduled,
+    // so allow a third of the interval. Unspaced requests would start within a few ms and still fail by a wide margin.
     private static void AssertSpaced(IReadOnlyList<long> starts, int count, int intervalMs)
     {
+        var tolerance = intervalMs / 3;
         Assert.Equal(count, starts.Count);
         for (var i = 1; i < starts.Count; i++)
-            Assert.True(starts[i] - starts[i - 1] >= intervalMs - 20, $"gap {i}: {starts[i] - starts[i - 1]} ms, starts {string.Join(",", starts)}");
+            Assert.True(starts[i] - starts[i - 1] >= intervalMs - tolerance, $"gap {i}: {starts[i] - starts[i - 1]} ms, starts {string.Join(",", starts)}");
     }
 
     [Fact]

@@ -274,7 +274,8 @@ internal static partial class KolibriCli
 
     private static void PrintHelp()
     {
-        Console.WriteLine("KoLibri CLI (read-only plus explicitly approved shop price updates)");
+        Console.WriteLine("KoLibri CLI 0.4.0 (EARLY ALPHA) - previews by default; live actions need --execute and your approval.");
+        Console.WriteLine("  Live use needs your own KoL account (one session per account), requests are rate limited (default 2 s), AI agents must get your confirmation.");
         Console.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
         Console.WriteLine("  relay --role main|mallbot [--port 8766] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
         Console.WriteLine("  login main|mallbot [--username NAME] [--no-remember-password]");

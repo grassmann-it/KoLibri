@@ -14,11 +14,11 @@ public partial class KolibriMcpServer
     private void RegisterAdventureExecutionTools()
     {
         Register("kol_adventure_run_execute",
-            "Execute (or preview) a bounded adventure run via the runner; live path requires execute=true and an approvalToken. If the result has needsDecision, ask the user which option to take; do not guess.",
+            "Execute (or preview) a bounded adventure run via the runner; live path needs execute=true; with rights, call once to get a planId (preview), then again with the same arguments plus planId to run (approvalToken only for an ungated host). If the result has needsDecision, ask the user which option to take; do not guess.",
             AdventureRunExecuteSchema(),
             AdventureRunExecuteAsync);
         Register("kol_choice_chain_execute",
-            "Execute (or preview) a bounded choice chain against an existing checkpoint; live path requires execute=true and an approvalToken. If the result has needsDecision, ask the user which option to take; do not guess.",
+            "Execute (or preview) a bounded choice chain against an existing checkpoint; live path needs execute=true; with rights, call once to get a planId (preview), then again with the same arguments plus planId to run (approvalToken only for an ungated host). If the result has needsDecision, ask the user which option to take; do not guess.",
             ChoiceChainExecuteSchema(),
             ChoiceChainExecuteAsync);
 

@@ -19,7 +19,7 @@ public partial class KolibriMcpServer
     {
         Register("kol_run_daily_bridge",
             "Run the daily routine through the AutoCombat bridge. Reads the live account, "
-            + "derives the daily numbers, and (with execute + approvalToken) submits the steps.",
+            + "derives the daily numbers, and with execute=true submits the steps: the first call previews and returns a planId, the second call with the same arguments plus planId runs once (approvalToken only for an ungated host).",
             DailyBridgeSchema(),
             DailyBridgeAsync);
         Alias("daily-bridge", "kol_run_daily_bridge");

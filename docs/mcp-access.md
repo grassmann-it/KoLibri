@@ -95,7 +95,7 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
   `transfer.items` with a gift; the AI only sees buyer keys, never character names), and the adventure tools
   `kol_adventure_run_execute` / `kol_choice_chain_execute` (`adventure`). All writes are two-step: the first
   call previews and returns a `planId`, the second call with the same arguments executes once.
-- `cast` and `relay` exist only in the CLI; there is no MCP tool for them.
+- `cast` and `relay` are CLI commands only; there is no MCP tool for them.
 - BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
   The adventure session is created once per account when first used; if KoL ends it, restart `kolibri-mcp`.
