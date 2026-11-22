@@ -169,4 +169,43 @@ public sealed class MallSearchParsingTests
         var page = ParsePage("<div id='searchresults'>Nothing here</div>", "zzz");
         Assert.Empty(page.Items);
     }
+
+    private sealed class CapturingHandler(string html) : HttpMessageHandler
+    {
+        public List<string> Bodies { get; } = [];
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Bodies.Add(request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct));
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(html) };
+        }
+    }
+
+    [Fact]
+    public async Task A_search_by_item_id_posts_the_quoted_name_and_returns_the_real_offers()
+    {
+        var handler = new CapturingHandler(SearchPage);
+        var client = new KoLMallReadClient(new HttpClient(handler),
+            itemNameResolver: id => id == "10881" ? "11-leaf clover" : null);
+
+        var snapshot = await client.SearchAsync("10881");
+
+        Assert.Equal(2, snapshot.Listings.Count);
+        Assert.All(snapshot.Listings, l => Assert.Equal("10881", l.ItemId));
+        Assert.Equal(25_000, snapshot.Listings[0].Price);
+        Assert.Equal("Crazy Gordon", snapshot.Listings[0].StoreName);
+        Assert.Equal(1606, snapshot.Listings[0].Quantity);
+        Assert.Equal(1, snapshot.Listings[0].PurchaseLimit);
+        var body = Uri.UnescapeDataString(handler.Bodies.Single().Replace('+', ' '));
+        Assert.Contains("pudnuggler=\"11-leaf clover\"", body);
+        Assert.DoesNotContain("pudnuggler=10881", body);
+    }
+
+    [Fact]
+    public async Task A_search_by_unknown_item_id_is_an_error_not_an_empty_result()
+    {
+        var handler = new CapturingHandler(SearchPage);
+        var client = new KoLMallReadClient(new HttpClient(handler));
+        await Assert.ThrowsAsync<MallSearchParseException>(() => client.SearchAsync("10881"));
+        Assert.Empty(handler.Bodies);
+    }
 }

@@ -197,6 +197,7 @@ public sealed class KoLMallReadClient : IMallReadClient
     private readonly KoLSecurityPolicy _security;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
+    private readonly Func<string, string?>? _itemNameResolver;
     private readonly Dictionary<string, MallSearchPage> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _cacheGate = new();
     private readonly ConcurrentDictionary<string, Lazy<Task<MallSearchPage>>> _inflight = new(StringComparer.OrdinalIgnoreCase);
@@ -210,8 +211,10 @@ public sealed class KoLMallReadClient : IMallReadClient
         Uri? baseUri = null,
         MallReadPolicy? policy = null,
         TimeProvider? clock = null,
-        KoLSecurityPolicy? securityPolicy = null)
+        KoLSecurityPolicy? securityPolicy = null,
+        Func<string, string?>? itemNameResolver = null)
     {
+        _itemNameResolver = itemNameResolver;
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _baseUri = baseUri ?? new Uri("https://www.kingdomofloathing.com/", UriKind.Absolute);
         _policy = policy ?? new MallReadPolicy();
@@ -287,7 +290,7 @@ public sealed class KoLMallReadClient : IMallReadClient
             _security.EnsureAllowed(uri);
             var html = await PostStringAsync(uri, new Dictionary<string, string>
             {
-                ["pudnuggler"] = normalized,
+                ["pudnuggler"] = SearchTermFor(normalized),
                 ["category"] = "allitems",
                 ["justitems"] = "1",
                 ["sortresultsby"] = "price",
@@ -633,6 +636,23 @@ public sealed class KoLMallReadClient : IMallReadClient
     }
 
     private static string StripTags(string value) => WebUtility.HtmlDecode(Regex.Replace(value, "<[^>]+>", " "));
+
+    /// <summary>
+    /// KoL's mall search is name based: posting a bare number searches for the
+    /// text "10881" and finds nothing. A numeric term is therefore turned into
+    /// the exact quoted item name; the parser still pins the numeric id.
+    /// Without a resolvable name this throws instead of reporting "no offers".
+    /// </summary>
+    private string SearchTermFor(string term)
+    {
+        var bare = term.Trim().Trim('"');
+        if (bare.Length == 0 || !bare.All(char.IsDigit)) return term;
+        var name = _itemNameResolver?.Invoke(bare);
+        if (string.IsNullOrWhiteSpace(name))
+            throw new MallSearchParseException(
+                $"Item id {bare} cannot be searched in the mall: its name is unknown (item data missing). Search by item name instead.");
+        return "\"" + name.Trim() + "\"";
+    }
 
     private static string NormalizeId(string itemId)
     {

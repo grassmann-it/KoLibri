@@ -156,33 +156,10 @@ internal static partial class KolibriCli
         // vendor data so inventory snapshots show "seal tooth" instead of "44".
         var resolver = BuildItemNameResolver();
         return (new KoLAccountReadClient(http, itemNameResolver: resolver),
-                new KoLMallReadClient(http));
+                new KoLMallReadClient(http, itemNameResolver: resolver));
     }
 
-    private static Func<string, string?>? BuildItemNameResolver()
-    {
-        try
-        {
-            var loader = new KoLibri.Core.Spiel.MafiaDataLoader();
-            var path = Path.Combine(
-                AppContext.BaseDirectory, "kolmafia-data");
-            if (!Directory.Exists(path))
-                path = Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data");
-            if (!Directory.Exists(path))
-                path = Path.Combine(Directory.GetCurrentDirectory(), "external", "kolmafia-data");
-            if (!Directory.Exists(path)) return null;
-            var catalog = loader.Load(path);
-            var dict = catalog.Items
-                .Where(i => !string.IsNullOrWhiteSpace(i.Id) && !string.IsNullOrWhiteSpace(i.Name))
-                .GroupBy(i => i.Id!, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Name!, StringComparer.OrdinalIgnoreCase);
-            return id => dict.TryGetValue(id, out var n) ? n : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    private static Func<string, string?>? BuildItemNameResolver() => KoLibri.Core.Spiel.BundledItemNames.Resolver;
 
     private static async Task<HttpClient> ReadAuthenticatedHttpAsync(AccountRole role)
     {
@@ -276,7 +253,7 @@ internal static partial class KolibriCli
 
         var context = new KoLibriReplContext(role, loader.Load(dataDir),
             readClientFactory: r => new KoLAccountReadClient(BuildHttpForRole(r).GetAwaiter().GetResult()),
-            mallClientFactory: r => new KoLMallReadClient(BuildHttpForRole(r).GetAwaiter().GetResult()));
+            mallClientFactory: r => new KoLMallReadClient(BuildHttpForRole(r).GetAwaiter().GetResult(), itemNameResolver: BuildItemNameResolver()));
         var session = new ReplSession(context);
         return await session.RunAsync(CancellationToken.None);
     }

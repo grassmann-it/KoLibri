@@ -44,7 +44,7 @@ public static class McpRuntimeBootstrap
 
             var http = KoLLoginClient.CreateAuthenticatedClient(session.Credentials, endpoint);
             var account = new KoLAccountReadClient(http, endpoint);
-            var mall = new KoLMallReadClient(http, endpoint);
+            var mall = new KoLMallReadClient(http, endpoint, itemNameResolver: KoLibri.Core.Spiel.BundledItemNames.Resolver);
             runtime.Register<IAccountReadClient>(role, account);
             runtime.Register<IMallReadClient>(role, mall);
             runtime.Register<IAccountGateway>(role, new CoreAccountGateway(account));
