@@ -340,8 +340,9 @@ public sealed class DesktopShellWiringTests
         Assert.Contains(location, item => item.Label == "Copy id");
 
         var effect = new EffectContextMenu(host);
-        Assert.False(Find(effect.Build(new EffectMenuTarget("1", "Hardly Poisoned", false)), "Uneffect").IsEnabled);
-        Assert.True(Find(effect.Build(new EffectMenuTarget("1", "Hardly Poisoned", true)), "Uneffect").IsEnabled);
+        // Uneffect is deliberately not offered until it is wired to a confirmed action.
+        Assert.DoesNotContain(effect.Build(new EffectMenuTarget("1", "Hardly Poisoned", true)), item => item.Label == "Uneffect");
+        Assert.Contains(effect.Build(new EffectMenuTarget("1", "Hardly Poisoned", false)), item => item.Label == "Copy name");
 
         var skill = new SkillContextMenu(host).Build(new SkillMenuTarget("3", "Salve", 12));
         Assert.Contains(skill, item => item.Label == "Cast (12 MP)");

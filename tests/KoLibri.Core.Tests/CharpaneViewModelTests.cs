@@ -118,13 +118,13 @@ public sealed class CharpaneViewModelTests
         var report = await m.ConfirmCastAsync((id, times, _) =>
         {
             gotId = id; gotTimes = times;
-            return Task.FromResult(Outcome(50, 100, 150, 60, true));
+            return Task.FromResult(Outcome(50, 100, 150, 60, true) with { Requested = 2, ConfirmedCount = 2 });
         });
         Assert.Equal((3012, 2), (gotId, gotTimes));
         Assert.True(report!.Confirmed);
         Assert.Equal(100, report.HpChange);
         Assert.Equal(-40, report.MpChange);
-        Assert.Equal("Cast Cannelloni Cocoon ×2. HP +100, MP -40.", m.ResultText);
+        Assert.Equal("Cast Cannelloni Cocoon ×2 (each confirmed). HP +100, MP -40.", m.ResultText);
         Assert.Equal(2, m.Effects.Count);
         Assert.False(m.HasPending);
         Assert.False(m.IsBusy);
