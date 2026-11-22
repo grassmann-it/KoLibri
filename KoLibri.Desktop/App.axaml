@@ -76,6 +76,16 @@
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
+      <!-- Expanders sit flat on their card or bar instead of drawing Fluent's own boxes. -->
+      <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderHeaderBorderBrush" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPointerOver" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPressed" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderContentBackground" Color="Transparent" />
+      <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="Transparent" />
+
       <!-- Densities stay semantic so future compact tables can opt in without
            changing the shell's spacing contract. -->
       <Thickness x:Key="ComfortableCardPadding">12</Thickness>
@@ -95,6 +105,23 @@
 
     <Style Selector="ListBoxItem">
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- Lists sit on the panel colour, not Fluent's light grey; numeric fields keep room for the spinner. -->
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="MinWidth" Value="120" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Button:disabled">
+      <Setter Property="Opacity" Value="0.5" />
     </Style>
 
     <Style Selector="TextBlock.h1">

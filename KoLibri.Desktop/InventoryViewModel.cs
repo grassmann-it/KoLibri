@@ -203,7 +203,7 @@ public sealed class InventoryViewModel : DesktopViewModel
             new DesktopInventoryCategory
             {
                 Id = InventoryFilterCategory.AllId,
-                Label = "Alle",
+                Label = "All",
                 Matches = _ => true
             },
             new DesktopInventoryCategory

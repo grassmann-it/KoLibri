@@ -49,19 +49,19 @@
 
     <Border Classes="card" Padding="0" IsVisible="{Binding HasOffers}">
       <StackPanel>
-        <Grid ColumnDefinitions="44,*,110,125,95,115,70" ColumnSpacing="10" Margin="14,12,14,6">
+        <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="14,12,14,6">
           <TextBlock Grid.Column="0" Text="Rank" Classes="muted" FontSize="11" />
           <TextBlock Grid.Column="1" Text="Shop" Classes="muted" FontSize="11" />
           <TextBlock Grid.Column="2" Text="Meat / unit" Classes="muted" FontSize="11" TextAlignment="Right" />
           <TextBlock Grid.Column="3" Text="Stock" Classes="muted" FontSize="11" />
           <TextBlock Grid.Column="4" Text="Limit / day" Classes="muted" FontSize="11" />
-          <TextBlock Grid.Column="5" Text="Pricegun median" Classes="muted" FontSize="11" TextAlignment="Right" />
+          <TextBlock Grid.Column="5" Text="Median" Classes="muted" FontSize="11" TextAlignment="Right" />
         </Grid>
         <ListBox x:Name="OfferList" ItemsSource="{Binding Offers}" MaxHeight="460"
                  AutomationProperties.Name="Market offers">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="local:MallOfferRow">
-              <Grid ColumnDefinitions="44,*,110,125,95,115,70" ColumnSpacing="10" Margin="0,2">
+              <Grid ColumnDefinitions="28,*,78,95,70,72,54" ColumnSpacing="6" Margin="0,2">
                 <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="muted" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1" Text="{Binding ShopName}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
@@ -70,10 +70,10 @@
                 <TextBlock Grid.Column="4" Text="{Binding LimitText}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="5" Text="{Binding PricegunText}" TextAlignment="Right"
                            VerticalAlignment="Center" />
-                <!-- Disabled until a purchase hook (IMallPurchaseRequest) is wired in. -->
-                <Button Grid.Column="6" Content="Buy" IsEnabled="{Binding CanBuy}"
+                <!-- Disabled when the row cannot be bought. -->
+                <Button Grid.Column="6" Content="Buy" Classes="secondary" IsEnabled="{Binding CanBuy}"
                         Click="BuyClick" Padding="8,2"
-                        ToolTip.Tip="Purchase is not wired up yet." />
+                        ToolTip.Tip="Opens a confirmation first; nothing is bought until you confirm." />
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
