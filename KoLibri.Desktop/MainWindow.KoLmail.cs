@@ -29,11 +29,11 @@ public partial class MainWindow
     private async Task ReadKoLmailPageAsync(KoLMailFolder folder, int page)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading KoLmail", async token =>
         {
             var inbox = await _live.ReadMailboxPageAsync(role, folder, page, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             if (inbox is null)
             {
                 if (this.FindControl<TextBlock>("KoLmailInboxStatus") is { } loginStatus)
@@ -71,12 +71,12 @@ public partial class MainWindow
         }
 
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Saving KoLmail", async token =>
         {
             await _live.SaveInboxMessageAsync(role, message.Id, token);
             var saved = await _live.ReadMailboxPageAsync(role, KoLMailFolder.Saved, 1, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             if (saved is not null && saved.Recognized && saved.Entries.Any(entry => entry.Id == message.Id))
                 ShowKoLmailPage(KoLMailFolder.Saved, saved);
             else
@@ -107,13 +107,13 @@ public partial class MainWindow
 
         SetKoLmailDeleteConfirmation(false);
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         var folder = _koLmailFolder;
         await RunBusyOperationAsync("Deleting KoLmail", async token =>
         {
             await _live.DeleteMailboxMessageAsync(role, folder, entry.Id, token);
             var snapshot = await _live.ReadMailboxPageAsync(role, folder, 1, token);
-            if (snapshot is not null && role == _selectedRole && ReferenceEquals(current, _guts))
+            if (snapshot is not null && role == _selectedRole && ReferenceEquals(current, _accountToken))
                 ShowKoLmailPage(folder, snapshot);
         });
     }

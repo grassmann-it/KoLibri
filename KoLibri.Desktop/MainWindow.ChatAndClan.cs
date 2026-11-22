@@ -14,11 +14,11 @@ public partial class MainWindow
     private async void ReadKoLChatClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading KoL chat", async token =>
         {
             var batch = await _live.ReadChatAsync(role, _chatCursor, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             var status = this.FindControl<TextBlock>("KoLChatStatus")!;
             if (batch is null)
             {
@@ -34,11 +34,11 @@ public partial class MainWindow
     private async void ReadKoLChatContactsClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading KoL contacts", async token =>
         {
             var contacts = await _live.ReadChatContactsAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             this.FindControl<ComboBox>("KoLChatContacts")!.ItemsSource = contacts;
             this.FindControl<TextBlock>("KoLChatStatus")!.Text = contacts switch
             {
@@ -72,11 +72,11 @@ public partial class MainWindow
             return;
         }
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Sending KoL chat", async token =>
         {
             var batch = await _live.SendChatAsync(role, target, message, _chatCursor, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             AppendKoLChat(batch);
             status.Text = batch.DeliveryConfirmed ? "Chat message sent."
                 : batch.Output ?? "Delivery unconfirmed. Check chat before retrying.";
@@ -120,11 +120,11 @@ public partial class MainWindow
     private async void ReadClanProfileClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading clan membership", async token =>
         {
             var profile = await _live.ReadClanProfileAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             var rows = this.FindControl<ItemsControl>("ClanMembers")!;
             rows.ItemsSource = null;
             if (this.FindControl<TextBlock>("ClanProfileStatus") is { } status)
@@ -137,7 +137,7 @@ public partial class MainWindow
                 };
             if (profile?.ClanId is not { } clanId) return;
             var members = await _live.ReadClanMembersAsync(role, clanId, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts))
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken))
                 rows.ItemsSource = members;
         });
     }
@@ -145,11 +145,11 @@ public partial class MainWindow
     private async void ReadClanLoungeClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading clan VIP lounge", async token =>
         {
             var lounge = await _live.ReadClanLoungeAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             this.FindControl<ItemsControl>("ClanLoungeFacilities")!.ItemsSource = lounge?.Facilities;
             this.FindControl<Button>("UseClanLookingGlass")!.IsVisible = lounge?.Facilities.Any(
                 facility => facility.Action.Equals("lookingglass", StringComparison.OrdinalIgnoreCase)) == true;
@@ -181,11 +181,11 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Using clan looking glass", async token =>
         {
             var acquired = await _live.UseClanLookingGlassAsync(role, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts))
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken))
                 this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = acquired
                     ? "Received a DRINK ME potion."
                     : "No DRINK ME potion received. The daily use may already be spent.";
@@ -196,11 +196,11 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Checking clan Crimbo Tree", async token =>
         {
             var result = await _live.UseClanCrimboTreeAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = result switch
             {
                 { ReceivedGift: true } => "Received a Crimbo gift.",
@@ -215,11 +215,11 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Playing Deluxe Mr. Klaw", async token =>
         {
             var result = await _live.PlayClanKlawAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = result switch
             {
                 KoLClanKlawResult.Prize => "Won a Deluxe Mr. Klaw prize.",
@@ -234,14 +234,14 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanHotTubControls")?.IsVisible != true) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         var consent = this.FindControl<CheckBox>("AllowHotTubCurseRemoval")!;
         var allowRemovingCurse = consent.IsChecked == true;
         consent.IsChecked = false;
         await RunBusyOperationAsync("Using clan Hot Tub", async token =>
         {
             var result = await _live.UseClanHotTubAsync(role, allowRemovingCurse, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts))
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken))
                 this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = result;
         });
     }
@@ -258,11 +258,11 @@ public partial class MainWindow
         }
 
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Playing clan pool", async token =>
         {
             var result = await _live.PlayClanPoolAsync(role, stance, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             status.Text = result switch
             {
                 KoLClanPoolResult.Won => "Won the pool game.",
@@ -286,11 +286,11 @@ public partial class MainWindow
         }
 
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Taking April Shower", async token =>
         {
             var result = await _live.TakeClanShowerAsync(role, temperature, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             status.Text = result switch
             {
                 KoLClanShowerResult.ShowerTaken => "April Shower taken.",
@@ -310,11 +310,11 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanSwimControls")?.IsVisible != true) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Using clan swimming pool", async token =>
         {
             var result = await _live.SwimInClanPoolAsync(role, workout, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = result switch
             {
                 { DailyLimit: true } => "Today's swimming workout is already used.",
@@ -347,11 +347,11 @@ public partial class MainWindow
     private async void CheckClanPoolChoiceClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Checking clan pool", async token =>
         {
             var choice = await _live.ReadClanPoolChoiceAsync(role, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts) && choice is not null)
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken) && choice is not null)
                 ShowClanPoolChoice(choice);
         });
     }
@@ -362,11 +362,11 @@ public partial class MainWindow
             || (move is not null && this.FindControl<WrapPanel>("ClanPoolChoiceControls")?.IsVisible != true))
             return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Using clan pool choice", async token =>
         {
             var choice = await _live.SubmitClanPoolChoiceAsync(role, move, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts)) ShowClanPoolChoice(choice);
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken)) ShowClanPoolChoice(choice);
         });
     }
 
@@ -388,11 +388,11 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Inspecting clan photocopy", async token =>
         {
             var monster = await _live.ReadClanPhotocopyMonsterAsync(role, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts))
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken))
                 this.FindControl<TextBlock>("ClanLoungeStatus")!.Text = monster is null
                     ? "No copied monster identified." : $"Photocopied monster: {monster}.";
         });
@@ -402,18 +402,18 @@ public partial class MainWindow
     {
         if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync(send ? "Sending clan fax" : "Receiving clan fax", async token =>
         {
             var completed = await _live.TransferClanFaxAsync(role, send, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             var status = this.FindControl<TextBlock>("ClanLoungeStatus")!;
             status.Text = completed
                 ? send ? "Photocopy sent." : "Photocopy received."
                 : "KoL did not confirm the fax transfer.";
             if (!completed || send) return;
             var monster = await _live.ReadClanPhotocopyMonsterAsync(role, token);
-            if (monster is not null && role == _selectedRole && ReferenceEquals(current, _guts))
+            if (monster is not null && role == _selectedRole && ReferenceEquals(current, _accountToken))
                 status.Text = $"Photocopy received: {monster}.";
         });
     }
@@ -421,11 +421,11 @@ public partial class MainWindow
     private async void ReadClanStashClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading clan stash", async token =>
         {
             var stash = await _live.ReadClanStashAsync(role, token);
-            if (role == _selectedRole && ReferenceEquals(current, _guts))
+            if (role == _selectedRole && ReferenceEquals(current, _accountToken))
                 ShowClanStash(stash);
         });
     }
@@ -448,13 +448,13 @@ public partial class MainWindow
         }
 
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         rows.ItemsSource = null;
         await RunBusyOperationAsync("Taking clan stash item", async token =>
         {
             var acquired = await _live.TransferClanStashItemAsync(role, item.ItemId, quantity, false, token);
             var updated = await _live.ReadClanStashAsync(role, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             ShowClanStash(updated);
             status.Text = acquired ? $"KoL reported acquiring {item.Name}." : "KoL did not confirm the withdrawal.";
         });
@@ -463,11 +463,11 @@ public partial class MainWindow
     private async void LoadClanStashDepositItemsClick(object? sender, RoutedEventArgs e)
     {
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         await RunBusyOperationAsync("Reading inventory for clan stash", async token =>
         {
             var inventory = await _live.LoadInventoryAsync(role, true, _catalog, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             ShowClanDepositInventory(inventory);
             if (inventory is { HasSession: false } or { IsStale: true })
                 this.FindControl<TextBlock>("ClanStashStatus")!.Text = "Live inventory is unavailable.";
@@ -492,14 +492,14 @@ public partial class MainWindow
         }
 
         var role = _selectedRole;
-        var current = _guts;
+        var current = _accountToken;
         picker.ItemsSource = null;
         await RunBusyOperationAsync("Depositing clan stash item", async token =>
         {
             var deposited = await _live.TransferClanStashItemAsync(role, item.ItemId, quantity, true, token);
             var stash = await _live.ReadClanStashAsync(role, token);
             var inventory = await _live.LoadInventoryAsync(role, true, _catalog, token);
-            if (role != _selectedRole || !ReferenceEquals(current, _guts)) return;
+            if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
             ShowClanStash(stash);
             ShowClanDepositInventory(inventory);
             status.Text = deposited ? $"KoL reported depositing {item.Name}." : "KoL did not confirm the deposit.";

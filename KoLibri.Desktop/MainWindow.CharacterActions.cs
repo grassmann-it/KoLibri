@@ -276,10 +276,10 @@ public partial class MainWindow
     private async void ApplyCharacterMoodClick(object? sender, RoutedEventArgs e)
     {
         var name = this.FindControl<TextBox>("CharacterMoodEffect")?.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(name) || !TryReadCharacterId("CharacterSkillId", out var id)
+        if (string.IsNullOrWhiteSpace(name) || !TryReadSkillId(out var id)
             || _catalog?.Skills.FirstOrDefault(skill => skill.Id == id) is not { } skill)
         {
-            SetStatus("Enter an effect name and its skill ID.");
+            SetStatus("Enter an effect name and the skill (name or ID).");
             return;
         }
 
@@ -298,10 +298,10 @@ public partial class MainWindow
 
     private async void CastCharacterSkillClick(object? sender, RoutedEventArgs e)
     {
-        if (TryReadCharacterId("CharacterSkillId", out var id) && id > 0)
+        if (TryReadSkillId(out var id) && id > 0)
             await RunCharacterActionAsync(new CastCharacterSkill(id));
         else
-            SetStatus("Enter a skill ID.");
+            SetStatus("Enter a skill name or ID.");
     }
 
     private async void UnequipCharacterSlotClick(object? sender, RoutedEventArgs e)

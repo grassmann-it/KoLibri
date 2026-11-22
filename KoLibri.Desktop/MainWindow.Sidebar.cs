@@ -6,7 +6,8 @@ namespace KoLibri.Desktop;
 
 /// <summary>
 /// The character pane on the left, modelled on the KoL browser's frame.
-/// It reads the same cached status snapshot as the Guts page and is
+/// It reads the cached status snapshot through the shared provider (the
+/// Adventures page uses the same one, so a refresh costs one fetch) and is
 /// refreshed after every operation. Signed out, it shows placeholders.
 /// </summary>
 public sealed partial class MainWindow
@@ -61,7 +62,7 @@ public sealed partial class MainWindow
         SetSide("SidebarFamiliar", string.IsNullOrWhiteSpace(status.FamiliarId) || status.FamiliarId == "0"
             ? "None" : $"Familiar #{status.FamiliarId}");
         var effects = status.TimedEffects.Count > 0
-            ? status.TimedEffects.Select(e => $"{e.Name} ({e.TurnsRemaining})").ToList()
+            ? status.TimedEffects.Select(e => e.TurnsRemaining > 0 ? $"{e.Name} · {e.TurnsRemaining} turns" : e.Name).ToList()
             : status.Effects.ToList();
         SetSide("SidebarEffects", effects.Count == 0 ? "None" : string.Join(Environment.NewLine, effects));
     }
