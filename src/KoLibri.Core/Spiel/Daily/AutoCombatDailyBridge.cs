@@ -46,7 +46,22 @@ public sealed class AutoCombatDailyBridge
         public required IReadOnlyList<AdventureStepSpec> Steps { get; init; }
         public required IReadOnlyList<string> AllowlistedChoiceIds { get; init; }
         public required string? AuditPath { get; init; }
+        /// <summary>Choice steps that were attempted but not accepted (step label and outcome), in order.</summary>
+        public IReadOnlyList<string> FailedSteps { get; init; } = Array.Empty<string>();
+        /// <summary>Number of choice steps that were submitted successfully.</summary>
+        public int SubmittedSteps { get; init; }
+        /// <summary>Number of choice steps the run tried to execute.</summary>
+        public int AttemptedSteps { get; init; }
+        /// <summary>None: nothing executed. Complete: every attempted step succeeded. Partial: some did, some failed.
+        /// Failed: attempted steps, none succeeded.</summary>
+        public BridgeCompleteness Completeness
+            => AttemptedSteps == 0 ? BridgeCompleteness.None
+             : FailedSteps.Count == 0 ? BridgeCompleteness.Complete
+             : SubmittedSteps > 0 ? BridgeCompleteness.Partial
+             : BridgeCompleteness.Failed;
     }
+
+    public enum BridgeCompleteness { None, Complete, Partial, Failed }
 
     public BridgeExecutionResult Plan(
         AccountDailyState state,
@@ -312,6 +327,7 @@ public sealed class AutoCombatDailyBridge
                 AuditPath = audit?.FilePath
             };
         }
+        var failedSteps = new List<string>();
         var allowlist = extraAllowlist ?? new AdventureActionAllowlist();
         foreach (var cs in choiceSteps)
             allowlist = allowlist.AddChoiceOption(cs.ChoiceId, cs.ChoiceId, cs.OptionId);
@@ -454,6 +470,7 @@ public sealed class AutoCombatDailyBridge
             catch (Exception ex)
             {
                 outcome = "exception";
+                failedSteps.Add($"{cs.ChoiceId}:{cs.OptionId} ({ex.Message})");
                 requestId = Guid.NewGuid().ToString("N");
                 if (audit is not null)
                 {
@@ -467,6 +484,7 @@ public sealed class AutoCombatDailyBridge
                 }
                 continue;
             }
+            if (outcome != "submitted") failedSteps.Add($"{cs.ChoiceId}:{cs.OptionId} ({outcome})");
             if (audit is not null)
             {
                 await audit.AppendAsync(new AuditEvent(
@@ -507,6 +525,9 @@ public sealed class AutoCombatDailyBridge
         return new BridgeExecutionResult
         {
             Executed = executedCount > 0,
+            FailedSteps = failedSteps,
+            SubmittedSteps = executedCount,
+            AttemptedSteps = executedCount + failedSteps.Count,
             Steps = steps,
             AllowlistedChoiceIds = choiceSteps
                 .Select(c => c.ChoiceId + ":" + c.OptionId).ToArray(),

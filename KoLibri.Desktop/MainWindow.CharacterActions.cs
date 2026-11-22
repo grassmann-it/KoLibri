@@ -152,6 +152,39 @@ public partial class MainWindow
         await RunCharacterActionAsync(combine);
     }
 
+    /// <summary>Moves one unit of the item to the closet, but only while that item is still the selected row.</summary>
+    private Task MoveSelectedToClosetAsync(string itemId)
+    {
+        if (_inventory.SelectedItem?.ItemId != itemId || !int.TryParse(itemId, out var id) || id <= 0)
+        {
+            ReportInventoryResult("That item is no longer selected or shown; select it again.", error: true);
+            return Task.CompletedTask;
+        }
+        return RunCharacterActionAsync(new MoveClosetItem(id, 1, IntoCloset: true));
+    }
+
+    public bool SupportsCloset => true;
+    public bool SupportsInfo => true;
+
+    public void MoveToCloset(ItemMenuTarget item)
+        => _ = GuardedAsync($"Closet {item.Name}", () =>
+        {
+            _inventory.SelectedItem = _inventory.Items.FirstOrDefault(r => r.ItemId == item.ItemId);
+            return MoveSelectedToClosetAsync(item.ItemId);
+        });
+
+    public void ShowInfo(ItemMenuTarget item)
+    {
+        var row = _inventory.Items.FirstOrDefault(r => r.ItemId == item.ItemId);
+        if (row is null)
+        {
+            ReportInventoryResult($"{item.Name} is not in the loaded inventory; refresh and try again.", error: true);
+            return;
+        }
+        _inventory.SelectedItem = row;
+        ReportInventoryResult(InventoryActionPlanner.Describe(_inventory.Classify(row), row.Name, row.Quantity));
+    }
+
     private void RenderInventoryActions(DesktopItemDetail detail)
     {
         if (_inventoryDetailPanel is null || !int.TryParse(detail.ItemId, out var id) || id <= 0)
@@ -164,7 +197,7 @@ public partial class MainWindow
             _inventoryDetailPanel.Children.Add(button);
         }
 
-        AddButton("Move one to closet", () => RunCharacterActionAsync(new MoveClosetItem(id, 1, IntoCloset: true)));
+        AddButton("Move one to closet", () => MoveSelectedToClosetAsync(detail.ItemId));
 
         // Use/Eat/Drink/Chew and Equip come from the item classification and share one code path
         // with the context menu (overfill warning, gates, readable result).

@@ -51,7 +51,8 @@ public partial class MainWindow
                 filterText.Text = _log.FilterSummary;
         };
 
-        var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems);
+        var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems,
+            classifier: _catalog is null ? null : new KoLibri.Core.Spiel.ItemClassifier(_catalog));
         _settingsModel = model;
         model.PropertyChanged += (_, args) =>
         {

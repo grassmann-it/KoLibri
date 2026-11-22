@@ -162,8 +162,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             }
             foreach (var monster in _catalog.Monsters
                 .Where(m => !string.IsNullOrWhiteSpace(m.Name))
-                .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
-                .Take(300))
+                .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase))
             {
                 Targets.Add(new CombatTarget
                 {
@@ -174,7 +173,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
                 });
             }
             foreach (var skill in _catalog.Skills
-                .Where(s => !string.IsNullOrWhiteSpace(s.Name))
+                .Where(s => !string.IsNullOrWhiteSpace(s.Name) && s.UsableInCombat)
                 .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
             {
                 Skills.Add(new CombatOption
@@ -185,15 +184,13 @@ public sealed class AutoCombatViewModel : DesktopViewModel
                     Detail = skill.Name ?? string.Empty
                 });
             }
-            foreach (var item in _catalog.Items
-                .Where(i => i.AccessFlags.Contains("q", StringComparer.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(i.Name))
-                .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
-                .Take(400))
+            foreach (var item in new ItemClassifier(_catalog).All
+                .Where(i => i.IsCombatItem && !string.IsNullOrWhiteSpace(i.Name))
+                .OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase))
             {
                 Items.Add(new CombatOption
                 {
-                    Id = item.Id ?? string.Empty,
+                    Id = item.ItemId,
                     Name = item.Name ?? string.Empty,
                     Kind = "item",
                     Detail = item.Name ?? string.Empty

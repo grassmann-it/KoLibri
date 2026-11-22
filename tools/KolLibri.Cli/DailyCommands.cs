@@ -192,7 +192,7 @@ internal static partial class KolibriCli
             {
                 var outcome = AutoCombatDailyBridge.ExecuteMemeStepAsync(
                     new ChoiceStepSpec(step.ChoiceId, step.OptionId), dispatcher, credentials,
-                    doneStore, role.ToString(), CancellationToken.None).GetAwaiter().GetResult();
+                    doneStore, live.DoneAccountKey, CancellationToken.None).GetAwaiter().GetResult();
                 results.Add(new { step = step.Description, outcome.Accepted, outcome.Message });
             }
         }
@@ -308,8 +308,11 @@ internal static partial class KolibriCli
             var result = actions.ExecuteAsync(new UseInventoryItem(BaconArbitrageExecutor.Ids.ForeignBribeBag))
                 .GetAwaiter().GetResult();
             perBag.Add(new { bag = i + 1, rejected = result.RejectionReason, gains = InventoryDiff(previous, result.Inventory) });
+            // A rejected form can come back as a normal page: the bag count must go down before the next bag.
+            var stockDropped = !result.Inventory.IsStale && !previous.IsStale
+                && CountItem(result.Inventory, BaconArbitrageExecutor.Ids.ForeignBribeBag) < CountItem(previous, BaconArbitrageExecutor.Ids.ForeignBribeBag);
             previous = result.Inventory;
-            if (result.RejectionReason is not null) break;
+            if (result.RejectionReason is not null || !stockDropped) break;
             opened++;
         }
         var total = InventoryDiff(before, previous);
@@ -809,7 +812,7 @@ internal static partial class KolibriCli
                         freePullDispatcher: CreateFreePullDispatcher(role),
                         freePullCredentials: TryGetCredentials(role),
                         audit: audit, accountId: role.ToString(),
-                        doneStore: doneStore, doneAccountKey: role.ToString());
+                        doneStore: doneStore, doneAccountKey: live.DoneAccountKey);
                 }
 
                 // Restock + arbitrage: the mall side of the daily routine.

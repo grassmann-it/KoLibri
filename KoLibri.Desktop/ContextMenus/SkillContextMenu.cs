@@ -13,7 +13,6 @@ public sealed class SkillContextMenu(IShellHost host, Action<SkillMenuTarget>? c
         ContextMenuItem.Action($"Cast ({skill.MpCost} MP)",
                 cast is null ? MenuActions.NotImplemented(host, $"Cast {skill.Name}") : () => cast(skill))
             .When(skill.Castable, "This skill cannot be cast here."),
-        ContextMenuItem.Action("Info", MenuActions.NotImplemented(host, $"Info {skill.Name}")),
         ContextMenuItem.Action("Wiki", MenuActions.Wiki(host, skill.Name)),
         ContextMenuItem.Separator,
         ContextMenuItem.Action("Copy name", MenuActions.Copy(host, skill.Name, "skill name")),

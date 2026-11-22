@@ -67,6 +67,9 @@ public partial class MainWindow : IInventoryItemActions
         return true;
     }
 
+    private static int HeldOf(KoLInventorySnapshot inventory, int id)
+        => inventory.Items.Where(i => i.ItemId == id.ToString(CultureInfo.InvariantCulture)).Sum(i => i.Quantity);
+
     private async Task RunInventoryConsumeAsync(ItemMenuTarget item, ItemUseKind kind, int quantity)
     {
         if (!TryResolveRow(item, quantity, out var row, out var id)) return;
@@ -83,18 +86,32 @@ public partial class MainWindow : IInventoryItemActions
         var inventory = _inventory;
         await RunBusyOperationAsync($"{kind} {quantity} × {row.Name}", async token =>
         {
+            var sent = false;
             try
             {
                 using var session = await OpenCharacterSessionAsync(role, token);
                 SetStatus($"{kind} {row.Name}: reading your status and inventory (KoL requests are paced, this takes a few seconds)…");
                 var before = await session.ReadAsync(token);
                 if (!ReferenceEquals(inventory, _inventory)) return;
+                if (before.Inventory.IsStale || before.Status.IsStale)
+                {
+                    ReportInventoryResult($"{kind} {row.Name}: KoL did not return a fresh status and inventory, nothing was sent. Refresh and try again.", error: true);
+                    return;
+                }
+                var heldBefore = HeldOf(before.Inventory, id);
+                if (heldBefore < quantity)
+                {
+                    ReportInventoryResult($"{kind} {row.Name}: KoL shows {heldBefore} in your inventory now (the list said {row.Quantity}); nothing was sent. Refresh the list.", error: true);
+                    return;
+                }
                 var state = new OrganState(before.Status.Fullness, before.Status.Inebriety, before.Status.Spleen);
                 inventory.Organs = state;
+                // Every organ cost of the item counts, also for plain "Use" items; an unknown cost or fill asks first.
                 var check = InventoryActionPlanner.CheckOverfill(classification, quantity, state);
-                if (check.Overfills)
+                if (InventoryActionPlanner.NeedsConfirmation(check))
                 {
-                    var ok = await OverfillConfirmDialog.AskAsync(this, "Overfill warning",
+                    var ok = await OverfillConfirmDialog.AskAsync(this,
+                        check.Overfills ? "Overfill warning" : "Organ limit could not be checked",
                         $"{check.Message}\n\n{state.Summary}\n\nContinue anyway?", $"{kind} anyway");
                     if (!ok)
                     {
@@ -106,39 +123,51 @@ public partial class MainWindow : IInventoryItemActions
                 SetStatus($"{kind} {quantity} × {row.Name}: sending to KoL…");
                 _log.Add(SessionLogKind.Info, $"{kind} {quantity} × {row.Name} (#{id}) sent to KoL.");
                 CharacterActionSnapshot after = before;
-                var done = 0;
+                string? stopReason = null;
+                sent = true;
                 if (consumable is { } organKind)
                 {
                     after = await session.ExecuteAsync(new ConsumeCharacterItem(id, organKind, quantity), token);
-                    done = after.RejectionReason is null ? quantity : 0;
                 }
                 else
                 {
-                    for (; done < quantity; done++)
+                    // One use at a time; each is confirmed before the next, a rejected one stops the series.
+                    var previous = heldBefore;
+                    for (var done = 0; done < quantity; done++)
                     {
                         after = await session.ExecuteAsync(new UseInventoryItem(id), token);
                         if (after.RejectionReason is not null) break;
+                        if (after.Inventory.IsStale) break;
+                        var now = HeldOf(after.Inventory, id);
+                        if (!classification.IsReusable && now >= previous)
+                        {
+                            stopReason = $"KoL did not confirm use {done + 1} of {quantity}; the series was stopped.";
+                            break;
+                        }
+                        previous = now;
                     }
                 }
                 if (!ReferenceEquals(inventory, _inventory)) return;
 
                 var projected = DesktopLiveDataProvider.ProjectInventory(role, after.Inventory, _catalog);
                 inventory.ApplyLiveSnapshot(projected);
-                var afterState = new OrganState(after.Status.Fullness, after.Status.Inebriety, after.Status.Spleen);
-                inventory.Organs = afterState;
-                var held = projected.Items.Where(r => r.ItemId == row.ItemId).Sum(r => r.Quantity);
-                var changed = row.Quantity - held;
-                if (after.RejectionReason is not null)
-                    ReportInventoryResult($"{kind} {row.Name} failed: {after.RejectionReason}" + (done > 0 ? $" ({done} succeeded first)" : ""), error: true);
-                else if (after.Inventory.IsStale || changed <= 0)
-                    ReportInventoryResult($"KoL did not confirm {kind.ToString().ToLowerInvariant()}ing {row.Name} (you still hold {row.Quantity}). {afterState.Summary}", error: true);
-                else
-                    ReportInventoryResult($"{verb} {changed} × {row.Name}; {held} left. {afterState.Summary}");
+                inventory.Organs = new OrganState(after.Status.Fullness, after.Status.Inebriety, after.Status.Spleen);
+                var held = HeldOf(after.Inventory, id);
+                var verdict = InventoryActionPlanner.JudgeConsume(verb, kind.ToString(), row.Name, quantity,
+                    heldBefore, held, classification.IsReusable, after.RejectionReason,
+                    after.Inventory.IsStale, stopReason);
+                ReportInventoryResult($"{verdict.Message} {inventory.Organs.Summary}", error: !verdict.Ok);
             }
             catch (OperationCanceledException) { throw; }
+            catch (CharacterActionOutcomeUnknownException exception)
+            {
+                ReportInventoryResult($"{kind} {row.Name}: {exception.Message}", error: true);
+            }
             catch (Exception exception)
             {
-                ReportInventoryResult($"{kind} {row.Name} failed: {exception.Message}", error: true);
+                ReportInventoryResult(sent
+                    ? $"{kind} {row.Name} failed after the request was sent, so it may have happened: {exception.Message} Refresh before repeating."
+                    : $"{kind} {row.Name} failed: {exception.Message}", error: true);
             }
         });
     }
@@ -154,6 +183,8 @@ public partial class MainWindow : IInventoryItemActions
                 ReportInventoryResult($"Enter a familiar ID on the Gear page before equipping {row.Name} on a familiar.", error: true);
             return;
         }
+        var dualWield = slotName == InventoryActionPlanner.DualWieldSlot;
+        if (dualWield) slotName = nameof(CharacterEquipmentSlot.Offhand);
         if (!Enum.TryParse<CharacterEquipmentSlot>(slotName, out var slot))
         {
             ReportInventoryResult($"Unknown equipment slot '{slotName}'.", error: true);
@@ -166,7 +197,7 @@ public partial class MainWindow : IInventoryItemActions
             try
             {
                 using var session = await OpenCharacterSessionAsync(role, token);
-                var action = new EquipInventoryItem(id, slot);
+                var action = new EquipInventoryItem(id, slot, dualWield);
                 var snapshot = await session.ExecuteAsync(action, token);
                 if (!ReferenceEquals(inventory, _inventory)) return;
                 inventory.ApplyLiveSnapshot(DesktopLiveDataProvider.ProjectInventory(role, snapshot.Inventory, _catalog));

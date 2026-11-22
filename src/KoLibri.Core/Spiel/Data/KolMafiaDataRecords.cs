@@ -49,6 +49,20 @@ public sealed record MafiaSkillRecord
     public string? Image { get; init; }
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
     public string? Duration { get; init; }
+
+    private bool HasTag(string tag) => Tags.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The skill is passive (the catalog tag, or the legacy type); it can never be cast or used in a fight.</summary>
+    public bool IsPassive => HasTag("passive") || string.Equals(Type, "passive", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Castable outside a fight: tagged "nc" (non-combat). Without any tags the legacy type decides.</summary>
+    public bool UsableOutsideCombat => !IsPassive
+        && (HasTag("nc") || (Tags.Count == 0 && !string.Equals(Type, "combat", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(Type)));
+
+    /// <summary>Usable in a fight: tagged "combat" (or the legacy type "combat").</summary>
+    public bool UsableInCombat => !IsPassive
+        && (HasTag("combat") || string.Equals(Type, "combat", StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>Raw adventure (location) record as published by the KoLmafia data files.</summary>

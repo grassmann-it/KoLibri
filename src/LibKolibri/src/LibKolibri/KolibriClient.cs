@@ -223,9 +223,14 @@ public sealed class KolibriClient : IDisposable
     /// Uses an inventory item <paramref name="quantity"/> times (one request each, stops at the first
     /// refusal). Returns how many uses KoL confirmed by the inventory count going down.
     /// </summary>
+    /// <summary>Items that stay in the inventory when used (cheap toaster, infinite BACON machine). A fallback for
+    /// callers without a catalog; callers that know better pass <c>reusable</c>.</summary>
+    public static readonly IReadOnlySet<int> KnownReusableItemIds = new HashSet<int> { 637, 9025 };
+
     public async Task<(int Used, string? Rejection)> UseItemAsync(
-        int itemId, int quantity, CancellationToken cancellationToken = default)
+        int itemId, int quantity, CancellationToken cancellationToken = default, bool reusable = false)
     {
+        reusable |= KnownReusableItemIds.Contains(itemId);
         ArgumentOutOfRangeException.ThrowIfLessThan(quantity, 1);
         var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
             .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
@@ -241,7 +246,10 @@ public sealed class KolibriClient : IDisposable
         {
             var result = await actions.ExecuteAsync(new UseInventoryItem(itemId), cancellationToken).ConfigureAwait(false);
             var after = result.Inventory.IsStale ? current : Count(result.Inventory);
-            if (after >= current) { rejection = result.RejectionReason ?? "KoL did not confirm the use."; break; }
+            if (result.RejectionReason is not null) { rejection = result.RejectionReason; break; }
+            // A reusable item keeps its stock: KoL accepting the request (no refusal text) is the evidence.
+            if (reusable && !result.Inventory.IsStale) { used++; continue; }
+            if (after >= current) { rejection = "KoL did not confirm the use."; break; }
             used++;
             current = after;
         }

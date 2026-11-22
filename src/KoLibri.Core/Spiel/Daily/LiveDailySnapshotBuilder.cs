@@ -60,6 +60,7 @@ public sealed class LiveDailySnapshotBuilder
             return total;
         }
 
+        var doneKey = DailyDoneStore.AccountKey(role, status);
         var leaves = QuantityOf(Ids.InflammableLeaf);
         var clovers = QuantityOf(Ids.ElevenLeafClover);
         var permits = QuantityOf(Ids.HermitPermit);
@@ -78,13 +79,13 @@ public sealed class LiveDailySnapshotBuilder
             Bacon = bacon,
             BaconMachineOwned = machines > 0,
             BaconMachineUsedToday = baseline.BaconMachineUsedToday
-                || (_doneStore?.IsDone(role.ToString(), DailyDoneStore.BaconMachine) ?? false),
+                || (_doneStore?.IsDone(doneKey, DailyDoneStore.BaconMachine) ?? false),
             AlreadyPulledItemIds = baseline.AlreadyPulledItemIds
                 .Concat(MemeShopCatalog.DailyItems.Select(i => i.Name)
-                    .Where(n => _doneStore?.IsDone(role.ToString(), DailyDoneStore.MemeBuy(n)) ?? false))
+                    .Where(n => _doneStore?.IsDone(doneKey, DailyDoneStore.MemeBuy(n)) ?? false))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             DayShortenerDoneToday = baseline.DayShortenerDoneToday
-                || (_doneStore?.IsDone(role.ToString(), DailyDoneStore.DayShortener) ?? false)
+                || (_doneStore?.IsDone(doneKey, DailyDoneStore.DayShortener) ?? false)
         };
         var state = new AccountDailyState
         {
@@ -106,7 +107,8 @@ public sealed class LiveDailySnapshotBuilder
             Meat = status.Meat,
             Adventures = status.Adventures,
             Level = status.Level,
-            ClassId = status.ClassId ?? string.Empty
+            ClassId = status.ClassId ?? string.Empty,
+            DoneAccountKey = doneKey
         };
     }
 }
@@ -126,4 +128,6 @@ public sealed record LiveDailySnapshot
     public required int Adventures { get; init; }
     public required int Level { get; init; }
     public required string ClassId { get; init; }
+    /// <summary>The key under which this player's once-per-day markers are stored (role + player id).</summary>
+    public string DoneAccountKey { get; init; } = string.Empty;
 }

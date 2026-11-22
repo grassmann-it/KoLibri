@@ -2,7 +2,7 @@ namespace KoLibri.Desktop.ContextMenus;
 
 public sealed record EffectMenuTarget(string EffectId, string Name, bool Removable, int TurnsRemaining = 0);
 
-/// <summary>Active effect rows: copy name, remaining turns, info, wiki and Uneffect when the effect can be removed.</summary>
+/// <summary>Active effect rows: copy name, remaining turns and wiki. Uneffect is not offered until it is wired to a confirmed action.</summary>
 public sealed class EffectContextMenu(IShellHost host)
 {
     public IReadOnlyList<ContextMenuItem> Build(EffectMenuTarget effect) =>
@@ -13,9 +13,6 @@ public sealed class EffectContextMenu(IShellHost host)
                 ? $"{effect.Name}: {effect.TurnsRemaining} turn{(effect.TurnsRemaining == 1 ? "" : "s")} remaining."
                 : $"{effect.Name}: no turn count reported (intrinsic or unknown).")),
         ContextMenuItem.Separator,
-        ContextMenuItem.Action("Info", MenuActions.NotImplemented(host, $"Info {effect.Name}")),
-        ContextMenuItem.Action("Wiki", MenuActions.Wiki(host, effect.Name)),
-        ContextMenuItem.Action("Uneffect", MenuActions.NotImplemented(host, $"Uneffect {effect.Name}"))
-            .When(effect.Removable, "This effect cannot be removed.")
+        ContextMenuItem.Action("Wiki", MenuActions.Wiki(host, effect.Name))
     ];
 }

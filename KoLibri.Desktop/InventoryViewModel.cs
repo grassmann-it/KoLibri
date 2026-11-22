@@ -283,5 +283,5 @@ public sealed record DesktopItemDetail
     public string UsesText => Uses.Count == 0 ? "—" : string.Join(", ", Uses);
     public string MallPriceText => CheapestMallPrice is { } price
         ? $"{price:N0} Meat"
-        : "not listed";
+        : "not looked up (use Mallsearch)";
 }
