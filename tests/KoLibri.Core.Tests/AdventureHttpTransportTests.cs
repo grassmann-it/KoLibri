@@ -215,17 +215,90 @@ public sealed class AdventureHttpTransportTests
         Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
     }
 
-    [Theory]
-    [InlineData(50, 49, false)]
-    [InlineData(50, 50, true)]
-    public async Task InterstitialIsNotRetriedWhenATurnOrEncounterAppeared(int before, int after, bool open)
+    [Fact]
+    public async Task InterstitialIsNotRetriedWhenATurnWasSpent()
     {
         var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
         using var client = new HttpClient(handler);
         using var transport = new HttpAdventureExecutionTransport(client,
-            ProbeOptions(new AdventureStateSnapshot(before, false), new AdventureStateSnapshot(after, open)));
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(49, false)));
 
-        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        var ex = await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Contains("counter changed", ex.Message);
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+    }
+
+    [Theory]
+    [InlineData("<html>ordinary main page</html>")]
+    [InlineData(Interstitial)]
+    public async Task RedirectToMainPhpWithOpenEncounterContinuesItWithoutASecondStart(string mainBody)
+    {
+        // POST -> 302 main.php; main.php; probe says a fight/choice is open; fight.php answers 200.
+        var handler = new RecordingHandler(Found("/main.php"), Response(mainBody), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(50, true)));
+
+        var result = await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.True(result.Accepted);
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+        Assert.Equal("/fight.php", handler.Requests[2].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task UnrecognisedMainPageWithUnchangedCounterRetriesOnce()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response("<html>turtle notice</html>"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(50, false)));
+
+        var result = await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.True(result.Accepted);
+        Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task ResumedStartWithOpenEncounterAfterMainPhpRedirectContinuesIt()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response("<html>main</html>"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, true)));
+        var request = StartWithFields() with
+        {
+            Checkpoint = new AdventureCheckpoint
+            {
+                RunId = "run-1", AdventureId = "123", Phase = AdventureRunPhase.Ready,
+                PendingActionKind = AdventureKernelActionKind.Encounter, ResponseHashes = ["abc"]
+            }
+        };
+
+        var result = await transport.StartAdventureAsync(request);
+
+        Assert.True(result.Accepted);
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task ResumedStartWithFreeStateAfterMainPhpRedirectStopsWithAPreciseMessageAndNoSecondPost()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response("<html>main</html>"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false)));
+        var request = StartWithFields() with
+        {
+            Checkpoint = new AdventureCheckpoint
+            {
+                RunId = "run-1", AdventureId = "123", Phase = AdventureRunPhase.Ready, ResponseHashes = ["abc"]
+            }
+        };
+
+        var ex = await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(request));
+        Assert.Contains("no fight or choice is open", ex.Message);
         Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
     }
 

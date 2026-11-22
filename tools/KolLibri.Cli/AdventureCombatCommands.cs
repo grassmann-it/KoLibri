@@ -422,7 +422,13 @@ internal static partial class KolibriCli
             cancellationToken: CancellationToken.None).ConfigureAwait(false);
         var resolver = CreateChoiceResolver();
         var allowlist = new AdventureActionAllowlist { ChoiceResolver = resolver }.AddAdventure(location);
-        foreach (var actionId in GetOptions(args, "--fight-action"))
+        var fightActions = GetOptions(args, "--fight-action").ToList();
+        // Documented default: a fight that opens during the run is fought with "attack" until it ends,
+        // bounded by --max-fight-rounds and --min-hp-percent. --no-auto-fight turns this off; the run then
+        // stops at the fight and names the command to finish it.
+        var autoFight = fightActions.Count == 0 && !HasFlag(args, "--no-auto-fight");
+        if (autoFight) fightActions.Add(DefaultFightAction);
+        foreach (var actionId in fightActions)
             allowlist.AddFightAction(location, actionId);
         foreach (var choice in GetOptions(args, "--choice-action"))
         {
@@ -455,6 +461,8 @@ internal static partial class KolibriCli
             new BoundedAdventureRunnerOptions
             {
                 MaxGatewaySteps = ReadInt(args, "--max-steps", 20),
+                MaxFightRounds = Math.Max(0, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds)),
+                MinimumHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100),
                 MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)))
             }).ConfigureAwait(false);
 
@@ -463,6 +471,7 @@ internal static partial class KolibriCli
             ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
             : null;
         var continueCommand = BuildContinueCommand(args, location, role, snarfblat);
+        var fightOpen = needs is null ? FightStopDocument(result, leftover, args, location, role, snarfblat) : null;
         WriteJson(new
         {
             command = "adventure run",
@@ -476,6 +485,7 @@ internal static partial class KolibriCli
             stopReason = result.StopReason.ToString(),
             needsDecision = needs is null ? null : NeedsDecisionDocument(needs, continueCommand),
             openChoice = leftover,
+            openFight = fightOpen,
             autoChoices = resolver.Log,
             conditions = result.Conditions,
             steps = result.Steps.Select(step => new
@@ -490,13 +500,58 @@ internal static partial class KolibriCli
             }).ToArray(),
             auditPath = KoLAdventureSessionFactory.DefaultAuditPath
         });
-        if (needs is not null || leftover is not null) return 4; // a choice is open: needs the user, not an error
+        if (needs is not null || leftover is not null || fightOpen is not null) return 4; // a choice or fight is open: needs the user, not an error
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
+    }
+
+    internal const string DefaultFightAction = "attack";
+    internal const int DefaultMaxFightRounds = 30;
+    internal const int DefaultMinHpPercent = 20;
+
+    /// <summary>
+    /// When a run stops while a fight is still open (no usable fight action, round limit, HP floor), say so
+    /// and name the exact command that finishes it. Never a silent stop mid-fight.
+    /// </summary>
+    internal static object? FightStopDocument(
+        BoundedAdventureRunResult result, object? leftover, string[] args, string location,
+        KoLibri.Core.Basis.AccountRole role, int? snarfblat)
+    {
+        var last = result.LastStep;
+        var unknownFight = last?.AbortReason == AdventureAbortReason.UnknownFight;
+        var openFightState = last?.State is AdventureFightRunState;
+        var stoppedMidFight = result.StopReason is BoundedAdventureRunStopReason.FightRoundLimitReached
+            or BoundedAdventureRunStopReason.HpBelowMinimum;
+        var leftoverFight = leftover is not null
+            && leftover.GetType().GetProperty("kind")?.GetValue(leftover) as string == nameof(OpenChoiceKind.Fight);
+        if (!(unknownFight || stoppedMidFight || leftoverFight
+              || (openFightState && result.StopReason != BoundedAdventureRunStopReason.Complete)))
+            return null;
+
+        var finish = string.Join(' ', new[]
+        {
+            "kolibri adventure run", "--location", Quote(location), "--role", role.ToString().ToLowerInvariant(),
+            snarfblat is > 0 ? $"--snarfblat {snarfblat.Value}" : "",
+            "--fight-action", DefaultFightAction, "--execute", "--approval-token", "<token>"
+        }.Where(x => x.Length > 0));
+        var why = result.StopReason switch
+        {
+            BoundedAdventureRunStopReason.FightRoundLimitReached => "the fight round limit was reached",
+            BoundedAdventureRunStopReason.HpBelowMinimum => "HP is below the configured minimum (or unknown)",
+            _ when unknownFight => "no fight action is configured for this fight (--no-auto-fight or a non-matching --fight-action)",
+            _ => "the run stopped before the fight ended"
+        };
+        return new
+        {
+            open = true,
+            message = $"A fight is still open on the account: {why}. It was not abandoned; finish it before anything else.",
+            finishCommand = finish,
+            note = "Add --max-fight-rounds N / --min-hp-percent N to change the bounds; the default fight action is 'attack'."
+        };
     }
 
     private static readonly string[] ContinueValueOptions =
     {
-        "--max-steps", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file"
+        "--max-steps", "--max-fight-rounds", "--min-hp-percent", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file"
     };
 
     /// <summary>The command that continues this run later: same location, snarfblat, rules and limits.</summary>
@@ -509,6 +564,7 @@ internal static partial class KolibriCli
         if (snarfblat is > 0) parts.AddRange(new[] { "--snarfblat", snarfblat.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) });
         foreach (var action in GetOptions(args, "--fight-action")) parts.AddRange(new[] { "--fight-action", Quote(action) });
         foreach (var choice in GetOptions(args, "--choice-action")) parts.AddRange(new[] { "--choice-action", Quote(choice) });
+        if (HasFlag(args, "--no-auto-fight")) parts.Add("--no-auto-fight");
         foreach (var name in ContinueValueOptions)
             if (GetOption(args, name) is { } value) parts.AddRange(new[] { name, Quote(value) });
         parts.AddRange(new[] { "--execute", "--approval-token", "<token>" });
@@ -1176,7 +1232,9 @@ internal static partial class KolibriCli
         Console.WriteLine("  adventure inspect [--checkpoint PATH] [--location ID] [--fixture HTML]");
         Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
         Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
-        Console.WriteLine("  adventure run --location ID [--snarfblat N] [--execute --approval-token TOKEN] [--fight-action attack]");
+        Console.WriteLine("  adventure run --location ID [--snarfblat N] [--execute --approval-token TOKEN]");
+        Console.WriteLine("      fights: default action 'attack' (override with --fight-action ID, disable with --no-auto-fight), bounded by");
+        Console.WriteLine("      --max-fight-rounds N (30) and --min-hp-percent N (20); a fight left open is reported as openFight with the command to finish it");
         Console.WriteLine("  choice pending|submit|policy                         see `choice --help`; adventure run exits 4 with needsDecision when a choice needs you");
         Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
         Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
