@@ -370,7 +370,7 @@ public partial class KolibriMcpServer
         var times = NullableIntProperty(args, "times") ?? 1;
         if (times is < 1 or > 20) throw new McpInvalidParamsException("times must be 1..20.");
 
-        return await TwoStepAsync(gate, args, "kol_rest", [new AccessRequest("item.use", role.ToString(), times), new AccessRequest(Rights.Adventure, role.ToString(), times)],
+        return await TwoStepAsync(gate, args, "kol_rest", [new AccessRequest("item.use", role.ToString(), times), new AccessRequest("adventure.run", role.ToString(), times)],
             () => Task.FromResult<object>(new { role = role.ToString(), times, note = "Resting may cost adventures; both rights are reserved for the worst case." }),
             async held =>
             {
