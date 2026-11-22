@@ -65,6 +65,11 @@ public sealed record HttpMallPurchaseTransportOptions
     /// </summary>
     public bool RequireSellerIdOnRead { get; init; } = true;
 
+    /// <summary>Supplies the store's <c>pwd</c> hash for the purchase form
+    /// (read from the store page by the host). Without it the form is sent
+    /// without <c>pwd</c>, which only test servers accept.</summary>
+    public Func<MallPurchaseRequest, CancellationToken, Task<string?>>? PasswordHashProvider { get; init; }
+
     public void Validate()
     {
         if (BaseUri is null || !BaseUri.IsAbsoluteUri)
@@ -288,7 +293,10 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
 
         var before = request.Before;
         var uri = BuildPurchaseUri(purchase);
-        var values = BuildPurchaseForm(purchase);
+        string? passwordHash = null;
+        if (_options.PasswordHashProvider is { } provider)
+            passwordHash = await provider(purchase, cancellationToken).ConfigureAwait(false);
+        var values = BuildPurchaseForm(purchase, passwordHash);
         MallPurchaseHttpResponse response;
         string body = string.Empty;
         try
@@ -567,13 +575,10 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
 
     private Uri BuildPurchaseUri(MallPurchaseRequest request)
     {
-        var path = new Uri(_options.BaseUri, _options.PurchasePath);
-        var builder = new UriBuilder(path)
-        {
-            Query = $"buying=1&whichitem={Uri.EscapeDataString(request.ItemId)}&whichstore={Uri.EscapeDataString(request.StoreId)}&quantity={request.Quantity.ToString(CultureInfo.InvariantCulture)}&sellerid={Uri.EscapeDataString(request.SellerId)}"
-        };
-        EnsureAllowedUri(builder.Uri);
-        return builder.Uri;
+        // The purchase fields travel in the POST body only (see BuildPurchaseForm).
+        var uri = new Uri(_options.BaseUri, _options.PurchasePath);
+        EnsureAllowedUri(uri);
+        return uri;
     }
 
     private Uri BuildStatusUri(string what)
@@ -587,23 +592,14 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
         return builder.Uri;
     }
 
-    private static IReadOnlyDictionary<string, string> BuildPurchaseForm(MallPurchaseRequest request)
-    {
-        var price = request.ExpectedUnitPrice.ToString(CultureInfo.InvariantCulture);
-        var quantity = request.Quantity.ToString(CultureInfo.InvariantCulture);
-        return new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["buying"] = "1",
-            ["whichitem"] = request.ItemId,
-            ["whichstore"] = request.StoreId,
-            ["quantity"] = quantity,
-            // These binding fields are ignored by older KoL pages but make
-            // the expected seller and observed price explicit for mirrors and
-            // test servers.  ApprovalToken is intentionally never included.
-            ["sellerid"] = request.SellerId,
-            ["price"] = price
-        };
-    }
+    private static IReadOnlyDictionary<string, string> BuildPurchaseForm(
+        MallPurchaseRequest request, string? passwordHash)
+        // Same form as MallBuyClient: price bound inside whichitem, never the
+        // approval token.
+        => MallBuyClient.BuildPurchaseForm(
+            long.Parse(request.StoreId, CultureInfo.InvariantCulture),
+            long.Parse(request.ItemId, CultureInfo.InvariantCulture),
+            request.ExpectedUnitPrice, request.Quantity, passwordHash);
 
     private MallPurchaseOffer ParseOffer(
         string html,
@@ -836,7 +832,7 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
             throw new ArgumentException("StoreId must be a numeric KoL id.", nameof(request));
         if (!IsNumeric(request.ItemId))
             throw new ArgumentException("ItemId must be a numeric KoL id.", nameof(request));
-        if (request.ExpectedUnitPrice < 0)
+        if (request.ExpectedUnitPrice <= 0 || request.ExpectedUnitPrice > MallBuyClient.MaxBindablePrice)
             throw new ArgumentOutOfRangeException(nameof(request.ExpectedUnitPrice));
         if (request.Quantity <= 0)
             throw new ArgumentOutOfRangeException(nameof(request.Quantity));
