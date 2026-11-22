@@ -252,7 +252,11 @@ public sealed class AdventureRunKernel
         // With a resolver, an unanswerable choice is never an abort: the choice stays open on the
         // account, so the run stops in a resumable "needs decision" state that carries the options.
         AdventureKernelDecision Fail(AdventureAbortReason reason, string message)
-            => resolver is null
+            => TurtleTamerEncounters.IsTurtleEncounter(observation.ChoiceTitle) && resolver is not null
+                && !string.IsNullOrWhiteSpace(observation.ChoiceId)
+                ? AwaitDecision(state, observation,
+                    TurtleTamerEncounters.DecisionReason(observation.ChoiceId, observation.ChoiceTitle, message))
+            : resolver is null
                 ? AbortExisting(state, reason, message, observation.ResponseHash)
                 : AwaitDecision(state, observation, message);
 

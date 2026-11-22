@@ -118,6 +118,27 @@ public sealed record ChoiceResolution(int? Option, ChoiceResolutionSource Source
 public sealed record ChoiceResolutionLogEntry(
     string AdventureId, string ChoiceId, string? Title, int Option, ChoiceResolutionSource Source, string Reason);
 
+/// <summary>
+/// Recognises the random turtle encounters a Turtle Tamer meets. KoLmafia's bundled data has no choice
+/// table, so ids are not hard-coded: the choice title decides, and the answer always comes from a
+/// configured default (by id) or from the user, never from a guess.
+/// </summary>
+public static class TurtleTamerEncounters
+{
+    private static readonly Regex TitlePattern = new(
+        @"\b(turtle|turtles|tortoise|terrapin|testudinal)\b|^\s*(training day|duel nature)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    public static bool IsTurtleEncounter(string? title)
+        => !string.IsNullOrWhiteSpace(title) && TitlePattern.IsMatch(title);
+
+    public static string DecisionReason(string choiceId, string? title, string? inner)
+        => $"Turtle Tamer random encounter '{title}' (choice {choiceId}) is open and has no configured answer. "
+         + $"Pick an option with `kolibri choice submit --choice {choiceId} --option <N>`, or set a default once with "
+         + $"`kolibri choice policy set --choice {choiceId} --option <N>` so later runs answer it by rule."
+         + (string.IsNullOrWhiteSpace(inner) ? "" : $" ({inner})");
+}
+
 public interface IChoiceResolver
 {
     ChoiceResolution Resolve(ChoiceResolutionRequest request);
@@ -167,6 +188,8 @@ public sealed class ChoiceResolver : IChoiceResolver
         ArgumentNullException.ThrowIfNull(request);
         var numbers = request.Options.Select(o => o.Number).ToHashSet();
         var result = ResolveCore(request, numbers);
+        if (result.Option is null && TurtleTamerEncounters.IsTurtleEncounter(request.Title) )
+            result = ChoiceResolution.None(TurtleTamerEncounters.DecisionReason(request.ChoiceId, request.Title, result.Reason));
         if (result.Option is { } option)
         {
             var entry = new ChoiceResolutionLogEntry(

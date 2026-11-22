@@ -193,6 +193,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         using var timeout = CreateTimeoutSource(cancellationToken);
 
         // Baseline for the interstitial retry: adventures and encounter state before the first start.
+        // Only a pristine first start reads it (it costs requests before the POST); every other start
+        // can still recover from a 302 to main.php, but only by continuing an encounter that is open
+        // afterwards - a retry needs the baseline to prove no turn was spent.
         AdventureStateSnapshot? baseline = null;
         if (interstitialAllowed && _options.StateProbe is { } probe)
         {
@@ -206,6 +209,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                 throw new AdventureHttpTransportException(
                     "An encounter is already open; no adventure start was sent.");
         }
+        // Recovery from a 302 to main.php: the first start of a process, or any start with a state probe.
+        var mainRecoveryAllowed = operation == AdventureTransportOperation.Adventure
+            && (interstitialAllowed || _options.StateProbe is not null);
 
         Interlocked.Increment(ref _httpRequestCount);
         LastRequest = request;
@@ -244,10 +250,10 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                             if (!FollowableRoutes.Contains(target.AbsolutePath.TrimStart('/')))
                                 target = null;
                         }
-                        if (target is null && interstitialAllowed && hop == 0 && location is not null
+                        if (target is null && mainRecoveryAllowed && hop == 0 && location is not null
                             && IsMainPhpInterstitial(currentUri, current, location))
                         {
-                            interstitialAllowed = false; // at most one detour, never again
+                            mainRecoveryAllowed = false; // at most one detour, never again
                             using (var main = new HttpRequestMessage(HttpMethod.Get, new Uri(currentUri, "/main.php")))
                             {
                                 Interlocked.Increment(ref _httpRequestCount);
@@ -259,18 +265,17 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                     || mainResponse.RequestMessage?.RequestUri is { } mu && !UriEquals(mu, main.RequestUri!))
                                     throw new AdventureHttpTransportException(
                                         "KoL adventure start was redirected to main.php, but main.php did not answer normally; no further start was sent.");
-                                // A plain 200 is not enough: the page must be the known interstitial
-                                // (Daily Reminders / New Events block) without a login or session error.
-                                // The transport has no account reader, so the redirect plus the
-                                // recognised page is the evidence; anything unclear stops the run.
+                                // A login/session error page is never a state change worth recovering from;
+                                // everything else (interstitial, turtle encounter notice, plain main page) is judged
+                                // by the state probe below, not by the page text.
                                 var mainHtml = await ReadBoundedBodyAsync(mainResponse.Content, timeout.Token)
                                     .ConfigureAwait(false);
-                                if (!IsKnownInterstitialPage(mainHtml))
+                                if (InterstitialErrorMarkers.Any(m => mainHtml.Contains(m, StringComparison.OrdinalIgnoreCase)))
                                     throw new AdventureHttpTransportException(
-                                        "KoL adventure start was redirected to main.php, but the page is not the recognised interstitial; no further start was sent.");
+                                        "KoL adventure start was redirected to main.php, but the page is a login or error page; no further start was sent.");
                             }
-                            // The first start was answered with a redirect; prove it spent nothing before sending it again.
-                            if (baseline is null || _options.StateProbe is not { } recheck)
+                            // The first start was answered with a redirect; prove what it did before sending it again.
+                            if (_options.StateProbe is not { } recheck)
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php and no state baseline exists; not retrying because a turn or encounter cannot be ruled out.");
                             AdventureStateSnapshot afterState;
@@ -280,12 +285,29 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php and the adventure state could not be re-read; not retrying.", ex);
                             }
+                            if (afterState.EncounterOpen)
+                            {
+                                // The redirect only meant "state changed": a fight or choice is open. Continue it
+                                // (read-only GET of fight.php, then choice.php); no second start is sent.
+                                var open = await OpenEncounterPageAsync(currentUri, timeout.Token).ConfigureAwait(false)
+                                    ?? throw new AdventureHttpTransportException(
+                                        "KoL adventure start was redirected to main.php and an encounter is open, but neither fight.php nor choice.php could be read; no further start was sent.");
+                                followed?.Dispose();
+                                followed = open.Response;
+                                current = open.Response;
+                                currentUri = open.Uri;
+                                break;
+                            }
+                            if (baseline is null)
+                                throw new AdventureHttpTransportException(
+                                    $"KoL adventure start was redirected to main.php; no fight or choice is open (adventures now {afterState.Adventures}). "
+                                    + "No pre-start counter exists to prove the turn was not spent, so the start was not repeated: check the adventure counter, then run the command again.");
                             if (!afterState.Fresh || !baseline.Fresh)
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php but the adventure counter is stale; not retrying.");
-                            if (afterState.EncounterOpen || afterState.Adventures != baseline.Adventures)
+                            if (afterState.Adventures != baseline.Adventures)
                                 throw new AdventureHttpTransportException(
-                                    $"KoL adventure start was redirected to main.php but the state changed (adventures {baseline.Adventures} -> {afterState.Adventures}, encounter open: {afterState.EncounterOpen}); not retrying.");
+                                    $"KoL adventure start was redirected to main.php, the adventure counter changed ({baseline.Adventures} -> {afterState.Adventures}) and no encounter is open; the turn may have been spent, not retrying. Check the account.");
                             var (retry, retryUri) = BuildMessage();
                             using (retry)
                             {
@@ -528,6 +550,23 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         if (!InterstitialMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase)))
             return false;
         return !InterstitialErrorMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>GETs fight.php, then choice.php, and returns the first that answers 200 (the open encounter page).</summary>
+    private async Task<(HttpResponseMessage Response, Uri Uri)?> OpenEncounterPageAsync(Uri from, CancellationToken ct)
+    {
+        foreach (var page in new[] { "fight.php", "choice.php" })
+        {
+            var uri = new Uri(from, "/" + page);
+            _security.EnsureAllowed(uri, "KoL open encounter read");
+            Interlocked.Increment(ref _httpRequestCount);
+            var response = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri),
+                HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.OK)
+                return (response, uri);
+            response.Dispose();
+        }
+        return null;
     }
 
     private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)
