@@ -230,6 +230,18 @@ public sealed class AdventureHttpTransportTests
     }
 
     [Fact]
+    public async Task StaleCounterAfterInterstitialStopsWithoutRetry()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Interstitial), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client,
+            ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(50, false, Fresh: false)));
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
     public async Task FailingStateProbeAfterInterstitialStopsWithoutRetry()
     {
         var calls = 0;

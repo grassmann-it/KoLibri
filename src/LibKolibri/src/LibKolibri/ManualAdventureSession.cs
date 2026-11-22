@@ -75,7 +75,12 @@ public sealed class ManualAdventureSession : IAsyncDisposable
         BoundedAdventureRunnerOptions? settings = null,
         CancellationToken cancellationToken = default)
     {
-        var policy = new AdventureActionAllowlist(allowlist.Entries) { WaitForManualChoice = true };
+        var policy = new AdventureActionAllowlist(allowlist.Entries)
+        {
+            // Keep the configured resolver: it answers by rule or saved answer and pauses only without one.
+            WaitForManualChoice = true,
+            ChoiceResolver = allowlist.ChoiceResolver
+        };
         var scopedRequest = request with { Role = Role };
         var provider = conditions is { Count: > 0 }
             ? new AccountAdventureConditionSnapshotProvider(_session.AccountReader, conditions) : null;
@@ -104,6 +109,11 @@ public sealed class ManualAdventureSession : IAsyncDisposable
             if (last.Steps.Count > 0) started++;
             foreach (var step in last.Steps)
                 if (step.Response?.Html is { } html) drops.AddRange(DropTracker.ReadDrops(html));
+            // A lost fight ends the batch: never start the next adventure after a defeat.
+            if (last.Steps.Count > 0 && last.Steps[^1].Response?.Html is { } finalHtml
+                && new KoLCombatObservationParser().Parse(finalHtml, new Uri("https://www.kingdomofloathing.com/fight.php"))
+                    .Outcome == CombatOutcome.Defeat)
+                break;
             if (last.StopReason != BoundedAdventureRunStopReason.Complete
                 || last.Conditions.Count > 0 && last.Conditions.All(condition => condition.IsSatisfied))
                 break;

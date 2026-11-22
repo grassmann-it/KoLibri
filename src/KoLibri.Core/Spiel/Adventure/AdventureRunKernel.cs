@@ -260,7 +260,8 @@ public sealed class AdventureRunKernel
             return Fail(AdventureAbortReason.UnknownChoice, "The choice response has no choice id.");
         if (!allowlist.IsEncounterAllowed(state.AdventureId, observation.EncounterId))
             return Fail(AdventureAbortReason.EncounterNotAllowlisted, "The choice encounter is not allowlisted.");
-        if (allowlist.WaitForManualChoice && observation.AvailableChoices.Count > 0)
+        // A configured resolver answers by rule/saved answer and pauses only when it has none.
+        if (allowlist.WaitForManualChoice && resolver is null && observation.AvailableChoices.Count > 0)
             return AwaitDecision(state, observation, null);
         if (!allowlist.TryGetChoiceAction(
                 state.AdventureId,
