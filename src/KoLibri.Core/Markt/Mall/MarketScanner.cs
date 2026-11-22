@@ -32,11 +32,22 @@ public sealed record MarketSnapshot
 public sealed class MarketScanner
 {
     private readonly HttpClient _http;
+    private readonly HttpClient _pricegunHttp;
     private readonly Uri _baseUri;
 
-    public MarketScanner(HttpClient http, Uri? baseUri = null)
+    /// <param name="http">Authenticated KoL client. Never used for Pricegun.</param>
+    /// <param name="pricegunHttp">Anonymous client for Pricegun; it must not carry a KoL cookie.
+    /// When omitted a cookie-less client is created.</param>
+    public MarketScanner(HttpClient http, Uri? baseUri = null, HttpClient? pricegunHttp = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
+        _pricegunHttp = pricegunHttp ?? new HttpClient(new KoLRateLimitedHandler(new HttpClientHandler
+        {
+            AllowAutoRedirect = true,
+            UseCookies = false,
+            AutomaticDecompression = System.Net.DecompressionMethods.All
+        }));
+        KoLUserAgent.ApplyTo(_pricegunHttp);
         _baseUri = baseUri ?? new Uri("https://www.kingdomofloathing.com/");
     }
 
@@ -93,7 +104,7 @@ public sealed class MarketScanner
         var uri = new Uri($"https://pricegun.loathers.net/item/{itemId}");
         try
         {
-            var html = await _http.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
+            var html = await _pricegunHttp.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
             return PriceScanner.ReadPricegunHistory(html);
         }
         catch (HttpRequestException)

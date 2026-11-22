@@ -283,7 +283,8 @@ public sealed class KoLLoginClient
         Uri baseUri,
         TimeSpan? timeout = null,
         string? userAgent = null,
-        KoLSecurityPolicy? securityPolicy = null)
+        KoLSecurityPolicy? securityPolicy = null,
+        HttpMessageHandler? innerHandler = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(baseUri);
@@ -293,14 +294,15 @@ public sealed class KoLLoginClient
         if (string.IsNullOrWhiteSpace(credentials.CookieHeader))
             throw new ArgumentException("Credentials do not contain a KoL cookie header.", nameof(credentials));
 
-        var handler = new HttpClientHandler
+        HttpMessageHandler handler = innerHandler ?? new HttpClientHandler
         {
             // Callers must handle redirects themselves (or use a safe
             // request wrapper) so cookies cannot be sent cross-host.
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
         };
-        var client = new HttpClient(new KoLRateLimitedHandler(handler))
+        // Allowlist is outermost: a foreign target is refused before any wait or send.
+        var client = new HttpClient(new KoLAllowlistHandler(new KoLRateLimitedHandler(handler), policy))
         {
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)

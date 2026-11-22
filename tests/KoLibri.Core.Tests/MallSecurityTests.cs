@@ -79,6 +79,63 @@ public sealed class MallSecurityTests
             KoLServerResponse.FromHtml("<input name='loginname'>").Classify());
     }
 
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public List<(Uri Uri, string? Cookie)> Requests { get; } = new();
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            request.Headers.TryGetValues("Cookie", out var cookies);
+            Requests.Add((request.RequestUri!, cookies is null ? null : string.Join(";", cookies)));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent("<html></html>")
+            });
+        }
+    }
+
+    [Fact]
+    public async Task ScannerSendsCookieOnlyToKoLAndNeverToPricegun()
+    {
+        const string cookie = "PHPSESSID=test-cookie-value";
+        var kol = new RecordingHandler();
+        var pricegun = new RecordingHandler();
+        using var authed = KoLLoginClient.CreateAuthenticatedClient(
+            new AccountCredentials { CookieHeader = cookie },
+            new Uri("https://www.kingdomofloathing.com/"),
+            innerHandler: kol);
+        using var anonymous = new HttpClient(pricegun);
+        var scanner = new MarketScanner(authed, pricegunHttp: anonymous);
+
+        await scanner.ScanAsync(42, "Thing", "Thing");
+
+        var kolRequest = Assert.Single(kol.Requests);
+        Assert.Equal("www.kingdomofloathing.com", kolRequest.Uri.Host);
+        Assert.Equal(cookie, kolRequest.Cookie);
+        var pricegunRequest = Assert.Single(pricegun.Requests);
+        Assert.Equal("pricegun.loathers.net", pricegunRequest.Uri.Host);
+        Assert.Null(pricegunRequest.Cookie);
+    }
+
+    [Fact]
+    public async Task AuthenticatedClientRefusesForeignHostBeforeAnySend()
+    {
+        var kol = new RecordingHandler();
+        using var authed = KoLLoginClient.CreateAuthenticatedClient(
+            new AccountCredentials { CookieHeader = "PHPSESSID=test-cookie-value" },
+            new Uri("https://www.kingdomofloathing.com/"),
+            innerHandler: kol);
+
+        await Assert.ThrowsAsync<KoLSecurityException>(() =>
+            authed.GetStringAsync(new Uri("https://pricegun.loathers.net/item/42")));
+        await Assert.ThrowsAsync<KoLSecurityException>(() =>
+            authed.GetStringAsync(new Uri("https://evil.example/collect")));
+        Assert.Empty(kol.Requests);
+    }
+
     private sealed class StubHandler(string body) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
