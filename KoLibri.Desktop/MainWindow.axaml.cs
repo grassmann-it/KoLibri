@@ -75,11 +75,11 @@ public partial class MainWindow : Window
     private LiveGutsViewModel _guts = null!;
     private LiveArbitrageViewModel _arbitrage = null!;
     private LiveMallViewModel _mall = null!;
+    private MallSearchViewModel _mallSearchModel = null!;
     private AutoCombatViewModel _autoCombat = null!;
     private StackPanel? _mallSection;
     private StackPanel? _combatSection;
-    private ListBox? _mallListingRows;
-    private TextBlock? _mallSummaryText;
+    private MallSearchView? _mallSearch;
     private ListBox? _combatTargetList;
     private ComboBox? _combatSkillPicker;
     private ComboBox? _combatItemPicker;
@@ -148,8 +148,7 @@ public partial class MainWindow : Window
         _arbitragePlanText = this.FindControl<TextBlock>("ArbitragePlanText");
         _mallSection = this.FindControl<StackPanel>("MallSection");
         _combatSection = this.FindControl<StackPanel>("CombatSection");
-        _mallListingRows = this.FindControl<ListBox>("MallListingRows");
-        _mallSummaryText = this.FindControl<TextBlock>("MallSummaryText");
+        _mallSearch = this.FindControl<MallSearchView>("MallSearch");
         _combatTargetList = this.FindControl<ListBox>("CombatTargetList");
         _combatSkillPicker = this.FindControl<ComboBox>("CombatSkillPicker");
         _combatItemPicker = this.FindControl<ComboBox>("CombatItemPicker");
@@ -374,8 +373,12 @@ public partial class MainWindow : Window
                     ShowLoadResult(section, _arbitrage);
                     break;
                 case "Mall & Shop":
-                    await _mall.LoadAsync(forceRefresh, cancellationToken);
-                    ShowLoadResult(section, _mall);
+                    // Search first: the own shop loads only when its section is opened.
+                    if (_mallSearch is not null)
+                    {
+                        if (forceRefresh) await _mallSearch.RefreshAsync();
+                        else _mallSearch.FocusSearch();
+                    }
                     break;
                 case "Combat":
                     await LoadCombatCatalogAsync(cancellationToken);
@@ -752,13 +755,9 @@ public partial class MainWindow : Window
         _arbitrage = new LiveArbitrageViewModel(_selectedRole, _live, catalog: _catalog);
         _arbitrage.LoadRules();
         _mall = new LiveMallViewModel(_selectedRole, _live);
-        if (this.FindControl<ListBox>("MallSearchRows") is { } results)
-        {
-            results.ItemsSource = null;
-            results.IsVisible = false;
-        }
-        if (this.FindControl<TextBlock>("MallSearchStatus") is { } mallSearchStatus)
-            mallSearchStatus.Text = string.Empty;
+        _mallSearchModel = new MallSearchViewModel(
+            new LiveMallSearchBackend(_live, _selectedRole), LookupCatalogItems);
+        _mallSearch?.Attach(_mallSearchModel, _mall);
         _guts = new LiveGutsViewModel(_selectedRole, _live);
         _daily = new DailyBriefingViewModel(_selectedRole, _live);
 
@@ -767,83 +766,19 @@ public partial class MainWindow : Window
         if (_arbitrageRows is not null) _arbitrageRows.ItemsSource = _arbitrage.Rows;
         if (_arbitrageRules is not null) _arbitrageRules.ItemsSource = _arbitrage.Rules;
         if (_dailyRows is not null) _dailyRows.ItemsSource = _daily.Rows;
-        if (_mallListingRows is not null) _mallListingRows.ItemsSource = _mall.Rows;
 
         _guts.PropertyChanged += (_, _) => RenderAccountSummaries();
         _arbitrage.PropertyChanged += (_, _) => RenderAccountSummaries();
         _daily.PropertyChanged += (_, _) => RenderAccountSummaries();
-        _mall.PropertyChanged += (_, _) => RenderAccountSummaries();
         RenderAccountSummaries();
         WireInventoryBrowser();
     }
 
-    private async void MallSearchClick(object? sender, RoutedEventArgs e) => await SearchMallAsync();
-
-    private async void MallSearchKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        e.Handled = true;
-        await SearchMallAsync();
-    }
-
-    private Task SearchMallAsync()
-    {
-        var input = this.FindControl<TextBox>("MallSearchBox");
-        var status = this.FindControl<TextBlock>("MallSearchStatus");
-        var rows = this.FindControl<ListBox>("MallSearchRows");
-        var query = input?.Text?.Trim();
-        if (status is null || rows is null || _refreshCancellation is not null)
-            return Task.CompletedTask;
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            status.Text = "Enter an item name or ID.";
-            return Task.CompletedTask;
-        }
-
-        var catalogItem = _catalog?.Items.FirstOrDefault(item =>
-            string.Equals(item.Id, query, StringComparison.Ordinal)
-            || string.Equals(item.Name, query, StringComparison.OrdinalIgnoreCase));
-        if (int.TryParse(query, out _) && catalogItem is null)
-        {
-            status.Text = $"Item ID {query} is missing from the catalog. Search by name.";
-            return Task.CompletedTask;
-        }
-
-        var role = _selectedRole;
-        rows.IsVisible = false;
-        status.Text = string.Empty;
-        return RunBusyOperationAsync("Searching the mall", async cancellationToken =>
-        {
-            var name = catalogItem?.Name ?? query;
-            var result = await _live.SearchMallAsync(role, name, cancellationToken);
-            var offers = result.Listings
-                .Where(listing => catalogItem is null || listing.ItemId == catalogItem.Id)
-                .OrderBy(listing => listing.Price)
-                .Select(listing => new MallMarketRow(
-                    listing.StoreName ?? $"Store #{listing.StoreId}",
-                    $"{listing.Price:N0} Meat", $"{listing.Quantity:N0} in stock",
-                    listing.PurchaseLimit is > 0 ? $"{listing.PurchaseLimit} / day" : "—"))
-                .ToArray();
-            rows.ItemsSource = offers;
-            rows.IsVisible = offers.Length > 0;
-            status.Text = offers.Length == 0
-                ? $"No offers for {name}."
-                : $"{name} · {offers.Length:N0} offers · {result.FetchedAt.ToLocalTime():HH:mm}";
-            if (result.IsStale) status.Text += " · stale";
-            SetStatus($"Mall search finished for {role}.");
-        });
-    }
-
-    private async void MallListingDoubleTapped(object? sender, TappedEventArgs e)
-    {
-        if (_mallListingRows?.SelectedItem is MallStoreRow row
-            && this.FindControl<TextBox>("MallSearchBox") is { } input)
-        {
-            input.Text = row.ItemName;
-            input.BringIntoView();
-            await SearchMallAsync();
-        }
-    }
+    private IReadOnlyList<(string Id, string Name)> LookupCatalogItems(string text)
+        => _catalog?.Items
+            .Where(item => item.Id == text || string.Equals(item.Name, text, StringComparison.OrdinalIgnoreCase))
+            .Select(item => (item.Id, item.Name)).ToArray()
+            ?? Array.Empty<(string, string)>();
 
     private void RenderAccountSummaries()
     {
@@ -853,7 +788,6 @@ public partial class MainWindow : Window
         if (_arbitragePlanText is not null) _arbitragePlanText.Text = _arbitrage.PlanText;
         if (_dailySnapshotText is not null) _dailySnapshotText.Text = _daily.SnapshotText;
         if (_dailySummaryText is not null) _dailySummaryText.Text = _daily.SummaryText;
-        if (_mallSummaryText is not null) _mallSummaryText.Text = _mall.Summary;
     }
 
     private void WireInventoryBrowser()

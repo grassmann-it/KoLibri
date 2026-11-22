@@ -25,12 +25,52 @@ public sealed record MallListing(
     /// <summary>Seller display name when it is present in the Mall row.</summary>
     public string? SellerName { get; init; }
 
+    /// <summary>Item name from the result header, when the page carries one.</summary>
+    public string? ItemName { get; init; }
+
+    /// <summary>False when the row showed no readable stock; <see cref="Quantity"/> is then 0, never a guessed 1.</summary>
+    public bool QuantityKnown { get; init; } = true;
+
+    /// <summary>
+    /// Distinguishes "no daily limit" from "limit not readable".
+    /// <see cref="PurchaseLimit"/> is only set for <see cref="MallLimitKind.Limited"/>.
+    /// </summary>
+    public MallLimitKind LimitKind { get; init; } = MallLimitKind.Unknown;
+
     /// <summary>Compatibility alias used by purchase planners.</summary>
     public string? Seller => SellerId;
 
     /// <summary>Compatibility alias for owner-oriented Mall terminology.</summary>
     public string? OwnerId => SellerId;
 }
+
+public enum MallLimitKind { Unknown, Unlimited, Limited }
+
+/// <summary>All offers of one item found by a search, cheapest first.</summary>
+public sealed record MallItemOffers(
+    string ItemId,
+    string? ItemName,
+    IReadOnlyList<MallListing> Listings,
+    int TotalOffers)
+{
+    /// <summary>True when more offers existed than were kept.</summary>
+    public bool IsTruncated => TotalOffers > Listings.Count;
+}
+
+/// <summary>A search result with the offers kept per item (a partial name can match several).</summary>
+public sealed record MallSearchPage(
+    string Term,
+    IReadOnlyList<MallItemOffers> Items,
+    DateTimeOffset FetchedAt,
+    Uri SourceUri,
+    bool IsStale = false)
+{
+    /// <summary>True when the term matched more than one item.</summary>
+    public bool IsPartial => Items.Count > 1;
+}
+
+/// <summary>The mall page did not look like anything the parser knows.</summary>
+public sealed class MallSearchParseException(string message) : Exception(message);
 
 public sealed record MallSnapshot(
     string ItemId,
@@ -82,6 +122,20 @@ public interface IMallReadClient
 {
     Task<MallSnapshot> SearchAsync(string itemId, bool forceRefresh = false, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OwnShopListing>> FetchOwnShopAsync(bool forceRefresh = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Search that keeps the offers per item. Implementations without item
+    /// grouping fall back to one group built from <see cref="SearchAsync"/>.
+    /// </summary>
+    async Task<MallSearchPage> SearchItemsAsync(string term, bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await SearchAsync(term, forceRefresh, cancellationToken).ConfigureAwait(false);
+        var groups = snapshot.Listings.GroupBy(l => l.ItemId)
+            .Select(g => new MallItemOffers(g.Key, g.Select(l => l.ItemName).FirstOrDefault(n => n is not null),
+                g.OrderBy(l => l.Price).ToArray(), g.Count()))
+            .ToArray();
+        return new MallSearchPage(term, groups, snapshot.FetchedAt, snapshot.SourceUri, snapshot.IsStale);
+    }
 }
 
 /// <summary>
@@ -112,6 +166,22 @@ public sealed class KoLMallReadClient : IMallReadClient
     private static readonly Regex PurchaseLimit = new(
         "(?:<(?:td|span|div)\\b[^>]*\\bclass=[\\\"'][^\\\"']*(?:limit|buylimit|purchase_limit|purchaselimit)[^\\\"']*[\\\"'][^>]*>(?<body>.*?)(?:</(?:td|span|div)>|$)|\\b(?:data-limit|data-purchase-limit)=[\\\"'](?<body>\\d+))",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+    /// <summary>The "1&amp;nbsp;/&amp;nbsp;day" cell KoL prints for a per-day buy limit.</summary>
+    private static readonly Regex DayLimit = new(
+        "(?<limit>\\d[\\d,]*)\\s*(?:&nbsp;|\\s)*/\\s*(?:&nbsp;|\\s)*day",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex SmallCell = new(
+        "<td[^>]*class=[\\\"']small(?<cls>[^\\\"']*)[\\\"'][^>]*>(?<body>.*?)</td>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex ItemHeaderRow = new(
+        "<tr[^>]*id=[\\\"']item_(?<item>\\d+)[\\\"'][^>]*>(?<row>.*?)</tr>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex HeaderName = new(
+        "<b>\\s*(?:<a[^>]*>)?(?<name>[^<]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex NoResultsMarker = new(
+        "searchresults|search results|no results|did not match|nothing (?:was )?found|no stores",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex OwnRow = new(
         "<tr\\s+class=[\\\"']deets[\\\"'][^>]*>(?<row>.*?)</tr>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
@@ -127,9 +197,9 @@ public sealed class KoLMallReadClient : IMallReadClient
     private readonly KoLSecurityPolicy _security;
     private readonly TimeProvider _clock;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
-    private readonly Dictionary<string, MallSnapshot> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MallSearchPage> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _cacheGate = new();
-    private readonly ConcurrentDictionary<string, Lazy<Task<MallSnapshot>>> _inflight = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Lazy<Task<MallSearchPage>>> _inflight = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<OwnShopListing> _ownShopCache = [];
     private Lazy<Task<IReadOnlyList<OwnShopListing>>>? _ownShopInflight;
     private DateTimeOffset? _lastRequest;
@@ -153,9 +223,16 @@ public sealed class KoLMallReadClient : IMallReadClient
         _clock = clock ?? TimeProvider.System;
     }
 
-    public Task<MallSnapshot> SearchAsync(string itemId, bool forceRefresh = false, CancellationToken cancellationToken = default)
+    public async Task<MallSnapshot> SearchAsync(string itemId, bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        var normalized = NormalizeId(itemId);
+        var page = await SearchItemsAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
+        return ToSnapshot(NormalizeId(itemId), page);
+    }
+
+    /// <summary>Search that keeps offers per item and marks partial matches.</summary>
+    public Task<MallSearchPage> SearchItemsAsync(string term, bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeId(term);
         var now = _clock.GetUtcNow();
         lock (_cacheGate)
         {
@@ -163,14 +240,30 @@ public sealed class KoLMallReadClient : IMallReadClient
                 return Task.FromResult(hit);
         }
 
-        var shared = _inflight.GetOrAdd(normalized, key => new Lazy<Task<MallSnapshot>>(
+        var shared = _inflight.GetOrAdd(normalized, key => new Lazy<Task<MallSearchPage>>(
             () => FetchAndCacheAsync(key), LazyThreadSafetyMode.ExecutionAndPublication));
         return AwaitSharedAsync(normalized, shared, cancellationToken);
     }
 
-    private async Task<MallSnapshot> AwaitSharedAsync(
+    /// <summary>
+    /// Legacy single-list view of a page: the group of the searched id or
+    /// exact name when there is one, otherwise every group merged and sorted
+    /// by price before the per-item cap is applied.
+    /// </summary>
+    private MallSnapshot ToSnapshot(string term, MallSearchPage page)
+    {
+        var bare = term.Trim().Trim('"');
+        var picked = page.Items.Where(g => g.ItemId == bare
+                || string.Equals(g.ItemName, bare, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var groups = picked.Length > 0 ? picked : page.Items.ToArray();
+        var listings = groups.SelectMany(g => g.Listings).OrderBy(l => l.Price)
+            .Take(_policy.MaxListingsPerItem).ToArray();
+        return new MallSnapshot(term, listings, page.FetchedAt, page.SourceUri, page.IsStale);
+    }
+
+    private async Task<MallSearchPage> AwaitSharedAsync(
         string normalized,
-        Lazy<Task<MallSnapshot>> shared,
+        Lazy<Task<MallSearchPage>> shared,
         CancellationToken cancellationToken)
     {
         try
@@ -180,11 +273,11 @@ public sealed class KoLMallReadClient : IMallReadClient
         finally
         {
             if (shared.IsValueCreated && shared.Value.IsCompleted)
-                _inflight.TryRemove(new KeyValuePair<string, Lazy<Task<MallSnapshot>>>(normalized, shared));
+                _inflight.TryRemove(new KeyValuePair<string, Lazy<Task<MallSearchPage>>>(normalized, shared));
         }
     }
 
-    private async Task<MallSnapshot> FetchAndCacheAsync(string normalized)
+    private async Task<MallSearchPage> FetchAndCacheAsync(string normalized)
     {
         var now = _clock.GetUtcNow();
 
@@ -201,9 +294,10 @@ public sealed class KoLMallReadClient : IMallReadClient
                 ["x_cheapest"] = "0",
                 ["max_price"] = "0"
             }, CancellationToken.None).ConfigureAwait(false);
-            var snapshot = new MallSnapshot(normalized, ParseListings(normalized, html, uri), _clock.GetUtcNow(), uri);
-            lock (_cacheGate) _cache[normalized] = snapshot;
-            return snapshot;
+            // Unknown markup throws here and is never cached as "no offers".
+            var page = ParsePage(normalized, html, uri, null);
+            lock (_cacheGate) _cache[normalized] = page;
+            return page;
         }
         catch
         {
@@ -412,61 +506,110 @@ public sealed class KoLMallReadClient : IMallReadClient
         return ids;
     }
 
+    /// <summary>Flat, price-sorted list for the item(s) of a page (kept for callers that want one list).</summary>
     private IReadOnlyList<MallListing> ParseListings(string itemId, string html, Uri source, DateTimeOffset? observedAt = null)
+        => ToSnapshot(itemId, ParsePage(itemId, html, source, observedAt)).Listings;
+
+    private MallSearchPage ParsePage(string term, string html, Uri source, DateTimeOffset? observedAt)
     {
-        var result = new List<MallListing>();
-        // The search term can be a name ("11-leaf clover") or a numeric id.
-        // KoL marks the rows of the searched item with an id of the shape
-        // item_<numeric id>; the advertisement rows use a different shape.
-        // Collect the ids of the searched item first, then keep only the
-        // listing rows that belong to one of them.
-        var searchedItemIds = SearchedItemIds(html);
+        var observed = observedAt ?? _clock.GetUtcNow();
+        // KoL marks the searched items with results_<id> anchors; rows of
+        // other items (advertisements) must not enter the result. Without
+        // anchors a numeric term pins the id, a name term accepts all rows.
+        var anchorIds = SearchedItemIds(html);
+        var bare = term.Trim().Trim('"');
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match header in ItemHeaderRow.Matches(html))
+        {
+            var name = HeaderName.Match(header.Groups["row"].Value);
+            if (name.Success)
+                names.TryAdd(header.Groups["item"].Value, WebUtility.HtmlDecode(name.Groups["name"].Value).Trim());
+        }
+
+        var order = new List<string>();
+        var byItem = new Dictionary<string, List<MallListing>>(StringComparer.Ordinal);
+        var rowsSeen = 0;
         foreach (Match match in ListingRow.Matches(html))
         {
-            // A Mall search can contain recommendation/advertising rows for
-            // other items. Never let one of those rows enter a snapshot for
-            // the requested item.
             var listedItemId = match.Groups["item"].Value;
-            if (searchedItemIds.Count > 0 && !searchedItemIds.Contains(listedItemId))
-                continue;
-            if (searchedItemIds.Count == 0
-                && !string.Equals(listedItemId, itemId, StringComparison.Ordinal))
-                continue;
+            if (anchorIds.Count > 0 && !anchorIds.Contains(listedItemId)) continue;
+            if (anchorIds.Count == 0 && bare.All(char.IsDigit) && bare.Length > 0 && listedItemId != bare) continue;
+            rowsSeen++;
             var block = match.Groups["row"].Value;
             var priceMatch = MeatPrice.Match(block);
             if (!priceMatch.Success || !long.TryParse(priceMatch.Groups["price"].Value.Replace(",", ""), out var price)) continue;
             var qty = Quantity.Match(block);
-            var quantity = qty.Success
-                && int.TryParse(qty.Groups["quantity"].Value.Replace(",", ""), out var q)
-                ? Math.Max(1, q)
-                : 1;
+            var quantityKnown = qty.Success
+                && int.TryParse(qty.Groups["quantity"].Value.Replace(",", ""), out _);
+            var quantity = quantityKnown ? Math.Max(0, int.Parse(qty.Groups["quantity"].Value.Replace(",", ""))) : 0;
             var store = StoreName.Match(block);
-            var storeName = store.Success ? WebUtility.HtmlDecode(store.Groups["name"].Value).Trim() : null;
+            var storeName = store.Success ? WebUtility.HtmlDecode(StripTags(store.Groups["name"].Value)).Trim() : null;
             var sellerIdMatch = SellerId.Match(block);
             var sellerId = sellerIdMatch.Success ? sellerIdMatch.Groups["seller"].Value : null;
             var sellerNameMatch = SellerName.Match(block);
             var sellerName = sellerNameMatch.Success
                 ? WebUtility.HtmlDecode(StripTags(sellerNameMatch.Groups["name"].Value)).Trim()
                 : null;
-            var limitMatch = PurchaseLimit.Match(block);
-            int? purchaseLimit = null;
-            if (limitMatch.Success)
+            var (limitKind, purchaseLimit) = ReadLimit(block);
+            if (!byItem.TryGetValue(listedItemId, out var list))
             {
-                var limitText = limitMatch.Groups["limit"].Success
-                    ? limitMatch.Groups["limit"].Value
-                    : StripTags(limitMatch.Groups["body"].Value);
-                var number = Regex.Match(limitText, "\\d+");
-                if (number.Success && int.TryParse(number.Value, out var parsedLimit))
-                    purchaseLimit = parsedLimit;
+                byItem[listedItemId] = list = [];
+                order.Add(listedItemId);
             }
-            result.Add(new MallListing(listedItemId, match.Groups["store"].Value, storeName, price, quantity, purchaseLimit, observedAt ?? _clock.GetUtcNow(), source)
+            list.Add(new MallListing(listedItemId, match.Groups["store"].Value, storeName, price, quantity, purchaseLimit, observed, source)
             {
                 SellerId = sellerId,
-                SellerName = sellerName
+                SellerName = sellerName,
+                ItemName = names.GetValueOrDefault(listedItemId),
+                QuantityKnown = quantityKnown,
+                LimitKind = limitKind
             });
-            if (result.Count >= _policy.MaxListingsPerItem) break;
         }
-        return result.OrderBy(x => x.Price).ToArray();
+
+        if (byItem.Count == 0)
+        {
+            if (rowsSeen > 0)
+                throw new MallSearchParseException(
+                    "The mall page has offer rows but no price could be read. The markup may have changed.");
+            if (!NoResultsMarker.IsMatch(html))
+                throw new MallSearchParseException(
+                    "The mall page is not a search result page the parser recognises. Not treated as 'no offers'.");
+        }
+
+        var items = order.Select(id =>
+        {
+            var sorted = byItem[id].OrderBy(l => l.Price).ToArray();
+            return new MallItemOffers(id, names.GetValueOrDefault(id),
+                sorted.Take(_policy.MaxListingsPerItem).ToArray(), sorted.Length);
+        }).ToArray();
+        return new MallSearchPage(term, items, observed, source);
+    }
+
+    private static (MallLimitKind Kind, int? Limit) ReadLimit(string block)
+    {
+        var classed = PurchaseLimit.Match(block);
+        if (classed.Success)
+        {
+            var text = classed.Groups["limit"].Success ? classed.Groups["limit"].Value : StripTags(classed.Groups["body"].Value);
+            var number = Regex.Match(text, "\\d+");
+            if (number.Success && int.TryParse(number.Value, out var n)) return (MallLimitKind.Limited, n);
+        }
+        var cells = SmallCell.Matches(block)
+            .Select(c => (Cls: c.Groups["cls"].Value, Body: c.Groups["body"].Value)).ToArray();
+        foreach (var cell in cells)
+        {
+            var day = DayLimit.Match(WebUtility.HtmlDecode(cell.Body));
+            if (day.Success && int.TryParse(day.Groups["limit"].Value.Replace(",", ""), out var limit))
+                return (MallLimitKind.Limited, limit);
+        }
+        var fallback = DayLimit.Match(WebUtility.HtmlDecode(block));
+        if (fallback.Success && int.TryParse(fallback.Groups["limit"].Value.Replace(",", ""), out var f))
+            return (MallLimitKind.Limited, f);
+        // A limit column that exists but is empty means "no limit"; a row
+        // without such a column tells us nothing.
+        var other = cells.Where(c => !c.Cls.Contains("store") && !c.Cls.Contains("stock") && !c.Cls.Contains("price")).ToArray();
+        if (other.Length > 0 && other.All(c => string.IsNullOrWhiteSpace(StripTags(c.Body)))) return (MallLimitKind.Unlimited, null);
+        return (MallLimitKind.Unknown, null);
     }
 
     private static IReadOnlyList<OwnShopListing> ParseOwnShop(string html)

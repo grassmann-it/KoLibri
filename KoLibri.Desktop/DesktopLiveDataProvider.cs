@@ -252,6 +252,31 @@ public sealed class DesktopLiveDataProvider : IDisposable
         return await mall.SearchAsync(query, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Mall search that keeps the offers per item.</summary>
+    public async Task<MallSearchPage> SearchMallItemsAsync(
+        AccountRole role, string term, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to search the mall.");
+        return await mall.SearchItemsAsync(term, forceRefresh, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Pricegun median with the age of the data. Throws on failure so the
+    /// caller can show the reason; it must never be awaited in a way that
+    /// blocks the offers.
+    /// </summary>
+    public async Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
+    {
+        var snapshot = await _pricegun.FetchAsync(itemId, forceRefresh: false, cancellationToken).ConfigureAwait(false);
+        if (snapshot.Sales.Count == 0) return new PricegunInfo(null, snapshot.FetchedAt, snapshot.IsStale);
+        var prices = snapshot.Sales.Select(sale => (decimal)sale.UnitPrice).OrderBy(price => price).ToArray();
+        var median = prices.Length % 2 == 1
+            ? prices[prices.Length / 2]
+            : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
+        return new PricegunInfo((long)median, snapshot.FetchedAt, snapshot.IsStale);
+    }
+
     /// <summary>Reads the own store listings, or returns null for a signed-out role.</summary>
     public async Task<IReadOnlyList<OwnShopListing>?> LoadOwnShopAsync(
         AccountRole role,
