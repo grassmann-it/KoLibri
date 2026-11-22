@@ -52,6 +52,19 @@ public sealed class DesktopSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void LimiterOptionsFollowPresetThenSettingsThenEnvironment()
+    {
+        var s = new DesktopSettings();
+        Assert.Equal(KoLLimiterOptions.Conservative.ReadConcurrency, s.ToLimiterOptions(_ => null).ReadConcurrency);
+        s.LimiterPreset = "browser-like";
+        Assert.Equal(KoLLimiterOptions.BrowserLike.ReadConcurrency, s.ToLimiterOptions(_ => null).ReadConcurrency);
+        s.Set("kolReadConcurrency", 1);
+        Assert.Equal(1, s.ToLimiterOptions(_ => null).ReadConcurrency);
+        Assert.Equal(4, s.ToLimiterOptions(k => k == "KOLIBRI_READ_CONCURRENCY" ? "4" : null).ReadConcurrency);
+        Assert.Equal(KoLLimiterOptions.Conservative.MaxPerSecond, s.ToLimiterOptions(k => k == "KOLIBRI_LIMITER_PRESET" ? "conservative" : null).MaxPerSecond);
+    }
+
+    [Fact]
     public async Task LimiterPicksUpConfiguredIntervalAndKeepsFloor()
     {
         var limiter = new KoLRateLimiter(TimeSpan.FromSeconds(30));
