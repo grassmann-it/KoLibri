@@ -122,6 +122,42 @@ public sealed class MallReconcileTests
         Assert.Equal(0, ledger.SpentToday("mallbot"));
     }
 
+    [Fact]
+    public async Task OneStepBuy_reads_once_and_buys_at_the_price_just_read()
+    {
+        var handler = new Handler(_ => Ok("You acquire an item: 11-leaf clover"));
+        using var http = new HttpClient(handler);
+        var beforeReads = 0;
+        var before = State(meat: 100_000, inv: 0, price: 200);   // cheaper than the shown 222
+        using var transport = new HttpMallPurchaseTransport(http, new HttpMallPurchaseTransportOptions(),
+            (_, _) => { beforeReads++; return Task.FromResult(before); },
+            (_, _) => Task.FromResult(State(meat: 100_000 - 200 + 40, inv: 1, price: 200)));
+        var service = new DesktopMallPurchaseService(transport,
+            new DesktopMallPurchaseOptions { ReconcileDelay = TimeSpan.Zero }, null, new Fixed());
+        var result = await service.BuyAsync("mallbot", "789", "123", 222, 1);
+        Assert.Equal(DesktopMallPurchaseStatus.Purchased, result.Status);
+        Assert.Equal(200, result.SpentMeat);
+        Assert.Equal(1, beforeReads);          // no separate preview round trip
+        Assert.Single(handler.Bodies);
+        Assert.Contains("whichitem=789000000200", handler.Bodies[0]);
+    }
+
+    [Fact]
+    public async Task OneStepBuy_refuses_only_when_the_price_rose_and_sends_nothing()
+    {
+        var handler = new Handler(_ => Ok("You acquire an item"));
+        using var http = new HttpClient(handler);
+        var before = State(meat: 100_000, inv: 0, price: 300);
+        using var transport = new HttpMallPurchaseTransport(http, new HttpMallPurchaseTransportOptions(),
+            (_, _) => Task.FromResult(before), (_, _) => Task.FromResult(before));
+        var service = new DesktopMallPurchaseService(transport,
+            new DesktopMallPurchaseOptions { ReconcileDelay = TimeSpan.Zero }, null, new Fixed());
+        var result = await service.BuyAsync("mallbot", "789", "123", 222, 1);
+        Assert.Equal(DesktopMallPurchaseStatus.PriceChanged, result.Status);
+        Assert.Contains("rose from 222 to 300", result.Message);
+        Assert.Empty(handler.Bodies);
+    }
+
     // ---- helpers ---------------------------------------------------------------------------------------
 
     private static MallPurchaseCoordinator Coordinator(
@@ -174,8 +210,8 @@ public sealed class MallReconcileTests
             => inner.CommitAsync(request, ct);
     }
 
-    private static MallPurchaseObservation State(long meat, int inv)
-        => new(new MallPurchaseOffer("123", "123", "789", 222, 5, Now),
+    private static MallPurchaseObservation State(long meat, int inv, long price = 222)
+        => new(new MallPurchaseOffer("123", "123", "789", price, 5, Now),
             new MallPurchaseAccountState("mallbot", meat, 0, 1_000_000,
                 new Dictionary<string, int> { ["789"] = inv }, Now));
 
@@ -189,9 +225,8 @@ public sealed class MallReconcileTests
 
     private sealed class PickPrompt : IMallPurchasePrompt
     {
-        public Task<DesktopMallPurchasePreview?> AskAsync(MallPurchasePromptContext context,
-            Func<int, CancellationToken, Task<DesktopMallPurchasePreview>> preview, CancellationToken cancellationToken)
-            => preview(1, cancellationToken).ContinueWith(t => (DesktopMallPurchasePreview?)t.Result, cancellationToken);
+        public Task<int?> AskAsync(MallPurchasePromptContext context, CancellationToken cancellationToken)
+            => Task.FromResult<int?>(1);
     }
 
     private sealed class Prompt(MallUnclearDecision decision) : IMallReconcilePrompt

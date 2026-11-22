@@ -77,18 +77,19 @@ public sealed class MallPurchaseObserver
     {
         if (!_names.TryGetValue(request.ItemId, out var name))
             throw new InvalidOperationException("The item name is unknown; search for the item again.");
-        var page = await _reads.SearchAsync($"\"{name}\"", ct).ConfigureAwait(false);
+        // After the POST the offer is not needed (inventory is the proof): skip the Mall search, saving a request.
+        var page = before is null ? await _reads.SearchAsync($"\"{name}\"", ct).ConfigureAwait(false) : null;
         var status = await _reads.StatusAsync(ct).ConfigureAwait(false);
         var inventory = await _reads.InventoryAsync(ct).ConfigureAwait(false);
         var now = _clock.GetUtcNow();
         // A cached page must never be re-dated as fresh: before the POST it blocks the purchase.
-        if (before is null && page.IsStale)
+        if (page is not null && before is null && page.IsStale)
             throw new InvalidOperationException("The mall offer is stale; search again for a fresh offer.");
-        var observedAt = page.FetchedAt < now ? page.FetchedAt : now;
+        var observedAt = page is null ? now : page.FetchedAt < now ? page.FetchedAt : now;
 
-        var listing = page.Items.FirstOrDefault(i => i.ItemId == request.ItemId)?.Listings
+        var listing = page?.Items.FirstOrDefault(i => i.ItemId == request.ItemId)?.Listings
             .FirstOrDefault(l => l.StoreId == request.StoreId);
-        var offer = listing is null
+        var offer = page is null ? before!.Offer : listing is null
             ? new MallPurchaseOffer(request.SellerId, request.StoreId, request.ItemId,
                 request.ExpectedUnitPrice, 0, observedAt)
             : new MallPurchaseOffer(listing.SellerId ?? request.SellerId, listing.StoreId, listing.ItemId,
@@ -104,7 +105,7 @@ public sealed class MallPurchaseObserver
             .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity), StringComparer.Ordinal);
         var account = new MallPurchaseAccountState(_account, meat, spent, _dailyLimit(), items, now,
             sessionValid: status is not null && inventory.HasSession,
-            isStale: (status?.IsStale ?? true) || inventory.IsStale || page.IsStale);
+            isStale: (status?.IsStale ?? true) || inventory.IsStale || (page?.IsStale ?? false));
         return new MallPurchaseObservation(offer, account, observedAt);
     }
 }
@@ -118,15 +119,6 @@ public static class DesktopMallPurchaseSettings
         MaxMeatPerPurchase = (long)settings.Get("meatPerPurchase"),
         MaxQuantityPerPurchase = (int)settings.Get("unitsPerPurchase")
     };
-}
-
-/// <summary>The dialog seam: shows the preview, lets the user change the quantity, returns the preview to confirm or null.</summary>
-public interface IMallPurchasePrompt
-{
-    Task<DesktopMallPurchasePreview?> AskAsync(
-        MallPurchasePromptContext context,
-        Func<int, CancellationToken, Task<DesktopMallPurchasePreview>> preview,
-        CancellationToken cancellationToken);
 }
 
 /// <summary>The user's decision about unclear purchase meat.</summary>
@@ -160,7 +152,15 @@ public static class MallUnclearEvidence
     }
 }
 
-public sealed record MallPurchasePromptContext(string Account, MallOfferRow Offer, int MaxQuantity);
+/// <summary>The dialog seam: one compact confirmation; returns the quantity to buy, or null when cancelled.</summary>
+public interface IMallPurchasePrompt
+{
+    Task<int?> AskAsync(MallPurchasePromptContext context, CancellationToken cancellationToken);
+}
+
+/// <param name="RemainingDailyBudget">Meat left of today's budget (shown only; the ledger decides when buying). Negative = unknown.</param>
+public sealed record MallPurchasePromptContext(
+    string Account, MallOfferRow Offer, int MaxQuantity, long RemainingDailyBudget = -1);
 
 /// <summary>
 /// Connects the Buy button of the search view to the purchase service: build a preview for the
@@ -263,7 +263,11 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
     public bool CanRequest(MallOfferRow offer)
         => !IsBusy && !offer.IsStale && offer.UnitPrice > 0 && offer.Stock != 0 && long.TryParse(offer.ShopId, out _);
 
-    public async Task RequestAsync(MallOfferRow offer, CancellationToken cancellationToken)
+    public Task RequestAsync(MallOfferRow offer, CancellationToken cancellationToken)
+        => RequestAsync(offer, cancellationToken, null);
+
+    /// <summary>With a <paramref name="quantity"/> the confirmation window is skipped (a quick 'Buy 1' from the UI's own confirm).</summary>
+    public async Task RequestAsync(MallOfferRow offer, CancellationToken cancellationToken, int? quantity)
     {
         if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return;
         try
@@ -282,33 +286,41 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
                 return;
             }
             session.Observer.Remember(offer.ItemId, offer.ItemName);
-            _log.Purchase($"Preview requested for {what}.");
 
-            DesktopMallPurchasePreview? chosen;
-            try
-            {
-                chosen = await _prompt.AskAsync(
-                    new MallPurchasePromptContext(_account, offer, session.Service.Options.MaxQuantityPerPurchase),
-                    (quantity, ct) => session.Service.PreviewAsync(_account, offer.ItemId, offer.ShopId, offer.UnitPrice, quantity, ct),
-                    cancellationToken).ConfigureAwait(true);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                Say(SessionLogKind.Error, $"Preview for {what} failed: {MallPurchaseMessages.Describe(exception)}");
-                return;
-            }
-            if (chosen is null)
+            var options = session.Service.Options;
+            var remaining = Math.Max(0, options.MaxDailySpend - _ledger.SpentToday(_account));
+            int? chosenQuantity;
+            if (quantity is { } fixedQuantity)
+                chosenQuantity = fixedQuantity;
+            else
+                try
+                {
+                    chosenQuantity = await _prompt.AskAsync(
+                        new MallPurchasePromptContext(_account, offer, options.MaxQuantityPerPurchase, remaining),
+                        cancellationToken).ConfigureAwait(true);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    Say(SessionLogKind.Error, $"Could not ask for {what}: {MallPurchaseMessages.Describe(exception)}");
+                    return;
+                }
+            if (chosenQuantity is not { } count || count <= 0)
             {
                 _log.Purchase($"Purchase of {what} cancelled; nothing was sent.");
                 return;
             }
+            var maxTotal = checked(offer.UnitPrice * count);   // the price can only be equal or lower when it is sent
+            if (count > options.MaxQuantityPerPurchase || maxTotal > options.MaxMeatPerPurchase)
+            {
+                Say(SessionLogKind.Error, "Not sent: the quantity or total is above your per-purchase limit in Settings.");
+                return;
+            }
 
-            // A progress line only; the outcome gets exactly one final line below (Settled, Unclear, Rejected, ...).
             _log.Purchase(string.Create(CultureInfo.InvariantCulture,
-                $"Sending purchase: {chosen.Quantity} x {offer.ItemName} at {chosen.UnitPrice:N0}, total {chosen.TotalPrice:N0}."));
+                $"Buying {count} x {offer.ItemName} at up to {offer.UnitPrice:N0}, total up to {maxTotal:N0}."));
             // Reserved (and written to disk) before the POST; settled only once meat and inventory prove it.
             // A save failure, an invalid ledger or an exceeded daily budget stops the purchase here.
-            if (!_ledger.TryReserve(_account, chosen.TotalPrice, session.Service.Options.MaxDailySpend, out var ledgerError))
+            if (!_ledger.TryReserve(_account, maxTotal, options.MaxDailySpend, out var ledgerError))
             {
                 Say(SessionLogKind.Error, $"Nothing was bought: {ledgerError}");
                 return;
@@ -316,21 +328,22 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             DesktopMallPurchaseResult result;
             try
             {
-                result = await session.Service.ConfirmAsync(chosen, cancellationToken).ConfigureAwait(true);
+                result = await session.Service.BuyAsync(_account, offer.ItemId, offer.ShopId, offer.UnitPrice, count, cancellationToken).ConfigureAwait(true);
             }
             catch
             {
                 // Unknown whether a POST went out: keep the meat counted until reconciled.
-                _ledger.MarkUnclear(_account, chosen.TotalPrice);
+                _ledger.MarkUnclear(_account, maxTotal);
                 throw;
             }
             switch (result.Status)
             {
-                case DesktopMallPurchaseStatus.Purchased: _ledger.Settle(_account, chosen.TotalPrice); break;
+                case DesktopMallPurchaseStatus.Purchased:
+                    _ledger.SettlePartial(_account, maxTotal, result.SpentMeat > 0 ? result.SpentMeat : maxTotal); break;
                 case DesktopMallPurchaseStatus.Partial:
-                    _ledger.SettlePartial(_account, chosen.TotalPrice, chosen.UnitPrice * result.ReceivedQuantity); break;
-                case DesktopMallPurchaseStatus.Unclear: _ledger.MarkUnclear(_account, chosen.TotalPrice); break;
-                default: _ledger.Release(_account, chosen.TotalPrice); break;
+                    _ledger.SettlePartial(_account, maxTotal, result.SpentMeat); break;
+                case DesktopMallPurchaseStatus.Unclear: _ledger.MarkUnclear(_account, maxTotal); break;
+                default: _ledger.Release(_account, maxTotal); break;
             }
             var label = result.Status switch
             {

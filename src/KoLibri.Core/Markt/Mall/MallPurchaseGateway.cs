@@ -126,6 +126,51 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         return _lane.ExecuteAsync(token => CommitCoreAsync(preview, approvalToken, token), cancellationToken);
     }
 
+    /// <summary>
+    /// One-step purchase: reads the offer fresh once, refuses only when the price rose above
+    /// <paramref name="request"/>'s price (or the offer, stock, budget or Meat no longer allow it), binds the purchase
+    /// to the price just read (equal or lower than shown) and commits with that same read. No separate preview.
+    /// </summary>
+    public Task<MallPurchaseCommitResult> PurchaseNowAsync(
+        MallPurchaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return _lane.ExecuteAsync(async token =>
+        {
+            var now = _clock.GetUtcNow();
+            var actionId = Guid.NewGuid().ToString("N");
+            try { request.Validate(); }
+            catch (Exception exception) when (exception is ArgumentException or OverflowException)
+            {
+                return Abort(actionId, [MallPurchaseAbortReason.InvalidRequest], "The purchase request is not valid.");
+            }
+
+            MallPurchaseObservation before;
+            try
+            {
+                before = await _transport.RefreshAsync(request, token).ConfigureAwait(false);
+                before.Validate();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                return Abort(actionId, [MallPurchaseAbortReason.TransportFailure], [exception.Message], before: null);
+            }
+
+            if (before.Offer.UnitPrice > request.ExpectedUnitPrice)
+                return Abort(actionId, [MallPurchaseAbortReason.PriceChanged], [], before);
+            var bound = request with { ExpectedUnitPrice = before.Offer.UnitPrice };
+            var preview = BuildPreview(bound, before, now);
+            if (preview.AbortReasons.Count > 0)
+                return Abort(actionId, preview.AbortReasons, [], before);
+            return await CommitCoreAsync(preview, null, token, before).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
     public MallPurchaseVerificationResult Verify(
         MallPurchasePreview preview,
         MallPurchaseObservation before,
@@ -243,7 +288,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
     private async Task<MallPurchaseCommitResult> CommitCoreAsync(
         MallPurchasePreview preview,
         string? approvalToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MallPurchaseObservation? knownBefore = null)
     {
         var actionId = preview.ActionId;
         var now = _clock.GetUtcNow();
@@ -261,6 +307,9 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         foreach (var reason in preview.AbortReasons) Add(reasons, reason);
 
         MallPurchaseObservation before;
+        if (knownBefore is not null)
+            before = knownBefore;   // PurchaseNowAsync: the read it just made is the commit-time read
+        else
         try
         {
             before = await _transport.RefreshAsync(request, cancellationToken).ConfigureAwait(false);
