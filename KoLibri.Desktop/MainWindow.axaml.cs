@@ -192,7 +192,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _navBrowser = this.FindControl<Button>("NavBrowser");
         _browserPanel = this.FindControl<BrowserView>("BrowserPanel");
         _browserPanel?.Attach(_accounts, () => _selectedRole, message => SetStatus(message),
-            message => _log.Add(SessionLogKind.Info, message));
+            message => _log.Add(SessionLogKind.Info, message),
+            () => _ = StartSignInAsync(), () => _settings.ReloginAutomatically);
         _navSettings = this.FindControl<Button>("NavSettings");
         _communicationPanel = this.FindControl<StackPanel>("CommunicationPanel");
         _settingsPanel = this.FindControl<StackPanel>("SettingsPanel");

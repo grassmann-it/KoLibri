@@ -21,6 +21,8 @@ public sealed class BrowserView : UserControl, IDisposable
     private Func<AccountRole> _role = () => AccountRole.Main;
     private Action<string> _status = _ => { };
     private Action<string> _log = _ => { };
+    private Action? _signIn;
+    private Func<bool> _autoLogin = () => true;
     private RelayHost? _host;
     private AccountRole? _hostRole;
     private Control? _web;
@@ -38,6 +40,8 @@ public sealed class BrowserView : UserControl, IDisposable
     private readonly ContentControl _body = new();
     private readonly TextBlock _message = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 640 };
     private readonly Border _messagePanel = new() { Padding = new Thickness(24), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Button _signInButton = new() { Content = "Sign in", IsVisible = false };
+    private readonly Button _retryButton = new() { Content = "Try again", IsVisible = false };
 
     public BrowserView()
     {
@@ -70,7 +74,14 @@ public sealed class BrowserView : UserControl, IDisposable
         var root = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(bar, Dock.Top);
         root.Children.Add(bar);
-        _messagePanel.Child = _message;
+        _signInButton.SetValue(Avalonia.Automation.AutomationProperties.NameProperty, "Sign in to use the browser");
+        _signInButton.Click += (_, _) => _signIn?.Invoke();
+        _retryButton.Click += async (_, _) => { StopHost(); await OpenAsync(); };
+        _messagePanel.Child = new StackPanel
+        {
+            Spacing = 12,
+            Children = { _message, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _signInButton, _retryButton } } }
+        };
         _body.Content = _messagePanel;
         root.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray, Child = _body, MinHeight = 320 });
         Content = root;
@@ -89,9 +100,12 @@ public sealed class BrowserView : UserControl, IDisposable
         return b;
     }
 
-    public void Attach(AccountSessionManager accounts, Func<AccountRole> role, Action<string> status, Action<string> log)
+    public void Attach(AccountSessionManager accounts, Func<AccountRole> role, Action<string> status, Action<string> log,
+        Action? signIn = null, Func<bool>? autoLogin = null)
     {
         _accounts = accounts; _role = role; _status = status; _log = log;
+        _signIn = signIn;
+        if (autoLogin is not null) _autoLogin = autoLogin;
     }
 
     /// <summary>Starts (or restarts for another role) the relay and loads the main page.</summary>
@@ -102,9 +116,19 @@ public sealed class BrowserView : UserControl, IDisposable
         if (_host is not null && _hostRole == role) return; // already running for this role
         StopHost();
         var generation = ++_generation;
-        ShowMessage($"Starting the relay for {role}…");
+        ShowMessage($"Checking the {role} session…");
         try
         {
+            // Not signed in: renew from the stored password when automatic log-in is on, else offer Sign in.
+            var gate = await BrowserGate.CheckAsync(_accounts, role, _autoLogin());
+            if (generation != _generation || _disposed) return;
+            if (!gate.CanStart)
+            {
+                ShowMessage(gate.Message, offerSignIn: _signIn is not null);
+                _status(gate.Message);
+                return;
+            }
+            ShowMessage($"Starting the relay for {role}…");
             var host = await RelayHost.StartAsync(_accounts, role);
             if (generation != _generation || _disposed) { host.Dispose(); return; }
             _host = host; _hostRole = role;
@@ -112,12 +136,12 @@ public sealed class BrowserView : UserControl, IDisposable
         }
         catch (InvalidOperationException exception)
         {
-            ShowMessage($"{exception.Message} Use the Sign in button, then open the browser again.");
+            ShowMessage($"{exception.Message}", offerSignIn: _signIn is not null, retry: true);
             return;
         }
         catch (Exception exception)
         {
-            ShowMessage($"The relay could not start ({exception.GetType().Name}). Use Sign in, then try again.");
+            ShowMessage($"The relay could not start ({exception.GetType().Name}).", offerSignIn: _signIn is not null, retry: true);
             return;
         }
         ShowWebView();
@@ -129,7 +153,7 @@ public sealed class BrowserView : UserControl, IDisposable
         _engineSeen = false;
         if (Environment.GetEnvironmentVariable("KOLIBRI_NO_WEBVIEW") == "1")
         {
-            ShowMessage(EngineMissingText("the web view is turned off (KOLIBRI_NO_WEBVIEW=1)"));
+            ShowMessage(EngineMissingText("the web view is turned off (KOLIBRI_NO_WEBVIEW=1)"), retry: true);
             return;
         }
         try
@@ -176,12 +200,13 @@ public sealed class BrowserView : UserControl, IDisposable
             _web = web;
             _body.Content = web;
             SetControlsEnabled(true);
+            _back.IsEnabled = false; _forward.IsEnabled = false; // nothing to go back to before the first page
             _ = WatchEngineAsync(_generation);
         }
         catch (Exception exception)
         {
             _web = null;
-            ShowMessage(EngineMissingText($"the web view could not be created ({exception.GetType().Name})"));
+            ShowMessage(EngineMissingText($"the web view could not be created ({exception.GetType().Name})"), retry: true);
         }
     }
 
@@ -190,7 +215,7 @@ public sealed class BrowserView : UserControl, IDisposable
         await Task.Delay(EngineWait);
         if (generation != _generation || _disposed || _engineSeen || _web is null) return;
         _web = null;
-        ShowMessage(EngineMissingText("no web view runtime answered"));
+        ShowMessage(EngineMissingText("no web view runtime answered"), retry: true);
     }
 
     private static string EngineMissingText(string reason) =>
@@ -226,9 +251,11 @@ public sealed class BrowserView : UserControl, IDisposable
         _external.IsEnabled = true;
     }
 
-    private void ShowMessage(string text)
+    private void ShowMessage(string text, bool offerSignIn = false, bool retry = false)
     {
         _message.Text = text;
+        _signInButton.IsVisible = offerSignIn;
+        _retryButton.IsVisible = retry;
         _body.Content = _messagePanel;
         SetControlsEnabled(false);
     }
@@ -243,7 +270,7 @@ public sealed class BrowserView : UserControl, IDisposable
         try
         {
             if (_host is null) await OpenAsync();
-            if (_host is null) return;
+            if (_host is null) { _status("Sign in first: the relay needs a KoL session."); return; }
             // The URL carries this run's secret; it goes to the default browser only, never into a log.
             Process.Start(new ProcessStartInfo(_host.EnterUrl("/main.php")) { UseShellExecute = true });
             _status("The relay was opened in your system browser.");

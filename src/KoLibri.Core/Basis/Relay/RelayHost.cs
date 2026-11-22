@@ -50,28 +50,33 @@ public sealed class RelayHost : IDisposable
     /// </summary>
     public static async Task<RelayHost> StartAsync(AccountSessionManager accounts, AccountRole role,
         int port = 0, string? logPath = null, bool browserUserAgent = false, Action<string>? console = null,
-        HttpMessageHandler? upstreamHandler = null, string kolOrigin = "https://www.kingdomofloathing.com")
+        HttpMessageHandler? upstreamHandler = null, string kolOrigin = "https://www.kingdomofloathing.com",
+        KoLRateLimiter? limiter = null)
     {
         var session = await accounts.GetSessionAsync(role).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"{role} is not logged in. Log in first.");
         var cookie = session.Credentials.CookieHeader;
         if (string.IsNullOrWhiteSpace(cookie))
             throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
-        return Start(session, port, logPath, browserUserAgent, console, upstreamHandler, kolOrigin);
+        return Start(session, port, logPath, browserUserAgent, console, upstreamHandler, kolOrigin, limiter);
     }
 
     public static RelayHost Start(AccountSession session, int port = 0, string? logPath = null, bool browserUserAgent = false,
         Action<string>? console = null, HttpMessageHandler? upstreamHandler = null,
-        string kolOrigin = "https://www.kingdomofloathing.com")
+        string kolOrigin = "https://www.kingdomofloathing.com", KoLRateLimiter? limiter = null)
     {
         var cookie = session.Credentials.CookieHeader
             ?? throw new InvalidOperationException("No KoL session cookie.");
         logPath ??= DefaultLogPath();
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-        var inner = upstreamHandler ?? new KoLRateLimitedHandler(new HttpClientHandler
-        {
-            AllowAutoRedirect = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.All
-        });
+        // Every upstream request goes through the process-wide limiter. A caller-supplied handler is used as is (tests)
+        // unless a limiter is passed too.
+        HttpMessageHandler inner = upstreamHandler is null
+            ? new KoLRateLimitedHandler(new HttpClientHandler
+            {
+                AllowAutoRedirect = false, UseCookies = false, AutomaticDecompression = DecompressionMethods.All
+            }, limiter)
+            : limiter is null ? upstreamHandler : new KoLRateLimitedHandler(upstreamHandler, limiter);
         var upstream = new HttpClient(inner) { Timeout = Timeout.InfiniteTimeSpan };
         var logLock = new object();
         RelayServer? server = null;
