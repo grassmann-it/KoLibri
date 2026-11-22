@@ -278,7 +278,9 @@ public sealed class McpWriteToolsTests : IDisposable
     [Fact]
     public async Task Consume_reports_partial_quantity_and_books_only_what_was_consumed()
     {
-        var token = Token();
+        // The worst case (the requested 5) is reserved up front, so the budget must cover it.
+        var token = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit>
+            { [Rights.ItemUse] = new() { DailyBudget = 5 } }, TimeSpan.FromDays(1)).Token;
         var done = await RunAsync(token, "kol_consume", "{\"itemId\":995,\"kind\":\"food\",\"quantity\":5}");
         Assert.Equal(3, done.GetProperty("consumed").GetInt32());
         Assert.False(done.GetProperty("complete").GetBoolean());
