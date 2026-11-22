@@ -14,7 +14,7 @@ public partial class KolibriMcpServer
     private void RegisterDailyAuditTool()
     {
         Register("kol_daily_audit",
-            "Read the bridge audit log (default: ~/.local/share/KoLibri/bridge-audit.jsonl).",
+            "Read the bridge audit log rows of the requested role(s); the store location is fixed.",
             DailyAuditSchema(),
             DailyAuditAsync);
         Alias("daily-audit", "kol_daily_audit");
@@ -23,7 +23,10 @@ public partial class KolibriMcpServer
     private async Task<object?> DailyAuditAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var path = OptionalString(arguments, "path") ?? BridgeAuditLog.DefaultPath();
+        if (arguments.TryGetProperty("path", out _))
+            throw new McpInvalidParamsException("kol_daily_audit reads the fixed bridge audit store; a path cannot be chosen.");
+        var path = BridgeAuditLog.DefaultPath();
+        var roles = McpArgs.Roles(arguments, _options.DefaultRole);
         var tail = OptionalInt(arguments, "tail") ?? 0;
         var verify = OptionalBool(arguments, "verify") == true;
         var account = OptionalString(arguments, "account");
@@ -36,22 +39,23 @@ public partial class KolibriMcpServer
             return new
             {
                 command = "daily-audit",
-                path,
                 state = breakInfo is null ? "verified" : "broken",
                 rowCount = rows.Count,
                 breakIndex = breakInfo?.Index,
                 brokenAction = breakInfo?.BrokenRow.AuditEvent.Action
             };
         }
+        // Only rows of the requested (and, over HTTP, granted) roles: the store is shared, rows carry the account id.
+        var ofRoles = rows.Where(r => roles.Any(role =>
+            string.Equals(r.AuditEvent.AccountId, role.ToString(), StringComparison.OrdinalIgnoreCase)));
         var filtered = string.IsNullOrWhiteSpace(account)
-            ? rows
-            : rows.Where(r =>
+            ? ofRoles
+            : ofRoles.Where(r =>
                 r.AuditEvent.AccountId?.Contains(account, StringComparison.OrdinalIgnoreCase) == true);
         var ordered = tail > 0 ? filtered.TakeLast(tail).ToArray() : filtered.ToArray();
         return new
         {
             command = "daily-audit",
-            path,
             rowCount = ordered.Length,
             rows = ordered.Select(r => new
             {
@@ -69,7 +73,7 @@ public partial class KolibriMcpServer
 
     private static JsonElement DailyAuditSchema()
         => Schema("{\"type\":\"object\",\"properties\":{"
-            + "\"path\":{\"type\":\"string\"},"
+            + "\"role\":{\"enum\":[\"Main\",\"Mallbot\",\"all\"]},"
             + "\"tail\":{\"type\":\"integer\"},"
             + "\"verify\":{\"type\":\"boolean\"},"
             + "\"account\":{\"type\":\"string\"}"

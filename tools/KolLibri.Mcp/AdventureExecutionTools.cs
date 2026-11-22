@@ -41,7 +41,7 @@ public partial class KolibriMcpServer
         var role = RoleFor(arguments, _options.DefaultRole);
         var location = RequiredString(arguments, "locationId");
         var runId = OptionalString(arguments, "runId") ?? $"mcp-{Guid.NewGuid():N}";
-        var execute = BoolProperty(arguments, "execute");
+        var execute = McpArgs.Execute(arguments);
         var approvalToken = ApprovalTokenFor(arguments);
         var maxSteps = Math.Clamp(NullableIntProperty(arguments, "maxGatewaySteps") ?? 20, 1, 10_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 300);
@@ -132,7 +132,7 @@ public partial class KolibriMcpServer
                 "Live choice-chain execution is not configured for this MCP host.");
         var role = RoleFor(arguments, _options.DefaultRole);
         var runId = RequiredString(arguments, "runId");
-        var execute = BoolProperty(arguments, "execute");
+        var execute = McpArgs.Execute(arguments);
         var approvalToken = ApprovalTokenFor(arguments);
         var maxChoices = Math.Clamp(NullableIntProperty(arguments, "maxChoices") ?? 10, 1, 1_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 120);
@@ -193,6 +193,7 @@ public partial class KolibriMcpServer
             + "\"runId\":{\"type\":\"string\"},"
             + "\"execute\":{\"type\":\"boolean\",\"default\":false},"
             + "\"approvalToken\":{\"type\":\"string\"},"
+            + "\"planId\":{\"type\":\"string\"},"
             + "\"maxGatewaySteps\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":10000},"
             + "\"maxDurationSeconds\":{\"type\":\"integer\",\"minimum\":1},"
             + "\"maxTurns\":{\"type\":\"integer\"},"
@@ -215,7 +216,8 @@ public partial class KolibriMcpServer
             + "\"maxChoices\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000},"
             + "\"maxDurationSeconds\":{\"type\":\"integer\",\"minimum\":1},"
             + "\"execute\":{\"type\":\"boolean\",\"default\":false},"
-            + "\"approvalToken\":{\"type\":\"string\"}"
+            + "\"approvalToken\":{\"type\":\"string\"},"
+            + "\"planId\":{\"type\":\"string\"}"
             + "},\"required\":[\"runId\"],\"additionalProperties\":true}");
 }
 

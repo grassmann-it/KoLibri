@@ -242,6 +242,23 @@ public partial class KolibriMcpServer
         if (!authorization.Allowed)
             return ToolErrorResponse(id, authorization.Message ?? "Not allowed.");
 
+        if (authorization.Plan is { } plan)
+        {
+            // Execute asked without a plan: run as preview only and hand out the single-use plan id.
+            try
+            {
+                var previewArgs = ForcePreview(arguments);
+                var details = await tool!.Handler(previewArgs, cancellationToken).ConfigureAwait(false);
+                return SuccessResponse(id, ToolResult(new
+                {
+                    preview = true, planId = plan.PlanId, expiresAt = plan.ExpiresAt, details,
+                    next = $"Call {name} again with the same arguments and this planId to execute."
+                }));
+            }
+            catch (McpInvalidParamsException exception) { return ToolErrorResponse(id, exception.Message); }
+            catch (Exception exception) { return ToolErrorResponse(id, SanitizeError(exception)); }
+        }
+
         var confirmed = false;
         try
         {
@@ -893,20 +910,28 @@ public partial class KolibriMcpServer
         throw new McpInvalidParamsException($"{name} must be a positive duration (for example PT6H).");
     }
 
-    private AccountRole RoleFor(JsonElement arguments, AccountRole fallback)
+    private static object ToolResult(object value)
     {
-        if (!arguments.TryGetProperty("role", out var element)
-            || element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-            return fallback;
-        if (element.ValueKind != JsonValueKind.String)
-            throw new McpInvalidParamsException("role must be Main or Mallbot.");
-        var value = element.GetString()?.Trim();
-        if (string.IsNullOrWhiteSpace(value)) return fallback;
-        if (Enum.TryParse<AccountRole>(value, ignoreCase: true, out var role)
-            && Enum.IsDefined(role))
-            return role;
-        throw new McpInvalidParamsException("role must be Main or Mallbot.");
+        var serialized = JsonSerializer.Serialize(value, McpJson.Options);
+        using var document = JsonDocument.Parse(serialized);
+        return new
+        {
+            content = new[] { new { type = "text", text = serialized } },
+            structuredContent = document.RootElement.Clone(),
+            isError = false
+        };
     }
+
+    private static JsonElement ForcePreview(JsonElement arguments)
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(arguments.GetRawText())!.AsObject();
+        node["execute"] = false;
+        node.Remove("planId");
+        return JsonDocument.Parse(node.ToJsonString()).RootElement.Clone();
+    }
+
+    private AccountRole RoleFor(JsonElement arguments, AccountRole fallback)
+        => McpArgs.Role(arguments, fallback);
 
     private static string StringProperty(JsonElement element, string name)
         => OptionalString(element, name) ?? string.Empty;
