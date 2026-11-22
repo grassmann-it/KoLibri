@@ -73,6 +73,7 @@ public sealed class DesktopLiveDataProvider : IDisposable
     private readonly Dictionary<AccountRole, AccountClients> _clients = new();
     private readonly HttpClient _pricegunHttp = new();
     private readonly PricegunReadClient _pricegun;
+    private readonly MallReadPolicy? _mallPolicy;
     private readonly Func<bool> _reloginAutomatically;
 
     private sealed record AccountClients(
@@ -89,6 +90,7 @@ public sealed class DesktopLiveDataProvider : IDisposable
         _createAccountHttp = createAccountHttp ?? (session => KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/")));
         _pricegun = new PricegunReadClient(_pricegunHttp, policy: settings?.ToPricegunPolicy());
+        _mallPolicy = settings?.ToMallPolicy();
     }
 
     /// <summary>The live inventory of the given account.</summary>
@@ -273,9 +275,12 @@ public sealed class DesktopLiveDataProvider : IDisposable
     /// caller can show the reason; it must never be awaited in a way that
     /// blocks the offers.
     /// </summary>
-    public async Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
+    public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
+        => LoadPricegunAsync(itemId, forceRefresh: false, cancellationToken);
+
+    public async Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
     {
-        var snapshot = await _pricegun.FetchAsync(itemId, forceRefresh: false, cancellationToken).ConfigureAwait(false);
+        var snapshot = await _pricegun.FetchAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
         if (snapshot.Sales.Count == 0) return new PricegunInfo(null, snapshot.FetchedAt, snapshot.IsStale);
         var prices = snapshot.Sales.Select(sale => (decimal)sale.UnitPrice).OrderBy(price => price).ToArray();
         var median = prices.Length % 2 == 1
@@ -591,7 +596,7 @@ public sealed class DesktopLiveDataProvider : IDisposable
                 return null;
 
             var http = _createAccountHttp(session);
-            var clients = new AccountClients(session, http, new KoLAccountReadClient(http), new KoLMallReadClient(http));
+            var clients = new AccountClients(session, http, new KoLAccountReadClient(http), new KoLMallReadClient(http, policy: _mallPolicy));
             _clients.Add(role, clients);
             return clients;
         }

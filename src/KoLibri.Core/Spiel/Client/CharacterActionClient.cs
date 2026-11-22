@@ -54,7 +54,7 @@ public sealed record CharacterCastOutcome(
 
 /// <summary>Outcome of a rest series. Only rests with an observed effect are in <see cref="Rests"/>.</summary>
 public sealed record CharacterRestOutcome(
-    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem);
+    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem, bool Unclear = false);
 
 /// <summary>Submits one explicit character action and returns fresh account observations.</summary>
 public sealed class CharacterActionClient
@@ -185,9 +185,19 @@ public sealed class CharacterActionClient
         var seen = new List<(int, int)>();
         var spent = 0;
         string? problem = null;
+        var unclear = false;
         for (var i = 0; i < times; i++)
         {
-            var after = await ExecuteAsync(new RestAtCampground(), cancellationToken).ConfigureAwait(false);
+            CharacterActionSnapshot after;
+            try { after = await ExecuteAsync(new RestAtCampground(), cancellationToken).ConfigureAwait(false); }
+            catch (Exception e)
+            {
+                // Rests confirmed so far stay in the result; this one was possibly sent, so it is unclear, and
+                // the remaining ones are not started.
+                problem = $"The answer to a rest was lost ({e.Message}); check the account before resting again.";
+                unclear = true;
+                break;
+            }
             if (after.RejectionReason is { } refused) { problem = refused + Excerpt(after); break; }
             var changed = !after.Status.IsStale && !current.Status.IsStale &&
                 (after.Status.CurrentHp != current.Status.CurrentHp || after.Status.CurrentMp != current.Status.CurrentMp
@@ -201,7 +211,7 @@ public sealed class CharacterActionClient
             seen.Add((after.Status.CurrentHp, after.Status.CurrentMp));
             current = after;
         }
-        return new(seen, spent, problem);
+        return new(seen, spent, problem, unclear);
     }
 
     public async Task<CharacterActionSnapshot> ReadAsync(CancellationToken cancellationToken = default)

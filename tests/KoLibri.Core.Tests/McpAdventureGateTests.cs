@@ -72,6 +72,28 @@ public sealed class McpAdventureGateTests : IDisposable
     }
 
     [Fact]
+    public async Task An_empty_choice_chain_run_costs_nothing()
+    {
+        var token = _grants.Create("ai", ["Main"], new Dictionary<string, RightLimit>
+        {
+            [Rights.AccountRead] = new(), [Rights.Adventure] = new() { DailyBudget = 50 },
+        }, TimeSpan.FromDays(1)).Token;
+        McpRequestContext.Token = token;
+        string Args(string? plan) => "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_choice_chain_execute\",\"arguments\":"
+            + "{\"role\":\"Main\",\"locationId\":\"skeleton\",\"runId\":\"unknown-run\",\"execute\":true," + (plan is null ? "" : "\"planId\":\"" + plan + "\",") + "\"maxDurationSeconds\":30}}}";
+        async Task<string> Call(string? plan)
+        {
+            var res = (await _server.HandleAsync(JsonDocument.Parse(Args(plan)).RootElement))!.Value.GetProperty("result");
+            return res.GetProperty("content")[0].GetProperty("text").GetString()!;
+        }
+        var preview = await Call(null);
+        var planId = JsonDocument.Parse(preview).RootElement.GetProperty("planId").GetString();
+        var run = await Call(planId);
+        Assert.Contains("\"executed\":false", run.Replace(" ", ""));
+        Assert.Equal(0, _ledger.UsedToday(_grants.FindByToken(token)!.Id, Rights.Adventure));
+    }
+
+    [Fact]
     public async Task Execute_without_plan_only_previews_and_sends_nothing()
     {
         var token = Token(adventures: 5);

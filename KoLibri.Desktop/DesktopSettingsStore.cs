@@ -128,6 +128,14 @@ public sealed class DesktopSettings
         MaxSales = (int)Get("resultLimit") is var n && n > 0 ? Math.Max(n, 1) : 100,
     };
 
+    /// <summary>Settings for the Mall read client: cache duration, maximum age and the "Result / page limit" per item.</summary>
+    public MallReadPolicy ToMallPolicy() => new()
+    {
+        CacheTtl = CacheDuration,
+        MaxStale = MaxStale,
+        MaxListingsPerItem = (int)Get("resultLimit") is var n && n > 0 ? n : 100,
+    };
+
     /// <summary>Effective KoL interval: environment variable wins, then settings; floor 1 s.</summary>
     public EffectiveSetting EffectiveKolInterval(Func<string, string?>? env = null)
         => Effective("kolIntervalSeconds", KoLRateLimiter.IntervalEnvironmentVariable, env);
