@@ -28,6 +28,7 @@ public sealed class BrowserView : UserControl, IDisposable
     private string? _hostBinding;
     private Control? _web;
     private bool _engineSeen;
+    private bool _navigated;
     private bool _disposed;
     private int _generation;
 
@@ -43,6 +44,7 @@ public sealed class BrowserView : UserControl, IDisposable
     private readonly Border _messagePanel = new() { Padding = new Thickness(24), VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _signInButton = new() { Content = "Sign in", IsVisible = false };
     private readonly Button _retryButton = new() { Content = "Try again", IsVisible = false };
+    private readonly Button _systemButton = new() { Content = "Open in system browser", IsVisible = false };
 
     public BrowserView()
     {
@@ -77,6 +79,7 @@ public sealed class BrowserView : UserControl, IDisposable
         root.Children.Add(bar);
         _signInButton.SetValue(Avalonia.Automation.AutomationProperties.NameProperty, "Sign in to use the browser");
         _signInButton.Click += (_, _) => _signIn?.Invoke();
+        _systemButton.Click += (_, _) => OpenInSystemBrowser();
         _retryButton.Click += async (_, _) =>
         {
             try { StopHost(); await OpenAsync(); }
@@ -85,7 +88,7 @@ public sealed class BrowserView : UserControl, IDisposable
         _messagePanel.Child = new StackPanel
         {
             Spacing = 12,
-            Children = { _message, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _signInButton, _retryButton } } }
+            Children = { _message, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _signInButton, _retryButton, _systemButton } } }
         };
         _body.Content = _messagePanel;
         root.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray, Child = _body, MinHeight = 320 });
@@ -122,13 +125,18 @@ public sealed class BrowserView : UserControl, IDisposable
         var generation = _generation;
         try
         {
-            var current = await _accounts.GetSessionAsync(role, includeExpired: true);
+            var accounts = _accounts;
+            var (sessionTimedOut, current) = await BrowserTimeouts.RunAsync(_ => accounts.GetSessionAsync(role, includeExpired: true), BrowserTimeouts.Gate);
+            if (sessionTimedOut) { ShowTimeout("Reading the stored session"); return; }
             if (_host is not null && _hostRole == role && _hostBinding is not null && _hostBinding == current?.BindingKey()) return;
             StopHost();
             generation = ++_generation;
             ShowMessage($"Checking the {role} session…");
             // Not signed in: renew from the stored password when automatic log-in is on, else offer Sign in.
-            var gate = await BrowserGate.CheckAsync(_accounts, role, _autoLogin());
+            var auto = _autoLogin();
+            var (gateTimedOut, gate) = await BrowserTimeouts.RunAsync(ct => BrowserGate.CheckAsync(accounts, role, auto, null, ct), BrowserTimeouts.Gate);
+            if (generation != _generation || _disposed) return;
+            if (gateTimedOut || gate is null) { ShowTimeout("Checking or renewing the session"); return; }
             if (generation != _generation || _disposed) return;
             if (!gate.CanStart)
             {
@@ -137,9 +145,12 @@ public sealed class BrowserView : UserControl, IDisposable
                 return;
             }
             ShowMessage($"Starting the relay for {role}…");
-            var started = await _accounts.GetSessionAsync(role)
-                ?? throw new InvalidOperationException($"{role} is not logged in. Log in first.");
-            var host = RelayHost.Start(started, sessionCheck: RelayHost.SessionBindingCheck(_accounts, role, started.BindingKey()));
+            var (startTimedOut, started) = await BrowserTimeouts.RunAsync(_ => accounts.GetSessionAsync(role), BrowserTimeouts.Gate);
+            if (startTimedOut) { ShowTimeout("Reading the session"); return; }
+            if (started is null) throw new InvalidOperationException($"{role} is not logged in. Log in first.");
+            var binding = started.BindingKey();
+            var startedSession = started;
+            var host = await Task.Run(() => RelayHost.Start(startedSession, sessionCheck: RelayHost.SessionBindingCheck(accounts, role, binding)));
             if (generation != _generation || _disposed) { host.Dispose(); return; }
             _host = host; _hostRole = role; _hostBinding = started.BindingKey();
             _log($"Relay browser started for {role} on {host.Origin} (token not logged).");
@@ -154,18 +165,35 @@ public sealed class BrowserView : UserControl, IDisposable
             ShowMessage($"The relay could not start ({exception.GetType().Name}).", offerSignIn: _signIn is not null, retry: true);
             return;
         }
+        if (BrowserModePolicy.Current() == BrowserMode.SystemBrowser)
+        {
+            ShowMessage("The browser opens in your system browser on Linux, because the embedded WebKitGTK view can hang the app. " +
+                "Use “Open in system browser” below. Set KOLIBRI_EMBED_WEBVIEW=1 to try the embedded view anyway. " +
+                "Note that browsers share cookies between local ports, so do not browse other local servers with that profile while the relay runs.", systemBrowser: true);
+            return;
+        }
         ShowWebView();
         NavigateToPath("/main.php");
     }
 
+    /// <summary>UiQa only: renders one of the tab states without a relay.</summary>
+    public void ShowStateForQa(string state)
+    {
+        switch (state)
+        {
+            case "opening": ShowMessage("Starting the relay for Main…"); break;
+            case "error": ShowTimeout("Checking or renewing the session"); break;
+            case "system": ShowMessage("The browser opens in your system browser on Linux, because the embedded WebKitGTK view can hang the app. Use “Open in system browser” below. Set KOLIBRI_EMBED_WEBVIEW=1 to try the embedded view anyway.", systemBrowser: true); break;
+        }
+    }
+
+    private void ShowTimeout(string what) =>
+        ShowMessage($"{what} took longer than {BrowserTimeouts.Gate.TotalSeconds:0} s, so the browser was not opened. KoL may be slow or unreachable.",
+            offerSignIn: _signIn is not null, retry: true, systemBrowser: true);
+
     private void ShowWebView()
     {
         _engineSeen = false;
-        if (Environment.GetEnvironmentVariable("KOLIBRI_NO_WEBVIEW") == "1")
-        {
-            ShowMessage(EngineMissingText("the web view is turned off (KOLIBRI_NO_WEBVIEW=1)"), retry: true);
-            return;
-        }
         try
         {
             var web = new AvaloniaWebView.WebView();
@@ -190,7 +218,7 @@ public sealed class BrowserView : UserControl, IDisposable
                         break;
                 }
             };
-            web.NavigationCompleted += (_, _) => Dispatcher.UIThread.Post(() => { _engineSeen = true; UpdateNavButtons(); });
+            web.NavigationCompleted += (_, _) => Dispatcher.UIThread.Post(() => { _engineSeen = true; _navigated = true; UpdateNavButtons(); });
             web.WebViewNewWindowRequested += (_, e) =>
             {
                 // A new window is never opened here; same-origin targets load in this view, others ask first.
@@ -212,6 +240,7 @@ public sealed class BrowserView : UserControl, IDisposable
             SetControlsEnabled(true);
             _back.IsEnabled = false; _forward.IsEnabled = false; // nothing to go back to before the first page
             _ = WatchEngineAsync(_generation);
+            ShowOpeningOverlay();
         }
         catch (Exception exception)
         {
@@ -220,12 +249,18 @@ public sealed class BrowserView : UserControl, IDisposable
         }
     }
 
+    private void ShowOpeningOverlay() { _status("Opening the browser…"); }
+
+    /// <summary>Watchdog: a view that never reports created/navigated within the first-navigation limit is dropped for an error.</summary>
     private async Task WatchEngineAsync(int generation)
     {
-        await Task.Delay(EngineWait);
-        if (generation != _generation || _disposed || _engineSeen || _web is null) return;
+        _navigated = false;
+        var never = await BrowserTimeouts.NeverSeenAsync(() => _navigated || generation != _generation || _disposed,
+            BrowserTimeouts.FirstNavigation, TimeSpan.FromMilliseconds(250));
+        if (!never || generation != _generation || _disposed) return;
         _web = null;
-        ShowMessage(EngineMissingText("no web view runtime answered"), retry: true);
+        ShowMessage(EngineMissingText(_engineSeen ? "the page did not finish loading in time" : "no web view runtime answered"),
+            retry: true, systemBrowser: true);
     }
 
     private static string EngineMissingText(string reason) =>
@@ -261,11 +296,12 @@ public sealed class BrowserView : UserControl, IDisposable
         _external.IsEnabled = true;
     }
 
-    private void ShowMessage(string text, bool offerSignIn = false, bool retry = false)
+    private void ShowMessage(string text, bool offerSignIn = false, bool retry = false, bool systemBrowser = false)
     {
         _message.Text = text;
         _signInButton.IsVisible = offerSignIn;
         _retryButton.IsVisible = retry;
+        _systemButton.IsVisible = systemBrowser;
         _body.Content = _messagePanel;
         SetControlsEnabled(false);
     }
