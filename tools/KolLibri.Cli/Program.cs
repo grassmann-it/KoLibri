@@ -311,7 +311,7 @@ internal static partial class KolibriCli
         Console.WriteLine("  shop --role mallbot [--refresh]");
         Console.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
         Console.WriteLine("  consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]   eat/drink/spleen (preview without --execute)");
-        Console.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests)");
+        Console.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests are free; other rests can cost adventures)");
         Console.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
         Console.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         Console.WriteLine("  pricegun --item ITEM_ID [--refresh]");
@@ -328,14 +328,12 @@ internal static partial class KolibriCli
         Console.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
         Console.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
         Console.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
-        Console.WriteLine("  daily bacon [--owned N] [--mall-price N] [--median N] [--meat N]");
-        Console.WriteLine("               [--min-profit N] [--max-qty N]");
         Console.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
         Console.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
-        Console.WriteLine("  daily-go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
+        Console.WriteLine("  daily go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
         Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
         Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
         Console.WriteLine("           [--already-claimed NAME] [--output PATH]");
