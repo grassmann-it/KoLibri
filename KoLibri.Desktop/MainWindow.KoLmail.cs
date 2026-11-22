@@ -101,7 +101,7 @@ public partial class MainWindow
 
     private async void ConfirmDeleteKoLmailClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || sender is not Button { IsVisible: true }
+        if (BusyBlocked() || sender is not Button { IsVisible: true }
             || this.FindControl<ListBox>("KoLmailInboxRows")?.SelectedItem is not KoLMailEntry entry)
             return;
 
@@ -120,7 +120,7 @@ public partial class MainWindow
 
     private async void SendKoLmailClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || sender is not Button send) return;
+        if (BusyBlocked() || sender is not Button send) return;
 
         var recipientBox = this.FindControl<TextBox>("KoLmailRecipient")!;
         var messageBox = this.FindControl<TextBox>("KoLmailMessage")!;

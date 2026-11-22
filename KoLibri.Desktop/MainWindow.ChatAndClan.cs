@@ -58,7 +58,7 @@ public partial class MainWindow
 
     private async void SendKoLChatClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null) return;
+        if (BusyBlocked()) return;
         var recipient = this.FindControl<TextBox>("KoLChatRecipient")!;
         var draft = this.FindControl<TextBox>("KoLChatDraft")!;
         var status = this.FindControl<TextBlock>("KoLChatStatus")!;
@@ -179,7 +179,7 @@ public partial class MainWindow
 
     private async void UseClanLookingGlassClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
+        if (BusyBlocked() || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync("Using clan looking glass", async token =>
@@ -194,7 +194,7 @@ public partial class MainWindow
 
     private async void UseClanCrimboTreeClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
+        if (BusyBlocked() || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync("Checking clan Crimbo Tree", async token =>
@@ -213,7 +213,7 @@ public partial class MainWindow
 
     private async void PlayClanKlawClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || sender is not Button { IsVisible: true }) return;
+        if (BusyBlocked() || sender is not Button { IsVisible: true }) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync("Playing Deluxe Mr. Klaw", async token =>
@@ -232,7 +232,7 @@ public partial class MainWindow
 
     private async void UseClanHotTubClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanHotTubControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanHotTubControls")?.IsVisible != true) return;
         var role = _selectedRole;
         var current = _accountToken;
         var consent = this.FindControl<CheckBox>("AllowHotTubCurseRemoval")!;
@@ -248,7 +248,7 @@ public partial class MainWindow
 
     private async void PlayClanPoolClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanPoolControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanPoolControls")?.IsVisible != true) return;
         var stance = (KoLClanPoolStance)(this.FindControl<ComboBox>("ClanPoolStance")!.SelectedIndex + 1);
         var status = this.FindControl<TextBlock>("ClanLoungeStatus")!;
         if (!Enum.IsDefined(stance))
@@ -276,7 +276,7 @@ public partial class MainWindow
 
     private async void TakeClanShowerClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanShowerControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanShowerControls")?.IsVisible != true) return;
         var temperature = (KoLClanShowerTemperature)(this.FindControl<ComboBox>("ClanShowerTemperature")!.SelectedIndex + 1);
         var status = this.FindControl<TextBlock>("ClanLoungeStatus")!;
         if (!Enum.IsDefined(temperature))
@@ -308,7 +308,7 @@ public partial class MainWindow
 
     private async Task SwimInClanPoolAsync(KoLClanSwimWorkout workout)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanSwimControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanSwimControls")?.IsVisible != true) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync("Using clan swimming pool", async token =>
@@ -358,7 +358,7 @@ public partial class MainWindow
 
     private async Task RunClanPoolChoiceAsync(KoLClanPoolMove? move)
     {
-        if (_refreshCancellation is not null
+        if (BusyBlocked()
             || (move is not null && this.FindControl<WrapPanel>("ClanPoolChoiceControls")?.IsVisible != true))
             return;
         var role = _selectedRole;
@@ -386,7 +386,7 @@ public partial class MainWindow
 
     private async void InspectClanFaxClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync("Inspecting clan photocopy", async token =>
@@ -400,7 +400,7 @@ public partial class MainWindow
 
     private async Task TransferClanFaxAsync(bool send)
     {
-        if (_refreshCancellation is not null || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
+        if (BusyBlocked() || this.FindControl<StackPanel>("ClanFaxControls")?.IsVisible != true) return;
         var role = _selectedRole;
         var current = _accountToken;
         await RunBusyOperationAsync(send ? "Sending clan fax" : "Receiving clan fax", async token =>
@@ -435,7 +435,7 @@ public partial class MainWindow
         var rows = this.FindControl<ListBox>("ClanStashItems")!;
         var status = this.FindControl<TextBlock>("ClanStashStatus")!;
         var quantityBox = this.FindControl<TextBox>("ClanStashQuantity")!;
-        if (_refreshCancellation is not null) return;
+        if (BusyBlocked()) return;
         if (rows.SelectedItem is not KoLClanStashItem item)
         {
             status.Text = "Select a stash item to take.";
@@ -476,7 +476,7 @@ public partial class MainWindow
 
     private async void DepositClanStashClick(object? sender, RoutedEventArgs e)
     {
-        if (_refreshCancellation is not null) return;
+        if (BusyBlocked()) return;
         var picker = this.FindControl<ComboBox>("ClanStashDepositItems")!;
         var status = this.FindControl<TextBlock>("ClanStashStatus")!;
         if (picker.SelectedItem is not DesktopInventoryItem item)
