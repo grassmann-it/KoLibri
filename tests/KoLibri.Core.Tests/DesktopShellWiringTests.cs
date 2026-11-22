@@ -332,7 +332,7 @@ public sealed class DesktopShellWiringTests
         var host = new FakeHost();
         var offer = new MallOfferContextMenu(host).Build(new OfferMenuTarget("4", "Thing", "Shop", 100, CanBuy: false));
         Assert.False(Find(offer, "Buy…").IsEnabled);
-        Assert.True(Find(offer, "Search item").IsEnabled);
+        Assert.True(Find(offer, "Search this item again").IsEnabled);
 
         var location = new LocationContextMenu(host).Build(new LocationMenuTarget("1", "The Haunted Pantry", RunTurns: 10));
         Assert.Contains(location, item => item.Label == "Adventure once");

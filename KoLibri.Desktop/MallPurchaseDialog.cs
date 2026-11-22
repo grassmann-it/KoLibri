@@ -82,7 +82,7 @@ public sealed class MallPurchaseDialog : Window
             var preview = await _preview(quantity, _closed.Token);
             if (_closed.IsCancellationRequested || quantity != Quantity) return;
             _details.Text = Describe(preview);
-            _problems.Text = string.Join(Environment.NewLine, preview.Problems.Select(p => $"Blocked: {p}")
+            _problems.Text = string.Join(Environment.NewLine, preview.Problems.Select(p => MallPurchaseMessages.Describe(p))
                 .Concat(preview.Messages));
             _current = preview;
             _buy.IsEnabled = preview.CanConfirm;

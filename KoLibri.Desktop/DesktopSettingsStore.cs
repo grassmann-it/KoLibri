@@ -24,6 +24,7 @@ public sealed class DesktopSettings
         new("meatPerDay", "Meat per day", 500_000, 0, 100_000_000, "Meat"),
         new("meatPerPurchase", "Meat per purchase", 250_000, 0, 100_000_000, "Meat"),
         new("unitsPerPurchase", "Units per purchase", 10, 1, 1_000, "units"),
+        new("cloverThreshold", "11-leaf clover highlight price", 27_000, 1_000, 1_000_000, "Meat"),
         new("resultLimit", "Result / page limit", 50, 1, 500, "rows"),
         new("kolIntervalSeconds", "KoL request interval", 2, 1, 60, "s"),
         new("pricegunIntervalSeconds", "Pricegun request interval", 2, 1, 60, "s"),
