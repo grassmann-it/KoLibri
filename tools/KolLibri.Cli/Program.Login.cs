@@ -60,33 +60,57 @@ internal static partial class KolibriCli
         return 0;
     }
 
+    internal enum SessionProbe { Works, Rejected, Unreachable }
+
     /// <summary>
-    /// Asks KoL whether the session still works. The answer comes back as
-    /// a redirect to the login page when the session was dropped.
+    /// Asks KoL whether the session still works. Only a redirect to the login page, a 401/403 or a
+    /// status answer without a player id counts as a rejection; timeouts, network errors and other
+    /// HTTP errors (e.g. 503) leave the question open.
     /// </summary>
-    private static async Task<bool> SessionStillWorksAsync(AccountCredentials credentials)
+    internal static async Task<SessionProbe> ProbeSessionAsync(AccountCredentials credentials, HttpMessageHandler? handler = null)
     {
         try
         {
-            using var http = KoLLoginClient.CreateAuthenticatedClient(
-                credentials,
-                new Uri("https://www.kingdomofloathing.com/"));
-            var response = await http.GetAsync(
-                new Uri("https://www.kingdomofloathing.com/api.php?what=status&for=KoLibri"));
-            if (!response.IsSuccessStatusCode) return false;
+            using var http = handler is null
+                ? KoLLoginClient.CreateAuthenticatedClient(credentials, new Uri("https://www.kingdomofloathing.com/"))
+                : new HttpClient(handler);
+            using var response = await http.GetAsync(
+                new Uri("https://www.kingdomofloathing.com/api.php?what=status&for=KoLibri")).ConfigureAwait(false);
             var location = response.Headers.Location?.ToString() ?? string.Empty;
-            if (location.Contains("login.php", StringComparison.OrdinalIgnoreCase)) return false;
-            var body = await response.Content.ReadAsStringAsync();
-            return body.Contains("playerid", StringComparison.OrdinalIgnoreCase);
+            if (location.Contains("login.php", StringComparison.OrdinalIgnoreCase)) return SessionProbe.Rejected;
+            if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+                return SessionProbe.Rejected;
+            if (!response.IsSuccessStatusCode) return SessionProbe.Unreachable;
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            return body.Contains("playerid", StringComparison.OrdinalIgnoreCase) ? SessionProbe.Works : SessionProbe.Rejected;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException) { return SessionProbe.Unreachable; }
+        catch (TaskCanceledException) { return SessionProbe.Unreachable; }
+    }
+
+    internal static object LoginStatusRow(AccountRole role, AccountProfile? profile, AccountSession? session, SessionProbe? probe)
+    {
+        var expired = session?.IsExpired() ?? false;
+        var hasCookie = !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader);
+        var rejected = probe == SessionProbe.Rejected;
+        var unreachable = probe == SessionProbe.Unreachable;
+        return new
         {
-            return false;
-        }
-        catch (TaskCanceledException)
-        {
-            return false;
-        }
+            role = role.ToString(),
+            profileId = profile?.Id,
+            displayName = profile?.DisplayName,
+            enabled = profile?.Enabled ?? false,
+            hasCookie,
+            expired,
+            expiresAt = session?.Credentials.ExpiresAt,
+            // true only when KoL itself answered with a rejection
+            rejectedByServer = rejected,
+            // true when the check could not reach KoL (timeout, 5xx); the session is then neither confirmed nor rejected
+            serverUnreachable = unreachable,
+            // null = unknown (KoL not reachable)
+            usable = unreachable ? (bool?)null : hasCookie && !expired && !rejected,
+            endpoint = session?.Profile.Endpoint?.ToString()
+        };
     }
 
     private static async Task<int> LoginStatusAsync(string[] args)
@@ -99,30 +123,10 @@ internal static partial class KolibriCli
         {
             var profile = profiles.FirstOrDefault(p => p.Role == role);
             var session = await accounts.GetSessionAsync(role, includeExpired: true);
-            var expired = session?.IsExpired() ?? false;
-            var hasCookie = !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader);
-            // The stored expiry only says when the cookie runs out. KoL
-            // drops a session earlier — when the password is changed or
-            // the account is signed out elsewhere — so the session is
-            // asked whether it still works.
-            var rejected = false;
-            if (hasCookie && !expired)
-            {
-                rejected = !await SessionStillWorksAsync(session!.Credentials).ConfigureAwait(false);
-            }
-            rows.Add(new
-            {
-                role = role.ToString(),
-                profileId = profile?.Id,
-                displayName = profile?.DisplayName,
-                enabled = profile?.Enabled ?? false,
-                hasCookie,
-                expired,
-                rejectedByServer = rejected,
-                usable = hasCookie && !expired && !rejected,
-                loggedInAt = session?.Credentials.ExpiresAt,
-                endpoint = session?.Profile.Endpoint?.ToString()
-            });
+            SessionProbe? probe = null;
+            if (!string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader) && !session!.IsExpired())
+                probe = await ProbeSessionAsync(session.Credentials).ConfigureAwait(false);
+            rows.Add(LoginStatusRow(role, profile, session, probe));
         }
         WriteJson(new
         {
@@ -151,47 +155,46 @@ internal static partial class KolibriCli
 
     private static async Task<int> LoginRefreshAsync(string[] args)
     {
-        var roleValue = GetOption(args, "--role") ?? "main";
-        var role = ParseRole(roleValue);
-        var username = GetOption(args, "--username");
-        var password = GetOption(args, "--password");
-        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrEmpty(password))
+        var role = StrictOptions.Role(args);
+        var username = StrictOptions.Value(args, "--username");
+        var password = StrictOptions.Value(args, "--password");
+        var rememberFlag = HasFlag(args, "--no-remember-password") ? false : (bool?)null;
+        var accounts = AccountSessionManager.CreateDefault();
+        await accounts.InitializeAsync();
+        var current = await accounts.GetSessionAsync(role, includeExpired: true);
+        var storedPassword = !string.IsNullOrEmpty(current?.Credentials.Password);
+        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrEmpty(password) && storedPassword)
         {
             // No flags: log in again with the password saved for this role. It is never printed.
-            var stored = AccountSessionManager.CreateDefault();
-            await stored.InitializeAsync();
-            var current = await stored.GetSessionAsync(role, includeExpired: true);
-            if (current is null)
-                throw new ArgumentException($"No stored account for {role}. Run 'login {role.ToString().ToLowerInvariant()}' first.");
-            var renewed = await stored.ReconnectAsync(current,
+            var renewed = await accounts.ReconnectAsync(current!,
                 (user, pass, token) => new KoLLoginClient().LoginAsync(user, pass, true, token));
             if (renewed is null)
-                throw new ArgumentException($"No password stored for {role}. Log in with --username/--password first.");
+                throw new ArgumentException($"Could not renew the session for {role}: the stored account changed meanwhile. Try again.");
             WriteJson(new { command = "login refresh", role = role.ToString(), ok = true, usedSavedPassword = true });
             return 0;
         }
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         {
-            // Fall back to interactive prompt when neither flag was supplied.
-            if (!Console.IsInputRedirected)
+            // No saved password (or only one flag): ask on the terminal.
+            if (Console.IsInputRedirected)
+                throw new ArgumentException(
+                    $"No password stored for {role} and input is not a terminal. Pass --username and --password, or run 'login refresh --role {role.ToString().ToLowerInvariant()}' in a terminal.");
+            if (string.IsNullOrWhiteSpace(username))
             {
-                if (string.IsNullOrWhiteSpace(username))
-                {
-                    Console.Error.Write($"login refresh {role} Username: ");
-                    username = Console.ReadLine()?.Trim();
-                }
-                if (string.IsNullOrEmpty(password))
-                {
-                    password = await ReadPasswordAsync();
-                }
+                var suggestion = current?.Credentials.Username ?? current?.Profile.DisplayName;
+                Console.Error.Write($"login refresh {role} Username{(string.IsNullOrWhiteSpace(suggestion) ? "" : $" [{suggestion}]")}: ");
+                username = Console.ReadLine()?.Trim();
+                if (string.IsNullOrWhiteSpace(username)) username = suggestion;
             }
+            if (string.IsNullOrEmpty(password))
+                password = await ReadPasswordAsync();
         }
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-            throw new ArgumentException("login refresh requires --username and --password.");
+            throw new ArgumentException("login refresh requires a username and a password.");
 
-        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword: true);
-        var accounts = AccountSessionManager.CreateDefault();
-        await accounts.InitializeAsync();
+        // Keep the earlier choice: an account that had no password stored keeps having none, unless told otherwise.
+        var rememberPassword = rememberFlag ?? (current is null || storedPassword);
+        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword);
         var verified = await ReadLoginIdentityAsync(login.Credentials)
             ?? throw new InvalidOperationException(
                 "login refresh: KoL did not report which player this session belongs to; nothing was saved.");
@@ -211,6 +214,7 @@ internal static partial class KolibriCli
             command = "login refresh",
             role = role.ToString(),
             ok = true,
+            rememberPassword,
             player = verified.Name,
             playerId = verified.PlayerId,
             accountChanged = change == AccountIdentityChange.Switched,
