@@ -125,7 +125,7 @@ public sealed class InventoryOverfillTests
     [Fact]
     public void Fits_when_enough_room_remains()
     {
-        var check = InventoryActionPlanner.CheckOverfill(Wing, 3, new OrganState(10, 0, 0));
+        var check = InventoryActionPlanner.CheckOverfill(Wing, 3, new OrganState(10, 0, 0, 15, 14, 15));
         Assert.True(check.Known);
         Assert.False(check.Overfills);
         Assert.Equal(5, check.Remaining);
@@ -135,7 +135,7 @@ public sealed class InventoryOverfillTests
     [Fact]
     public void Warns_with_remaining_room_when_over_the_limit()
     {
-        var check = InventoryActionPlanner.CheckOverfill(Wing, 6, new OrganState(12, 0, 0));
+        var check = InventoryActionPlanner.CheckOverfill(Wing, 6, new OrganState(12, 0, 0, 15, 14, 15));
         Assert.True(check.Overfills);
         Assert.Equal(3, check.Remaining);
         Assert.Contains("only 3 of 15 fullness remain", check.Message);
@@ -145,7 +145,7 @@ public sealed class InventoryOverfillTests
     public void Drink_uses_inebriety_limit()
     {
         var size = Beer.OrganCost!.Size!.Value;
-        var check = InventoryActionPlanner.CheckOverfill(Beer, 1, new OrganState(0, 14 - size + 1, 0));
+        var check = InventoryActionPlanner.CheckOverfill(Beer, 1, new OrganState(0, 14 - size + 1, 0, 15, 14, 15));
         Assert.True(check.Overfills);
         Assert.Contains("inebriety", check.Message);
     }
@@ -164,10 +164,10 @@ public sealed class InventoryOverfillTests
     {
         var paste = InventoryTestCatalog.Classifier.Classify("25");
         Assert.False(InventoryActionPlanner.CheckOverfill(paste, 5, OrganState.Unknown).Overfills);
-        Assert.Equal(5, InventoryActionPlanner.MaxFitting(Wing, new OrganState(10, 0, 0)));
+        Assert.Equal(5, InventoryActionPlanner.MaxFitting(Wing, new OrganState(10, 0, 0, 15, 14, 15)));
     }
 
     [Fact]
     public void Organ_summary_shows_remaining_limits()
-        => Assert.Equal("Fullness 3/15 · Inebriety ?/14 · Spleen 0/15", new OrganState(3, null, 0).Summary);
+        => Assert.Equal("Fullness 3/15 · Inebriety ?/14 · Spleen 0/15", new OrganState(3, null, 0, 15, 14, 15).Summary);
 }
