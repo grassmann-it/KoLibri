@@ -229,7 +229,10 @@ public partial class MainWindow
     }
 
     /// <summary>Always-visible way to sign in: opens Settings with the Accounts group expanded.</summary>
-    private async void SignInClick(object? sender, RoutedEventArgs e)
+    private async void SignInClick(object? sender, RoutedEventArgs e) => await StartSignInAsync();
+
+    /// <summary>Opens the Accounts group; after a successful sign-in the page the user came from (e.g. Browser) reopens.</summary>
+    private async Task StartSignInAsync()
     {
         if (_activeSection != "Settings") _signInReturnSection = _activeSection;
         await OpenSectionAsync("Settings");

@@ -356,7 +356,8 @@ public sealed class RelayServer : IDisposable
 
     private string RewriteOrigins(string text)
     {
-        var host = _kol.Host;
+        // Authority = host plus a non-default port, so a KolOrigin with a port (tests, a local fake) rewrites cleanly.
+        var host = _kol.Authority;
         return text
             .Replace("https://" + host, Origin, StringComparison.OrdinalIgnoreCase)
             .Replace("http://" + host, Origin, StringComparison.OrdinalIgnoreCase)
