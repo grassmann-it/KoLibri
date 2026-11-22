@@ -160,6 +160,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _inventoryView?.Attach(this, this, this);
         _gearView?.Attach(this, this);
         _skillsEffectsView?.Attach(this, this);
+        AttachSkillsEffects();
         _dailyView?.Attach(this, this);
         ControlExtensions.FindControl<MallSearchView>(this, "MallSearch")?.AttachMenu(this);
         if (_inventoryView is not null)

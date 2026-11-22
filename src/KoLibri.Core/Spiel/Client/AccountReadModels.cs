@@ -33,6 +33,8 @@ public sealed record KoLStatusSnapshot(
     public IReadOnlyList<KoLTimedEffect> TimedEffects { get; init; } = Array.Empty<KoLTimedEffect>();
     public string? PlayerId { get; init; }
     public string? FamiliarId { get; init; }
+    /// <summary>Familiar weight in pounds when the status endpoint reports it (api.php "famlevel").</summary>
+    public int? FamiliarWeight { get; init; }
     public string? ClassId { get; init; }
     public IReadOnlyDictionary<string, string> Equipment { get; init; }
         = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -712,6 +714,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             MaximumMp = IntValue(root, "maximummp", "maximum_mp", "maxmp", "max_mp", "maxmana"),
             PlayerId = StringValue(root, "playerid"),
             FamiliarId = StringValue(root, "familiarid", "familiar_id", "familiar"),
+            FamiliarWeight = NullableIntValue(root, "famlevel", "familiar_weight"),
             ClassId = StringValue(root, "classid", "class_id", "class"),
             Fullness = NullableIntValue(root, "full", "fullness"),
             Inebriety = NullableIntValue(root, "drunk", "drunkenness", "inebriety"),

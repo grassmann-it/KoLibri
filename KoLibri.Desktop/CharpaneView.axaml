@@ -6,6 +6,7 @@
       Classes="shell-sidebar" BorderThickness="0,0,1,0">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="12" Spacing="10">
+        <TextBlock x:Name="SidebarMessage" IsVisible="False" TextWrapping="Wrap" FontSize="11" Classes="muted" />
         <StackPanel Spacing="2">
           <TextBlock x:Name="SidebarName" Text="Not signed in" FontSize="16" FontWeight="Bold"
                      TextWrapping="Wrap" />
@@ -46,6 +47,13 @@
         <StackPanel Spacing="4">
           <TextBlock Text="Active effects" Classes="muted" FontSize="10" />
           <TextBlock x:Name="SidebarEffects" Text="None" TextWrapping="Wrap" />
+          <ListBox x:Name="SidebarEffectList" IsVisible="False" Padding="0" Background="Transparent" BorderThickness="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:EffectRow">
+                <TextBlock Text="{Binding Display}" TextWrapping="Wrap" FontSize="12" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
