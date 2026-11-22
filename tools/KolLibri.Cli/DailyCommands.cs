@@ -761,6 +761,9 @@ internal static partial class KolibriCli
         var token = GetOption(args, "--approval-token");
         var execute = HasFlag(args, "--execute");
         var baseline = BuildDailySnapshot(args);
+        if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
+        var mayPurchase = AgentGuard.MayPurchase(execute, !string.IsNullOrWhiteSpace(token));
 
         var perRole = new List<object>();
         var bridge = new AutoCombatDailyBridge();
@@ -829,7 +832,7 @@ internal static partial class KolibriCli
                     });
 
                     var baconMedian = long.TryParse(GetOption(args, "--bacon-median"), out var bm) ? bm : 0;
-                    if (baconMedian > 0)
+                    if (baconMedian > 0 && mayPurchase)
                     {
                         var bacon = new BaconArbitrageExecutor(buyClient, client.Mall);
                         var baconOutcome = await bacon.RunAsync(
