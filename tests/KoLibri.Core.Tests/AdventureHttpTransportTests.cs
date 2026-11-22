@@ -157,7 +157,7 @@ public sealed class AdventureHttpTransportTests
     private static AdventureTransportRequest StartWithFields()
         => Request(AdventureTransportOperation.Adventure) with
         {
-            Fields = new Dictionary<string, string> { ["snarfblat"] = "42" }
+            Fields = new Dictionary<string, string> { ["snarfblat"] = "123" }
         };
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class AdventureHttpTransportTests
         Assert.Equal("/main.php", handler.Requests[1].RequestUri!.AbsolutePath);
         Assert.Equal(HttpMethod.Post, handler.Requests[2].Method);
         Assert.Equal(handler.Bodies[0], handler.Bodies[2]);
-        Assert.Contains("snarfblat=42", handler.Bodies[2]);
+        Assert.Contains("snarfblat=123", handler.Bodies[2]);
         Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
     }
 
