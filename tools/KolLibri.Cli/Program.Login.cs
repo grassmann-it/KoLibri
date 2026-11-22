@@ -138,8 +138,7 @@ internal static partial class KolibriCli
 
     internal static async Task<int> LoginClearAsync(string[] args)
     {
-        var roleValue = StrictOptions.Value(args, "--role");
-        var roles = ResolveLoginRoles(roleValue);
+        var roles = StrictOptions.LoginRoles(args);
         var accounts = AccountSessionManager.CreateDefault();
         await accounts.InitializeAsync();
         var cleared = await LoginClear.ClearAsync(accounts, roles);
@@ -350,11 +349,4 @@ internal static partial class KolibriCli
         }
     }
 
-    private static List<AccountRole> ResolveLoginRoles(string? roleValue)
-    {
-        var value = (roleValue ?? "all").Trim().ToLowerInvariant();
-        if (value is "all" or "both")
-            return new() { AccountRole.Main, AccountRole.Mallbot };
-        return new() { ParseRole(value) };
-    }
 }
