@@ -85,7 +85,7 @@ internal static partial class KolibriCli
 
         var refresh = HasFlag(args, "--refresh");
         var http = await ReadAuthenticatedHttpAsync(role);
-        var api = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver());
+        var api = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver()) { ReadCharsheetForOrganLimits = true };
         var mall = new KoLMallReadClient(http, itemNameResolver: BuildItemNameResolver());
         using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var meat = await FreshMeatAsync(api, CancellationToken.None);

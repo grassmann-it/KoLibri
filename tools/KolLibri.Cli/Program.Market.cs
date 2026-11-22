@@ -244,7 +244,7 @@ internal static partial class KolibriCli
             try
             {
                 using var http = await ReadAuthenticatedHttpAsync(AccountRole.Main);
-                _ = await new KoLAccountReadClient(http).FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"));
+                _ = await new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true }.FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"));
             }
             catch (Exception exception)
             {

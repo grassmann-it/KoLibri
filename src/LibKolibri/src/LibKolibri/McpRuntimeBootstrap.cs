@@ -39,7 +39,7 @@ public static class McpRuntimeBootstrap
                 continue;
 
             var http = KoLLoginClient.CreateAuthenticatedClient(session.Credentials, endpoint);
-            var account = new KoLAccountReadClient(http, endpoint);
+            var account = new KoLAccountReadClient(http, endpoint) { ReadCharsheetForOrganLimits = true };
             var mall = new KoLMallReadClient(http, endpoint, itemNameResolver: KoLibri.Core.Spiel.BundledItemNames.Resolver);
             runtime.Register<IAccountReadClient>(role, account);
             runtime.Register<IMallReadClient>(role, mall);

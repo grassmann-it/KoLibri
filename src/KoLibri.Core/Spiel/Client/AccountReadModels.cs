@@ -146,7 +146,7 @@ public sealed class KoLAccountReadClient : IAccountReadClient
         {
             var json = await GetJsonAsync(KoLRoutes.Status("status"), cancellationToken).ConfigureAwait(false);
             var snapshot = ParseStatus(json, _clock.GetUtcNow());
-            if (snapshot.Skills is null) snapshot = snapshot with { Skills = await ReadSkillsFromCharsheetAsync(cancellationToken).ConfigureAwait(false) };
+            if (snapshot.Skills is null && ReadCharsheetForOrganLimits) snapshot = snapshot with { Skills = await ReadSkillsFromCharsheetAsync(cancellationToken).ConfigureAwait(false) };
             snapshot = OrganLimitDeriver.Apply(snapshot);
             lock (_cacheGate) _status = snapshot;
             return snapshot;
@@ -162,6 +162,10 @@ public sealed class KoLAccountReadClient : IAccountReadClient
             throw;
         }
     }
+
+    /// <summary>Opt-in: one extra charsheet.php read (cached an hour) so organ limits can be derived when api.php
+    /// has no skill list. Off by default so action/verification clients pay no extra request per status read.</summary>
+    public bool ReadCharsheetForOrganLimits { get; init; }
 
     private IReadOnlyList<string>? _charsheetSkills;
     private DateTimeOffset _charsheetSkillsAt;

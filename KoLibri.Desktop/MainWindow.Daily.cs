@@ -174,7 +174,7 @@ public partial class MainWindow
     {
         using var http = KoLLoginClient.CreateAuthenticatedClient(
             account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var readClient = new KoLAccountReadClient(http);
+        var readClient = new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true };
         var doneStore = new KoLibri.Core.Spiel.DailyDoneStore();
         var live = await new LiveDailySnapshotBuilder(readClient, doneStore)
             .BuildAsync(new KoLibri.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
