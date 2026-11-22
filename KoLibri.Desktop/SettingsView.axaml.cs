@@ -26,15 +26,16 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
     private string _status = "";
 
     public SettingsViewModel(DesktopSettingsStore store, Func<string, string?>? env = null, string? agentRightsNote = null,
-        Func<string, IReadOnlyList<(string Id, string Name)>>? itemLookup = null)
+        Func<string, IReadOnlyList<(string Id, string Name)>>? itemLookup = null,
+        KoLibri.Core.Spiel.ItemClassifier? classifier = null)
     {
         _store = store;
         _env = env ?? Environment.GetEnvironmentVariable;
         Settings = store.Load();
         AgentRightsNote = agentRightsNote ?? "Agent rights are granted on the consent page of the MCP server and shown there; see docs/mcp-access.md.";
         Save = new RelayCommand(DoSave);
-        Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup);
-        Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup);
+        Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup, classifier, KoLibri.Core.Spiel.ItemOrgan.Drink);
+        Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup, classifier, KoLibri.Core.Spiel.ItemOrgan.Spleen);
     }
 
     public ConsumableListEditor Booze { get; }
@@ -99,6 +100,10 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     private void DoSave()
     {
+        // The Daily tab owns the skipped steps and saves them on its own; take the stored list so saving the
+        // settings never writes this page's older copy over a skip made since it was opened.
+        try { Settings.SkippedSteps = new Dictionary<string, string>(_store.Load().SkippedSteps); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* the save below reports it */ }
         try { _store.Save(Settings); Status = "Saved. Request intervals apply after a restart."; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Status = "Could not save: " + e.Message; }
     }
@@ -123,10 +128,16 @@ public sealed class ConsumableListEditor : INotifyPropertyChanged
     private string _message = "";
     private DailyConsumable? _selected;
 
-    public ConsumableListEditor(List<DailyConsumable> list, Func<string, IReadOnlyList<(string Id, string Name)>>? lookup = null)
+    private readonly KoLibri.Core.Spiel.ItemClassifier? _classifier;
+    private readonly KoLibri.Core.Spiel.ItemOrgan _organ;
+
+    public ConsumableListEditor(List<DailyConsumable> list, Func<string, IReadOnlyList<(string Id, string Name)>>? lookup = null,
+        KoLibri.Core.Spiel.ItemClassifier? classifier = null, KoLibri.Core.Spiel.ItemOrgan organ = KoLibri.Core.Spiel.ItemOrgan.None)
     {
         _list = list;
         _lookup = lookup;
+        _classifier = classifier;
+        _organ = organ;
         Items = new System.Collections.ObjectModel.ObservableCollection<DailyConsumable>(list);
         Add = new RelayCommandImpl(DoAdd);
         Remove = new RelayCommandImpl(DoRemove);
@@ -163,6 +174,7 @@ public sealed class ConsumableListEditor : INotifyPropertyChanged
             if (!int.TryParse(found[0].Id, out id)) { Message = "That item has no numeric id."; return; }
             name = found[0].Name;
         }
+        if (Validate(id) is { } problem) { Message = problem; return; }
         if (!DesktopSettings.AddConsumable(_list, id, name, (int)Quantity))
         {
             Message = $"The list is full ({DesktopSettings.MaxConsumableEntries} entries).";
@@ -171,6 +183,21 @@ public sealed class ConsumableListEditor : INotifyPropertyChanged
         Sync();
         Item = "";
         Message = "Added. Press Save to keep the list.";
+    }
+
+    /// <summary>Null when the id may be saved in this list: the catalog must know it with the right organ
+    /// (the Lucky Surprise Egg is food and can never be saved as booze or a spleen item).</summary>
+    public string? Validate(int id)
+    {
+        if (_organ == KoLibri.Core.Spiel.ItemOrgan.None) return null;
+        var label = _organ == KoLibri.Core.Spiel.ItemOrgan.Drink ? "booze" : "spleen item";
+        if (id == DailyStepBoard.LuckySurpriseEggItemId)
+            return "The Lucky Surprise Egg is food; it is eaten by its own daily step and cannot be saved as " + label + ".";
+        if (_classifier is null) return null;
+        var c = _classifier.Classify(id);
+        if (!c.Known) return $"Item {id} is not in the item catalog, so it cannot be saved as {label}.";
+        if (c.Organ != _organ) return $"{c.Name} is not a {label} in the catalog.";
+        return null;
     }
 
     private void DoRemove()

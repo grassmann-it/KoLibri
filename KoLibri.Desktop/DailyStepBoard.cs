@@ -34,6 +34,14 @@ public static class DailyStepBoard
     public const int KnucklebonesItemId = 12051;
     public const int LuckySurpriseEggItemId = 995;
 
+    /// <summary>The current KoL day (rollover 03:30 US Eastern) as a date; skips and other daily markers share it.</summary>
+    public static DateOnly KolToday(DateTimeOffset? now = null)
+        => DateOnly.ParseExact(DailyDoneStore.KolDay(now ?? DateTimeOffset.UtcNow), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>The one set of planner options for the knucklebone target, used by the Daily and Adventures views.</summary>
+    public static AdventurePlannerOptions PlannerOptions(DesktopSettings settings)
+        => new() { DailyKnucklebonesTarget = (int)settings.Get("dailyKnucklebonesTarget") };
+
     public static IReadOnlyList<DailyStepRow> Build(LiveDailySnapshot live, DesktopSettings settings, DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(live);
@@ -55,7 +63,7 @@ public static class DailyStepBoard
                 LuckySurpriseEggs = Count(LuckySurpriseEggItemId),
             },
             today,
-            new AdventurePlannerOptions { DailyKnucklebonesTarget = target });
+            PlannerOptions(settings));
         var adventureDetail = $"Knucklebones {bones:N0} / {target:N0} · {live.Adventures:N0} adventures";
         rows.Add(bones >= target
             ? new(DailyStepKind.Adventures, "Adventure target", adventureDetail + " · target reached", "done", "Plan", true)
@@ -135,7 +143,7 @@ public static class DailyStepBoard
         KoLibri.Core.Basis.KoLHtmlResponseException { Kind: KoLibri.Core.Basis.KoLHtmlResponseKind.LoginPage }
             => $"{step}: the session expired. Log in again, then retry.",
         OperationCanceledException => $"{step}: cancelled.",
-        HttpRequestException h => $"{step}: could not reach Kingdom of Loathing ({h.Message}). Nothing was changed by this failure; refresh before retrying.",
+        HttpRequestException h => $"{step}: the request to Kingdom of Loathing failed ({h.Message}). If it was already sent the action may have happened: refresh before retrying.",
         InvalidOperationException i => $"{step}: {i.Message}",
         _ => $"{step}: {exception.Message}"
     };

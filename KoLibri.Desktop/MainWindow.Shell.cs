@@ -34,7 +34,8 @@ public partial class MainWindow
                 expander.Header = _log.Summary;
         };
 
-        var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems);
+        var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems,
+            classifier: _catalog is null ? null : new KoLibri.Core.Spiel.ItemClassifier(_catalog));
         model.PropertyChanged += (_, args) =>
         {
             // The settings model reports a saved state through Status.

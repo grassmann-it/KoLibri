@@ -31,6 +31,9 @@ public sealed record ItemClassification
     public ItemOrgan Organ { get; init; }
     /// <summary>Null for non-organ items, and for organ items upstream has no cost row for.</summary>
     public ItemOrganCost? OrganCost { get; init; }
+    /// <summary>Every organ cost row the catalog has for this item (an item can cost fullness and inebriety,
+    /// and an item that is only "usable" can still carry one). Empty when none is known.</summary>
+    public IReadOnlyList<ItemOrganCost> OrganCosts { get; init; } = Array.Empty<ItemOrganCost>();
     /// <summary>"Use" action applies (not food/drink/spleen, not equipment).</summary>
     public bool IsUsable { get; init; }
     public bool IsReusable { get; init; }
@@ -39,6 +42,11 @@ public sealed record ItemClassification
     public ItemEquipSlot Slot { get; init; }
     public bool IsFamiliarEquipment => Slot == ItemEquipSlot.Familiar;
     public ItemEquipRequirement Requirement { get; init; } = ItemEquipRequirement.Unknown;
+    /// <summary>Catalog weapon type such as "1-handed club"; null when unknown or not a weapon.</summary>
+    public string? WeaponType { get; init; }
+    /// <summary>A one-handed weapon, which can also go into the offhand slot with Dual Wield.</summary>
+    public bool IsOneHandedWeapon => Slot == ItemEquipSlot.Weapon
+        && WeaponType?.StartsWith("1-handed", StringComparison.OrdinalIgnoreCase) == true;
     public bool IsQuest { get; init; }
     public bool IsGiftable { get; init; }
     public bool IsTradeable { get; init; }
@@ -130,6 +138,12 @@ public sealed class ItemClassifier
             cost = new ItemOrganCost(organ, row.Size, row.LevelRequired, row.Quality,
                 row.AdventuresMin, row.AdventuresMax, row.Unspaded);
 
+        var allCosts = new List<ItemOrganCost>();
+        foreach (var kind in new[] { ItemOrgan.Food, ItemOrgan.Drink, ItemOrgan.Spleen })
+            if (organs.TryGetValue(item.Id + "|" + kind.ToString().ToLowerInvariant(), out var costRow))
+                allCosts.Add(new ItemOrganCost(kind, costRow.Size, costRow.LevelRequired, costRow.Quality,
+                    costRow.AdventuresMin, costRow.AdventuresMax, costRow.Unspaded));
+
         var slot = primary.Contains("hat") ? ItemEquipSlot.Hat
             : primary.Contains("shirt") ? ItemEquipSlot.Shirt
             : primary.Contains("pants") ? ItemEquipSlot.Pants
@@ -154,12 +168,14 @@ public sealed class ItemClassifier
             Name = item.Name,
             Organ = organ,
             OrganCost = cost,
+            OrganCosts = allCosts,
             IsUsable = organ == ItemOrgan.None && slot == ItemEquipSlot.None && IsUsableByUseTags(primary, secondary),
             IsReusable = secondary.Any(t => t is "reusable" or "combat reusable"),
             IsMultiple = secondary.Contains("multiple"),
             IsCombatItem = isCombat,
             Slot = slot,
             Requirement = requirement,
+            WeaponType = slot == ItemEquipSlot.Weapon && equipment.TryGetValue(item.Id, out var weaponRow) ? weaponRow.WeaponType : null,
             IsQuest = flags.Contains("q"),
             IsGiftable = flags.Contains("g"),
             IsTradeable = flags.Contains("t"),

@@ -480,8 +480,10 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
 
     private Task RunBusyOperationAsync(string operation, Func<CancellationToken, Task> action)
     {
+        // A second request while one runs is refused (BusyBlocked says so in the status bar and the log);
+        // it must never share the running task, or its action would silently be dropped as "done".
         if (BusyBlocked())
-            return _busyTask;
+            return Task.CompletedTask;
 
         _busyTask = ExecuteBusyOperationAsync(operation, action);
         return _busyTask;
@@ -559,7 +561,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
         {
             _adventureTurnsLabel.Text = "—";
-            _adventureKnucklebonesLabel.Text = "— / 100";
+            _adventureKnucklebonesLabel.Text = $"— / {(int)_settings.Get("dailyKnucklebonesTarget"):N0}";
             _adventurePlanSummary.Text = $"Sign {role} in under Settings → Accounts first.";
             _adventurePlanAdvisories.Text = "No session snapshot available.";
             SetStatus($"Sign in as {role} under Settings → Accounts to load the farm plan.");
@@ -587,7 +589,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             .Where(item => item.ItemId == "12051")
             .Sum(item => item.Quantity);
         _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
-        _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / 100";
+        _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / {(int)_settings.Get("dailyKnucklebonesTarget"):N0}";
         var state = new KoLibri.Core.Spiel.AdventureState
         {
             IsStale = status.IsStale || inventory.IsStale,
@@ -595,7 +597,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
         };
-        var plan = new KoLibri.Core.Spiel.DailyAdventurePlanner().Plan(state);
+        var plan = new KoLibri.Core.Spiel.DailyAdventurePlanner().Plan(
+            state, DailyStepBoard.KolToday(), DailyStepBoard.PlannerOptions(_settings));
         _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} step(s), projected {plan.ProjectedKnucklebones:N1} knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
             ? "No warnings. Every execution stays bound to approval and verification."
@@ -967,8 +970,9 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
 
     public void InventorySelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_inventoryList?.SelectedItem is DesktopInventoryItem item)
-            _inventory.SelectedItem = item;
+        // A cleared list selection (filtered out, refreshed away) clears the model too, so the detail pane and
+        // its buttons never keep acting on the id of a row that is no longer shown.
+        _inventory.SelectedItem = _inventoryList?.SelectedItem as DesktopInventoryItem;
     }
 
 }

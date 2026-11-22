@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KoLibri.Core.Basis;
 
 namespace KoLibri.Core.Spiel;
 
@@ -36,10 +37,19 @@ public sealed class DailyDoneStore
         return local.AddHours(-3.5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    /// <summary>The marker key for one player: the role plus the player id (or name) the status page reported,
+    /// so a role that is switched to another character does not inherit the old character's markers.
+    /// Without any identity the role alone is used.</summary>
+    public static string AccountKey(AccountRole role, KoLStatusSnapshot? status)
+    {
+        var identity = status?.PlayerId is { Length: > 0 } id ? id : status?.PlayerName;
+        return string.IsNullOrWhiteSpace(identity) ? role.ToString() : $"{role}:{identity.Trim()}";
+    }
+
     public bool IsDone(string account, string action)
     {
         var key = Key(account, action);
-        lock (_gate) return Load().TryGetValue(key, out var day) && day == KolDay(_clock.GetUtcNow());
+        lock (_gate) return Transact(map => map.TryGetValue(key, out var day) && day == KolDay(_clock.GetUtcNow()), write: false);
     }
 
     public void MarkDone(string account, string action)
@@ -47,17 +57,44 @@ public sealed class DailyDoneStore
         var key = Key(account, action);
         var today = KolDay(_clock.GetUtcNow());
         lock (_gate)
-        {
-            var map = Load();
-            foreach (var stale in map.Where(kv => kv.Value != today).Select(kv => kv.Key).ToList())
-                map.Remove(stale);
-            map[key] = today;
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(map));
-        }
+            Transact(map =>
+            {
+                foreach (var stale in map.Where(kv => kv.Value != today).Select(kv => kv.Key).ToList())
+                    map.Remove(stale);
+                map[key] = today;
+                return true;
+            }, write: true);
     }
 
     private static string Key(string account, string action) => $"{account.ToLowerInvariant()}|{action}";
+
+    /// <summary>Reads, changes and writes the marker file as one step that is serialized across processes
+    /// (an exclusive lock file) and replaces the file atomically, so concurrent CLI/MCP/Desktop writers cannot
+    /// overwrite each other's markers.</summary>
+    private T Transact<T>(Func<Dictionary<string, string>, T> body, bool write)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
+        using var gate = AcquireLock();
+        var map = Load();
+        var result = body(map);
+        if (write)
+        {
+            var temp = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(map));
+            File.Move(temp, _path, overwrite: true);
+        }
+        return result;
+    }
+
+    private FileStream? AcquireLock()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            try { return new FileStream(_path + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) when (DateTime.UtcNow < deadline) { Thread.Sleep(25); }
+        }
+    }
 
     private Dictionary<string, string> Load()
     {

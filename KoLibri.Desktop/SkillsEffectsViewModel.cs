@@ -20,8 +20,10 @@ public sealed record SkillCastReport(bool Confirmed, string Message, int? HpChan
         int? hp = fresh ? outcome.After.Status.CurrentHp - outcome.Before.Status.CurrentHp : null;
         int? mp = fresh ? outcome.After.Status.CurrentMp - outcome.Before.Status.CurrentMp : null;
         if (!outcome.Confirmed)
-            return new(false, $"{skill.Name} ×{times}: {outcome.Problem ?? "not confirmed."}", hp, mp);
-        return new(true, $"Cast {skill.Name} ×{times}. {Delta("HP", hp)}, {Delta("MP", mp)}.", hp, mp);
+            return new(false, outcome.ConfirmedCount > 0
+                ? $"{skill.Name}: {outcome.ConfirmedCount} of {times} cast(s) confirmed. {outcome.Problem ?? "The rest is not confirmed."} {Delta("HP", hp)}, {Delta("MP", mp)}."
+                : $"{skill.Name} ×{times}: {outcome.Problem ?? "not confirmed."}", hp, mp);
+        return new(true, $"Cast {skill.Name} ×{outcome.ConfirmedCount} (each confirmed). {Delta("HP", hp)}, {Delta("MP", mp)}.", hp, mp);
     }
 
     private static string Delta(string label, int? value)
@@ -60,10 +62,9 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
     public ObservableCollection<SkillRow> Skills { get; }
     public ObservableCollection<EffectRow> Effects { get; }
 
-    /// <summary>Castable catalog skills: passive and combat-only ones are left out.</summary>
+    /// <summary>Skills castable outside a fight, from the catalog tags (passive and combat-only skills are left out).</summary>
     public static IEnumerable<SkillRow> FromCatalog(IEnumerable<MafiaSkillRecord> records)
-        => records.Where(r => r.Name.Length > 0 && char.IsLetterOrDigit(r.Name[0]) && !r.Type.Equals("passive", StringComparison.OrdinalIgnoreCase)
-                              && !r.Type.Equals("combat", StringComparison.OrdinalIgnoreCase))
+        => records.Where(r => r.Name.Length > 0 && r.UsableOutsideCombat)
             .Select(r => new SkillRow(r.Id, r.Name, r.MpCost, r.Type));
 
     public string Filter

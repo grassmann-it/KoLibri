@@ -348,6 +348,81 @@ public sealed class CharacterActionClientTests
         Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post);
     }
 
+    [Fact]
+    public async Task Cast_series_confirms_each_cast_and_reports_how_many_really_took_effect()
+    {
+        // Three casts requested; only the first one changes MP, the second does nothing visible.
+        using var handler = new RecordingHandler(new[]
+        {
+            St(40, 50, 10), "{}", St(40, 40, 10), "{}", St(40, 40, 10), "{}"
+        }, new[] { "<p>ok</p>", "<p>Nothing special happens.</p>" });
+        var outcome = await Client(handler, out var http).CastAsync(7185, 3);
+        http.Dispose();
+        Assert.False(outcome.Confirmed);
+        Assert.Equal(1, outcome.ConfirmedCount);
+        Assert.Equal(3, outcome.Requested);
+        Assert.Contains("Confirmed 1 of 3", outcome.Problem);
+        Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
+        Assert.All(handler.Requests.Where(r => r.Method == HttpMethod.Post), r => Assert.Contains("quantity=1", r.Body));
+    }
+
+    [Fact]
+    public async Task Cast_series_with_every_cast_confirmed_returns_the_full_count()
+    {
+        using var handler = new RecordingHandler(new[]
+        {
+            St(40, 50, 10), "{}", St(40, 40, 10), "{}", St(40, 30, 10), "{}"
+        }, new[] { "<p>ok</p>", "<p>ok</p>" });
+        var outcome = await Client(handler, out var http).CastAsync(7185, 2);
+        http.Dispose();
+        Assert.True(outcome.Confirmed);
+        Assert.Equal(2, outcome.ConfirmedCount);
+    }
+
+    [Fact]
+    public async Task Free_rest_at_full_hp_and_mp_is_confirmed_by_the_rest_answer_not_counted_as_zero()
+    {
+        using var handler = new RecordingHandler(new[] { St(50, 50, 20), "{}", St(50, 50, 20), "{}" },
+            new[] { "<p>You rest in your tent. You have 4 free rests remaining.</p>" });
+        var outcome = await Client(handler, out var http).RestAsync(1);
+        http.Dispose();
+        Assert.Single(outcome.Rests);
+        Assert.Null(outcome.Problem);
+    }
+
+    [Fact]
+    public async Task A_use_form_rejected_with_a_normal_page_is_a_rejection()
+    {
+        using var handler = new RecordingHandler(new[] { St(10, 10, 10), "{}" },
+            new[] { "<p>You can't use that right now.</p>" });
+        var result = await Client(handler, out var http).ExecuteAsync(new UseInventoryItem(123));
+        http.Dispose();
+        Assert.NotNull(result.RejectionReason);
+    }
+
+    [Fact]
+    public async Task Failure_of_the_follow_up_read_after_the_post_is_reported_as_outcome_unknown()
+    {
+        using var handler = new PostThenFailHandler();
+        using var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri("https://fixture.test/") };
+        var client = new CharacterActionClient(http, "fixture-pwd", new KoLSecurityPolicy { AllowedHosts = new[] { "fixture.test" } });
+        var exception = await Assert.ThrowsAsync<CharacterActionOutcomeUnknownException>(
+            () => client.ExecuteAsync(new ConsumeCharacterItem(123, CharacterConsumableKind.Food)));
+        Assert.Contains("may have happened", exception.Message);
+        Assert.Equal(1, handler.Posts);
+    }
+
+    private sealed class PostThenFailHandler : HttpMessageHandler
+    {
+        public int Posts { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            if (request.Method != HttpMethod.Post) throw new HttpRequestException("connection reset");
+            Posts++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request, Content = new StringContent("You eat it.") });
+        }
+    }
+
     private sealed class RecordingHandler(
         IReadOnlyList<string>? observations = null, IReadOnlyList<string>? posts = null) : HttpMessageHandler
     {

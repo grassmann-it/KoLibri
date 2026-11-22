@@ -42,7 +42,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         _role = role;
         _provider = provider ?? new DesktopLiveDataProvider();
         _settings = settings ?? (() => new DesktopSettings());
-        _today = today ?? (() => DateOnly.FromDateTime(DateTime.Now));
+        _today = today ?? (() => DailyStepBoard.KolToday());
     }
 
     /// <summary>The per-account step list (adventure target, egg, rests, booze, spleen, clover check).</summary>

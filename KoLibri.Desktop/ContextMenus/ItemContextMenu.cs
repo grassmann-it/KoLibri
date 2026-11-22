@@ -9,7 +9,7 @@ public sealed record ItemMenuTarget(
     IReadOnlyList<string>? EquipSlots = null,
     bool CanCloset = true);
 
-/// <summary>Real item actions a tab supplies. Without one the menu entries are "not implemented yet" placeholders.</summary>
+/// <summary>Real item actions a tab supplies. Closet and Info only appear when the tab wires them.</summary>
 public interface IItemMenuActions
 {
     /// <summary>Eat, drink, chew or use <paramref name="quantity"/> of the item (through the shell's gates and confirmations).</summary>
@@ -17,6 +17,14 @@ public interface IItemMenuActions
 
     /// <summary>Equip the item to the named slot ("Familiar" for familiar equipment).</summary>
     void Equip(ItemMenuTarget item, string slot);
+
+    /// <summary>True when <see cref="MoveToCloset"/> is wired; otherwise the Closet entry is hidden.</summary>
+    bool SupportsCloset => false;
+    void MoveToCloset(ItemMenuTarget item) { }
+
+    /// <summary>True when <see cref="ShowInfo"/> is wired; otherwise the Info entry is hidden.</summary>
+    bool SupportsInfo => false;
+    void ShowInfo(ItemMenuTarget item) { }
 }
 
 /// <summary>Item rows: use with quantity, equip to slot, closet, mall search, info, wiki and copy.</summary>
@@ -43,11 +51,12 @@ public sealed class ItemContextMenu(IShellHost host, IItemMenuActions? actions =
                 slot, actions is null
                     ? MenuActions.NotImplemented(host, $"Equip {item.Name} to {slot}")
                     : () => actions.Equip(item, slot))).ToArray()));
-        if (item.CanCloset)
-            items.Add(ContextMenuItem.Action("Closet", MenuActions.NotImplemented(host, $"Closet {item.Name}")));
+        if (item.CanCloset && actions is { SupportsCloset: true })
+            items.Add(ContextMenuItem.Action("Closet", () => actions.MoveToCloset(item)));
         if (items.Count > 0) items.Add(ContextMenuItem.Separator);
         items.Add(ContextMenuItem.Action("Mallsearch", MenuActions.SearchMall(host, item.Name)));
-        items.Add(ContextMenuItem.Action("Info", MenuActions.NotImplemented(host, $"Info {item.Name}")));
+        if (actions is { SupportsInfo: true })
+            items.Add(ContextMenuItem.Action("Info", () => actions.ShowInfo(item)));
         items.Add(ContextMenuItem.Action("Wiki", MenuActions.Wiki(host, item.Name)));
         items.Add(ContextMenuItem.Separator);
         items.Add(ContextMenuItem.Action("Copy name", MenuActions.Copy(host, item.Name, "item name")));

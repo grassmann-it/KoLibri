@@ -161,7 +161,7 @@ public sealed class DailyStepBoardTests : IDisposable
     public void Errors_are_one_readable_sentence()
     {
         var text = DailyStepBoard.ReadableError("Booze", new HttpRequestException("boom"));
-        Assert.StartsWith("Booze: could not reach Kingdom of Loathing", text);
+        Assert.StartsWith("Booze: the request to Kingdom of Loathing failed", text);
         Assert.Contains("session expired", DailyStepBoard.ReadableError("Booze",
             new KoLHtmlResponseException(KoLHtmlResponseKind.LoginPage, "login page")));
     }
