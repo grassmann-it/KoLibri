@@ -44,4 +44,50 @@ public sealed class AgentGuardTests
     [Fact]
     public void The_users_own_switch_lets_scripts_write()
         => Assert.Null(Run(["daily-go", "--execute"], ClaudeEnv, redirected: true, allowed: true, answer: null, out _));
+
+    [Theory]
+    [InlineData("relay", "--role", "main")]
+    [InlineData("cast", "--skill", "7185", "--execute")]
+    [InlineData("consume", "--item", "1", "--execute")]
+    [InlineData("rest", "--execute")]
+    [InlineData("adventure", "run", "--execute")]
+    [InlineData("adventure", "choice-chain", "--execute")]
+    public void New_write_capable_commands_need_a_terminal_yes_under_an_agent(params string[] args)
+    {
+        Assert.Equal(3, Run(args, ClaudeEnv, redirected: true, allowed: false, answer: null, out _));
+        Assert.Equal(3, Run(args, ClaudeEnv, redirected: true, allowed: false, answer: false, out _));
+        Assert.Null(Run(args, ClaudeEnv, redirected: true, allowed: false, answer: true, out _));
+    }
+
+    [Fact]
+    public void Previews_of_cast_consume_rest_are_not_writes()
+    {
+        Assert.False(AgentGuard.IsWrite(["cast", "--skill", "7185"]));
+        Assert.False(AgentGuard.IsWrite(["rest"]));
+    }
+
+    [Fact]
+    public void A_preview_never_purchases()
+    {
+        Assert.False(AgentGuard.MayPurchase(execute: false, tokenValid: true));
+        Assert.False(AgentGuard.MayPurchase(execute: true, tokenValid: false));
+        Assert.True(AgentGuard.MayPurchase(execute: true, tokenValid: true));
+    }
+
+    [Fact]
+    public async Task Invalid_or_missing_approval_token_is_rejected_before_any_http()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "kolibri-guard-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new KoLibri.Core.Basis.ApprovalTokenStore(dir);
+            Assert.False(await AgentGuard.ApprovalTokenValidAsync("anything", store)); // no stored token
+            await store.SaveAsync(new KoLibri.Core.Basis.ApprovalToken("secret-token", DateTimeOffset.UtcNow));
+            Assert.False(await AgentGuard.ApprovalTokenValidAsync("wrong", store));
+            Assert.False(await AgentGuard.ApprovalTokenValidAsync("  ", store));
+            Assert.False(await AgentGuard.ApprovalTokenValidAsync(null, store));
+            Assert.True(await AgentGuard.ApprovalTokenValidAsync("secret-token", store));
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+    }
 }

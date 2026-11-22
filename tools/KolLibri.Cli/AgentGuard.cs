@@ -11,6 +11,9 @@ internal static class AgentGuard
 {
     private static readonly string[] WriteFlags = ["--execute", "--commit", "--sell"];
 
+    /// <summary>Commands that change the game even without a write flag.</summary>
+    private static readonly string[] AlwaysWriteCommands = ["relay"];
+
     /// <summary>Environment variables set by known AI harnesses.</summary>
     private static readonly string[] AgentVariables =
     [
@@ -22,7 +25,27 @@ internal static class AgentGuard
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "agent-mode.json");
 
     public static bool IsWrite(string[] args)
-        => args.Any(a => WriteFlags.Contains(a, StringComparer.OrdinalIgnoreCase));
+        => args.Any(a => WriteFlags.Contains(a, StringComparer.OrdinalIgnoreCase))
+           || (args.Length > 0 && AlwaysWriteCommands.Contains(args[0], StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// True only when <paramref name="supplied"/> equals the token stored in the user's approval-token file.
+    /// Nothing is sent over HTTP before this passes.
+    /// </summary>
+    public static async Task<bool> ApprovalTokenValidAsync(string? supplied, KoLibri.Core.Basis.ApprovalTokenStore? store = null)
+    {
+        if (string.IsNullOrWhiteSpace(supplied)) return false;
+        using var own = store is null
+            ? new KoLibri.Core.Basis.ApprovalTokenStore(KoLibri.Core.Basis.ApprovalTokenStore.DefaultRoot())
+            : null;
+        var stored = await (store ?? own!).LoadAsync().ConfigureAwait(false);
+        if (stored is null || string.IsNullOrWhiteSpace(stored.Token)) return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.UTF8.GetBytes(supplied), System.Text.Encoding.UTF8.GetBytes(stored.Token));
+    }
+
+    /// <summary>A purchase may only happen with --execute and a valid token; previews never buy.</summary>
+    public static bool MayPurchase(bool execute, bool tokenValid) => execute && tokenValid;
 
     public static bool LooksLikeAgent(Func<string, string?> env, bool stdinRedirected, bool stdoutRedirected)
         => AgentVariables.Any(v => !string.IsNullOrEmpty(env(v))) || (stdinRedirected && stdoutRedirected);
