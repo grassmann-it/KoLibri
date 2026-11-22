@@ -485,7 +485,7 @@ public partial class MainWindow
 
     internal static string DescribeVerifiedRest(CharacterRestOutcome outcome, KoLStatusSnapshot before, KoLStatusSnapshot after)
     {
-        var adv = $"adventures used: {outcome.AdventuresSpent}";
+        var adv = outcome.AdventuresSpentUnknown ? "adventures used: unknown" : $"adventures used: {outcome.AdventuresSpent}";
         if (outcome.Rests.Count == 1 && outcome.Problem is null)
             return $"Rest confirmed: HP {after.CurrentHp}/{after.MaximumHp}, MP {after.CurrentMp}/{after.MaximumMp} ({adv}).";
         return $"Rest not confirmed: {outcome.Problem ?? "no observed change"} ({adv}).{(outcome.Unclear ? " Check the account before resting again." : "")}";
