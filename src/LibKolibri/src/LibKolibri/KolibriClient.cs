@@ -259,28 +259,24 @@ public sealed class KolibriClient : IDisposable
         return (consumed, rejection);
     }
 
-    /// <summary>Rests at the campground <paramref name="times"/> times; returns HP and MP after each rest.</summary>
-    public async Task<IReadOnlyList<(int Hp, int Mp)>> RestAsync(int times, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Rests at the campground up to <paramref name="times"/> times. Refused or unconfirmed rests are not
+    /// counted; <c>Problem</c> says why the series ended early.
+    /// </summary>
+    public async Task<CharacterRestOutcome> RestAsync(int times, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
         var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
-        var seen = new List<(int, int)>();
-        for (var i = 0; i < times; i++)
-        {
-            var result = await actions.ExecuteAsync(new RestAtCampground(), cancellationToken).ConfigureAwait(false);
-            seen.Add((result.Status.CurrentHp, result.Status.CurrentMp));
-            if (result.RejectionReason is not null) break;
-        }
-        return seen;
+        return await actions.RestAsync(times, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Casts a skill <paramref name="times"/> times in one request (e.g. Soul Food, id 7185). Returns HP/MP after and KoL's refusal, if any.</summary>
+    /// <summary>Casts a skill <paramref name="times"/> times in one request (e.g. Soul Food, id 7185). Returns HP/MP after; Rejection is set when KoL refused or the effect is unconfirmed.</summary>
     public async Task<(int Hp, int Mp, string? Rejection, string? Page)> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
         var actions = await OpenCharacterActionsAsync(cancellationToken).ConfigureAwait(false);
-        var result = await actions.ExecuteAsync(new CastCharacterSkill(skillId, times), cancellationToken).ConfigureAwait(false);
-        return (result.Status.CurrentHp, result.Status.CurrentMp, result.RejectionReason, result.ResponseExcerpt);
+        var o = await actions.CastAsync(skillId, times, cancellationToken).ConfigureAwait(false);
+        return (o.After.Status.CurrentHp, o.After.Status.CurrentMp, o.Problem, o.After.ResponseExcerpt);
     }
 
     /// <summary>Changes prices in the account's own mall store. Without <paramref name="commit"/> only checks.</summary>

@@ -26,7 +26,8 @@ public interface IAccountActions
     Task<(int Used, string? Rejection)> UseItemAsync(AccountRole role, int itemId, int quantity, CancellationToken ct);
     Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct);
     Task<(int Consumed, string? Rejection)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct);
-    Task<int> RestAsync(AccountRole role, int times, CancellationToken ct);
+    /// <summary>Rests; Done counts only rests with an observed effect, AdventuresSpent is what KoL charged.</summary>
+    Task<(int Done, int AdventuresSpent, string? Problem)> RestAsync(AccountRole role, int times, CancellationToken ct);
     Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct);
     Task<IReadOnlyList<BuyerSummary>> BuyersAsync(int minPoints, int limit, CancellationToken ct);
     Task<BuyerSummary?> BuyerAsync(string buyerKey, CancellationToken ct);
@@ -88,10 +89,11 @@ public sealed partial class KolibriClientActions : IAccountActions
         return await client.ConsumeAsync(itemId, k, quantity, ct).ConfigureAwait(false);
     }
 
-    public async Task<int> RestAsync(AccountRole role, int times, CancellationToken ct)
+    public async Task<(int, int, string?)> RestAsync(AccountRole role, int times, CancellationToken ct)
     {
         using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        return (await client.RestAsync(times, ct).ConfigureAwait(false)).Count;
+        var o = await client.RestAsync(times, ct).ConfigureAwait(false);
+        return (o.Rests.Count, o.AdventuresSpent, o.Problem);
     }
 
     public async Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct)
@@ -147,7 +149,7 @@ public partial class KolibriMcpServer
             (a, ct) => ConsumeAsync(gate, actions, a, ct));
 
         Register("kol_rest",
-            "Rest at the campground 1..20 times (free rests restore HP and MP). Two-step. Needs right 'item.use'.",
+            "Rest at the campground 1..20 times. A rest can cost adventures and no free-rest state is readable, so it needs rights 'item.use' and 'adventure' (each rest is booked against both). Refused or unconfirmed rests are not counted. Two-step.",
             Sch("""{"type":"object","additionalProperties":false,"properties":{@ROLE@,"times":{"type":"integer","minimum":1,"maximum":20},@PLAN@}}"""),
             (a, ct) => RestAsync(gate, actions, a, ct));
 
@@ -358,7 +360,7 @@ public partial class KolibriMcpServer
             {
                 var (consumed, rejection) = await actions.ConsumeAsync(role, itemId, kind, quantity, ct).ConfigureAwait(false);
                 held[0].Commit(consumed, $"{kind} item {itemId}");
-                return new { preview = false, itemId, kind, requested = quantity, consumed, rejection };
+                return new { preview = false, itemId, kind, requested = quantity, consumed, complete = consumed == quantity, rejection };
             }).ConfigureAwait(false);
     }
 
@@ -368,13 +370,14 @@ public partial class KolibriMcpServer
         var times = NullableIntProperty(args, "times") ?? 1;
         if (times is < 1 or > 20) throw new McpInvalidParamsException("times must be 1..20.");
 
-        return await TwoStepAsync(gate, args, "kol_rest", [new AccessRequest("item.use", role.ToString(), times)],
-            () => Task.FromResult<object>(new { role = role.ToString(), times }),
+        return await TwoStepAsync(gate, args, "kol_rest", [new AccessRequest("item.use", role.ToString(), times), new AccessRequest(Rights.Adventure, role.ToString(), times)],
+            () => Task.FromResult<object>(new { role = role.ToString(), times, note = "Resting may cost adventures; both rights are reserved for the worst case." }),
             async held =>
             {
-                var done = await actions.RestAsync(role, times, ct).ConfigureAwait(false);
+                var (done, spent, problem) = await actions.RestAsync(role, times, ct).ConfigureAwait(false);
                 held[0].Commit(done, "rest");
-                return new { preview = false, requested = times, rested = done };
+                held[1].Commit(spent, "rest");
+                return new { preview = false, requested = times, rested = done, adventuresSpent = spent, complete = done == times && problem is null, problem };
             }).ConfigureAwait(false);
     }
 

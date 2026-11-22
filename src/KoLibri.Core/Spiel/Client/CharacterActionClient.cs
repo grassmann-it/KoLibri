@@ -48,6 +48,14 @@ public sealed record CharacterActionSnapshot(KoLStatusSnapshot Status, KoLInvent
     public string? ResponseExcerpt { get; init; }
 }
 
+/// <summary>Outcome of one cast: <see cref="Problem"/> is null only when KoL's answer or the changed MP/HP confirm it.</summary>
+public sealed record CharacterCastOutcome(
+    CharacterActionSnapshot Before, CharacterActionSnapshot After, bool Confirmed, string? Problem);
+
+/// <summary>Outcome of a rest series. Only rests with an observed effect are in <see cref="Rests"/>.</summary>
+public sealed record CharacterRestOutcome(
+    IReadOnlyList<(int Hp, int Mp)> Rests, int AdventuresSpent, string? Problem);
+
 /// <summary>Submits one explicit character action and returns fresh account observations.</summary>
 public sealed class CharacterActionClient
 {
@@ -122,10 +130,72 @@ public sealed class CharacterActionClient
             ConsumeCharacterItem { Kind: CharacterConsumableKind.Spleen }
                 when response.Contains("rupture", StringComparison.OrdinalIgnoreCase)
                 => "KoL refused the item because it would exceed your spleen limit.",
+            CastCharacterSkill when System.Text.RegularExpressions.Regex.IsMatch(response,
+                @"(?i)(don't|do not|doesn't) have enough (mana|mp|soulsauce|soul sauce)|not enough (mana|mp|soulsauce|soul sauce)")
+                => "KoL refused the cast: not enough mana or soulsauce.",
+            CastCharacterSkill when response.Contains("You can't cast", StringComparison.OrdinalIgnoreCase)
+                || response.Contains("don't have that skill", StringComparison.OrdinalIgnoreCase)
+                => "KoL refused the cast: the skill is not castable right now.",
+            RestAtCampground when System.Text.RegularExpressions.Regex.IsMatch(response,
+                @"(?i)(don't|do not) have (enough|any) adventures|no (more )?free rests|can't rest")
+                => "KoL refused the rest (no adventures left for a costly rest, or resting is not possible).",
             RequestFriarBlessing when response.Contains("one of those per day", StringComparison.OrdinalIgnoreCase)
                 => "KoL reports that today's Friar blessing has already been used.",
             _ => null
         };
+
+    private static string Excerpt(CharacterActionSnapshot s)
+        => string.IsNullOrWhiteSpace(s.ResponseExcerpt) ? "" : $" KoL said: \"{s.ResponseExcerpt}\"";
+
+    /// <summary>
+    /// Casts a skill and checks the effect: KoL's refusal text, or MP/HP/adventures having changed, or its
+    /// "You gain" / "You acquire an effect" answer. Anything else is reported as unconfirmed with the page excerpt.
+    /// </summary>
+    public async Task<CharacterCastOutcome> CastAsync(int skillId, int times, CancellationToken cancellationToken = default)
+    {
+        var before = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var after = await ExecuteAsync(new CastCharacterSkill(skillId, times), cancellationToken).ConfigureAwait(false);
+        if (after.RejectionReason is { } refused)
+            return new(before, after, false, refused + Excerpt(after));
+        var text = after.ResponseExcerpt ?? "";
+        var said = System.Text.RegularExpressions.Regex.IsMatch(text, @"(?i)you gain|you acquire an effect");
+        var changed = !after.Status.IsStale && !before.Status.IsStale &&
+            (after.Status.CurrentMp != before.Status.CurrentMp || after.Status.CurrentHp != before.Status.CurrentHp
+             || after.Status.Adventures != before.Status.Adventures);
+        return said || changed
+            ? new(before, after, true, null)
+            : new(before, after, false, "KoL did not confirm the cast: MP and HP are unchanged." + Excerpt(after));
+    }
+
+    /// <summary>
+    /// Rests up to <paramref name="times"/> times. A refused rest or one without observable effect (HP, MP and
+    /// adventures unchanged) is not counted and ends the series.
+    /// </summary>
+    public async Task<CharacterRestOutcome> RestAsync(int times, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(times, 1);
+        var current = await ReadAsync(cancellationToken).ConfigureAwait(false);
+        var seen = new List<(int, int)>();
+        var spent = 0;
+        string? problem = null;
+        for (var i = 0; i < times; i++)
+        {
+            var after = await ExecuteAsync(new RestAtCampground(), cancellationToken).ConfigureAwait(false);
+            if (after.RejectionReason is { } refused) { problem = refused + Excerpt(after); break; }
+            var changed = !after.Status.IsStale && !current.Status.IsStale &&
+                (after.Status.CurrentHp != current.Status.CurrentHp || after.Status.CurrentMp != current.Status.CurrentMp
+                 || after.Status.Adventures != current.Status.Adventures);
+            if (!changed)
+            {
+                problem = "KoL did not confirm the rest: HP, MP and adventures are unchanged." + Excerpt(after);
+                break;
+            }
+            spent += Math.Max(0, current.Status.Adventures - after.Status.Adventures);
+            seen.Add((after.Status.CurrentHp, after.Status.CurrentMp));
+            current = after;
+        }
+        return new(seen, spent, problem);
+    }
 
     public async Task<CharacterActionSnapshot> ReadAsync(CancellationToken cancellationToken = default)
     {

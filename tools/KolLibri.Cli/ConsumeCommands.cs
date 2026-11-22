@@ -27,7 +27,7 @@ internal static partial class KolibriCli
         var status = await kol.GetStatusAsync(true);
         var (consumed, rejection) = await kol.ConsumeAsync(item, kind, qty);
         var after = await kol.GetStatusAsync(true);
-        WriteJson(new { command = "consume", executed = true, role = role.ToString(), kind = kind.ToString(), item, requested = qty, consumed, rejection,
+        WriteJson(new { command = "consume", executed = true, role = role.ToString(), kind = kind.ToString(), item, requested = qty, consumed, rejection, complete = consumed == qty,
             before = new { status.Adventures, status.Fullness, status.Inebriety, status.Spleen },
             after = new { after.Adventures, after.Fullness, after.Inebriety, after.Spleen } });
         return consumed == qty ? 0 : 3;
@@ -45,10 +45,12 @@ internal static partial class KolibriCli
             return 0;
         }
         using var kol = await KolibriClient.OpenAsync(role);
-        var rests = await kol.RestAsync(times);
-        WriteJson(new { command = "rest", executed = true, role = role.ToString(), requested = times, done = rests.Count,
-            afterEach = rests.Select(r => new { r.Hp, r.Mp }).ToArray() });
-        return 0;
+        var outcome = await kol.RestAsync(times);
+        var done = outcome.Rests.Count;
+        WriteJson(new { command = "rest", executed = true, role = role.ToString(), requested = times, done,
+            adventuresSpent = outcome.AdventuresSpent, problem = outcome.Problem, complete = done == times,
+            afterEach = outcome.Rests.Select(r => new { r.Hp, r.Mp }).ToArray() });
+        return done == times && outcome.Problem is null ? 0 : 3;
     }
 
     /// <summary>cast --role R --skill ID [--times N] [--execute]  (Soul Food = 7185)</summary>

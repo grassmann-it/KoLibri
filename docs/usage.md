@@ -48,6 +48,14 @@ The assistant is sent to a consent page, you choose which rights it gets (read, 
 and the limits (Meat per day, price ceiling, reserve). Everything outside that is refused. See
 [mcp-access.md](mcp-access.md). Shop analytics and customer rewards use the `shop.read` right.
 
+## Request rate
+
+KoLibri sends at most one request to the game every 2 seconds, counted per process: all accounts and roles
+(Main, Mallbot), every manually followed redirect and every tool inside the process share one limiter. Raise it
+with `KOLIBRI_MIN_REQUEST_INTERVAL_MS` (never below 1000). Separate processes (for example the CLI and the
+desktop app running at once) do not coordinate, so together they can exceed it. Pricegun is a different host with
+its own per-process limiter (2 s, `KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`); cached results send nothing.
+
 ## As a library
 
 ```csharp
