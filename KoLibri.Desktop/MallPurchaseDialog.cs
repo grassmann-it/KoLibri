@@ -34,6 +34,9 @@ public sealed class MallPurchaseDialog : Window
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _quantity.Maximum = Math.Max(1, context.MaxQuantity);
+        _buy.Classes.Add("primary");
+        _check.Classes.Add("secondary");
+        _cancel.Classes.Add("secondary");
 
         var offer = context.Offer;
         var header = new StackPanel { Spacing = 2 };

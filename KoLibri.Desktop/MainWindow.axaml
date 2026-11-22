@@ -83,9 +83,13 @@
             <TextBlock Text="Vitals" Classes="muted" FontSize="10" />
             <TextBlock x:Name="SidebarLevel" Text="Level —" />
             <TextBlock x:Name="SidebarHp" Text="HP —" />
-            <ProgressBar x:Name="SidebarHpBar" Height="6" Minimum="0" Maximum="1" Value="0" />
+            <Border Height="6" CornerRadius="3" ClipToBounds="True" Background="{DynamicResource BorderBrush}">
+              <ProgressBar x:Name="SidebarHpBar" Height="6" MinHeight="6" Minimum="0" Maximum="1" Value="0" Background="Transparent" />
+            </Border>
             <TextBlock x:Name="SidebarMp" Text="MP —" />
-            <ProgressBar x:Name="SidebarMpBar" Height="6" Minimum="0" Maximum="1" Value="0" />
+            <Border Height="6" CornerRadius="3" ClipToBounds="True" Background="{DynamicResource BorderBrush}">
+              <ProgressBar x:Name="SidebarMpBar" Height="6" MinHeight="6" Minimum="0" Maximum="1" Value="0" Background="Transparent" />
+            </Border>
           </StackPanel>
           <Separator />
           <StackPanel Spacing="4">
@@ -119,7 +123,7 @@
                   VerticalScrollBarVisibility="Auto">
       <StackPanel x:Name="ContentRoot"
                   MaxWidth="1100"
-                  HorizontalAlignment="Center"
+                  HorizontalAlignment="Stretch"
                   Margin="{DynamicResource ComfortableContentMargin}"
                   Spacing="12">
         <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
@@ -394,10 +398,10 @@
                     </StackPanel>
                     <WrapPanel>
                       <NumericUpDown x:Name="EncounterBatchTurns" Value="10" Minimum="1" Maximum="100"
-                                     Width="92" AutomationProperties.Name="Adventure turn budget" />
-                      <TextBox x:Name="EncounterBatchItem" Watermark="Stop when owned (item ID)" Width="190" />
-                      <Button x:Name="EncounterBatchStart" Content="Run turns" />
-                      <Button x:Name="EncounterBatchContinue" Content="Continue remaining turns" />
+                                     Width="120" Margin="0,0,6,6" AutomationProperties.Name="Adventure turn budget" />
+                      <TextBox x:Name="EncounterBatchItem" Watermark="Stop when owned (item ID)" Width="230" Margin="0,0,6,6" />
+                      <Button x:Name="EncounterBatchStart" Content="Run turns" Classes="secondary" />
+                      <Button x:Name="EncounterBatchContinue" Content="Continue remaining turns" Classes="secondary" />
                     </WrapPanel>
                   </StackPanel>
                 </Grid>
@@ -966,7 +970,7 @@
 
     <Border x:Name="SessionLogBar" Grid.Row="2" Grid.ColumnSpan="2" Classes="shell-header"
             BorderThickness="0,1,0,0" Padding="14,2">
-      <Expander x:Name="SessionLogExpander" Header="Session log" IsExpanded="False">
+      <Expander x:Name="SessionLogExpander" Header="Session log" IsExpanded="False" HorizontalAlignment="Stretch">
         <Grid RowDefinitions="*,Auto" Margin="0,4,0,4">
           <ListBox x:Name="SessionLogList" MaxHeight="150" AutomationProperties.Name="Session log">
             <ListBox.ItemTemplate>
