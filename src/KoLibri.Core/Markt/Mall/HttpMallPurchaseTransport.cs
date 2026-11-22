@@ -397,7 +397,7 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
                 after,
                 applied
                     ? $"{message ?? "Mall POST outcome was indeterminate."} Fresh read shows the purchase applied."
-                    : $"{message ?? "Mall POST outcome was indeterminate."} Fresh read did not show the exact purchase delta.",
+                    : $"{message ?? "Mall POST outcome was indeterminate."} Fresh read does not show the purchase.",
                 _clock.GetUtcNow()) { Indeterminate = !applied };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -547,7 +547,8 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
         if (!mutation)
             return new(MallPurchaseHttpResponseClassification.Accepted, response.StatusCode, uri);
 
-        if (ContainsAny(body,
+        if (MallBuyClient.IsConfirmedPurchase((int)response.StatusCode, body)
+            || ContainsAny(body,
                 "you bought", "you purchase", "purchase successful", "successfully purchased",
                 "item added to your inventory", "you acquire", "you got"))
             return new(MallPurchaseHttpResponseClassification.Accepted, response.StatusCode, uri,
@@ -783,17 +784,9 @@ public sealed class HttpMallPurchaseTransport : IMallPurchaseTransport, IDisposa
     }
 
     private static bool PurchaseDeltaMatches(MallPurchaseRequest request, MallPurchaseObservation before, MallPurchaseObservation after)
-    {
-        if (!ExactOfferMatches(request, after.Offer)) return false;
-        var expectedMeat = before.Account.Meat - request.TotalCost;
-        var expectedSpent = before.Account.DailySpent + request.TotalCost;
-        var beforeQty = before.Account.InventoryQuantity(request.ItemId);
-        var afterQty = after.Account.InventoryQuantity(request.ItemId);
-        return after.Account.Meat == expectedMeat
-            && after.Account.DailySpent == expectedSpent
-            && afterQty - beforeQty == request.Quantity
-            && after.Offer.Quantity == before.Offer.Quantity - request.Quantity;
-    }
+        // The inventory is the proof; Meat only has to be plausible (shop sales may add Meat meanwhile), and the
+        // offer's remaining stock is not compared (other buyers move it).
+        => MallPurchaseSettlement.Evaluate(request, before, after).Settled;
 
     private static void EnsureExactBefore(MallPurchaseRequest request, MallPurchaseObservation before)
     {

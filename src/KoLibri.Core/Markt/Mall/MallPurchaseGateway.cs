@@ -126,6 +126,51 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         return _lane.ExecuteAsync(token => CommitCoreAsync(preview, approvalToken, token), cancellationToken);
     }
 
+    /// <summary>
+    /// One-step purchase: reads the offer fresh once, refuses only when the price rose above
+    /// <paramref name="request"/>'s price (or the offer, stock, budget or Meat no longer allow it), binds the purchase
+    /// to the price just read (equal or lower than shown) and commits with that same read. No separate preview.
+    /// </summary>
+    public Task<MallPurchaseCommitResult> PurchaseNowAsync(
+        MallPurchaseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return _lane.ExecuteAsync(async token =>
+        {
+            var now = _clock.GetUtcNow();
+            var actionId = Guid.NewGuid().ToString("N");
+            try { request.Validate(); }
+            catch (Exception exception) when (exception is ArgumentException or OverflowException)
+            {
+                return Abort(actionId, [MallPurchaseAbortReason.InvalidRequest], "The purchase request is not valid.");
+            }
+
+            MallPurchaseObservation before;
+            try
+            {
+                before = await _transport.RefreshAsync(request, token).ConfigureAwait(false);
+                before.Validate();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                return Abort(actionId, [MallPurchaseAbortReason.TransportFailure], [exception.Message], before: null);
+            }
+
+            if (before.Offer.UnitPrice > request.ExpectedUnitPrice)
+                return Abort(actionId, [MallPurchaseAbortReason.PriceChanged], [], before);
+            var bound = request with { ExpectedUnitPrice = before.Offer.UnitPrice };
+            var preview = BuildPreview(bound, before, now);
+            if (preview.AbortReasons.Count > 0)
+                return Abort(actionId, preview.AbortReasons, [], before);
+            return await CommitCoreAsync(preview, null, token, before).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
     public MallPurchaseVerificationResult Verify(
         MallPurchasePreview preview,
         MallPurchaseObservation before,
@@ -150,35 +195,30 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
 
         CompareExpected(preview.Observation, before, preview.Request, reasons);
 
-        var expectedMeat = before.Account.Meat - preview.TotalCost;
-        if (after.Account.Meat != expectedMeat)
+        // Inventory is the proof; Meat only has to be plausible (extra income, e.g. shop sales, is fine).
+        var settlement = MallPurchaseSettlement.Evaluate(preview.Request, before, after);
+        switch (settlement.Kind)
         {
-            Add(reasons, MallPurchaseAbortReason.MeatVerificationFailed);
-            Add(reasons, MallPurchaseAbortReason.MeatChanged);
-            messages.Add($"Expected {expectedMeat} Meat after purchase but observed {after.Account.Meat}.");
-        }
-
-        var beforeQuantity = before.InventoryQuantity(preview.Request.ItemId);
-        var afterQuantity = after.InventoryQuantity(preview.Request.ItemId);
-        var delta = afterQuantity - beforeQuantity;
-        if (delta < preview.Request.Quantity)
-        {
-            Add(reasons, MallPurchaseAbortReason.ItemNotReceived);
-            Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-            messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {delta}.");
-        }
-        else if (delta != preview.Request.Quantity)
-        {
-            Add(reasons, MallPurchaseAbortReason.UnexpectedQuantity);
-            Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
-            messages.Add($"Expected exactly {preview.Request.Quantity} new item(s) but observed {delta}.");
-        }
-
-        var expectedDailySpent = before.Account.DailySpent + preview.TotalCost;
-        if (after.Account.DailySpent != expectedDailySpent)
-        {
-            Add(reasons, MallPurchaseAbortReason.DailySpendChanged);
-            messages.Add($"Expected daily spend {expectedDailySpent} but observed {after.Account.DailySpent}.");
+            case MallPurchaseSettlementKind.NotReceived:
+                Add(reasons, MallPurchaseAbortReason.ItemNotReceived);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed 0.");
+                break;
+            case MallPurchaseSettlementKind.Partial:
+                Add(reasons, MallPurchaseAbortReason.PartialQuantity);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected {preview.Request.Quantity} new item(s) but observed {settlement.Received}.");
+                break;
+            case MallPurchaseSettlementKind.Excess:
+                Add(reasons, MallPurchaseAbortReason.UnexpectedQuantity);
+                Add(reasons, MallPurchaseAbortReason.InventoryVerificationFailed);
+                messages.Add($"Expected exactly {preview.Request.Quantity} new item(s) but observed {settlement.Received}.");
+                break;
+            case MallPurchaseSettlementKind.MeatDropped:
+                Add(reasons, MallPurchaseAbortReason.MeatVerificationFailed);
+                Add(reasons, MallPurchaseAbortReason.MeatChanged);
+                messages.Add(settlement.Message);
+                break;
         }
 
         if (reasons.Count > 0)
@@ -186,6 +226,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             if (reasons.Any(x => x is MallPurchaseAbortReason.MeatVerificationFailed
                 or MallPurchaseAbortReason.InventoryVerificationFailed
                 or MallPurchaseAbortReason.ItemNotReceived
+                or MallPurchaseAbortReason.PartialQuantity
                 or MallPurchaseAbortReason.UnexpectedQuantity))
                 Add(reasons, MallPurchaseAbortReason.VerificationFailed);
 
@@ -195,7 +236,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 AbortReasons = reasons,
                 Messages = messages,
                 Before = before,
-                After = after
+                After = after,
+                ReceivedQuantity = settlement.Received
             };
         }
 
@@ -203,7 +245,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         {
             Status = MallPurchaseVerificationStatus.Verified,
             Before = before,
-            After = after
+            After = after,
+            ReceivedQuantity = settlement.Received
         };
     }
 
@@ -245,7 +288,8 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
     private async Task<MallPurchaseCommitResult> CommitCoreAsync(
         MallPurchasePreview preview,
         string? approvalToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MallPurchaseObservation? knownBefore = null)
     {
         var actionId = preview.ActionId;
         var now = _clock.GetUtcNow();
@@ -263,6 +307,9 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
         foreach (var reason in preview.AbortReasons) Add(reasons, reason);
 
         MallPurchaseObservation before;
+        if (knownBefore is not null)
+            before = knownBefore;   // PurchaseNowAsync: the read it just made is the commit-time read
+        else
         try
         {
             before = await _transport.RefreshAsync(request, cancellationToken).ConfigureAwait(false);
@@ -304,7 +351,7 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
                 [exception.Message], before);
         }
 
-        if (!receipt.Accepted)
+        if (!receipt.MaybeSent)
         {
             return new MallPurchaseCommitResult
             {
@@ -322,7 +369,52 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             };
         }
 
-        var verified = Verify(preview, receipt.Before, receipt.After, commitAcknowledged: true);
+        // KoL confirmed the purchase or the outcome is unknown: the inventory decides. When the item is not
+        // visible yet (or the read was stale), re-read a bounded number of times before giving up.
+        var after = receipt.After;
+        var verified = Verify(preview, receipt.Before, after, commitAcknowledged: true);
+        var rereads = 0;
+        while (!verified.Verified && rereads < _policy.ReconcileReads && CanRereadFor(verified))
+        {
+            rereads++;
+            if (_policy.ReconcileDelay > TimeSpan.Zero)
+                await Task.Delay(_policy.ReconcileDelay, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                after = await _transport.RefreshAsync(request, cancellationToken).ConfigureAwait(false);
+                after.Validate();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                continue;   // keep the last proof; the next read may work
+            }
+            verified = Verify(preview, receipt.Before, after, commitAcknowledged: true);
+        }
+
+        if (!receipt.Accepted && !verified.Verified)
+        {
+            // Unknown outcome that no read proved: it may still have been applied.
+            return new MallPurchaseCommitResult
+            {
+                ActionId = actionId,
+                Status = MallPurchaseVerificationStatus.Aborted,
+                Accepted = false,
+                Committed = false,
+                AbortReasons = verified.AbortReasons.Count > 0 ? verified.AbortReasons : [MallPurchaseAbortReason.CommitRejected],
+                Messages = (string.IsNullOrWhiteSpace(receipt.Message)
+                    ? Array.Empty<string>() : [receipt.Message]).Concat(verified.Messages).ToList(),
+                Before = receipt.Before,
+                After = after,
+                Receipt = receipt,
+                ReceivedQuantity = verified.ReceivedQuantity,
+                RereadCount = rereads
+            };
+        }
+
         return new MallPurchaseCommitResult
         {
             ActionId = actionId,
@@ -333,9 +425,17 @@ public sealed class MallPurchaseGateway : IMallPurchaseGateway
             Messages = verified.Messages,
             Before = verified.Before,
             After = verified.After,
-            Receipt = receipt
+            Receipt = receipt,
+            ReceivedQuantity = verified.ReceivedQuantity,
+            RereadCount = rereads
         };
     }
+
+    /// <summary>Only a missing item or an unusable read can still change with time; a wrong quantity or Meat cannot.</summary>
+    private static bool CanRereadFor(MallPurchaseVerificationResult verified)
+        => verified.AbortReasons.Contains(MallPurchaseAbortReason.ItemNotReceived)
+           || verified.AbortReasons.Contains(MallPurchaseAbortReason.StaleAccount)
+           || verified.AbortReasons.Contains(MallPurchaseAbortReason.SessionInvalid);
 
     private MallPurchasePreview BuildPreview(
         MallPurchaseRequest request,

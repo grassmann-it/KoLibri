@@ -20,6 +20,11 @@ public partial class MallSearchView : UserControl
 
     public MallSearchView() => InitializeComponent();
 
+    private async void ReconcileClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_search is not null) await _search.ReconcileUnclearAsync();
+    }
+
     public void Attach(MallSearchViewModel search, LiveMallViewModel own)
     {
         if (_own is not null) _own.PropertyChanged -= OwnChanged;
@@ -27,6 +32,7 @@ public partial class MallSearchView : UserControl
         _own = own;
         _ownLoaded = false;
         DataContext = search;
+        search.RefreshUnclear();
         OwnShopRows.ItemsSource = own.Rows;
         OwnShopSummary.Text = "Open this section to load your shop.";
         own.PropertyChanged += OwnChanged;

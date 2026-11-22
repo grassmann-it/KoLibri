@@ -31,7 +31,7 @@ public static class MallPurchaseMessages
         MallPurchaseAbortReason.DryRun => "Dry run: nothing was sent.",
         MallPurchaseAbortReason.VerificationFailed or MallPurchaseAbortReason.MeatVerificationFailed
             or MallPurchaseAbortReason.InventoryVerificationFailed or MallPurchaseAbortReason.ItemNotReceived
-            or MallPurchaseAbortReason.UnexpectedQuantity or MallPurchaseAbortReason.MeatChanged
+            or MallPurchaseAbortReason.UnexpectedQuantity or MallPurchaseAbortReason.PartialQuantity or MallPurchaseAbortReason.MeatChanged
             or MallPurchaseAbortReason.InventoryChanged or MallPurchaseAbortReason.DailySpendChanged
             or MallPurchaseAbortReason.AccountChanged =>
             "The result could not be verified. Check your inventory and Meat before buying again.",

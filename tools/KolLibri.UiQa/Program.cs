@@ -115,14 +115,7 @@ async Task RunAsync()
             if (w == 1280)
             {
                 var dialog = new MallPurchaseDialog(
-                    new MallPurchasePromptContext("Mallbot", FixtureOffers()[0], 5),
-                    (q, _) => Task.FromResult(new DesktopMallPurchasePreview
-                    {
-                        ActionId = "qa", Role = "Mallbot", ItemId = "1", ShopId = "100", Quantity = q,
-                        RequestedUnitPrice = 1200, UnitPrice = 1200, TotalPrice = 1200L * q, Meat = 50000,
-                        RemainingDailyBudget = 20000, RemainingPurchaseBudget = 20000,
-                        Problems = Array.Empty<MallPurchaseAbortReason>(), Messages = Array.Empty<string>()
-                    }));
+                    new MallPurchasePromptContext("Mallbot", FixtureOffers()[0], 5, 20_000));
                 dialog.Show(window);
                 await Pump(800);
                 Shot(dialog, P("buy-dialog"));

@@ -191,6 +191,37 @@ public class FileSpendLedger
             return 0;
         }, write: true);
 
+    /// <summary>Meat of today that is counted as unclear (spent or not unknown) for this account, excluding reservations. -1 when the ledger is unreadable.</summary>
+    public long UnclearAmount(string account)
+    {
+        try { return Transact(entries => Current(entries, account, Today).Unclear, write: false); }
+        catch (SpendLedgerException) { return -1; }
+    }
+
+    /// <summary>
+    /// Explicit user decision about the unclear meat of today: <paramref name="wasSpent"/> moves it to settled,
+    /// otherwise it is released. Only <paramref name="expectedAmount"/> (the amount the user confirmed) is
+    /// resolved; if the amount changed meanwhile nothing happens and false is returned.
+    /// </summary>
+    public bool ResolveUnclear(string account, long expectedAmount, bool wasSpent)
+        => Transact(entries =>
+        {
+            var e = Current(entries, account, Today);
+            if (e.Unclear != expectedAmount || expectedAmount <= 0) return false;
+            if (wasSpent) e.Settled += e.Unclear;
+            e.Unclear = 0;
+            return true;
+        }, write: true);
+
+    /// <summary>A purchase that delivered less than ordered: the delivered part is settled, the rest released.</summary>
+    public void SettlePartial(string account, long reserved, long spent)
+        => AfterPurchase(account, reserved, e =>
+        {
+            var used = Math.Clamp(spent, 0, reserved);
+            e.Reserved = Math.Max(0, e.Reserved - reserved);
+            e.Settled += used;
+        });
+
     /// <summary>Records meat that was spent and verified without a reservation.</summary>
     public void Add(string account, long meat)
     {
@@ -308,5 +339,21 @@ public class FileSpendLedger
         {
             throw new SpendLedgerException($"The ledger could not be saved: {e.Message}", e);
         }
+    }
+}
+
+/// <summary>
+/// The desktop Mall purchase ledger (<c>mall-spend-ledger.json</c> next to the desktop settings) for hosts other than
+/// the desktop, e.g. the CLI resolving unclear entries. Same file and transaction rules as the desktop's ledger.
+/// </summary>
+public sealed class SharedMallSpendLedger(string? path = null, TimeProvider? clock = null)
+    : FileSpendLedger(path ?? DefaultPath(), clock)
+{
+    public static string DefaultPath()
+    {
+        var root = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        if (string.IsNullOrWhiteSpace(root))
+            root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(root, "KoLibri", "mall-spend-ledger.json");
     }
 }

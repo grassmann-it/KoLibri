@@ -109,15 +109,17 @@ public sealed class DesktopShellWiringTests
     {
         public int Asked;
         public int? Quantity;
-        public async Task<DesktopMallPurchasePreview?> AskAsync(MallPurchasePromptContext context,
-            Func<int, CancellationToken, Task<DesktopMallPurchasePreview>> preview, CancellationToken ct)
+        public RemainingSeen Remaining;
+        public Task<int?> AskAsync(MallPurchasePromptContext context, CancellationToken ct)
         {
             Asked++;
-            var p = await preview(2, ct);
-            Quantity = p.Quantity;
-            return confirm ? p : null;
+            Remaining = new RemainingSeen(context.RemainingDailyBudget);
+            Quantity = confirm ? 2 : null;
+            return Task.FromResult(Quantity);
         }
     }
+
+    private sealed record RemainingSeen(long Budget);
 
     private static MallOfferRow Row(int? stock = 5) => new()
     {
@@ -152,7 +154,7 @@ public sealed class DesktopShellWiringTests
         Assert.Equal(1, fixture.CommitCount);
         Assert.Equal(2, prompt.Quantity);
         Assert.Equal(200, ledger.SpentToday("Mallbot"));
-        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.Contains("Purchased"));
+        Assert.Contains(log.Entries, e => e.Kind == SessionLogKind.Purchase && e.Message.StartsWith("Settled:"));
     }
 
     [Fact]

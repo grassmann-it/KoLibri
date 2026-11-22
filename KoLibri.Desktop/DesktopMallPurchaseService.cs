@@ -17,6 +17,9 @@ public sealed record DesktopMallPurchaseOptions
     public long MaxMeatPerPurchase { get; init; } = 250_000;
     public int MaxQuantityPerPurchase { get; init; } = 10;
     public TimeSpan PreviewLifetime { get; init; } = TimeSpan.FromMinutes(5);
+    /// <summary>Inventory re-reads (and the wait before each) when KoL confirmed but the item is not visible yet.</summary>
+    public int ReconcileReads { get; init; } = 2;
+    public TimeSpan ReconcileDelay { get; init; } = TimeSpan.FromSeconds(3);
 }
 
 /// <summary>What the confirmation dialog shows. Nothing was sent to KoL to build it.</summary>
@@ -44,8 +47,10 @@ public sealed record DesktopMallPurchasePreview
 
 public enum DesktopMallPurchaseStatus
 {
-    /// <summary>KoL answered and meat plus inventory moved exactly as expected.</summary>
+    /// <summary>KoL answered and a fresh inventory read shows exactly the ordered quantity (Meat plausible).</summary>
     Purchased,
+    /// <summary>Fewer units than ordered arrived and the inventory proves it; <see cref="DesktopMallPurchaseResult.ReceivedQuantity"/> units count as spent.</summary>
+    Partial,
     /// <summary>Refused before any POST (budget, stock, meat, stale preview, ...).</summary>
     NotSent,
     /// <summary>The price moved; nothing was sent. <see cref="DesktopMallPurchaseResult.NewPreview"/> needs a new confirmation.</summary>
@@ -59,7 +64,11 @@ public enum DesktopMallPurchaseStatus
 public sealed record DesktopMallPurchaseResult
 {
     public required DesktopMallPurchaseStatus Status { get; init; }
-    public bool Succeeded => Status == DesktopMallPurchaseStatus.Purchased;
+    public bool Succeeded => Status is DesktopMallPurchaseStatus.Purchased or DesktopMallPurchaseStatus.Partial;
+    /// <summary>Units the inventory read proves arrived.</summary>
+    public int ReceivedQuantity { get; init; }
+    /// <summary>Meat the purchase cost at the price actually bound (0 when nothing was bought or the outcome is unclear).</summary>
+    public long SpentMeat { get; init; }
     public required string Message { get; init; }
     public IReadOnlyList<MallPurchaseAbortReason> Reasons { get; init; } = Array.Empty<MallPurchaseAbortReason>();
     public DesktopMallPurchasePreview? NewPreview { get; init; }
@@ -98,7 +107,9 @@ public sealed class DesktopMallPurchaseService
                 PreviewLifetime = _options.PreviewLifetime,
                 MaxDailySpend = _options.MaxDailySpend,
                 MaxMeatPerPurchase = _options.MaxMeatPerPurchase,
-                MaxQuantityPerPurchase = _options.MaxQuantityPerPurchase
+                MaxQuantityPerPurchase = _options.MaxQuantityPerPurchase,
+                ReconcileReads = _options.ReconcileReads,
+                ReconcileDelay = _options.ReconcileDelay
             },
             lane,
             clock);
@@ -130,27 +141,62 @@ public sealed class DesktopMallPurchaseService
                 "This purchase was already attempted. Check inventory and preview again; nothing was sent.");
 
         var result = await _gateway.CommitAsync(preview.Inner, ConfirmToken, cancellationToken).ConfigureAwait(false);
+        return await MapAsync(result, preview.Quantity, preview.UnitPrice, preview, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The one-step purchase: no separate preview. The offer is read once, the purchase is refused only when the
+    /// price rose above <paramref name="shownUnitPrice"/> (or offer, stock, budget or Meat no longer allow it), and
+    /// otherwise sent once at the price just read. At most one POST, never a retry.
+    /// </summary>
+    public async Task<DesktopMallPurchaseResult> BuyAsync(
+        string role, string itemId, string shopId, long shownUnitPrice, int quantity,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new MallPurchaseRequest(shopId, shopId, itemId, shownUnitPrice, quantity,
+            accountId: string.IsNullOrWhiteSpace(role) ? "default" : role);
+        var result = await _gateway.PurchaseNowAsync(request, cancellationToken).ConfigureAwait(false);
+        return await MapAsync(result, quantity, shownUnitPrice, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<DesktopMallPurchaseResult> MapAsync(
+        MallPurchaseCommitResult result, int quantity, long shownUnitPrice,
+        DesktopMallPurchasePreview? preview, CancellationToken cancellationToken)
+    {
+        var unit = result.Before?.Offer.UnitPrice is > 0 and var u && u <= shownUnitPrice ? u : shownUnitPrice;
         if (result.Verified)
             return new DesktopMallPurchaseResult
             {
                 Status = DesktopMallPurchaseStatus.Purchased,
+                ReceivedQuantity = quantity,
+                SpentMeat = unit * quantity,
                 Message = string.Create(CultureInfo.InvariantCulture,
-                    $"Bought {preview.Quantity} for {preview.TotalPrice:N0} meat; meat and inventory verified.")
+                    $"Bought {quantity} for {unit * quantity:N0} Meat; the inventory shows the item.")
             };
 
         var reasons = result.AbortReasons;
+        if (reasons.Contains(MallPurchaseAbortReason.PartialQuantity) && result.ReceivedQuantity > 0)
+            return new DesktopMallPurchaseResult
+            {
+                Status = DesktopMallPurchaseStatus.Partial,
+                Reasons = reasons,
+                ReceivedQuantity = result.ReceivedQuantity,
+                SpentMeat = unit * result.ReceivedQuantity,
+                Message = string.Create(CultureInfo.InvariantCulture,
+                    $"Partial purchase: {result.ReceivedQuantity} of {quantity} unit(s) arrived "
+                    + $"({unit * result.ReceivedQuantity:N0} Meat counted).")
+            };
         if (result.Receipt is { } receipt)
         {
             var message = receipt.Message ?? string.Empty;
-            // Accepted but unverified, or an indeterminate POST that the fresh read did not
-            // prove: the POST may have landed. Report, never retry.
+            // Accepted but unproven, or an indeterminate POST that the fresh read did not
+            // prove: the POST may have landed. Report, never retry the purchase.
             if (receipt.MaybeSent)
                 return new DesktopMallPurchaseResult
                 {
                     Status = DesktopMallPurchaseStatus.Unclear,
                     Reasons = reasons,
-                    Message = "KoL's answer could not be matched to a meat and inventory change. "
-                        + "Check your inventory and meat before buying again. " + message
+                    Message = DescribeUnclear(receipt.Accepted, reasons, result, message)
                 };
             return new DesktopMallPurchaseResult
             {
@@ -174,15 +220,19 @@ public sealed class DesktopMallPurchaseService
         if (reasons.Contains(MallPurchaseAbortReason.PriceChanged))
         {
             DesktopMallPurchasePreview? fresh = null;
-            if (result.Before is { } current)
+            if (preview is not null && result.Before is { } current)
                 fresh = await PreviewAsync(preview.Role, preview.ItemId, preview.ShopId,
-                    current.Offer.UnitPrice, preview.Quantity, cancellationToken).ConfigureAwait(false);
+                    current.Offer.UnitPrice, quantity, cancellationToken).ConfigureAwait(false);
+            var now = result.Before?.Offer.UnitPrice;
             return new DesktopMallPurchaseResult
             {
                 Status = DesktopMallPurchaseStatus.PriceChanged,
                 Reasons = reasons,
                 NewPreview = fresh,
-                Message = "The shop's price changed. Nothing was sent; please confirm the new price."
+                Message = preview is null && now is { } nowPrice
+                    ? string.Create(CultureInfo.InvariantCulture,
+                        $"The price rose from {shownUnitPrice:N0} to {nowPrice:N0} Meat. Nothing was sent; search again.")
+                    : "The shop's price changed. Nothing was sent; please confirm the new price."
             };
         }
 
@@ -190,6 +240,25 @@ public sealed class DesktopMallPurchaseService
             ?? (MallPurchaseMessages.Describe(reasons) is { Length: > 0 } text
                 ? text + " Nothing was sent."
                 : "The offer, limits or meat changed since the preview; nothing was sent."));
+    }
+
+    private static string DescribeUnclear(
+        bool confirmed, IReadOnlyList<MallPurchaseAbortReason> reasons, MallPurchaseCommitResult result, string transportMessage)
+    {
+        const string Tail = "Check your inventory before buying again; use 'Reconcile unclear purchases' once you know.";
+        var reads = result.RereadCount > 0
+            ? string.Create(CultureInfo.InvariantCulture, $" after {result.RereadCount} more inventory read(s)") : "";
+        if (reasons.Contains(MallPurchaseAbortReason.MeatVerificationFailed))
+            return "The item arrived, but your Meat fell by more than the purchase explains. " + Tail;
+        if (reasons.Contains(MallPurchaseAbortReason.UnexpectedQuantity))
+            return "The inventory rose by more than the ordered quantity, so the purchase cannot be matched. " + Tail;
+        if (reasons.Contains(MallPurchaseAbortReason.StaleAccount) || reasons.Contains(MallPurchaseAbortReason.SessionInvalid))
+            return (confirmed ? "KoL confirmed the purchase" : "KoL's answer was unclear")
+                + ", but the inventory could not be read fresh" + reads + ". " + Tail;
+        if (reasons.Contains(MallPurchaseAbortReason.ItemNotReceived))
+            return (confirmed ? "KoL confirmed the purchase" : "KoL's answer was unclear")
+                + ", but the inventory still does not show the item" + reads + ". " + Tail;
+        return "KoL's answer could not be matched to an inventory change. " + Tail + " " + transportMessage;
     }
 
     private DesktopMallPurchasePreview ToPreview(MallPurchasePreview inner, MallPurchaseRequest request)
