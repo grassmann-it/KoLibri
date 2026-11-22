@@ -151,6 +151,127 @@ public sealed class AdventureHttpTransportTests
         Assert.True(result.Accepted);
     }
 
+    private static HttpResponseMessage Found(string location)
+        => new(HttpStatusCode.Found) { Headers = { Location = new Uri(location, UriKind.RelativeOrAbsolute) } };
+
+    private static AdventureTransportRequest StartWithFields()
+        => Request(AdventureTransportOperation.Adventure) with
+        {
+            Fields = new Dictionary<string, string> { ["snarfblat"] = "42" }
+        };
+
+    [Fact]
+    public async Task FirstStartInterstitialFetchesMainPhpOnceAndRetriesTheSameStart()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response("<html>reminders</html>"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        var result = await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.True(result.Accepted);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+        Assert.Equal(HttpMethod.Get, handler.Requests[1].Method);
+        Assert.Equal("/main.php", handler.Requests[1].RequestUri!.AbsolutePath);
+        Assert.Equal(HttpMethod.Post, handler.Requests[2].Method);
+        Assert.Equal(handler.Bodies[0], handler.Bodies[2]);
+        Assert.Contains("snarfblat=42", handler.Bodies[2]);
+        Assert.Equal(2, handler.Requests.Count(r => r.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task DirectOkSendsExactlyOneStart()
+    {
+        var handler = new RecordingHandler(Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await transport.StartAdventureAsync(StartWithFields());
+
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task RepeatedInterstitialRedirectStopsAfterTheRetry()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Html()), Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("/login.php?notloggedin=1")]
+    [InlineData("https://evil.test/main.php")]
+    [InlineData("/main.php?x=1")]
+    [InlineData("/main.php#a")]
+    public async Task OtherRedirectsOnFirstStartSendNothingFurther(string location)
+    {
+        var handler = new RecordingHandler(Found(location), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAnyAsync<Exception>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task MainPhpRedirectingToLoginStopsWithoutRetry()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Found("/login.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task InterstitialIsNotRecoveredOnASecondStartOfTheSameTransport()
+    {
+        var handler = new RecordingHandler(Response(Html()), Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await transport.StartAdventureAsync(StartWithFields());
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task InterstitialIsNotRecoveredWhenResumingFromACheckpoint()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+        var request = StartWithFields() with
+        {
+            Checkpoint = new AdventureCheckpoint
+            {
+                RunId = "run-1", AdventureId = "123", Phase = AdventureRunPhase.Ready,
+                ResponseHashes = ["abc"]
+            }
+        };
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(request));
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task FightNeverRetriesAfterAMainPhpRedirect()
+    {
+        var handler = new RecordingHandler(Found("/main.php"), Response(Html()));
+        using var client = new HttpClient(handler);
+        using var transport = new HttpAdventureExecutionTransport(client, Options());
+
+        await Assert.ThrowsAsync<AdventureHttpTransportException>(() =>
+            transport.SubmitFightAsync(Request(AdventureTransportOperation.Fight)));
+        Assert.Single(handler.Requests);
+    }
+
     [Fact]
     public async Task OversizedResponseIsRejectedBeforeParserSeesIt()
     {
