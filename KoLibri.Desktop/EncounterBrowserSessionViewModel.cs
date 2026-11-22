@@ -73,6 +73,15 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
     public ObservableCollection<ManualStepLogEntry> StepLog { get; }
 
+    private AdventureDecisionController? _decisions;
+
+    /// <summary>The open choice or fight with its option buttons and the choice policy.</summary>
+    public AdventureDecisionController Decisions => _decisions ??= new AdventureDecisionController(
+        _openSession is null ? null : new LiveOpenChoicePort(OpenLiveAsync));
+
+    /// <summary>The report of the last bounded batch (turns, drops, stop reason).</summary>
+    public BoundedRunReport? LastReport { get; private set; }
+
     public string? RunId
     {
         get => _runId;
@@ -165,7 +174,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         RunId = outcome.IsComplete || (outcome.IsAborted && !outcome.RequiresRefresh)
             ? null : outcome.RunId;
         LastMessage = outcome.IsAborted || outcome.RequiresRefresh
-            ? $"Adventure start stopped: {outcome.Message ?? outcome.StopReason}"
+            ? $"Adventure start stopped: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}"
             : $"Started '{location.DisplayName}' as {outcome.RunId}.";
         AppendLog("start", outcome);
         RefreshEncounterSummary(outcome);
@@ -219,7 +228,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         }
         else if (outcome.IsAborted)
         {
-            LastMessage = $"Step aborted: {outcome.Message ?? outcome.StopReason}";
+            LastMessage = $"Step aborted: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}";
         }
         else
         {
@@ -316,7 +325,8 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             _batchConditions = string.IsNullOrWhiteSpace(itemId)
                 ? Array.Empty<AdventureCondition>()
                 : new[] { new AdventureCondition { Kind = AdventureConditionKind.ItemCount, Key = itemId, Target = 1 } };
-            _allowlist = new AdventureActionAllowlist { WaitForManualChoice = true }
+            _allowlist = new AdventureActionAllowlist
+                { WaitForManualChoice = true, ChoiceResolver = ChoiceResolverFactory() }
                 .AddAdventure(location.LocationId).AddFightAction(location.LocationId, "attack");
         }
         if (_batchTemplate is null || _batchRemaining <= 0 || string.IsNullOrWhiteSpace(ApprovalToken))
@@ -339,10 +349,12 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             cancellationToken: cancellationToken);
         _batchRemaining = batch.TurnsRemaining;
         var stopReason = batch.LastRun.StopReason;
+        var failure = batch.LastRun.LastStep is { } failed && failed.IsAborted ? failed.State.AbortMessage : null;
+        LastReport = BoundedRunReport.From(batch.TurnsStarted, _batchRemaining, stopReason, batch.Drops, failure);
         if (stopReason == BoundedAdventureRunStopReason.ConditionsSatisfied ||
             batch.LastRun.Conditions is { Count: > 0 } conditions && conditions.All(condition => condition.IsSatisfied))
             _batchRemaining = 0;
-        LastMessage = $"{stopReason} · {_batchRemaining} turns left in this run.";
+        LastMessage = LastReport.Summary;
         if (batch.LastRun.LastStep is not { } last) return null;
 
         var outcome = AdventureManualDriver.ToOutcome(last, last.Checkpoint.RunId, last.Checkpoint.AdventureId);
@@ -351,6 +363,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         AppendLog("batch", outcome);
         RefreshEncounterSummary(outcome);
         browser.ShowEncounter(outcome.Encounter);
+        if (batch.LastRun.NeedsDecision is { } needs) Decisions.Show(needs);
         OnPropertyChanged(nameof(IsSessionActive));
         await RefreshCompletedStatusAsync(live, outcome, cancellationToken);
         return outcome;
@@ -439,9 +452,14 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             outcome.Message ?? outcome.Encounter?.Kind.ToString()));
     }
 
+    /// <summary>Loads the user's choice policy; replaced in tests.</summary>
+    public Func<IChoiceResolver> ChoiceResolverFactory { get; set; }
+        = () => new ChoiceResolver(new ChoiceResolutionConfigStore().Load());
+
     private void RefreshEncounterSummary(ManualStepOutcome outcome)
     {
         var encounter = _currentEncounter = outcome.Encounter;
+        Decisions.Show(encounter);
         if (encounter is null)
         {
             LastEncounterSummary = outcome.IsComplete ? "Complete" : "(no encounter)";
@@ -479,3 +497,19 @@ public sealed record AdventureLocation(
     int Snarfblat,
     int TurnCost,
     IReadOnlyList<AdventureEncounterMetadata> Encounters);
+
+/// <summary>Adapts a live manual session to <see cref="IOpenChoicePort"/>; one session per call.</summary>
+internal sealed class LiveOpenChoicePort(Func<CancellationToken, Task<ManualAdventureSession>> open) : IOpenChoicePort
+{
+    public async Task<OpenChoiceDetection> DetectAsync(CancellationToken cancellationToken)
+    {
+        await using var live = await open(cancellationToken).ConfigureAwait(false);
+        return await live.DetectOpenChoiceAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<OpenChoiceSubmitResult> SubmitAsync(string choiceId, int option, CancellationToken cancellationToken)
+    {
+        await using var live = await open(cancellationToken).ConfigureAwait(false);
+        return await live.SubmitOpenChoiceAsync(choiceId, option, cancellationToken).ConfigureAwait(false);
+    }
+}

@@ -64,6 +64,17 @@ async Task RunAsync()
             SeedFixtures(window);
             if (set("settings-signin")) Shot(window, P("settings-signin"));
             await Section(window, "NavAdventure"); Shot(window, P("adventures"));
+            if (w == 1280 && !dark)
+            {
+                window.ShowDecisionForQa(new KoLibri.Core.Spiel.NeedsDecisionInfo
+                {
+                    RunId = "qa", ChoiceId = "1003", Title = "A Turtle Tamer appears",
+                    Options = new[] { new KoLibri.Core.Spiel.ChoiceOptionInfo(1, "Help the turtle"),
+                        new KoLibri.Core.Spiel.ChoiceOptionInfo(2, "Leave it alone") },
+                    Reason = "No choice policy answers this choice. Pick an option."
+                });
+                await Pump(400); Shot(window, P("adventures-choice"));
+            }
             await Section(window, "NavInventory"); SeedFixtures(window); await Pump(500); Shot(window, P("inventory-items"));
             foreach (var v in new[] { "Gear", "Skills" })
             {

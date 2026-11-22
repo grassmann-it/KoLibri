@@ -335,9 +335,9 @@ public sealed class DesktopShellWiringTests
         Assert.True(Find(offer, "Search this item again").IsEnabled);
 
         var location = new LocationContextMenu(host).Build(new LocationMenuTarget("1", "The Haunted Pantry", RunTurns: 10));
-        Assert.Contains(location, item => item.Label == "Adventure once");
+        Assert.Contains(location, item => item.Label == "Adventure here");
         Assert.Contains(location, item => item.Label == "Run 10 turns");
-        Assert.Contains(location, item => item.Label == "Info");
+        Assert.Contains(location, item => item.Label == "Copy id");
 
         var effect = new EffectContextMenu(host);
         Assert.False(Find(effect.Build(new EffectMenuTarget("1", "Hardly Poisoned", false)), "Uneffect").IsEnabled);

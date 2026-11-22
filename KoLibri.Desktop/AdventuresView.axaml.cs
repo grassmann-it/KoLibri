@@ -18,12 +18,15 @@ public partial class AdventuresView : UserControl
     /// <summary>Right-click and keyboard menu of the location list.</summary>
     public RowContextMenuController<EncounterBrowserLocationRow>? LocationMenu { get; private set; }
 
+    /// <summary>Set by the shell: starts an adventure (1 turn) or a bounded run (N turns) at a location row.</summary>
+    public Action<LocationMenuTarget, int>? AdventureHere { get; set; }
+
     public void Attach(IShellHost host, IAdventuresViewHandlers handlers)
     {
         _host = host;
         _handlers = handlers;
         LocationMenu = RowContextMenuController<EncounterBrowserLocationRow>.Attach(this.FindControl<ListBox>("EncounterLocationsGrid")!,
-            row => new LocationContextMenu(host).Build(new LocationMenuTarget(row.LocationId, row.DisplayName, row.Zone)));
+            row => new LocationContextMenu(host, (target, turns) => AdventureHere?.Invoke(target, turns)).Build(new LocationMenuTarget(row.LocationId, row.DisplayName, row.Zone)));
     }
 
     private void InitializeComponent() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
