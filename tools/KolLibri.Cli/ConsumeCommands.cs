@@ -5,18 +5,19 @@ using LibKolibri;
 internal static partial class KolibriCli
 {
     /// <summary>consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]</summary>
-    private static async Task<int> ConsumeAsync(string[] args)
+    internal static async Task<int> ConsumeAsync(string[] args)
     {
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var kind = (GetOption(args, "--kind") ?? "").ToLowerInvariant() switch
+        StrictOptions.Only(args, new[] { "--role", "--kind", "--item", "--qty" }, new[] { "--execute" });
+        var role = StrictOptions.Role(args);
+        var kind = (StrictOptions.Value(args, "--kind") ?? "").ToLowerInvariant() switch
         {
             "food" or "eat" => CharacterConsumableKind.Food,
             "drink" or "booze" => CharacterConsumableKind.Drink,
             "spleen" => CharacterConsumableKind.Spleen,
             _ => throw new ArgumentException("--kind food|drink|spleen is required.")
         };
-        var item = ReadNullableInt(args, "--item") ?? throw new ArgumentException("--item ITEM_ID is required.");
-        var qty = Math.Clamp(ReadInt(args, "--qty", 1), 1, 1_000);
+        var item = StrictOptions.RequiredInt(args, "--item", 1, int.MaxValue, "ITEM_ID");
+        var qty = StrictOptions.Int(args, "--qty", 1, 1, 1_000);
         if (!HasFlag(args, "--execute"))
         {
             WriteJson(new { command = "consume", previewOnly = true, executed = false, role = role.ToString(), kind = kind.ToString(), item, quantity = qty,
@@ -34,10 +35,11 @@ internal static partial class KolibriCli
     }
 
     /// <summary>rest --role R [--times N] [--execute]</summary>
-    private static async Task<int> RestAsync(string[] args)
+    internal static async Task<int> RestAsync(string[] args)
     {
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var times = Math.Clamp(ReadInt(args, "--times", 1), 1, 100);
+        StrictOptions.Only(args, new[] { "--role", "--times" }, new[] { "--execute" });
+        var role = StrictOptions.Role(args);
+        var times = StrictOptions.Int(args, "--times", 1, 1, 100);
         if (!HasFlag(args, "--execute"))
         {
             WriteJson(new { command = "rest", previewOnly = true, executed = false, role = role.ToString(), times,
@@ -54,11 +56,12 @@ internal static partial class KolibriCli
     }
 
     /// <summary>cast --role R --skill ID [--times N] [--execute]  (Soul Food = 7185)</summary>
-    private static async Task<int> CastAsync(string[] args)
+    internal static async Task<int> CastAsync(string[] args)
     {
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var skill = ReadNullableInt(args, "--skill") ?? throw new ArgumentException("--skill SKILL_ID is required (Soul Food = 7185).");
-        var times = Math.Clamp(ReadInt(args, "--times", 1), 1, 100);
+        StrictOptions.Only(args, new[] { "--role", "--skill", "--times" }, new[] { "--execute" });
+        var role = StrictOptions.Role(args);
+        var skill = StrictOptions.RequiredInt(args, "--skill", 1, int.MaxValue, "SKILL_ID; Soul Food = 7185");
+        var times = StrictOptions.Int(args, "--times", 1, 1, 100);
         if (!HasFlag(args, "--execute"))
         {
             WriteJson(new { command = "cast", previewOnly = true, executed = false, role = role.ToString(), skill, times,
@@ -67,9 +70,22 @@ internal static partial class KolibriCli
         }
         using var kol = await KolibriClient.OpenAsync(role);
         var before = await kol.GetStatusAsync(true);
-        var (hp, mp, rejection, page) = await kol.CastSkillAsync(skill, times);
-        WriteJson(new { command = "cast", executed = true, role = role.ToString(), skill, times, rejection, page,
+        // One cast per request, so the confirmed count is real: a single request for N casts could only
+        // show that something changed, not how many casts took effect.
+        var confirmed = 0;
+        var hp = before.CurrentHp;
+        var mp = before.CurrentMp;
+        string? rejection = null;
+        string? page = null;
+        for (var i = 0; i < times; i++)
+        {
+            (hp, mp, rejection, page) = await kol.CastSkillAsync(skill, 1);
+            if (rejection is not null) break;
+            confirmed++;
+        }
+        var complete = confirmed == times;
+        WriteJson(new { command = "cast", executed = true, role = role.ToString(), skill, times, requested = times, confirmed, complete, rejection, page,
             before = new { before.CurrentHp, before.CurrentMp }, after = new { Hp = hp, Mp = mp } });
-        return rejection is null ? 0 : 3;
+        return complete ? 0 : 3;
     }
 }

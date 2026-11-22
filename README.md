@@ -151,7 +151,9 @@ kolibri login refresh --role mallbot
 
 `kolibri login status` tells whether a session still works. It asks KoL,
 not just the stored cookie: a session that KoL dropped says
-`rejectedByServer: true`, and `usable: false`. The stored expiry only
+`rejectedByServer: true`, and `usable: false`. If KoL cannot be reached
+(timeout, HTTP 5xx) the row says `serverUnreachable: true` and `usable: null`
+instead — that is not a rejection. `expiresAt` is the cookie's expiry; no login time is stored. The stored expiry only
 covers the cookie's lifetime — KoL ends a session earlier when the
 password changes or the account is signed out somewhere else.
 
@@ -178,7 +180,7 @@ kolibri token mint
 ```bash
 # Account sessions
 kolibri login status
-kolibri login refresh --role main          # interactive, password not echoed
+kolibri login refresh --role main          # saved password if there is one, else asks (password not echoed)
 kolibri login clear --role all
 
 # Approval token
