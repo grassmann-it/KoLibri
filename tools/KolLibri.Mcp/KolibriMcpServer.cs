@@ -270,6 +270,8 @@ public partial class KolibriMcpServer
         }
 
         var confirmed = false;
+        var booking = new UsageBooking();
+        _booking.Value = booking;
         try
         {
             var value = await tool!.Handler(arguments, cancellationToken).ConfigureAwait(false);
@@ -296,10 +298,19 @@ public partial class KolibriMcpServer
         finally
         {
             // Requested amount counts only when the handler ran through; a failed call frees the hold.
-            if (confirmed) authorization.Reservation?.Commit(authorization.Reservation.Amount, name);
+            // A tool may book fewer units than it reserved (a run that sent nothing books 0).
+            if (confirmed) authorization.Reservation?.Commit(
+                booking.Units is { } units ? Math.Min(units, authorization.Reservation.Amount) : authorization.Reservation.Amount, name);
             else authorization.Reservation?.Release();
         }
     }
+
+    private sealed class UsageBooking { public long? Units { get; set; } }
+
+    private readonly AsyncLocal<UsageBooking?> _booking = new();
+
+    /// <summary>Lets the running tool book the units it really used instead of the reserved amount.</summary>
+    private void BookUnits(long units) { if (_booking.Value is { } booking) booking.Units = Math.Max(0, units); }
 
     private object InitializeResult()
         => new

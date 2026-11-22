@@ -38,6 +38,12 @@ public sealed class AdventureDecisionController : DesktopViewModel
         Options = new ObservableCollection<DecisionOptionRow>();
     }
 
+    /// <summary>
+    /// Set by the session: answers the choice through the active run's checkpoint. Returns null when
+    /// no run owns the choice (then the choice is answered directly on KoL).
+    /// </summary>
+    public Func<string, int, CancellationToken, Task<string?>>? ActiveRunSubmit { get; set; }
+
     public ObservableCollection<DecisionOptionRow> Options { get; }
     public string? ChoiceId { get => _choiceId; private set => SetProperty(ref _choiceId, value); }
     public string? Title { get => _title; private set => SetProperty(ref _title, value); }
@@ -95,6 +101,9 @@ public sealed class AdventureDecisionController : DesktopViewModel
             case OpenChoiceKind.Choice:
                 Clear(); _choiceUnreadable = true; OnPropertyChanged(nameof(IsChoiceOpen)); OnPropertyChanged(nameof(IsVisible));
                 Message = "A choice is open but its options could not be read. Continue it in KoL (choice.php)."; break;
+            case OpenChoiceKind.Unavailable:
+                // Keep what is shown: "could not ask" must never look like "nothing is open".
+                Message = detection.Message; break;
             default:
                 Clear(); Message = "No choice or fight is open."; break;
         }
@@ -116,6 +125,9 @@ public sealed class AdventureDecisionController : DesktopViewModel
         if (Options.All(o => o.Number != option)) return Message = $"Option {option} is not offered; nothing was sent.";
         try
         {
+            if (ActiveRunSubmit is not null
+                && await ActiveRunSubmit(id, option, cancellationToken).ConfigureAwait(false) is { } handled)
+                return Message = handled;
             var result = await _port.SubmitAsync(id, option, cancellationToken).ConfigureAwait(false);
             Show(result.Next);
             Message = result.Submitted

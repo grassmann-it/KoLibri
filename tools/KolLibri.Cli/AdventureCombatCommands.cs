@@ -376,7 +376,9 @@ internal static partial class KolibriCli
         var location = ReadAdventureId(args);
         var runId = GetOption(args, "--run-id") ?? $"cli-{Guid.NewGuid():N}";
         var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var snarfblat = ReadNullableInt(args, "--snarfblat");
+        // An explicit --snarfblat wins; otherwise a catalog id ("adventure=543:Name") supplies it.
+        var snarfblat = ReadNullableInt(args, "--snarfblat")
+            ?? (AdventureLocationIds.TryGetSnarfblat(location, out var catalogSnarfblat) ? catalogSnarfblat : (int?)null);
         var conditionsPath = GetOption(args, "--conditions-file");
         var conditions = conditionsPath is null
             ? Array.Empty<AdventureCondition>()
@@ -460,7 +462,7 @@ internal static partial class KolibriCli
         var leftover = needs is null && result.StopReason != BoundedAdventureRunStopReason.Complete
             ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
             : null;
-        var continueCommand = $"kolibri adventure run --location {location} --role {role.ToString().ToLowerInvariant()} --execute --approval-token <token>";
+        var continueCommand = BuildContinueCommand(args, location, role, snarfblat);
         WriteJson(new
         {
             command = "adventure run",
@@ -491,6 +493,31 @@ internal static partial class KolibriCli
         if (needs is not null || leftover is not null) return 4; // a choice is open: needs the user, not an error
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
     }
+
+    private static readonly string[] ContinueValueOptions =
+    {
+        "--max-steps", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file"
+    };
+
+    /// <summary>The command that continues this run later: same location, snarfblat, rules and limits.</summary>
+    internal static string BuildContinueCommand(string[] args, string location, KoLibri.Core.Basis.AccountRole role, int? snarfblat)
+    {
+        var parts = new List<string>
+        {
+            "kolibri adventure run", "--location", Quote(location), "--role", role.ToString().ToLowerInvariant()
+        };
+        if (snarfblat is > 0) parts.AddRange(new[] { "--snarfblat", snarfblat.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        foreach (var action in GetOptions(args, "--fight-action")) parts.AddRange(new[] { "--fight-action", Quote(action) });
+        foreach (var choice in GetOptions(args, "--choice-action")) parts.AddRange(new[] { "--choice-action", Quote(choice) });
+        foreach (var name in ContinueValueOptions)
+            if (GetOption(args, name) is { } value) parts.AddRange(new[] { name, Quote(value) });
+        parts.AddRange(new[] { "--execute", "--approval-token", "<token>" });
+        return string.Join(' ', parts);
+    }
+
+    private static string Quote(string value)
+        => value.Length > 0 && value.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ':' or '=' or ',' or '/')
+            ? value : "\"" + value.Replace("\"", "\\\"") + "\"";
 
     private static async Task<int> AdventureChoiceChainAsync(string[] args)
     {
