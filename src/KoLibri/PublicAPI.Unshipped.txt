@@ -929,3 +929,42 @@ static KoLibri.StopCondition.EffectMissing(int effectId) -> KoLibri.StopConditio
 static KoLibri.StopCondition.HpBelowPercent(int percent) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.ItemCountAtLeast(KoLibri.ItemRef item, int count) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.MpBelowPercent(int percent) -> KoLibri.StopCondition!
+KoLibri.IdentityMismatchException
+KoLibri.IdentityMismatchException.Account.get -> KoLibri.AccountId
+KoLibri.IdentityMismatchException.IdentityMismatchException(KoLibri.AccountId account, string! storedPlayer, string! loginPlayer) -> void
+KoLibri.IdentityMismatchException.LoginPlayer.get -> string!
+KoLibri.IdentityMismatchException.StoredPlayer.get -> string!
+KoLibri.KolibriClient.GetPriceHistoryAsync(KoLibri.ItemRef item, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PriceHistory?>!
+KoLibri.PirateKeyCounts.Alpha.get -> int
+KoLibri.PirateKeyCounts.Alpha.init -> void
+KoLibri.PirateKeyCounts.Bravo.get -> int
+KoLibri.PirateKeyCounts.Bravo.init -> void
+KoLibri.PirateKeyCounts.Charlie.get -> int
+KoLibri.PirateKeyCounts.Charlie.init -> void
+KoLibri.PirateKeyCounts.Delta.get -> int
+KoLibri.PirateKeyCounts.Delta.init -> void
+KoLibri.PirateKeyResult.Steps.get -> System.Collections.Generic.IReadOnlyList<KoLibri.PirateKeyStep!>!
+KoLibri.PirateKeyResult.Steps.init -> void
+KoLibri.PirateKeyResult.Unclear.get -> bool
+KoLibri.PirateKeyResult.Unclear.init -> void
+KoLibri.PirateKeyStep
+KoLibri.PirateKeyStep.Confirmed.get -> bool
+KoLibri.PirateKeyStep.Confirmed.init -> void
+KoLibri.PirateKeyStep.InventoryDelta.get -> System.Collections.Generic.IReadOnlyDictionary<int, int>!
+KoLibri.PirateKeyStep.InventoryDelta.init -> void
+KoLibri.PirateKeyStep.Message.get -> string?
+KoLibri.PirateKeyStep.Message.init -> void
+KoLibri.PirateKeyStep.Number.get -> int
+KoLibri.PirateKeyStep.Number.init -> void
+KoLibri.PirateKeyStep.PirateKeyStep(int Number, bool Confirmed, string? Message, System.Collections.Generic.IReadOnlyDictionary<int, int>! InventoryDelta) -> void
+KoLibri.RelayOptions.Output.get -> System.Action<string!>?
+KoLibri.RelayOptions.Output.init -> void
+KoLibri.ShopSale.ItemName.get -> string!
+KoLibri.ShopSale.ItemName.init -> void
+static KoLibri.PirateKeys.RareOptions.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>!
+KoLibri.MallListing.LimitKnown.get -> bool
+KoLibri.MallListing.LimitKnown.init -> void
+KoLibri.MallListing.QuantityKnown.get -> bool
+KoLibri.MallListing.QuantityKnown.init -> void
+KoLibri.Account.HasPassword.get -> bool
+KoLibri.Account.HasPassword.init -> void

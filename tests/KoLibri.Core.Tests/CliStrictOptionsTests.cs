@@ -71,47 +71,5 @@ public sealed class CliStrictOptionsTests
         Assert.Equal(0, code);
     }
 
-    private sealed class Stub(Func<HttpResponseMessage> respond) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var r = respond();
-            return Task.FromResult(r);
-        }
-    }
-
-    [Fact]
-    public async Task Session_probe_separates_rejection_from_unreachable()
-    {
-        var creds = new AccountCredentials();
-        Assert.Equal(KolibriCli.SessionProbe.Works, await KolibriCli.ProbeSessionAsync(creds,
-            new Stub(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"playerid\":\"1\"}") })));
-        Assert.Equal(KolibriCli.SessionProbe.Unreachable, await KolibriCli.ProbeSessionAsync(creds,
-            new Stub(() => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))));
-        Assert.Equal(KolibriCli.SessionProbe.Unreachable, await KolibriCli.ProbeSessionAsync(creds,
-            new Stub(() => throw new TaskCanceledException())));
-        Assert.Equal(KolibriCli.SessionProbe.Rejected, await KolibriCli.ProbeSessionAsync(creds,
-            new Stub(() => new HttpResponseMessage(HttpStatusCode.Forbidden))));
-        var redirect = new HttpResponseMessage(HttpStatusCode.Found);
-        redirect.Headers.Location = new Uri("https://www.kingdomofloathing.com/login.php");
-        Assert.Equal(KolibriCli.SessionProbe.Rejected, await KolibriCli.ProbeSessionAsync(creds, new Stub(() => redirect)));
-    }
-
-    [Fact]
-    public void Status_row_does_not_call_unreachable_a_rejection_and_has_no_loggedInAt()
-    {
-        var profile = new AccountProfile { Id = "main", DisplayName = "x", Role = AccountRole.Main, Enabled = true };
-        var session = new AccountSession(profile, new AccountCredentials { CookieHeader = "c=1", ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) });
-        var json = System.Text.Json.JsonSerializer.Serialize(KolibriCli.LoginStatusRow(AccountRole.Main, profile, session, KolibriCli.SessionProbe.Unreachable));
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        Assert.False(root.GetProperty("rejectedByServer").GetBoolean());
-        Assert.True(root.GetProperty("serverUnreachable").GetBoolean());
-        Assert.Equal(System.Text.Json.JsonValueKind.Null, root.GetProperty("usable").ValueKind);
-        Assert.False(root.TryGetProperty("loggedInAt", out _));
-        json = System.Text.Json.JsonSerializer.Serialize(KolibriCli.LoginStatusRow(AccountRole.Main, profile, session, KolibriCli.SessionProbe.Rejected));
-        using var doc2 = System.Text.Json.JsonDocument.Parse(json);
-        Assert.True(doc2.RootElement.GetProperty("rejectedByServer").GetBoolean());
-        Assert.False(doc2.RootElement.GetProperty("usable").GetBoolean());
-    }
+    // The session probe and the login status row run on the KoLibri API now: tests/KoLibri.Tests/CliTests.cs.
 }

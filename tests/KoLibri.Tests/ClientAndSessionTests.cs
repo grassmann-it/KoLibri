@@ -10,7 +10,7 @@ public sealed class ClientAndSessionTests
     {
         var lib = typeof(KolibriClient).Assembly.GetExportedTypes();
         Assert.All(lib, t => Assert.Equal("KoLibri", t.Namespace));
-        Assert.Equal(108, lib.Length);
+        Assert.Equal(110, lib.Length); // 108 from the draft + IdentityMismatchException, PirateKeyStep (step 3, CLI)
         var safety = typeof(KoLibri.Safety.CompositeGuard).Assembly.GetExportedTypes();
         Assert.All(safety, t => Assert.Equal("KoLibri.Safety", t.Namespace));
         Assert.Equal(13, safety.Length);
@@ -60,7 +60,7 @@ public sealed class ClientAndSessionTests
         var store = MemoryAccountStore.WithMain();
         await using var client = TestClient.Create(kol, store);
 
-        var error = await Assert.ThrowsAsync<KolibriException>(() => client.LoginAsync("Someone Else", "pw", new LoginOptions { AccountId = "main" }));
+        var error = await Assert.ThrowsAsync<IdentityMismatchException>(() => client.LoginAsync("Someone Else", "pw", new LoginOptions { AccountId = "main" }));
 
         Assert.Contains("Nothing was saved", error.Message);
         Assert.Equal("PHPSESSID=abc", store.Records["main"].CookieHeader);

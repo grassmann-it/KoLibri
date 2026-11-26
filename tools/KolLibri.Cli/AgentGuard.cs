@@ -24,6 +24,9 @@ internal static class AgentGuard
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "agent-mode.json");
 
+    /// <summary>Tests only: a temporary folder instead of the user's approval-token file.</summary>
+    internal static string? TokenRootOverride { get; set; }
+
     public static bool IsWrite(string[] args)
         => args.Any(a => WriteFlags.Contains(a, StringComparer.OrdinalIgnoreCase))
            || (args.Length > 0 && AlwaysWriteCommands.Contains(args[0], StringComparer.OrdinalIgnoreCase));
@@ -32,11 +35,11 @@ internal static class AgentGuard
     /// True only when <paramref name="supplied"/> equals the token stored in the user's approval-token file.
     /// Nothing is sent over HTTP before this passes.
     /// </summary>
-    public static async Task<bool> ApprovalTokenValidAsync(string? supplied, KoLibri.Core.Basis.ApprovalTokenStore? store = null)
+    public static async Task<bool> ApprovalTokenValidAsync(string? supplied, ApprovalTokenStore? store = null)
     {
         if (string.IsNullOrWhiteSpace(supplied)) return false;
         using var own = store is null
-            ? new KoLibri.Core.Basis.ApprovalTokenStore(KoLibri.Core.Basis.ApprovalTokenStore.DefaultRoot())
+            ? new ApprovalTokenStore(TokenRootOverride ?? ApprovalTokenStore.DefaultRoot())
             : null;
         var stored = await (store ?? own!).LoadAsync().ConfigureAwait(false);
         if (stored is null || string.IsNullOrWhiteSpace(stored.Token)) return false;

@@ -1,5 +1,4 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
+using KoLibri;
 
 // `kolibri choice ...`: inspect and answer an open choice adventure, and configure automatic
 // handling. pending/policy list are read-only; submit previews unless --execute is given.
@@ -21,44 +20,61 @@ internal static partial class KolibriCli
         };
     }
 
-    internal static object OpenChoiceDocument(OpenChoiceDetection detection, AccountRole role)
-        => new
+    /// <summary>What is open on the account: a choice, a fight, nothing, or unknown (<paramref name="unavailable"/>).</summary>
+    internal sealed record OpenState(string Kind, ChoiceEncounter? Choice, string? Reason = null)
+    {
+        public static OpenState From(Encounter? encounter) => encounter switch
         {
-            open = detection.IsOpen,
-            kind = detection.Kind.ToString(),
-            message = detection.Message,
-            choiceId = detection.Choice?.ChoiceId,
-            title = detection.Choice?.Title,
-            options = detection.Choice?.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
-            submitCommand = detection.Choice is { } c
-                ? $"kolibri choice submit --role {role.ToString().ToLowerInvariant()} --choice {c.ChoiceId} --option <N> --execute --approval-token <token>"
-                : null
+            ChoiceEncounter c => new("Choice", c),
+            FightEncounter => new("Fight", null),
+            _ => new("None", null)
         };
 
-    internal static object NeedsDecisionDocument(NeedsDecisionInfo info, string? continueCommand = null)
+        public bool IsOpen => Kind is "Choice" or "Fight";
+        public bool IsUnavailable => Kind == "Unavailable";
+        public string Message => Kind switch
+        {
+            "Unavailable" => $"The open choice could not be read: {Reason ?? "unknown error"}. Nothing is assumed to be free.",
+            "Choice" => "A choice adventure is open. Continue there (or decide with `kolibri choice submit`).",
+            "Fight" => "A fight is open. Continue there.",
+            _ => "No choice or fight is open."
+        };
+    }
+
+    internal static async Task<OpenState> DetectOpenAsync(KolibriSession session)
+    {
+        try { return OpenState.From(await session.Adventure.GetOpenEncounterAsync().ConfigureAwait(false)); }
+        catch (SessionExpiredException) { return new OpenState("Unavailable", null, "the session expired (login page)"); }
+        catch (Exception e) when (e is KolibriException or HttpRequestException or TaskCanceledException)
+        {
+            return new OpenState("Unavailable", null, e.Message);
+        }
+    }
+
+    internal static object OpenChoiceDocument(OpenState state, AccountRole role)
         => new
         {
-            status = "NeedsDecision",
-            runId = info.RunId,
-            role = info.AccountRole,
-            adventureId = info.AdventureId,
-            choiceId = info.ChoiceId,
-            title = info.Title,
-            options = info.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
-            reason = info.Reason,
-            instruction = info.Instruction,
-            resumeCommand = info.ChoiceId is null ? null : info.ResumeCommand(),
-            thenContinue = continueCommand
+            open = state.IsOpen,
+            kind = state.Kind,
+            message = state.Message,
+            choiceId = state.Choice?.ChoiceId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            title = state.Choice?.Title,
+            options = state.Choice?.Options.Select(o => new { number = o.Option, text = o.Text }).ToArray(),
+            submitCommand = state.Choice is { } c
+                ? $"kolibri choice submit --role {role.ToString().ToLowerInvariant()} --choice {c.ChoiceId} --option <N> --execute --approval-token <token>"
+                : null
         };
 
     private static async Task<int> ChoicePendingAsync(string[] args)
     {
         var role = ParseRole(GetOption(args, "--role") ?? "main");
-        using var http = await ReadAuthenticatedHttpAsync(role);
-        var detection = await new OpenChoiceClient(http).DetectAsync();
-        WriteJson(new { command = "choice pending", readOnly = true, role = role.ToString(), result = OpenChoiceDocument(detection, role) });
-        if (detection.IsUnavailable) return 5; // could not ask KoL: never report "free"
-        return detection.IsOpen ? 4 : 0;
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var state = await DetectOpenAsync(session);
+        WriteJson(new { command = "choice pending", readOnly = true, role = role.ToString(), result = OpenChoiceDocument(state, role) });
+        if (state.IsUnavailable) return 5; // could not ask KoL: never report "free"
+        return state.IsOpen ? 4 : 0;
     }
 
     private static async Task<int> ChoiceSubmitAsync(string[] args)
@@ -88,20 +104,38 @@ internal static partial class KolibriCli
             throw new ArgumentException("Live choice submission requires --approval-token.");
         if (!await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
             throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
-
-        using var http = await ReadAuthenticatedHttpAsync(role);
-        var result = await new OpenChoiceClient(http).SubmitAsync(choice, option);
+        if (!int.TryParse(choice.Trim(), out var choiceId))
+            throw new ArgumentException("--choice must be a numeric choice id.");
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        bool submitted;
+        string message;
+        OpenState next;
+        try
+        {
+            var after = await session.Adventure.ChooseAsync(choiceId, option);
+            next = OpenState.From(after is FightEncounter or ChoiceEncounter ? after : null);
+            submitted = true;
+            message = next.IsOpen ? "Submitted. Another choice or fight is now open." : "Submitted. No choice is open any more.";
+        }
+        catch (KolibriException exception) when (exception is not SessionExpiredException)
+        {
+            submitted = false;
+            message = exception.Message;
+            next = await DetectOpenAsync(session);
+        }
         WriteJson(new
         {
             command = "choice submit",
-            executed = result.Submitted,
+            executed = submitted,
             role = role.ToString(),
             choiceId = choice,
             option,
-            message = result.Message,
-            next = OpenChoiceDocument(result.Next, role)
+            message,
+            next = OpenChoiceDocument(next, role)
         });
-        return result.Submitted ? 0 : 3;
+        return submitted ? 0 : 3;
     }
 
     private static int ChoicePolicyCommand(string[] args)
@@ -139,7 +173,7 @@ internal static partial class KolibriCli
                 maxAdventureCost = new { value = config.MaxAdventureCost, @default = ChoiceResolutionConfig.MaxAdventureCostDefault, min = ChoiceResolutionConfig.MaxAdventureCostMin, max = ChoiceResolutionConfig.MaxAdventureCostMax }
             },
             choices = config.Choices.Select(x => new { choiceId = x.Key, option = x.Value.Option, title = x.Value.Title }).ToArray(),
-            builtInChoices = ChoiceResolver.BuiltInTable.Count
+            builtInChoices = 0
         });
         return 0;
     }
@@ -182,24 +216,19 @@ internal static partial class KolibriCli
         return value;
     }
 
-    /// <summary>Strict default: per-choice defaults from the policy file, mode ask unless configured.</summary>
-    internal static ChoiceResolver CreateChoiceResolver()
-        => new(new ChoiceResolutionConfigStore(Environment.GetEnvironmentVariable("KOLIBRI_CHOICE_POLICY")).Load());
+    /// <summary>The policy file of 0.4 (per-choice defaults, mode ask|auto-safe) as a KoLibri resolver.</summary>
+    internal static ChoiceResolutionConfig LoadChoicePolicy()
+        => new ChoiceResolutionConfigStore(Environment.GetEnvironmentVariable("KOLIBRI_CHOICE_POLICY")).Load();
 
-    /// <summary>After a live run: report whatever choice/fight is still open so it is never left silently.</summary>
-    internal static async Task<object?> DetectLeftoverChoiceAsync(KoLAdventureSession session)
+    /// <summary>Strict default: per-choice defaults from the policy file (plus <paramref name="extra"/>), mode ask unless configured.</summary>
+    internal static IChoiceResolver CreateChoiceResolver(ChoiceResolutionConfig config, IReadOnlyDictionary<int, int>? extra = null)
     {
-        try
-        {
-            var detection = await session.DetectOpenChoiceAsync().ConfigureAwait(false);
-            if (detection.IsUnavailable)
-                return new { open = (bool?)null, message = detection.Message };
-            return detection.IsOpen ? OpenChoiceDocument(detection, session.Role) : null;
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            return new { open = (bool?)null, message = $"Could not check for an open choice: {e.Message}" };
-        }
+        var table = new Dictionary<int, int>();
+        foreach (var (id, entry) in config.Choices)
+            if (int.TryParse(id, out var choiceId)) table[choiceId] = entry.Option;
+        if (extra is not null)
+            foreach (var (id, option) in extra) table[id] = option;
+        return config.Mode == ChoiceResolutionMode.AutoSafe ? ChoiceResolvers.Safe(table) : ChoiceResolvers.FromTable(table);
     }
 
     private static void PrintChoiceHelp()

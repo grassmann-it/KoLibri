@@ -1,6 +1,6 @@
 # KoLibri 0.5: Bestandsaufnahme und API-Entwurf
 
-Status: **Entwurf entschieden (§8), Schritt 3 Teil 1 umgesetzt (§11).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
+Status: **Entwurf entschieden (§8), Schritt 3 umgesetzt: Lib (§11) und CLI (§12).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
 Der Entwurf selbst baute keine App um; den Umsetzungsstand beschreibt §11. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
 [ROADMAP.md](../ROADMAP.md) (Abschnitt 0.5) ab.
 
@@ -815,13 +815,13 @@ Die Signaturen sind unverändert; abweichend vom Text in §4 ist:
 | 1 | Standard-`IAccountStore` | liest und schreibt die Dateien von 0.4 (`accounts.json` + verschlüsselte Secrets), Ids nur `main` und `mallbot`; andere Ids → `KolibriException`. `RemoveAsync` löscht die Zugangsdaten, das Profil bleibt. Labels/Tags in einer Nebendatei | gespeicherte Sitzungen von CLI/MCP/Desktop bleiben gültig; freie Ids mit eigenem `AccountStore` oder nach der Datenmigration |
 | 2 | `LimiterOptions` | Standard 2 s (Action) / 1 s (Read) / 2 parallel wie 0.4, Untergrenze 1 s bzw. 200 ms | gleiche Drosselung wie heute live bewiesen |
 | 3 | `GameData` ohne `DataDirectory` | mitgelieferter Ordner `external/kolmafia-data` neben der Anwendung, keine eingebettete Ressource | Paketgröße; eingebettet beim Pack-Schritt |
-| 4 | `DailyMarkers` | Rollover 03:30 US Eastern wie 0.4 (nicht Arizona); gleiche Datei `daily-done.json`, mit dem 0.4-Store der Schlüssel `Main:<Spieler-Id>` | Marker der 0.4-CLI (`daily run`) gelten weiter |
+| 4 | `DailyMarkers` | Rollover 03:30 US Eastern wie 0.4 (nicht Arizona); gleiche Datei `daily-done.json` (ohne `StateDirectory` `LocalApplicationData/KoLibri`); für die Konten `main`/`mallbot` der 0.4-Schlüssel `Main:<Spieler-Id>`, die Spieler-Id aus dem zuletzt gelesenen Status (wie 0.4), sonst aus dem Profil, sonst der Name | Marker der 0.4-CLI (`daily run`) gelten weiter |
 | 5 | `Shop.TakeBackAsync` | `NotSupportedException` | Core hat keinen geprüften Request; vorerst `session.PostAsync` |
 | 6 | `Shop.RepriceAsync` | ändert nur Preise; ein abweichendes `LimitPerDay` → `Rejected`, nichts gesendet | Core kann das Tageslimit nicht setzen |
 | 7 | `Mailbox` | `MailFolder.Pvp` → `NotSupportedException`; `MailEntry.Items` bleibt leer | Core liest diesen Ordner und die Anhänge nicht |
 | 8 | `PirateKeyCounts.Parts` | Anzahl kompletter Teile-Sätze (je ein Alpha/Bravo/Charlie/Delta) | das ist die Zahl, die `AssembleAsync` braucht |
 | 9 | `ActionResult.Page` | `null` bei Use/Consume/Cast/Rest/Equip | `CharacterActionClient` gibt die Seite nicht heraus; Status vorher/nachher ist gesetzt |
-| 10 | `Adventurer` | eigener kleiner Ablauf über rohe Seiten (`adventure.php`, `fight.php`, `choice.php`) mit den Core-Parsern statt `AdventureRunKernel`; Interstitial nach dem ersten Zug wird nur wiederholt, wenn der Adventure-Zähler gleich blieb; ein Zug ohne Zählerwechsel stoppt den Lauf (wie die 0.4-CLI) | der Kernel hängt an Checkpoints, Allowlists und Rollen; die Schleife der CLI bleibt bis Teil 2 unverändert |
+| 10 | `Adventurer` | eigener kleiner Ablauf über rohe Seiten (`adventure.php`, `fight.php`, `choice.php`) mit den Core-Parsern statt `AdventureRunKernel`, mit den Live-Regeln aus 0.4 #72–#74: Eröffnungsseite ohne `onturn` gilt als Runde 1; zeigt `fight.php` keine Spieler-HP, kommen sie aus einem frischen Status (unbekannt → Stopp vor der Runde); "Not in a Fight" nach `adventure.php` liest `choice.php` einmal; `main.php` ohne Begegnung zählt nur bei geändertem Adventure-Zähler als Zug, sonst Stopp ohne zweiten Start (Ausnahme: das Interstitial beim ersten Zug, einmal und nur ohne verbrauchten Zug) | der Kernel hängt an Checkpoints, Allowlists und Rollen; die Schleife der CLI bleibt bis Teil 2 unverändert |
 | 11 | `GetPriceHistoryAsync` | eigener `HttpClient` für pricegun.loathers.net, ohne KoL-Cookie, nicht über die KoL-Allowlist | anderer Host |
 | 12 | Lesefehler | liefert Core nur eine alte Kopie (`IsStale`), wirft die Fassade `KolibriException` | Läufe sollen nie mit geratenem Zustand weitermachen |
 | 13 | `CombatStrategies.FromRules` | Regelnutzung ("x3") wird bei jedem Aufruf aus `CombatContext.History` nachgerechnet | Strategien bleiben rein |
@@ -837,7 +837,7 @@ Die Signaturen sind unverändert; abweichend vom Text in §4 ist:
   Choice-Vorprüfung, Organ-Prüfung vor dem Konsum, Kaufplanung, alle Safety-Guards, `DailyRunner`, README-Beispiel.
 - Die bestehende Suite (`tests/KoLibri.Core.Tests`) bleibt grün. Keine Live-Requests.
 
-### 11.4 Teil 2: CLI-Umzug
+### 11.4 Teil 2: CLI-Umzug (Plan, umgesetzt in §12)
 
 Die CLI (`tools/KolLibri.Cli`, rund 6.600 Zeilen, 35 Befehle) bleibt in diesem Teil unverändert auf Core. Ihre
 Ausgaben hängen tief an Core-Typen (z. B. `adventure run`: `requestId`, `responseHash`, `abortReason` je Schritt).
@@ -853,3 +853,81 @@ Plan für Teil 2:
 2. Experimentelle Markt-Befehle (CRM, Bribe, Watchlist, Snatch, Reprice-Analyse) brauchen Extras (§6.2). Sie ziehen
    mit ihrem Code in die CLI oder in `KoLibri.Extras`; erst danach fällt der Core-Verweis der CLI.
 3. CLI-Tests mit `KolibriOptions.HttpHandler` gegen die neue API, dazu ein Golden-Vergleich der JSON-Ausgaben alt/neu.
+
+---
+
+## 12. Umsetzungsstand Schritt 3, Teil 2: CLI auf der neuen Lib
+
+Stand 2026-11-26. `tools/KolLibri.Cli` referenziert nur noch `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` und das neue
+`KoLibri.Extras`; kein `KoLibri.Core`, kein `LibKolibri` (`KoLibri.Core.dll` liegt nur noch als private
+Laufzeit-Abhängigkeit von `KoLibri` im Ausgabeordner). MCP und Desktop sind unverändert auf Core.
+
+### 12.1 Neue Projekte und verschobener Code
+
+| Projekt | Inhalt |
+|---|---|
+| `src/KoLibri.Extras` (`IsPackable=false`, nur `KoLibri`) | CRM (`BuyerCrmStore`/`BuyerCrmService`/`ShopBuyerAnalytics`, Käufer-Hash wie 0.4), Spend-Ledger (`FileSpendLedger`, `SharedMallSpendLedger`, `ArbitrageSpendLedger`, gleiche Dateien), Arbitrage (`ItemArbitragePlanner` unverändert, `ItemArbitrageService` und `ItemArbitrageExecutor` neu auf `Mall.GetOffersAsync`/`BuyAsync`, Reservierung im Ledger vor jedem Kauf) |
+| `src/KoLibri.Daily` | `DailyRun`: die Planung von `daily run` (0.4: `AutoCombatDailyBridge.BuildSteps`) und die Ausführung (Lagerfeuer/Day Shortener, Hermit, Meme-Shop) über `session.GetPageAsync`/`PostAsync`; dazu `MemeShopPage`, `BurningLeavesPage`, `DailyInternetShopPlanner` aus Core. Marker über `session.Daily` mit den 0.4-Schlüsseln |
+| `tools/KolLibri.Cli/Stores` | CLI-Kopien der 0.4-Dateiformate: Approval-Token (`approval-token.json`) und Choice-Policy |
+
+Die Core-Kopien dieser Klassen bleiben, bis MCP und Desktop umgezogen sind; dann werden sie in Core gelöscht.
+
+### 12.2 API-Ergänzungen (in `PublicAPI.Unshipped.txt` und im Stub)
+
+| Ergänzung | Wofür |
+|---|---|
+| `KolibriClient.GetPriceHistoryAsync(ItemRef)` | `pricegun` ohne angemeldetes Konto (wie 0.4) |
+| `Account.HasPassword` | `login refresh` ohne Flags (gespeichertes Passwort) und "frühere Wahl beibehalten" |
+| `IdentityMismatchException` | `login refresh` meldet einen Kontowechsel als eigenes Ergebnis (`ok=false`, Exit 1) |
+| `MallListing.LimitKnown`, `MallListing.QuantityKnown` | Arbitrage plant unbekannte Tageslimits und Bestände vorsichtig (wie 0.4) |
+| `ShopSale.ItemName` | `crm` wertet nach Itemnamen aus (das Verkaufslog nennt keine Ids) |
+| `PirateKeyCounts.Alpha/Bravo/Charlie/Delta`, `PirateKeyResult.Unclear`/`Steps`, `PirateKeyStep`, `PirateKeys.RareOptions` | `keys status/options/assemble/redeem` mit den 0.4-Ausgaben |
+| `RelayOptions.Output` | `relay` schreibt jede Anfrage auf die Konsole |
+
+Dazu eine Lib-Regel (keine Signatur): `LoginAsync` überschreibt ein bekanntes Konto mit Spieler-Id nicht, wenn KoL
+die Identität nicht meldet (außer `AllowIdentityChange`) – wie `login refresh` in 0.4.
+
+### 12.3 Befehle
+
+**Auf der neuen API, gleiche Exit-Codes und Sicherheitsprüfungen** (Approval-Token vor jedem Request,
+AgentGuard, Experimental-Gate unverändert): `login`, `login status|clear|refresh`, `token mint|show`, `status`,
+`inventory` (inkl. `--probe`), `shop`, `shop add`, `consume`, `rest`, `cast`, `keys status|options|assemble|redeem`,
+`mall --item`, `mall-reconcile`, `relay`, `adventure run`, `choice pending|submit|policy`, `daily run`,
+experimentell `pricegun`, `crm`, `crm-block`, `apply-prices`, `arbitrage plan|buy`, sowie `agent-mode`.
+
+**Vorerst nicht in 0.5-dev** (Meldung "moves onto the new KoLibri library in a follow-up PR. Nothing was sent.",
+Exit 3, kein Request): `mafia-script`, `repl`, `adventure-plan`, `adventure locations|start|inspect|step|stop|
+bounded-preview|choice-chain`, `combat`, `autocombat`, `daily campfire|hermit|internet-shop|routine|go|bridge|
+breakfast|meme-shop|…`, `daily-audit`, experimentell `compare`, `bribe-rank`, `bribe-plan`, `workflow-plan`,
+`categorize`, `reprice`, `snatch-plan`, `watchlist`, `market-scan`.
+
+### 12.4 Abweichungen in der Ausgabe
+
+Die Hüllen (`command`, `role`, `executed`, `previewOnly`, `approvalRequired`, Zähler, `stopReason`, `needsDecision`,
+`openFight`, …) sind gleich. Nutzdaten, die in 0.4 rohe Core-Records waren, baut die CLI jetzt aus den 0.5-Records:
+
+| Befehl | Abweichung |
+|---|---|
+| `status` | gleiche Feldnamen; entfallen: `pathId`, `ascensions`, `hardcore`, `familiarName`, `familiarWeight`, `skills`, `classId`, `organLimitConfidence`/`Note`. `equipment` hat Slot-Namen (`Hat`, `Weapon`, …) statt der api.php-Schlüssel; `timedEffects` haben zusätzlich `id`; Organ-Limits sind `null`, wenn unsicher |
+| `login status` | `profileId` ist die Konto-Id, `endpoint` ist `null` |
+| `consume` | die Organ-Prüfung läuft vor dem Request (zu voll → `rejection`, nichts gesendet); neues Feld `unclear` |
+| `rest` | `afterEach` enthält nur noch den Stand nach der letzten Rast; `adventuresSpent` aus vorher/nachher |
+| `cast` | `page` ist `null` |
+| `shop add` | `outcome.storeMessage` ist `null`; die übrigen Felder kommen aus dem Ergebnis und einem Nachlesen |
+| `mall --item` | ohne `sellerId`/`seller`/`ownerId`; `limitKind` aus `LimitKnown` |
+| `pricegun`, `crm`, `keys status` | `IsStale` ist immer `false` (die Lib liefert keine alten Kopien, sie wirft) |
+| `adventure run` | `steps` sind Begegnungen (`status` = `Fight`/`Choice`/`NonCombat`/`Blocked:…`, `requestId`/`responseHash` `null`), neues Feld `detail`; `auditPath` `null`; unbekannte Seiten werden wie in 0.4 geschwärzt mit Request-Trail (und `.prev.html`) unter `~/.local/share/KoLibri/logs/unknown-pages` abgelegt (`unknownPagePath`, CLI-Kopie von `UnknownPageArchive`); `--conditions-file` kennt nur `ItemCount AtLeast` und `AdventuresRemaining AtMost` (andere werden vor dem Senden abgelehnt); von mehreren `--fight-action` gilt die erste; ohne ermittelbare Snarfblat wird vor dem Senden abgebrochen |
+| `daily run` | `auditPath` ist `null` (kein Bridge-Audit-Log mehr); der Archäologen-Spaten-Schritt wird nicht mehr gelistet |
+| `arbitrage buy` | `steps[].reasons` sind Texte statt `MallPurchaseAbortReason`-Werte |
+| `relay` | die User-Agent-Zeile sagt "the stored session's" statt den Wert zu nennen |
+
+### 12.5 Tests
+
+- `tests/KoLibri.Tests/CliTests.cs`: 22 Tests, die die CLI über `KolibriCli.OptionsOverride` gegen den Fake-Handler
+  laufen lassen (Status-Felder, Inventar, Platzhalter senden nichts, Experimental-Gate, Session-Probe, Login-Status,
+  `login clear`, Organ-Prüfung bei `consume`, Token-Prüfung bei `adventure run`, Lauf mit `--choice-action`,
+  `needsDecision` mit Exit 4, Kampf mit Standard-`attack`, `choice submit`/`pending`, `daily run` Vorschau und
+  Ausführung mit Marker, `mall --item`, `keys`, `apply-prices`-Regeln, Limiter aus Umgebungsvariablen).
+- In `tests/KoLibri.Core.Tests` angepasst bzw. umgezogen: `ReplSessionTests` entfernt (REPL folgt), LoginClear-,
+  REPL-Parser-, Session-Probe- und Status-Row-Tests nach `CliTests` verschoben; die übrigen CLI-Tests nutzen die
+  CLI-Typen (`KoLibri.Cli.AccountRole`, `ApprovalTokenStore`, `ChoiceResolutionConfig`).

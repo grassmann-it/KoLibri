@@ -3,6 +3,7 @@
     <Project Path="src/KoLibri/KoLibri.csproj" />
     <Project Path="src/KoLibri.Safety/KoLibri.Safety.csproj" />
     <Project Path="src/KoLibri.Daily/KoLibri.Daily.csproj" />
+    <Project Path="src/KoLibri.Extras/KoLibri.Extras.csproj" />
     <Project Path="src/KoLibri.Core/KoLibri.Core.csproj" />
     <Project Path="src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </Folder>

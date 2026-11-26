@@ -1,5 +1,4 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
+using KoLibri.Extras;
 
 internal static partial class KolibriCli
 {
@@ -22,8 +21,10 @@ internal static partial class KolibriCli
         long? meat = null;
         try
         {
-            var client = await ReadClientAsync(role);
-            meat = (await client.Api.FetchStatusAsync(forceRefresh: true)).Meat;
+            var (client, session) = await OpenAsync(role);
+            await using var _ = client;
+            await using var __ = session;
+            meat = (await session.Character.GetStatusAsync(refresh: true)).Meat;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

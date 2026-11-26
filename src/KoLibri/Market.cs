@@ -68,11 +68,14 @@ namespace KoLibri
         }
 
         /// <summary>Preisverlauf von pricegun.loathers.net (gecacht, gedrosselt). Null bei Fehler.</summary>
-        public async Task<PriceHistory?> GetPriceHistoryAsync(ItemRef item, CancellationToken cancellationToken = default)
+        public Task<PriceHistory?> GetPriceHistoryAsync(ItemRef item, CancellationToken cancellationToken = default)
+            => _session.Client.GetPriceHistoryAsync(item, cancellationToken);
+
+        internal static async Task<PriceHistory?> FetchPriceHistoryAsync(KolibriClient client, ItemRef item, CancellationToken cancellationToken)
         {
             try
             {
-                var snapshot = await _session.Client.Pricegun.FetchAsync(item.Id.ToString(CultureInfo.InvariantCulture), false, cancellationToken)
+                var snapshot = await client.Pricegun.FetchAsync(item.Id.ToString(CultureInfo.InvariantCulture), false, cancellationToken)
                     .ConfigureAwait(false);
                 if (snapshot.Sales.Count == 0 && snapshot.IsStale) return null;
                 var points = snapshot.Sales.OrderBy(s => s.SoldAt).Select(s => new PricePoint(s.SoldAt, s.UnitPrice, s.Quantity)).ToArray();
@@ -216,6 +219,10 @@ namespace KoLibri
                 .Select(l => int.TryParse(l.StoreId, NumberStyles.None, CultureInfo.InvariantCulture, out var store)
                     ? new MallListing(store, l.StoreName ?? l.SellerName ?? store.ToString(CultureInfo.InvariantCulture), id, l.Price,
                         l.Quantity, l.PurchaseLimit is > 0 ? l.PurchaseLimit : null)
+                    {
+                        LimitKnown = l.LimitKind != CoreMarkt.MallLimitKind.Unknown || l.PurchaseLimit is > 0,
+                        QuantityKnown = l.QuantityKnown
+                    }
                     : null)
                 .OfType<MallListing>()
                 .OrderBy(l => l.UnitPrice)
@@ -224,7 +231,13 @@ namespace KoLibri
         }
     }
 
-    public sealed record MallListing(int StoreId, string StoreName, ItemRef Item, long UnitPrice, int Quantity, int? LimitPerDay);
+    public sealed record MallListing(int StoreId, string StoreName, ItemRef Item, long UnitPrice, int Quantity, int? LimitPerDay)
+    {
+        /// <summary>False when KoL's page did not show whether the store has a daily limit (LimitPerDay is then null but not "unlimited").</summary>
+        public bool LimitKnown { get; init; } = true;
+        /// <summary>False when the stock could not be read from the page.</summary>
+        public bool QuantityKnown { get; init; } = true;
+    }
     public sealed record MallOffers(ItemRef Item, string Name, IReadOnlyList<MallListing> Listings, DateTimeOffset FetchedAt);
     public sealed record MallSearchResult(string Term, IReadOnlyList<MallOffers> Items, DateTimeOffset FetchedAt);
 
@@ -336,14 +349,18 @@ namespace KoLibri
             if (snapshot.IsStale) throw new KolibriException("The sales log could not be read just now.");
             return snapshot.Sales
                 .Select(s => new ShopSale(s.SoldAt ?? s.ObservedAt, s.RawBuyerName ?? s.BuyerKey,
-                    _session.Client.Data.FindItem(s.ItemName)?.Item ?? new ItemRef(0), s.Quantity, s.TotalPrice))
+                    _session.Client.Data.FindItem(s.ItemName)?.Item ?? new ItemRef(0), s.Quantity, s.TotalPrice) { ItemName = s.ItemName })
                 .ToArray();
         }
     }
 
     public sealed record ShopListing(ItemRef Item, string Name, int Quantity, long Price, int LimitPerDay);
     public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null);
-    public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat);
+    public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat)
+    {
+        /// <summary>Item name as the sales log shows it (the id is looked up from it and may be 0).</summary>
+        public string ItemName { get; init; } = string.Empty;
+    }
 
     public sealed class PirateKeys
     {
@@ -370,7 +387,7 @@ namespace KoLibri
             {
                 var client = await OpenAsync(cancellationToken).ConfigureAwait(false);
                 return ToResult(await _session.ActAsync(() => client.AssembleAsync(count, cancellationToken)).ConfigureAwait(false));
-            }, r => r.Done > 0 || r.Message?.Contains("unclear", StringComparison.OrdinalIgnoreCase) == true, cancellationToken);
+            }, r => r.Done > 0 || r.Unclear, cancellationToken);
         }
 
         public async Task<IReadOnlyList<ChoiceOption>> GetRareOptionsAsync(CancellationToken cancellationToken = default)
@@ -392,21 +409,51 @@ namespace KoLibri
             {
                 var client = await OpenAsync(cancellationToken).ConfigureAwait(false);
                 return ToResult(await _session.ActAsync(() => client.RedeemAsync(rare.Id, count, cancellationToken)).ConfigureAwait(false));
-            }, r => r.Done > 0 || r.Message?.Contains("unclear", StringComparison.OrdinalIgnoreCase) == true, cancellationToken);
+            }, r => r.Done > 0 || r.Unclear, cancellationToken);
         }
 
         private async Task<CoreSpiel.PirateKeyClient> OpenAsync(CancellationToken cancellationToken)
             => new(_session.Http, await _session.GetPasswordHashAsync(cancellationToken).ConfigureAwait(false), _session.Client.Policy);
 
-        private static PirateKeyCounts Counts(CoreSpiel.PirateKeyCounts counts) => new(counts.AssemblableSets, counts.Complete);
+        /// <summary>The rare items a complete key can become (offline list, id and name).</summary>
+        public static IReadOnlyList<ChoiceOption> RareOptions { get; } =
+            CoreSpiel.PirateKeyClient.RareOptions.Select(o => new ChoiceOption(o.Value, o.Label)).ToArray();
+
+        private static PirateKeyCounts Counts(CoreSpiel.PirateKeyCounts counts) => new(counts.AssemblableSets, counts.Complete)
+        {
+            Alpha = counts.Alpha,
+            Bravo = counts.Bravo,
+            Charlie = counts.Charlie,
+            Delta = counts.Delta
+        };
 
         private static PirateKeyResult ToResult(CoreSpiel.PirateKeyRunResult run)
             => new(run.Requested, run.Confirmed, Counts(run.Before), Counts(run.After ?? run.Before),
-                run.Unclear ? $"Unclear: {run.Problem ?? "a request was sent but its effect could not be read back."}" : run.Problem);
+                run.Unclear ? $"Unclear: {run.Problem ?? "a request was sent but its effect could not be read back."}" : run.Problem)
+            {
+                Unclear = run.Unclear,
+                Steps = run.Steps.Select(st => new PirateKeyStep(st.Number, st.Confirmed, st.Message, st.InventoryDelta)).ToArray()
+            };
     }
 
-    public sealed record PirateKeyCounts(int Parts, int Keys);
-    public sealed record PirateKeyResult(int Requested, int Done, PirateKeyCounts Before, PirateKeyCounts After, string? Message);
+    public sealed record PirateKeyCounts(int Parts, int Keys)
+    {
+        /// <summary>Single parts in the inventory (added in 0.5 step 3 for the CLI's `keys status`).</summary>
+        public int Alpha { get; init; }
+        public int Bravo { get; init; }
+        public int Charlie { get; init; }
+        public int Delta { get; init; }
+    }
+
+    public sealed record PirateKeyResult(int Requested, int Done, PirateKeyCounts Before, PirateKeyCounts After, string? Message)
+    {
+        /// <summary>A request went out but its effect could not be read back: check the account before repeating.</summary>
+        public bool Unclear { get; init; }
+        public IReadOnlyList<PirateKeyStep> Steps { get; init; } = Array.Empty<PirateKeyStep>();
+    }
+
+    /// <summary>One sent request and the inventory change it caused (item id → delta).</summary>
+    public sealed record PirateKeyStep(int Number, bool Confirmed, string? Message, IReadOnlyDictionary<int, int> InventoryDelta);
 
     public enum MailFolder { Inbox, Saved, Outbox, Pvp }
 

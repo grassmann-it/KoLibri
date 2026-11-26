@@ -1,5 +1,4 @@
 using System.Text;
-using KoLibri.Cli.Repl;
 using Xunit;
 using KoLibri.Core.Basis;
 
@@ -66,36 +65,7 @@ public sealed class LoginDispatchTests
         Assert.Equal(string.Empty, expiredSession!.Credentials.CookieHeader);
         Assert.True(expiredSession.IsExpired());
     }
-
-    [Fact]
-    public async Task LoginClear_helper_removes_stored_secret_and_keeps_profile()
-    {
-        var secrets = new InMemorySecretStore();
-        var accounts = new AccountSessionManager(new InMemoryAccountStore(), secrets);
-        await accounts.SetProfileAsync(new AccountProfile
-        {
-            Id = "main", DisplayName = "alice", Role = AccountRole.Main, Enabled = true
-        });
-        await accounts.SetCredentialsAsync(AccountRole.Main, new AccountCredentials
-        {
-            CookieHeader = "PHPSESSID=abc", ExpiresAt = DateTimeOffset.UtcNow.AddHours(2)
-        });
-
-        var cleared = await LoginClear.ClearAsync(accounts, new[] { AccountRole.Main, AccountRole.Mallbot });
-
-        Assert.Equal(new[] { AccountRole.Main }, cleared);
-        Assert.Null(await secrets.GetAsync("main"));
-        Assert.NotNull(await accounts.GetProfileAsync(AccountRole.Main));
-        Assert.Null(await accounts.GetSessionAsync(AccountRole.Main, includeExpired: true));
-    }
-
-    [Fact]
-    public void ParseArgs_handles_login_subcommand_dispatch()
-    {
-        Assert.Equal(new[] { "status" }, ReplSession.ParseArgs("status"));
-        Assert.Equal(new[] { "clear", "--role", "all" }, ReplSession.ParseArgs("clear --role all"));
-        Assert.Equal(new[] { "refresh", "--username", "x" }, ReplSession.ParseArgs("refresh --username x"));
-    }
+    // LoginClear and the REPL argument parser moved with the CLI to the KoLibri API (tests/KoLibri.Tests/CliTests.cs).
 }
 
 /// <summary>Tiny in-memory implementations of the storage interfaces so the

@@ -35,6 +35,8 @@ namespace KoLibri
         public Task<KolibriSession> LoginAsync(string userName, string password, LoginOptions? options = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         /// <summary>Öffnet eine Sitzung mit gespeichertem Cookie. Id oder KoL-Name.</summary>
         public Task<KolibriSession> OpenAsync(string accountIdOrName, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        /// <summary>Preisverlauf von pricegun.loathers.net ohne KoL-Sitzung. Ergänzt in Schritt 3 (CLI).</summary>
+        public Task<PriceHistory?> GetPriceHistoryAsync(ItemRef item, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public ValueTask DisposeAsync() => throw new NotImplementedException();
     }
 
@@ -83,6 +85,8 @@ namespace KoLibri
     {
         public bool HasSession { get; init; }
         public DateTimeOffset? SessionExpiresAt { get; init; }
+        /// <summary>Ein Passwort ist gespeichert (automatisches Reconnect möglich). Ergänzt in Schritt 3 (CLI).</summary>
+        public bool HasPassword { get; init; }
     }
 
     public sealed class AccountRegistry
@@ -110,6 +114,15 @@ namespace KoLibri
     public class KolibriException : Exception
     {
         public KolibriException(string message, Exception? inner = null) : base(message, inner) { }
+    }
+    /// <summary>Bekannte Konto-Id, aber KoL meldet einen anderen Spieler; nichts gespeichert. Ergänzt in Schritt 3 (CLI).</summary>
+    public sealed class IdentityMismatchException : KolibriException
+    {
+        public IdentityMismatchException(AccountId account, string storedPlayer, string loginPlayer) : base("Identity mismatch.")
+        { Account = account; StoredPlayer = storedPlayer; LoginPlayer = loginPlayer; }
+        public AccountId Account { get; }
+        public string StoredPlayer { get; }
+        public string LoginPlayer { get; }
     }
     /// <summary>Sitzung abgelaufen und kein gespeichertes Passwort für ein automatisches Reconnect.</summary>
     public sealed class SessionExpiredException : KolibriException
@@ -179,6 +192,8 @@ namespace KoLibri
         public int Port { get; init; }
         public string? LogPath { get; init; }
         public bool UseBrowserUserAgent { get; init; }
+        /// <summary>Eine Zeile je weitergeleitetem Request (redigiert). Ergänzt in Schritt 3 (CLI).</summary>
+        public Action<string>? Output { get; init; }
     }
 
     public sealed class RelayServer : IAsyncDisposable
@@ -496,7 +511,12 @@ namespace KoLibri
         public Task<PriceHistory?> GetPriceHistoryAsync(ItemRef item, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 
-    public sealed record MallListing(int StoreId, string StoreName, ItemRef Item, long UnitPrice, int Quantity, int? LimitPerDay);
+    public sealed record MallListing(int StoreId, string StoreName, ItemRef Item, long UnitPrice, int Quantity, int? LimitPerDay)
+    {
+        /// <summary>False: KoL zeigte nicht, ob es ein Tageslimit gibt. Ergänzt in Schritt 3 (Arbitrage).</summary>
+        public bool LimitKnown { get; init; } = true;
+        public bool QuantityKnown { get; init; } = true;
+    }
     public sealed record MallOffers(ItemRef Item, string Name, IReadOnlyList<MallListing> Listings, DateTimeOffset FetchedAt);
     public sealed record MallSearchResult(string Term, IReadOnlyList<MallOffers> Items, DateTimeOffset FetchedAt);
 
@@ -539,7 +559,11 @@ namespace KoLibri
 
     public sealed record ShopListing(ItemRef Item, string Name, int Quantity, long Price, int LimitPerDay);
     public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null);
-    public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat);
+    public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat)
+    {
+        /// <summary>Itemname aus dem Verkaufslog. Ergänzt in Schritt 3 (CLI crm).</summary>
+        public string ItemName { get; init; } = string.Empty;
+    }
 
     public sealed class PirateKeys
     {
@@ -548,10 +572,25 @@ namespace KoLibri
         public Task<PirateKeyResult> AssembleAsync(int count, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<ChoiceOption>> GetRareOptionsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PirateKeyResult> RedeemAsync(ItemRef rare, int count, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        /// <summary>Die seltenen Items, zu denen ein Schlüssel werden kann (offline). Ergänzt in Schritt 3 (CLI keys).</summary>
+        public static IReadOnlyList<ChoiceOption> RareOptions { get; } = Array.Empty<ChoiceOption>();
     }
 
-    public sealed record PirateKeyCounts(int Parts, int Keys);
-    public sealed record PirateKeyResult(int Requested, int Done, PirateKeyCounts Before, PirateKeyCounts After, string? Message);
+    public sealed record PirateKeyCounts(int Parts, int Keys)
+    {
+        /// <summary>Einzelteile. Ergänzt in Schritt 3 (CLI keys status).</summary>
+        public int Alpha { get; init; }
+        public int Bravo { get; init; }
+        public int Charlie { get; init; }
+        public int Delta { get; init; }
+    }
+    public sealed record PirateKeyResult(int Requested, int Done, PirateKeyCounts Before, PirateKeyCounts After, string? Message)
+    {
+        /// <summary>Ergänzt in Schritt 3 (CLI keys assemble|redeem).</summary>
+        public bool Unclear { get; init; }
+        public IReadOnlyList<PirateKeyStep> Steps { get; init; } = Array.Empty<PirateKeyStep>();
+    }
+    public sealed record PirateKeyStep(int Number, bool Confirmed, string? Message, IReadOnlyDictionary<int, int> InventoryDelta);
 
     public enum MailFolder { Inbox, Saved, Outbox, Pvp }
 

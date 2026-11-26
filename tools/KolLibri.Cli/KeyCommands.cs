@@ -1,6 +1,4 @@
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
-using LibKolibri;
+using KoLibri;
 
 internal static partial class KolibriCli
 {
@@ -23,7 +21,7 @@ internal static partial class KolibriCli
             case "status": return await KeysStatusAsync(rest);
             case "options":
                 StrictOptions.Only(rest, Array.Empty<string>(), Array.Empty<string>());
-                WriteJson(new { command = "keys options", options = PirateKeyClient.RareOptions.Select(o => new { itemId = o.Value, name = o.Label }) });
+                WriteJson(new { command = "keys options", options = PirateKeys.RareOptions.Select(o => new { itemId = o.Option, name = o.Text }) });
                 return 0;
             case "assemble": return await KeysAssembleAsync(rest);
             case "redeem": return await KeysRedeemAsync(rest);
@@ -33,21 +31,47 @@ internal static partial class KolibriCli
         }
     }
 
+    /// <summary>Crimbo 2023 pirate key item ids (complete key 11473, parts 11386-11389).</summary>
+    internal const int PirateKeyAlpha = 11386, PirateKeyComplete = 11473;
+
     private static object CountsJson(PirateKeyCounts c) => new
     {
         parts = new { alpha = c.Alpha, bravo = c.Bravo, charlie = c.Charlie, delta = c.Delta },
-        completeKeys = c.Complete,
-        assemblableSets = c.AssemblableSets
+        completeKeys = c.Keys,
+        assemblableSets = c.Parts
     };
+
+    /// <summary>The 0.4 rule: an id from the fixed list, or a name (exact, else a unique part of it).</summary>
+    internal static ChoiceOption? ResolveRare(string idOrName, out string? problem)
+    {
+        var options = PirateKeys.RareOptions;
+        problem = null;
+        var text = (idOrName ?? "").Trim();
+        if (int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            var byId = options.FirstOrDefault(o => o.Option == id);
+            if (byId is null) problem = $"{id} is not one of the {options.Count} items the key offers.";
+            return byId;
+        }
+        var exact = options.FirstOrDefault(o => string.Equals(o.Text, text, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null) return exact;
+        var partial = text.Length == 0 ? Array.Empty<ChoiceOption>() : options.Where(o => o.Text.Contains(text, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (partial.Length == 1) return partial[0];
+        problem = partial.Length == 0
+            ? $"'{text}' is not one of the {options.Count} items the key offers."
+            : $"'{text}' matches several items: {string.Join(", ", partial.Select(o => $"{o.Text} ({o.Option})"))}.";
+        return null;
+    }
 
     private static async Task<int> KeysStatusAsync(string[] args)
     {
         StrictOptions.Only(args, new[] { "--role" }, Array.Empty<string>());
         var role = StrictOptions.Role(args);
-        var (api, _) = await ReadClientAsync(role);
-        var inventory = await api.FetchInventoryAsync(forceRefresh: true);
-        var counts = PirateKeyClient.CountKeys(inventory);
-        WriteJson(new { command = "keys status", readOnly = true, role = role.ToString(), inventory.IsStale, inventory.FetchedAt, counts = CountsJson(counts) });
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var counts = await session.PirateKeys.GetCountsAsync();
+        WriteJson(new { command = "keys status", readOnly = true, role = role.ToString(), IsStale = false, FetchedAt = DateTimeOffset.UtcNow, counts = CountsJson(counts) });
         return 0;
     }
 
@@ -61,19 +85,21 @@ internal static partial class KolibriCli
             throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
     }
 
-    private static object RunJson(PirateKeyRunResult r) => new
+    private static bool Complete(PirateKeyResult r) => r.Done == r.Requested && r.Message is null && !r.Unclear;
+
+    private static object RunJson(PirateKeyResult r) => new
     {
         requested = r.Requested,
-        confirmed = r.Confirmed,
-        complete = r.Complete,
+        confirmed = r.Done,
+        complete = Complete(r),
         unclear = r.Unclear,
-        problem = r.Problem,
+        problem = r.Unclear && r.Message is { } m && m.StartsWith("Unclear: ", StringComparison.Ordinal) ? m["Unclear: ".Length..] : r.Message,
         before = CountsJson(r.Before),
-        after = r.After is null ? null : CountsJson(r.After),
+        after = CountsJson(r.After),
         steps = r.Steps.Select(s => new { s.Number, s.Confirmed, s.Message, inventoryDelta = s.InventoryDelta.ToDictionary(d => d.Key.ToString(), d => d.Value) })
     };
 
-    private static int RunExit(PirateKeyRunResult r) => r.Unclear ? 4 : r.Complete ? 0 : 3;
+    private static int RunExit(PirateKeyResult r) => r.Unclear ? 4 : Complete(r) ? 0 : 3;
 
     private static async Task<int> KeysAssembleAsync(string[] args)
     {
@@ -84,14 +110,15 @@ internal static partial class KolibriCli
         {
             // Preview: no request at all. 'keys status' shows the counts.
             WriteJson(new { command = "keys assemble", previewOnly = true, executed = false, approvalRequired = true, role = role.ToString(), count,
-                requests = $"{count} x GET inv_use.php?whichitem={PirateKeyClient.Alpha}&ajax=1&pwd=…, each confirmed by the inventory (parts -1, complete key +1)",
+                requests = $"{count} x GET inv_use.php?whichitem={PirateKeyAlpha}&ajax=1&pwd=…, each confirmed by the inventory (parts -1, complete key +1)",
                 note = "Preview only; nothing was sent. 'keys status' shows parts and sets. Add --execute and --approval-token to assemble." });
             return 0;
         }
         await RequireApprovalAsync(args, "Assembling keys");
-        using var kol = await KolibriClient.OpenAsync(role);
-        var keys = await kol.OpenPirateKeysAsync();
-        var result = await keys.AssembleAsync(count);
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var result = await session.PirateKeys.AssembleAsync(count);
         WriteJson(new { command = "keys assemble", executed = true, role = role.ToString(), result = RunJson(result) });
         return RunExit(result);
     }
@@ -103,21 +130,22 @@ internal static partial class KolibriCli
         var itemText = StrictOptions.Value(args, "--item") ?? throw new ArgumentException("--item ID|NAME is required (see 'keys options').");
         var count = StrictOptions.RequiredInt(args, "--count", 1, 500, "keys to redeem");
         // Resolved against the fixed list before any session is opened: an unknown item sends nothing.
-        var rare = PirateKeyClient.ResolveRare(itemText, out var problem)
+        var rare = ResolveRare(itemText, out var problem)
             ?? throw new ArgumentException(problem + " Nothing was sent. See 'keys options'.");
         if (!HasFlag(args, "--execute"))
         {
             WriteJson(new { command = "keys redeem", previewOnly = true, executed = false, approvalRequired = true, role = role.ToString(),
-                item = new { itemId = rare.Value, name = rare.Label }, count,
-                requests = $"per key: read the key form (main.php, else GET inv_use.php?whichitem={PirateKeyClient.CompleteKey}&pwd=… and its one-time message page), then GET inv_use.php?whichitem={PirateKeyClient.CompleteKey}&qty=1&pwd=…&rare={rare.Value}, confirmed by the inventory (key -1, item +1)",
+                item = new { itemId = rare.Option, name = rare.Text }, count,
+                requests = $"per key: read the key form (main.php, else GET inv_use.php?whichitem={PirateKeyComplete}&pwd=… and its one-time message page), then GET inv_use.php?whichitem={PirateKeyComplete}&qty=1&pwd=…&rare={rare.Option}, confirmed by the inventory (key -1, item +1)",
                 note = "Preview only; nothing was sent. 'keys status' shows complete keys. Add --execute and --approval-token to redeem." });
             return 0;
         }
         await RequireApprovalAsync(args, "Redeeming keys");
-        using var kol = await KolibriClient.OpenAsync(role);
-        var keys = await kol.OpenPirateKeysAsync();
-        var result = await keys.RedeemAsync(rare.Value, count);
-        WriteJson(new { command = "keys redeem", executed = true, role = role.ToString(), item = new { itemId = rare.Value, name = rare.Label }, result = RunJson(result) });
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var result = await session.PirateKeys.RedeemAsync(rare.Option, count);
+        WriteJson(new { command = "keys redeem", executed = true, role = role.ToString(), item = new { itemId = rare.Option, name = rare.Text }, result = RunJson(result) });
         return RunExit(result);
     }
 
@@ -125,7 +153,7 @@ internal static partial class KolibriCli
     private static async Task<int> ShopAddAsync(string[] args)
     {
         StrictOptions.Only(args, new[] { "--role", "--item", "--qty", "--price", "--limit", "--approval-token" }, new[] { "--execute" });
-        var role = StrictOptions.Value(args, "--role") is null ? KoLibri.Core.Basis.AccountRole.Mallbot : StrictOptions.Role(args);
+        var role = StrictOptions.Value(args, "--role") is null ? AccountRole.Mallbot : StrictOptions.Role(args);
         var item = StrictOptions.RequiredInt(args, "--item", 1, int.MaxValue, "ITEM_ID");
         var qty = StrictOptions.RequiredInt(args, "--qty", 1, 100_000, "amount to list");
         var price = StrictOptions.RequiredInt(args, "--price", 1, 999_999_999, "meat per item");
@@ -139,9 +167,35 @@ internal static partial class KolibriCli
             return 0;
         }
         await RequireApprovalAsync(args, "Listing in the store");
-        using var kol = await KolibriClient.OpenAsync(role);
-        var outcome = await kol.AddToShopAsync(item, qty, price, limit);
-        WriteJson(new { command = "shop add", executed = outcome.Sent, role = role.ToString(), outcome });
-        return outcome.Unclear ? 4 : outcome.Confirmed ? 0 : 3;
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var before = (await session.Shop.GetListingsAsync(refresh: true)).FirstOrDefault(l => l.Item.Id == item);
+        var result = await session.Shop.AddAsync(item, qty, price, limit);
+        var confirmed = result.Status == ActionStatus.Done;
+        var unclear = result.Status == ActionStatus.Unclear;
+        ShopListing? after = null;
+        if (confirmed || unclear)
+        {
+            try { after = (await session.Shop.GetListingsAsync(refresh: true)).FirstOrDefault(l => l.Item.Id == item); }
+            catch (KolibriException) { }
+        }
+        var outcome = new
+        {
+            sent = confirmed || unclear || (result.Rejection is { } r && !r.Contains("Nothing was sent", StringComparison.OrdinalIgnoreCase)
+                                           && !r.Contains("already listed", StringComparison.OrdinalIgnoreCase)),
+            confirmed,
+            unclear,
+            problem = confirmed ? null : result.Rejection,
+            itemId = item,
+            quantity = qty,
+            price,
+            quantityBefore = before?.Quantity ?? 0,
+            quantityAfter = after?.Quantity,
+            priceAfter = after?.Price,
+            storeMessage = (string?)null
+        };
+        WriteJson(new { command = "shop add", executed = outcome.sent, role = role.ToString(), outcome });
+        return unclear ? 4 : confirmed ? 0 : 3;
     }
 }

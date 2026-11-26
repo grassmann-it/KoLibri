@@ -61,9 +61,10 @@ namespace KoLibri
 
             var existing = await FindRecordAsync(id.Value, byIdOnly: true, cancellationToken).ConfigureAwait(false);
             if (existing is not null && identity is not null && !options.AllowIdentityChange && !SamePlayer(existing.Account, identity.Value))
+                throw new IdentityMismatchException(id, existing.Account.PlayerName, identity.Value.Name);
+            if (existing is { Account.PlayerId: not null } && identity is null && !options.AllowIdentityChange)
                 throw new KolibriException(
-                    $"The account '{id}' belongs to '{existing.Account.PlayerName}', but this login is '{identity.Value.Name}'. " +
-                    "Nothing was saved. Set LoginOptions.AllowIdentityChange to replace it.");
+                    $"KoL did not report which player this session belongs to, and '{id}' belongs to '{existing.Account.PlayerName}'; nothing was saved.");
 
             var account = new Account(
                 id,
@@ -94,6 +95,13 @@ namespace KoLibri
             }
             return Track(new KolibriSession(this, record, UserAgentFor(record.Account.Id)));
         }
+
+        /// <summary>
+        /// Preisverlauf von pricegun.loathers.net, ohne KoL-Sitzung (gecacht, gedrosselt). Null bei Fehler.
+        /// Ergänzt in 0.5 Schritt 3: die CLI zeigt Preise auch ohne angemeldetes Konto.
+        /// </summary>
+        public Task<PriceHistory?> GetPriceHistoryAsync(ItemRef item, CancellationToken cancellationToken = default)
+            => Mall.FetchPriceHistoryAsync(this, item, cancellationToken);
 
         public async ValueTask DisposeAsync()
         {
@@ -219,6 +227,8 @@ namespace KoLibri
     {
         public bool HasSession { get; init; }
         public DateTimeOffset? SessionExpiresAt { get; init; }
+        /// <summary>A password is stored, so the session can be renewed without asking. Ergänzt in 0.5 Schritt 3.</summary>
+        public bool HasPassword { get; init; }
     }
 
     public sealed class AccountRegistry
@@ -268,7 +278,7 @@ namespace KoLibri
         {
             var hasSession = !string.IsNullOrWhiteSpace(record.CookieHeader)
                 && (record.ExpiresAt is null || record.ExpiresAt > DateTimeOffset.UtcNow);
-            return record.Account with { HasSession = hasSession, SessionExpiresAt = record.ExpiresAt };
+            return record.Account with { HasSession = hasSession, SessionExpiresAt = record.ExpiresAt, HasPassword = !string.IsNullOrEmpty(record.Password) };
         }
     }
 
@@ -285,6 +295,26 @@ namespace KoLibri
     public class KolibriException : Exception
     {
         public KolibriException(string message, Exception? inner = null) : base(message, inner) { }
+    }
+
+    /// <summary>
+    /// Login für eine bekannte Konto-Id, aber KoL meldet einen anderen Spieler. Nichts wurde gespeichert.
+    /// Ergänzt in 0.5 Schritt 3 (CLI <c>login refresh</c> meldet das als eigenes Ergebnis).
+    /// </summary>
+    public sealed class IdentityMismatchException : KolibriException
+    {
+        public IdentityMismatchException(AccountId account, string storedPlayer, string loginPlayer)
+            : base($"The account '{account}' belongs to '{storedPlayer}', but this login is '{loginPlayer}'. " +
+                   "Nothing was saved. Set LoginOptions.AllowIdentityChange to replace it.")
+        {
+            Account = account;
+            StoredPlayer = storedPlayer;
+            LoginPlayer = loginPlayer;
+        }
+
+        public AccountId Account { get; }
+        public string StoredPlayer { get; }
+        public string LoginPlayer { get; }
     }
 
     /// <summary>Sitzung abgelaufen und kein gespeichertes Passwort für ein automatisches Reconnect.</summary>
