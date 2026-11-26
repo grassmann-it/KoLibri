@@ -65,7 +65,7 @@ public sealed class McpWriteToolsTests : IDisposable
         _grants = new GrantStore(Path.Combine(_dir, "g.json"));
         _ledger = new UsageLedger(Path.Combine(_dir, "u.jsonl"));
         _gate = new AccessGate(_grants, _ledger);
-        _server = new KolibriMcpServer();
+        _server = new KolibriMcpServer(options: new KolibriMcpServerOptions { ExperimentalTools = true });
         _server.EnableWriteTools(_gate, _actions);
         _server.Authorizer = McpAccessPolicy.ForToken(_gate, () => McpRequestContext.Token, "Main");
     }

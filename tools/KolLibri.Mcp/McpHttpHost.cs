@@ -79,7 +79,7 @@ public sealed class McpHttpHost : IDisposable
             case "/.well-known/oauth-protected-resource":
             case "/.well-known/oauth-protected-resource/mcp":
                 SendJson(ctx, 200, new { resource = BaseUrl + "/mcp", authorization_servers = new[] { BaseUrl },
-                    scopes_supported = Rights.All, bearer_methods_supported = new[] { "header" } });
+                    scopes_supported = _server.OfferedRights, bearer_methods_supported = new[] { "header" } });
                 return;
             case "/.well-known/oauth-authorization-server":
                 SendJson(ctx, 200, new
@@ -87,7 +87,7 @@ public sealed class McpHttpHost : IDisposable
                     issuer = BaseUrl, authorization_endpoint = BaseUrl + "/authorize", token_endpoint = BaseUrl + "/token",
                     registration_endpoint = BaseUrl + "/register", response_types_supported = new[] { "code" },
                     grant_types_supported = new[] { "authorization_code" }, code_challenge_methods_supported = new[] { "S256" },
-                    token_endpoint_auth_methods_supported = new[] { "none" }, scopes_supported = Rights.All,
+                    token_endpoint_auth_methods_supported = new[] { "none" }, scopes_supported = _server.OfferedRights,
                     authorization_response_iss_parameter_supported = true, client_id_metadata_document_supported = false,
                 });
                 return;
@@ -175,7 +175,7 @@ public sealed class McpHttpHost : IDisposable
         var pending = _oauth.BeginConsent(client, redirect, q["code_challenge"]!, q["state"], resource, rights, limits, accounts, q["kolibri_reason"]);
         if (_requireCode)
             _log.WriteLine($"Consent code for \"{pending.Client.ClientName}\": {pending.ConfirmationCode}");
-        SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode));
+        SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, offered: _server.OfferedRights));
     }
 
     private Task DecideAsync(HttpListenerContext ctx)
@@ -192,13 +192,15 @@ public sealed class McpHttpHost : IDisposable
             return Task.CompletedTask;
         }
         if (_requireCode && form["code"]?.Trim() != pending.ConfirmationCode)
-        { SendHtml(ctx, 200, McpConsentPage.Render(pending, true, "Confirmation code incorrect.")); return Task.CompletedTask; }
+        { SendHtml(ctx, 200, McpConsentPage.Render(pending, true, "Confirmation code incorrect.", _server.OfferedRights)); return Task.CompletedTask; }
 
         var accounts = form.GetValues("account") ?? [];
         var rights = new Dictionary<string, RightLimit>();
+        var offered = _server.OfferedRights;
         foreach (var right in form.GetValues("right") ?? [])
         {
-            if (!Rights.All.Contains(right)) continue;
+            // A right no registered tool uses is never granted, even if the form was edited.
+            if (!offered.Contains(right)) continue;
             rights[right] = new RightLimit
             {
                 DailyBudget = Num(form["budget_" + right]),
@@ -208,13 +210,13 @@ public sealed class McpHttpHost : IDisposable
             };
         }
         if (accounts.Length == 0 || rights.Count == 0)
-        { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, "Select at least one account and one right – or deny.")); return Task.CompletedTask; }
+        { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, "Select at least one account and one right – or deny.", _server.OfferedRights)); return Task.CompletedTask; }
 
         TimeSpan lifetime;
         try { lifetime = TimeSpan.FromHours(Math.Clamp(Num(form["hours"]) ?? 24, 1, 720)); }
         catch (OverflowException) { lifetime = TimeSpan.FromDays(1); }
         try { RequireBudgets(rights); }
-        catch (ArgumentException ex) { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, ex.Message)); return Task.CompletedTask; }
+        catch (ArgumentException ex) { SendHtml(ctx, 200, McpConsentPage.Render(pending, _requireCode, ex.Message, _server.OfferedRights)); return Task.CompletedTask; }
 
         var code = _oauth.Approve(pending, accounts, rights, lifetime);
         RedirectBack(ctx, pending.RedirectUri, pending.State, code: code);

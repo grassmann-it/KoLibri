@@ -14,7 +14,7 @@ public sealed class DailyPlanExecutionToolTests
         var store = new InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store, expectedToken: "allow-token");
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
-        var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
+        var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions { ExperimentalTools = true }, executionBridge: bridge);
 
         var payload = Invoke(server, "kol_plan_daily_adventures_execute", JsonDocument.Parse("""
             {
@@ -37,7 +37,7 @@ public sealed class DailyPlanExecutionToolTests
         var store = new InMemoryAdventureRunCheckpointStore();
         var factory = new TransportAdventureExecutionGatewayFactory(transport, store, expectedToken: "allow-token");
         using var bridge = new AdventureMcpExecutionBridge(factory, store, auditPath: "<memory>");
-        var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
+        var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions { ExperimentalTools = true }, executionBridge: bridge);
 
         var payload = await InvokeAsync(server, "kol_plan_daily_adventures_execute", JsonDocument.Parse("""
             {

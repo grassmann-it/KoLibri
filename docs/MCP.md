@@ -6,18 +6,21 @@ KoLibri can be exposed through a small MCP server without giving a model direct 
 
 All tools return JSON objects and include `fetchedAt` and `isStale` where the underlying model exposes them. Errors are returned as MCP tool errors; do not include cookies, passwords, session tokens, or raw HTTP responses.
 
+The default server registers only the core (status, inventory, adventure/fight/choice, item use, eat/drink,
+rest, mall search and buy, KMail, daily audit/run). The full list, the rights per tool and the experimental set are
+in [mcp-access.md](mcp-access.md#tool-surface-core-by-default); `McpToolSurfaceTests` pins the default list.
+Arbitrage, bribes, CRM, reprice and analytics are registered only with `kolibri-mcp --experimental` or
+`KOLIBRI_EXPERIMENTAL=1`; unregistered tools are absent from `tools/list` and their rights from the consent page.
+
 | Tool | Input | Purpose | Side effects |
 | --- | --- | --- | --- |
 | `kol_status` | `{ "forceRefresh": false, "role": "Main" }` | Fetch the current KoL status (`name`, adventures, meat, level). | Read-only HTTPS request; cached and rate-limited. |
 | `kol_inventory` | `{ "forceRefresh": false, "role": "Main" }` | Fetch inventory item IDs, names and quantities. | Read-only HTTPS request; cached and rate-limited. |
-| `kol_price_summary` | `{ "itemId": "...", "forceRefresh": false, "role": "Mallbot" }` | Return lowest buy/sell and weighted median prices. | Read-only provider request; cached. |
-| `kol_price_recommendation` | `{ "itemId": "...", "acquisitionCost": 123.0, "forceRefresh": false, "role": "Mallbot" }` | Explain whether an item is underpriced and provide a target sell price. | Read-only provider request; cached. |
-| `kol_plan_daily_adventures` | `{ "inventory": [...] }` | Build the daily adventure plan from local state. | Pure computation; no KoL request. |
-| `kol_preview_purchase` | `{ "itemId": "...", "quantity": 1, "unitPrice": 0, "role": "Mallbot", "approvalToken": null }` | Validate a proposed purchase against `AutomationPolicy`; produce a preview only. | Never submits an order. |
-| `kol_preview_transfer` | `{ "itemId": "...", "quantity": 1, "from": "Main", "to": "Mallbot", "approvalToken": null }` | Validate a proposed transfer against policy; produce a preview only. | Never transfers an item. |
-| `kol_arbitrage_plan` | `{ "itemId": 10881, "budget": 2000000, "marginPercent": 10 }` | Plan buying an item below its resale price from live Mall offers (read-only). | Buys nothing; run the steps with `kol_mall_buy`. |
-
-The server should advertise only the first six tools unless the caller explicitly requests mutation workflows. `kol_preview_*` tools remain non-mutating and are useful for a human approval UI.
+| `kol_price_summary` | `{ "itemId": "...", "forceRefresh": false, "role": "Mallbot" }` | Mall search: lowest buy/sell and weighted median prices. | Read-only provider request; cached. |
+| `kol_mall_buy` | `{ "itemId": 1, "itemName": "...", "quantity": 1, "maxPricePerUnit": 100 }` | Buy under a price ceiling. | Two-step: preview with `planId`, then execute once. |
+| `kol_adventure_run_execute` | `{ "locationId": "...", "execute": true }` | Start or continue a bounded adventure run (fight actions via `fightActions`). | Two-step; books `adventure`. |
+| `kol_choice_pending` / `kol_choice_chain_execute` | `{ "role": "Main" }` | Show an open choice / submit an allowlisted option. | Read / two-step. |
+| `kol_arbitrage_plan` (experimental) | `{ "itemId": 10881, "budget": 2000000, "marginPercent": 10 }` | Plan buying an item below its resale price from live Mall offers (read-only). | Buys nothing; run the steps with `kol_mall_buy`. |
 
 `role` is optional on read tools and selects the configured `Main` or
 `Mallbot` runtime scope. The MCP request never contains a cookie, password or
