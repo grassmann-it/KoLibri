@@ -15,6 +15,10 @@ public sealed record DailyRoutineSnapshot
 
     /// <summary>True once today's Day Shortener has been made from burning leaves; the pile is used at most once per day.</summary>
     public bool DayShortenerDoneToday { get; init; }
+    /// <summary>The one-leaf campfire burn already happened today (once-per-day marker).</summary>
+    public bool CampfireLeafDoneToday { get; init; }
+    /// <summary>The Hermit clover trades already ran today (once-per-day marker).</summary>
+    public bool HermitDoneToday { get; init; }
 
     // Hermit
     public int HermitPermits { get; init; }
