@@ -58,6 +58,8 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private object _accountToken = new();
     private bool _combatCatalogLoaded;
     private bool _arbitrageLoaded;
+    /// <summary>Arbitrage, clan lounge and stash, farm figures: off unless KOLIBRI_EXPERIMENTAL=1 or the Settings box.</summary>
+    private bool _experimental;
     private bool _signInOffered;
     private Button? _navAdventure;
     private ScrollViewer? _pageScroll;
@@ -454,7 +456,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
                 case "Daily":
                     await _daily.LoadAsync(forceRefresh, cancellationToken);
                     ShowLoadResult(section, _daily);
-                    if (_arbitrageExpander is { IsExpanded: true } && (forceRefresh || !_arbitrageLoaded))
+                    if (_experimental && _arbitrageExpander is { IsExpanded: true } && (forceRefresh || !_arbitrageLoaded))
                         await LoadArbitrageAsync(forceRefresh, cancellationToken);
                     break;
                 case "Mall & Shop":

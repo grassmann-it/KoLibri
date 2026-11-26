@@ -53,7 +53,9 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public string? DefaultAccount { get => Settings.DefaultAccount; set { Settings.DefaultAccount = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); Raise(); } }
     public bool ReloginAutomatically { get => Settings.ReloginAutomatically; set { Settings.ReloginAutomatically = value; Raise(); } }
-    public bool OptionalTools { get => Settings.OptionalTools; set { Settings.OptionalTools = value; Raise(); } }
+    public bool ExperimentalTools { get => Settings.ExperimentalTools; set { Settings.ExperimentalTools = value; Raise(); } }
+    /// <summary>True when KOLIBRI_EXPERIMENTAL forces the extras on, whatever the box says.</summary>
+    public bool ExperimentalFromEnvironment => ExperimentalFeatures.FromEnvironment();
     /// <summary>"Last used" opens the role used last time; Main/Mallbot always open that role.</summary>
     public const string LastUsedChoice = "Last used";
     public string[] DefaultAccountChoices { get; } = [LastUsedChoice, "Main", "Mallbot"];
