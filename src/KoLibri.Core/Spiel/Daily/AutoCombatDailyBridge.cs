@@ -174,7 +174,8 @@ public sealed class AutoCombatDailyBridge
         //    only makes sense when that many leaves are on hand.
         var leafAvailable = snapshot.CampfireLeaves > snapshot.CampfireReserve;
         var dayUseful = snapshot.MainMeat > 0; // we already got meat; day is useful by default.
-        if (snapshot.CampfireLeaves > snapshot.CampfireReserve
+        if (!snapshot.CampfireLeafDoneToday
+            && snapshot.CampfireLeaves > snapshot.CampfireReserve
             && snapshot.MainMeat > 0)
         {
             // Exactly one leaf — KoL's burning-leaves choice burns the
@@ -199,7 +200,11 @@ public sealed class AutoCombatDailyBridge
         //    clover count. When permits run out but enough worthless items
         //    are on hand we emit the trade intent as well — one worthless
         //    item buys one permit.
-        if (snapshot.HermitCloversWanted > 0 && snapshot.HermitPermits > 0)
+        if (snapshot.HermitDoneToday)
+        {
+            // The Hermit's daily clover stock was already bought today.
+        }
+        else if (snapshot.HermitCloversWanted > 0 && snapshot.HermitPermits > 0)
         {
             // Explicit request: buy N clovers (up to the daily stock) with
             // worthless items. One permit opens the shop; the result of each
@@ -442,6 +447,10 @@ public sealed class AutoCombatDailyBridge
                     if (result.Accepted) executedCount++;
                     if (result.Accepted && cs.ChoiceId == "choice-day-shortner" && doneStore is not null)
                         doneStore.MarkDone(doneAccountKey ?? accountId ?? "Main", DailyDoneStore.DayShortener);
+                    if (result.Accepted && cs.ChoiceId == "choice-campfire" && doneStore is not null)
+                        doneStore.MarkDone(doneAccountKey ?? accountId ?? "Main", DailyDoneStore.CampfireLeaf);
+                    if (result.Accepted && cs.ChoiceId == "choice-clover" && doneStore is not null)
+                        doneStore.MarkDone(doneAccountKey ?? accountId ?? "Main", DailyDoneStore.HermitClovers);
                     lastFreePullSnippet = result.Location is { } loc
                         ? $"[{result.StatusCode}] -> {loc} | {(result.BodySnippet.Length > 0 ? result.BodySnippet : "(empty body)")}"
                         : result.BodySnippet;

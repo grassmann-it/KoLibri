@@ -85,7 +85,11 @@ public sealed class LiveDailySnapshotBuilder
                     .Where(n => _doneStore?.IsDone(doneKey, DailyDoneStore.MemeBuy(n)) ?? false))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             DayShortenerDoneToday = baseline.DayShortenerDoneToday
-                || (_doneStore?.IsDone(doneKey, DailyDoneStore.DayShortener) ?? false)
+                || (_doneStore?.IsDone(doneKey, DailyDoneStore.DayShortener) ?? false),
+            CampfireLeafDoneToday = baseline.CampfireLeafDoneToday
+                || (_doneStore?.IsDone(doneKey, DailyDoneStore.CampfireLeaf) ?? false),
+            HermitDoneToday = baseline.HermitDoneToday
+                || (_doneStore?.IsDone(doneKey, DailyDoneStore.HermitClovers) ?? false)
         };
         var state = new AccountDailyState
         {

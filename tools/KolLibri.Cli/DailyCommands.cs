@@ -26,6 +26,7 @@ internal static partial class KolibriCli
             "item-arbitrage" => DailyItemArbitrageAsync(args[1..]),
             "routine" => DailyRoutineAsync(args[1..]),
             "daily-go" or "go" => await DailyGoAsync(args[1..]),
+            "run" => await DailyRunLiveAsync(args[1..]),
             "daily-bridge" or "bridge" => await DailyBridgeAsync(args[1..]),
             "breakfast" => await DailyBreakfastAsync(args[1..]),
             _ => Fail($"Unknown daily command: {args[0]}")
@@ -530,6 +531,8 @@ internal static partial class KolibriCli
         Console.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
         Console.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
         Console.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
+        Console.WriteLine("  daily run --role main|mallbot [--hermit-clovers N] [--skip campfire|hermit|internet-shop]");
+        Console.WriteLine("            [--execute --approval-token TOKEN]   live state, same path as the desktop Daily button");
         Console.WriteLine("  daily go [--role main|mallbot|all] [--main-leaves N] [--mallbot-leaves N] [--main-meat N]");
         Console.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
         Console.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
@@ -921,6 +924,103 @@ internal static partial class KolibriCli
             roles = perRole
         });
         return 0;
+    }
+
+    /// <summary>
+    /// The live daily run, the same path as the desktop's Daily button: reads status and inventory, plans
+    /// campfire (Day Shortener), Hermit clovers and the Internet Meme Shop from the real numbers and the
+    /// once-per-day markers, and with --execute --approval-token sends the steps through
+    /// <see cref="AutoCombatDailyBridge"/> with the <see cref="FreePullDispatcher"/>. Without --execute only the
+    /// read requests are sent.
+    /// </summary>
+    private static async Task<int> DailyRunLiveAsync(string[] args)
+    {
+        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var execute = HasFlag(args, "--execute");
+        var token = GetOption(args, "--approval-token");
+        if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
+            throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
+        var hermitClovers = Math.Max(0, ReadInt(args, "--hermit-clovers", 0));
+        var skip = GetOptions(args, "--skip").Select(s => s.Trim().ToLowerInvariant()).ToHashSet();
+
+        var accounts = AccountSessionManager.CreateDefault();
+        var account = await accounts.GetSessionAsync(role).ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"{role} is not logged in.");
+        var baseUri = new Uri("https://www.kingdomofloathing.com/");
+        using var http = KoLLoginClient.CreateAuthenticatedClient(account.Credentials, baseUri);
+        var readClient = new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true };
+        var doneStore = new DailyDoneStore();
+        var live = await new LiveDailySnapshotBuilder(readClient, doneStore)
+            .BuildAsync(new DailyRoutineSnapshot(), CancellationToken.None, role: role).ConfigureAwait(false);
+        var snapshot = live.Snapshot with
+        {
+            HermitCloversWanted = skip.Contains("hermit") ? 0 : hermitClovers,
+            CampfireLeaves = skip.Contains("campfire") ? 0 : live.Snapshot.CampfireLeaves,
+            DayShortenerDoneToday = skip.Contains("campfire") || live.Snapshot.DayShortenerDoneToday,
+            BaconMachineOwned = !skip.Contains("internet-shop") && live.Snapshot.BaconMachineOwned,
+            Bacon = skip.Contains("internet-shop") ? 0 : live.Snapshot.Bacon
+        };
+        var bridge = new AutoCombatDailyBridge();
+        var plan = bridge.Plan(live.State, snapshot);
+        object Step(AdventureStepSpec s) => s switch
+        {
+            ChoiceStepSpec c => new { kind = "choice", id = c.ChoiceId, option = c.OptionId },
+            ItemStepSpec i => new { kind = "item", id = i.ItemId, option = i.Quantity.ToString(CultureInfo.InvariantCulture) },
+            _ => new { kind = s.GetType().Name, id = (string?)null, option = (string?)null }
+        };
+        var liveDoc = new
+        {
+            leaves = live.Leaves, clovers = live.Clovers, permits = live.Permits, worthlessItems = live.WorthlessItems,
+            bacon = live.Bacon, baconMachines = live.BaconMachines, meat = live.Meat,
+            dayShortenerDoneToday = live.Snapshot.DayShortenerDoneToday,
+            baconMachineUsedToday = live.Snapshot.BaconMachineUsedToday,
+            memeItemsDoneToday = live.Snapshot.AlreadyPulledItemIds
+        };
+        if (!execute)
+        {
+            WriteJson(new
+            {
+                command = "daily run", readOnly = true, previewOnly = true, role = role.ToString(), live = liveDoc,
+                steps = plan.Steps.Select(Step).ToArray(),
+                note = "Preview: only status and inventory were read. Add --execute --approval-token to send these steps."
+            });
+            return 0;
+        }
+
+        var approval = new DelegateAdventureApprovalHook((_, _) => ValueTask.FromResult(AdventureApprovalDecision.Allow(token!)));
+        var verification = new DelegateAdventureVerificationHook((context, _) =>
+            ValueTask.FromResult(context.Response.Accepted != false
+                ? AdventureVerificationResult.Success()
+                : AdventureVerificationResult.Failed("The live response was rejected by KoL.")));
+        await using var session = KoLAdventureSessionFactory.Create(account,
+            KoLLoginClient.CreateAuthenticatedClient(account.Credentials, baseUri),
+            approval, verification, unknownPageDirectory: UnknownPageArchive.DefaultDirectory);
+        var dispatcher = new FreePullDispatcher(http, FreePullDispatcher.DefaultBaseUri);
+        using var audit = new BridgeAuditLog(BridgeAuditLog.DefaultPath());
+        var result = await bridge.ExecuteAsync(plan.Steps, session.Gateway,
+            freePullDispatcher: dispatcher, freePullCredentials: account.Credentials, audit: audit,
+            accountId: account.Profile.Id, doneStore: doneStore, doneAccountKey: live.DoneAccountKey).ConfigureAwait(false);
+        var after = await new LiveDailySnapshotBuilder(readClient, doneStore)
+            .BuildAsync(new DailyRoutineSnapshot(), CancellationToken.None, role: role).ConfigureAwait(false);
+        WriteJson(new
+        {
+            command = "daily run", readOnly = false, executed = result.Executed, role = role.ToString(),
+            completeness = result.Completeness.ToString(),
+            attempted = result.AttemptedSteps, submitted = result.SubmittedSteps, failed = result.FailedSteps,
+            steps = plan.Steps.Select(Step).ToArray(),
+            before = liveDoc,
+            after = new
+            {
+                leaves = after.Leaves, clovers = after.Clovers, permits = after.Permits, worthlessItems = after.WorthlessItems,
+                bacon = after.Bacon, meat = after.Meat,
+                dayShortenerDoneToday = after.Snapshot.DayShortenerDoneToday,
+                baconMachineUsedToday = after.Snapshot.BaconMachineUsedToday,
+                memeItemsDoneToday = after.Snapshot.AlreadyPulledItemIds
+            },
+            auditPath = result.AuditPath
+        });
+        return result.Completeness is AutoCombatDailyBridge.BridgeCompleteness.Failed ? 3
+            : result.Completeness is AutoCombatDailyBridge.BridgeCompleteness.Partial ? 4 : 0;
     }
 
     private static async Task<int> DailyBridgeAsync(string[] args)

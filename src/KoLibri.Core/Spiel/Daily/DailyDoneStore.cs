@@ -13,6 +13,8 @@ public sealed class DailyDoneStore
 {
     public const string DayShortener = "day-shortener";
     public const string BaconMachine = "bacon-machine";
+    public const string CampfireLeaf = "campfire-leaf";
+    public const string HermitClovers = "hermit-clovers";
     public static string MemeBuy(string itemName) => "meme-buy:" + itemName.ToLowerInvariant();
 
     private readonly string _path;
