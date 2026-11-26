@@ -17,6 +17,7 @@ public sealed class McpHttpOAuthTests : IAsyncLifetime
     private readonly StringWriter _log = new();
     private readonly CancellationTokenSource _cts = new();
     private McpHttpHost _host = null!;
+    private KolibriMcpServer _server = null!;
     private GrantStore _grants = null!;
     private readonly HttpClient _http = new(new HttpClientHandler { AllowAutoRedirect = false });
     private string Base => _host.BaseUrl;
@@ -28,7 +29,8 @@ public sealed class McpHttpOAuthTests : IAsyncLifetime
         _grants = new GrantStore(Path.Combine(_dir, "g.json"));
         var gate = new AccessGate(_grants, new UsageLedger(Path.Combine(_dir, "u.jsonl")));
         var oauth = new McpOAuthServer(_grants, Path.Combine(_dir, "c.json"));
-        _host = new McpHttpHost(new KolibriMcpServer(), _grants, gate, oauth, port, requireCode: true, log: _log);
+        _server = new KolibriMcpServer();
+        _host = new McpHttpHost(_server, _grants, gate, oauth, port, requireCode: true, log: _log);
         _host.Start();
         _ = _host.RunAsync(_cts.Token);
         return Task.CompletedTask;
@@ -147,10 +149,30 @@ public sealed class McpHttpOAuthTests : IAsyncLifetime
     [Fact]
     public async Task Unmapped_tools_are_closed_over_http()
     {
+        // A tool that is registered but has no right assigned stays closed.
+        _server.Tools.Register(new McpToolDefinition("kol_unmapped_probe", "probe", default, (_, _) => Task.FromResult<object?>("ran")));
         var (token, _) = await FlowAsync("account.read", "{}");
         var call = await RpcAsync(token,
-            "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_login_clear\",\"arguments\":{}}}");
+            "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_unmapped_probe\",\"arguments\":{}}}");
         Assert.Contains("not available to AI clients", call.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task Experimental_tools_are_unknown_and_their_rights_are_neither_shown_nor_granted()
+    {
+        // Default server: the consent page shows only rights of registered tools; a tampered form cannot add others.
+        var (token, page) = await FlowAsync("account.read shop.read shop.reprice", "{}");
+        Assert.Contains("value=account.read", page);
+        Assert.DoesNotContain("value=shop.read", page);
+        Assert.DoesNotContain("value=shop.reprice", page);
+        var grant = Assert.Single(_grants.List());
+        Assert.Equal([Rights.AccountRead], grant.Rights.Keys.ToArray());
+
+        var call = await RpcAsync(token,
+            "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_arbitrage_plan\",\"arguments\":{\"itemId\":1}}}");
+        Assert.Contains("Unknown MCP tool", call.GetRawText());
+        var list = await RpcAsync(token, "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/list\"}");
+        Assert.DoesNotContain(list.GetProperty("result").GetProperty("tools").EnumerateArray(), t => t.GetProperty("name").GetString() == "kol_arbitrage_plan");
     }
 
     [Fact]

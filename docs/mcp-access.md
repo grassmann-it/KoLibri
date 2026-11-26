@@ -7,6 +7,34 @@
 - One enforcement point (`LibKolibri.Access.AccessGate`) checks every tool call. Tools without an
   assigned right are closed over HTTP.
 
+## Tool surface (core by default)
+
+A default `kolibri-mcp` registers only the core tools for playing by hand. Pinned by `McpToolSurfaceTests`:
+
+| Area | Tools | Rights |
+|---|---|---|
+| Status / charpane, inventory | `kol_status`, `kol_inventory`, `kol_login_status` | `account.read` |
+| Adventure start/continue, fight, choice | `kol_adventure_locations`, `kol_adventure_run_execute`, `kol_combat_inspect`, `kol_combat_decision`, `kol_choice_pending`, `kol_choice_options`, `kol_choice_chain_execute` | `account.read`, `adventure` |
+| Use / eat / drink, rest | `kol_use_item`, `kol_consume`, `kol_rest` | `item.use` (`kol_rest` also `adventure`) |
+| Mall search and buy | `kol_price_summary`, `kol_mall_buy` | `market.read`, `mall.buy` |
+| KMail | `kol_send_message` | `message.send` |
+| Daily audit / run | `kol_daily_audit`, `kol_run_daily_bridge` (preview), `kol_meme_shop` | `account.read`, `daily.run` (+ `mall.buy` for a BACON top-up) |
+
+**Experimental** tools are registered only with `kolibri-mcp --experimental` or `KOLIBRI_EXPERIMENTAL=1`:
+arbitrage (`kol_arbitrage_plan`, `kol_underprice_preview`, `kol_price_recommendation`), bribes and daily planners
+(`kol_daily_routine`, `kol_daily_campfire_plan`, `kol_daily_hermit_plan`, `kol_plan_daily_adventures`,
+`kol_adventure_daily_schedule`, `kol_adventure_bounded_preview`), AutoCombat/recovery previews
+(`kol_autocombat_preview`, `kol_autocombat_action_preview`, `kol_recovery_plan`), CRM and analytics
+(`kol_shop_sales`, `kol_shop_buyers`, `kol_shop_price_suggestions`, `kol_reward_buyer`), reprice
+(`kol_reprice_shop`) and two-account workflows (`kol_transfer`, `kol_workflow_plan`, `kol_preview_transfer`,
+`kol_preview_purchase`).
+
+A tool that is not registered does not appear in `tools/list`, cannot be called (also not by an alias), and the
+consent page offers only rights that a registered tool uses. By default `shop.read`, `shop.reprice`,
+`transfer.meat` and `transfer.items` are therefore not shown, and the server drops them from a submitted form.
+The flag only adds tools: grants, limits, the usage ledger and the two-step plan/execute flow apply to experimental
+tools exactly as to core tools.
+
 ## Connecting
 
 1. `kolibri-mcp` (default `127.0.0.1:8765`, never exposed to the network).
@@ -51,17 +79,17 @@ cannot read or touch Mallbot. Read tools never execute: `kol_run_daily_bridge` r
 a single-use `planId`; the second call with the same arguments plus `planId` runs, charged against the `adventure`
 budget by the largest of `maxTurns` / `maxGatewaySteps` (or `maxChoices`; steps and choices default to 20).
 
-## Shop analytics and customer rewards
+## Shop analytics and customer rewards (experimental)
 
-Read tools with right `shop.read`: `kol_shop_sales` (own store log per item, top buyers by Meat),
+Only with `--experimental` / `KOLIBRI_EXPERIMENTAL=1`. Read tools with right `shop.read`: `kol_shop_sales` (own store log per item, top buyers by Meat),
 `kol_shop_buyers` (local loyalty ledger: 1 point per 1,000 Meat plus 1 per sale), `kol_shop_price_suggestions`
 (own listings against the Mall floor and recent sales). Apply prices with `kol_reprice_shop`. Customers are
 identified by a stable key; the character name stays in the encrypted local CRM vault. `kol_reward_buyer`
 sends a KMail (optionally with an item and spending points) to a key from the ledger; blocked buyers are refused.
 
-## Arbitrage plan
+## Arbitrage plan (experimental)
 
-`kol_arbitrage_plan` (right `market.read`, read-only) plans buying an item below its resale price from live Mall
+Only with `--experimental` / `KOLIBRI_EXPERIMENTAL=1`. `kol_arbitrage_plan` (right `market.read`, read-only) plans buying an item below its resale price from live Mall
 offers: per shop quantity and total, the daily limit of each shop, budget, meat reserve and the reason for every
 skipped offer. It reads only market data and the granted account's own shop price; it does not read the account's
 meat (that needs `account.status`), so pass `availableMeat` if the reserve should limit the plan.
@@ -87,13 +115,14 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - The confirmation code and `/dev/tty` prompt stop AIs that only have a command channel or a browser tool. An
   AI that controls your terminal could also see the code.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
-- Write tools over MCP: `kol_mall_buy` (`mall.buy`), `kol_meme_shop` (`daily.run`), `kol_transfer`
-  (`transfer.items` / `transfer.meat`, only to the user's other account, both accounts must be approved),
+- Write tools over MCP (core): `kol_mall_buy` (`mall.buy`), `kol_meme_shop` (`daily.run`),
   `kol_send_message` (`message.send`, any KoL player, text shown in the preview), `kol_use_item` (`item.use`),
   `kol_consume` (`item.use`, eat/drink/spleen), `kol_rest` (`item.use`, plus the `adventure` right because a rest that is not free costs adventures; both are reserved for the worst case),
-  `kol_reprice_shop` (`shop.reprice`, preview reads the store page), `kol_reward_buyer` (`message.send`, plus
-  `transfer.items` with a gift; the AI only sees buyer keys, never character names), and the adventure tools
-  `kol_adventure_run_execute` / `kol_choice_chain_execute` (`adventure`). All writes are two-step: the first
+  and the adventure tools `kol_adventure_run_execute` / `kol_choice_chain_execute` (`adventure`).
+  Experimental only: `kol_transfer` (`transfer.items` / `transfer.meat`, only to the user's other account, both
+  accounts must be approved), `kol_reprice_shop` (`shop.reprice`, preview reads the store page),
+  `kol_reward_buyer` (`message.send`, plus `transfer.items` with a gift; the AI only sees buyer keys, never
+  character names). All writes are two-step: the first
   call previews and returns a `planId`, the second call with the same arguments executes once.
 - `cast` and `relay` are CLI commands only; there is no MCP tool for them.
 - BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.

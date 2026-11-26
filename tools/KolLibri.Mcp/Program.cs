@@ -5,13 +5,16 @@ using LibKolibri.Access;
 // kolibri-mcp                       HTTP on 127.0.0.1:8765 (default; AI access needs approval in the browser)
 // kolibri-mcp --port 9000 [--no-code]
 // kolibri-mcp --stdio               read-only tools over stdio, no approvals needed
+// kolibri-mcp --experimental        also offer arbitrage, bribes, CRM, reprice, analytics (or KOLIBRI_EXPERIMENTAL=1)
 // kolibri-mcp grants list|revoke <id>
 if (args.Length > 0 && args[0] == "grants") return GrantsCommand(args);
+
+var options = new KolibriMcpServerOptions { ExperimentalTools = McpToolSurface.ExperimentalRequested(args) };
 
 if (args.Contains("--stdio"))
 {
     var stdioRuntime = await McpRuntimeBootstrap.CreateConfiguredAsync();
-    return await KolibriMcpServer.RunStdioAsync(stdioRuntime);
+    return await KolibriMcpServer.RunStdioAsync(stdioRuntime, options);
 }
 
 var port = 8765;
@@ -28,7 +31,7 @@ var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
 await using var adventures = new KoLAdventureGatewayFactory();
 using var bridge = new AdventureMcpExecutionBridge(adventures, new InMemoryAdventureRunCheckpointStore());
-var server = new KolibriMcpServer(runtime, executionBridge: bridge) { BeforeToolCall = binder.RefreshAsync };
+var server = new KolibriMcpServer(runtime, options, executionBridge: bridge) { BeforeToolCall = binder.RefreshAsync };
 server.Tools.Remove("kol_plan_daily_adventures_execute");
 server.Tools.Remove("kol_login_clear");     // session management stays with the user
 server.Tools.Remove("kol_login_refresh");   // runs on a mock transport, not live
@@ -36,6 +39,9 @@ server.EnableWriteTools(gate, new KolibriClientActions());
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
 Console.Error.WriteLine($"KoLibri MCP: {host.BaseUrl}/mcp  (nur lokal erreichbar)");
+Console.Error.WriteLine(options.ExperimentalTools
+    ? $"Experimental tools are ON ({server.Tools.Tools.Count} tools)."
+    : $"{server.Tools.Tools.Count} core tools. Arbitrage, CRM, reprice and analytics: --experimental or {McpToolSurface.ExperimentalVariable}=1.");
 Console.Error.WriteLine("On first connect the client opens a browser page where you grant rights and limits.");
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };

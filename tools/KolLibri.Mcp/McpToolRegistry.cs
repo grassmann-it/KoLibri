@@ -74,6 +74,11 @@ public record KolibriMcpServerOptions
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(60);
     /// <summary>Fallback role used when a read tool omits its optional role.</summary>
     public AccountRole DefaultRole { get; init; } = AccountRole.Main;
+    /// <summary>
+    /// Also register the experimental tools (arbitrage, bribes, CRM, reprice, analytics,
+    /// planners). Off by default: only <see cref="McpToolSurface.Core"/> is offered.
+    /// </summary>
+    public bool ExperimentalTools { get; init; }
 
     private static string AssemblyVersionText()
     {

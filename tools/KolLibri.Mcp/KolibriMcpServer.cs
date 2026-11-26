@@ -318,7 +318,10 @@ public partial class KolibriMcpServer
             protocolVersion = _options.ProtocolVersion,
             capabilities = new { tools = new { } },
             serverInfo = new { name = _options.ServerName, version = _options.ServerVersion },
-            instructions = $"KoLibri {_options.ServerVersion} (early alpha): read tools for status, inventory, pricing, shop, arbitrage plans and workflow previews, plus write tools (mall buy, transfer, messages, item use, consume, rest, reprice, meme shop, adventures) that need a granted right. Every write is two-step: the first call only previews and returns a planId, the second call with the same arguments plus planId executes once. Preview and read tools send no purchase or action. Always show the user the preview and get their confirmation before executing; if a result has needsDecision, ask the user instead of guessing. Credentials stay in the configured account runtime."
+            instructions = $"KoLibri {_options.ServerVersion} (early alpha): " + (_options.ExperimentalTools
+                ? "read tools for status, inventory, pricing, shop, arbitrage plans and workflow previews, plus write tools (mall buy, transfer, messages, item use, consume, rest, reprice, meme shop, adventures) that need a granted right."
+                : "read tools for status, inventory, mall prices, choices, fights and the daily audit, plus write tools (adventures and choices, item use, eat/drink, rest, mall buy, KMail, meme shop) that need a granted right.")
+                + " Every write is two-step: the first call only previews and returns a planId, the second call with the same arguments plus planId executes once. Preview and read tools send no purchase or action. Always show the user the preview and get their confirmation before executing; if a result has needsDecision, ask the user instead of guessing. Credentials stay in the configured account runtime."
         };
 
     private void RegisterReadOnlyTools()
@@ -361,7 +364,18 @@ public partial class KolibriMcpServer
         string description,
         JsonElement schema,
         Func<JsonElement, CancellationToken, Task<object?>> handler)
-        => _registry.Register(new McpToolDefinition(name, description, schema, handler));
+    {
+        // Outside the core, a tool exists only when experimental tools are on: not listed, not callable.
+        if (!_options.ExperimentalTools && !McpToolSurface.IsCore(name)) return;
+        _registry.Register(new McpToolDefinition(name, description, schema, handler));
+    }
+
+    /// <summary>True when this server also registers the experimental tools.</summary>
+    public bool ExperimentalTools => _options.ExperimentalTools;
+
+    /// <summary>Rights the registered tools can use; the consent page offers only these.</summary>
+    public IReadOnlyList<string> OfferedRights
+        => McpToolSurface.RightsFor(_registry.Tools.Select(t => t.Name), _options.ExperimentalTools);
 
     private void Alias(string alias, string canonical)
         => _aliases[alias] = canonical;

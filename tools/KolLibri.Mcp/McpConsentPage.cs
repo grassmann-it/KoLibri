@@ -47,7 +47,8 @@ public static class McpConsentPage
         [Rights.MessageSend] = "messages per day", [Rights.ShopReprice] = "changes per day", [Rights.ItemUse] = "uses per day",
     };
 
-    public static string Render(PendingConsent p, bool needsCode, string? error = null)
+    /// <param name="offered">Rights of the registered tools; only these are shown. Null shows the full catalog.</param>
+    public static string Render(PendingConsent p, bool needsCode, string? error = null, IReadOnlyList<string>? offered = null)
     {
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html lang=en><meta charset=utf-8><title>KoLibri – Grant access</title>")
@@ -74,7 +75,7 @@ public static class McpConsentPage
               .Append("> ").Append(role).Append("</label> ");
         sb.Append("</fieldset>");
 
-        foreach (var right in Rights.All)
+        foreach (var right in offered ?? Rights.All)
         {
             var asked = p.RequestedRights.Contains(right);
             p.RequestedLimits.TryGetValue(right, out var wanted);
