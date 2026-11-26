@@ -128,13 +128,29 @@ namespace KoLibri
                         var before = last;
                         encounter = await AdventureAsync(request.Location, cancellationToken).ConfigureAwait(false);
                         turnsStarted++;
-                        if (encounter is BlockedEncounter { Reason: BlockReason.Other } interstitial && interstitial.Title == InterstitialTitle)
+                        if (encounter is BlockedEncounter { Reason: BlockReason.Other } empty
+                            && empty.Title is InterstitialTitle or NothingOpenTitle)
                         {
-                            // KoL's first-adventure interstitial: retry once, but only when no turn was spent.
+                            // No encounter and none open (0.4 #73): the counter decides, a start is never repeated blindly.
                             last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
-                            if (last.Adventures != before.Adventures)
-                                return Finish(RunStopReason.Error, "KoL showed an interstitial page and the adventure counter changed; stopping instead of guessing.");
-                            encounter = await AdventureAsync(request.Location, cancellationToken).ConfigureAwait(false);
+                            if (last.Adventures < before.Adventures)
+                            {
+                                // The turn was spent: it counts as done.
+                                encounters.Add(new NonCombatEncounter(empty.Page, request.Location, empty.Title, Array.Empty<InventoryItem>(), 0));
+                                continue;
+                            }
+                            if (empty.Title == InterstitialTitle && turnsStarted == 1)
+                            {
+                                // KoL's one-time interstitial after a login: one retry, only on the first start and only
+                                // when no turn was spent.
+                                encounter = await AdventureAsync(request.Location, cancellationToken).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                encounters.Add(empty);
+                                return Finish(RunStopReason.Error,
+                                    "KoL answered adventure.php without an encounter, none is open and the adventure counter did not change. No second start was sent.");
+                            }
                         }
                     }
 
@@ -159,6 +175,8 @@ namespace KoLibri
                                             ? $"The fight round limit ({request.MaxRoundsPerFight}) was reached; the fight is still open."
                                             : "The combat strategy stopped; the fight is still open.", _fight);
                                 case FightOutcome.Unknown:
+                                    if (fight.Rounds.Count > 0)
+                                        encounters.Add(new BlockedEncounter(fight.Rounds[^1].Page, request.Location, "Unreadable fight page", BlockReason.UnknownPage));
                                     last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
                                     return Finish(RunStopReason.Error, "The fight ended in a state KoLibri could not read; check the account.");
                             }
@@ -248,6 +266,7 @@ namespace KoLibri
         // ------------------------------------------------------------------ core steps
 
         internal const string InterstitialTitle = "KoL interstitial (Daily Reminders / New Events)";
+        internal const string NothingOpenTitle = "KoL answered without an encounter and none is open.";
 
         private async Task<Encounter> AdventureCoreAsync(Location location, CancellationToken cancellationToken)
         {
@@ -260,8 +279,16 @@ namespace KoLibri
                 // adventure.php → main.php: KoL's interstitial, or an encounter is open elsewhere.
                 var open = await GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false);
                 encounter = open ?? new BlockedEncounter(page, location,
-                    IsInterstitial(page.Html) ? InterstitialTitle : "KoL answered with main.php and no encounter is open.",
+                    IsInterstitial(page.Html) ? InterstitialTitle : NothingOpenTitle,
                     BlockReason.Other);
+            }
+            else if (page.Kind == PageKind.NotInFight)
+            {
+                // adventure.php → fight.php "Not in a Fight" (0.4 #73): read choice.php once (GET, no second start).
+                var choice = await Get("choice.php", cancellationToken).ConfigureAwait(false);
+                encounter = ToEncounter(choice, location) is ChoiceEncounter open
+                    ? open
+                    : new BlockedEncounter(page, location, NothingOpenTitle, BlockReason.Other);
             }
             else
             {
@@ -326,10 +353,12 @@ namespace KoLibri
             ArgumentNullException.ThrowIfNull(strategy);
             var fight = _fight ?? await GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false) as FightEncounter
                 ?? throw new KolibriException("No fight is open.");
+            // KoL's fight.php usually shows no player HP: then the HP come from a fresh status (0.4 #74: HitPointsProvider).
             var status = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
             var rounds = new List<FightRound>();
-            var hp = _lastObservation?.PlayerHp ?? status.Hp;
-            var mp = _lastObservation?.PlayerMp ?? status.Mp;
+            var pageHp = HasHp(_lastObservation);
+            var hp = pageHp ? _lastObservation!.PlayerHp!.Value : status.Hp;
+            var mp = pageHp && _lastObservation!.PlayerMp is { } pageMp ? pageMp : status.Mp;
             var outcome = FightOutcome.Ongoing;
             while (outcome == FightOutcome.Ongoing)
             {
@@ -341,6 +370,12 @@ namespace KoLibri
                 var action = strategy.Next(context);
                 if (action.Kind == CombatActionKind.Stop) { outcome = FightOutcome.Stopped; break; }
                 var round = await FightAsync(action, cancellationToken).ConfigureAwait(false);
+                if (round.Outcome == FightOutcome.Ongoing && !HasHp(_lastObservation))
+                {
+                    // Only while the fight goes on, and only when the page has no HP: one status read, never a guess.
+                    status = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                    round = round with { Hp = status.Hp, Mp = status.Mp };
+                }
                 rounds.Add(round);
                 hp = round.Hp;
                 mp = round.Mp;
@@ -452,6 +487,10 @@ namespace KoLibri
             => !page.Url.AbsolutePath.EndsWith("adventure.php", StringComparison.OrdinalIgnoreCase)
                && !page.Url.AbsolutePath.EndsWith("choice.php", StringComparison.OrdinalIgnoreCase)
                && !page.Url.AbsolutePath.EndsWith("fight.php", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>The fight page itself shows the player's HP (current and maximum).</summary>
+        private static bool HasHp(CoreSpiel.CombatObservation? observation)
+            => observation is { PlayerHp: not null, PlayerMaxHp: > 0 };
 
         private static bool OpenFightForm(string html)
             => html.Contains("name=attack", StringComparison.OrdinalIgnoreCase)

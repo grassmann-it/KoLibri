@@ -181,6 +181,16 @@ internal static partial class KolibriCli
         var (client, session) = await OpenAsync(role);
         await using var _ = client;
         await using var __ = session;
+        // Request trail and the pages seen, for the unknown-page archive (0.4 #72/#73).
+        var trail = new List<string>();
+        session.Events.Request += (_, e) =>
+        {
+            trail.Add($"{e.Method.ToString().ToUpperInvariant()} {e.Path} -> {e.StatusCode} {e.Kind}");
+            if (trail.Count > 20) trail.RemoveAt(0);
+        };
+        var pages = new List<Page>();
+        session.Events.Encounter += (_, e) => { pages.Add(e.Encounter.Page); if (pages.Count > 10) pages.RemoveAt(0); };
+        string? unknownPagePath = null;
         var steps = new List<object>();
         var turns = new List<object>();
         string stopReason = "Complete";
@@ -202,7 +212,18 @@ internal static partial class KolibriCli
             });
             stopReason = StopReasonName(result, strategy, maxFightRounds);
             if (result.StopReason == RunStopReason.NeedsCombat) fightStop = stopReason;
-            steps.AddRange(result.Encounters.Select(e => StepDocument(e, result)));
+            foreach (var encounter in result.Encounters)
+            {
+                string? archived = null;
+                if (encounter is BlockedEncounter { Reason: BlockReason.UnknownPage } unknown)
+                {
+                    var index = pages.FindLastIndex(p => !ReferenceEquals(p, unknown.Page));
+                    archived = UnknownPageArchive.TrySave(unknown.Title == "Unreadable fight page" ? "UnknownFight" : "UnknownEncounter",
+                        unknown.Page.Html, DateTimeOffset.UtcNow, trail.ToArray(), index >= 0 ? pages[index].Html : null);
+                    unknownPagePath = archived ?? unknownPagePath;
+                }
+                steps.Add(StepDocument(encounter, archived));
+            }
             var after = await session.Character.GetStatusAsync(refresh: true);
             turns.Add(new
             {
@@ -258,7 +279,7 @@ internal static partial class KolibriCli
             turns,
             steps = steps.ToArray(),
             detail = result?.Detail,
-            unknownPagePath = (string?)null,
+            unknownPagePath,
             auditPath = (string?)null
         });
         if (needs is not null || leftover is not null || fightOpen is not null) return 4; // a choice or fight is open: needs the user, not an error
@@ -279,7 +300,7 @@ internal static partial class KolibriCli
         _ => "GatewayStopped"
     };
 
-    private static object StepDocument(Encounter encounter, RunResult result)
+    private static object StepDocument(Encounter encounter, string? unknownPagePath)
     {
         var monster = (encounter as FightEncounter)?.MonsterName;
         var kind = encounter switch
@@ -301,7 +322,7 @@ internal static partial class KolibriCli
             complete = encounter is NonCombatEncounter,
             monster,
             turtleMonster = IsTurtleMonster(monster) ? true : (bool?)null,
-            unknownPagePath = (string?)null
+            unknownPagePath
         };
     }
 

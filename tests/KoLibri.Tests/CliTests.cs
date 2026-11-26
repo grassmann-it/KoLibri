@@ -27,12 +27,14 @@ public sealed class CliTests : IDisposable
             DisableLimiterForTests = true
         };
         AgentGuard.TokenRootOverride = Path.Combine(_state, "token");
+        KoLibri.Cli.UnknownPageArchive.DirectoryOverride = Path.Combine(_state, "unknown-pages");
     }
 
     public void Dispose()
     {
         KolibriCli.OptionsOverride = null;
         AgentGuard.TokenRootOverride = null;
+        KoLibri.Cli.UnknownPageArchive.DirectoryOverride = null;
     }
 
     private static async Task<(int Code, JsonElement Json, string Error)> Run(Func<string[], Task<int>> command, params string[] args)
@@ -234,6 +236,133 @@ public sealed class CliTests : IDisposable
         Assert.Equal(0, code);
         Assert.Equal("Skeleton", json.GetProperty("turns")[0].GetProperty("monster").GetString());
         Assert.Equal(JsonValueKind.Null, json.GetProperty("openFight").ValueKind);
+    }
+
+    /// <summary>KoL's real fight.php: monster and actions, but no player HP on the page (0.4 #74).</summary>
+    private const string FightWithoutHp = """
+        <html><body><span id="monname" monsterid="2047">factory-irregular skeleton</span>
+        <form action="fight.php" method="post"><input type="hidden" name="onturn" value="1">
+        <button name="action" value="attack">Attack</button></form></body></html>
+        """;
+
+    private const string FightWithoutHpOrRound = """
+        <html><body><span id="monname">factory-irregular skeleton</span>
+        <form action="fight.php" method="post"><button name="action" value="attack">Attack</button></form></body></html>
+        """;
+
+    [Fact]
+    public async Task A_fight_page_without_hp_uses_the_fresh_status_and_attacks()
+    {
+        var token = await MintTokenAsync();
+        _kol.StatusHp = 422;
+        _kol.StatusMaxHp = 504;
+        var attacks = 0;
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/fight.php"))
+            // The opening page has no onturn round either (0.4 #72).
+            .On("GET fight.php", FightWithoutHpOrRound)
+            .On("POST fight.php", (_, form) =>
+            {
+                Assert.Equal("action=attack", form);
+                attacks++;
+                if (attacks < 2) return FakeKol.Html(FightWithoutHp);
+                _kol.StatusAdventures--;
+                return FakeKol.Html(ActionTests.FightWon);
+            });
+
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync,
+            "run", "--location", "439", "--fight-action", "attack", "--min-hp-percent", "20", "--execute", "--approval-token", token);
+
+        Assert.Equal(0, code);
+        Assert.Equal(2, attacks);
+        Assert.Equal("Complete", json.GetProperty("stopReason").GetString());
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("openFight").ValueKind);
+    }
+
+    [Fact]
+    public async Task Unknown_hp_still_stops_before_the_round_and_names_the_open_fight()
+    {
+        var token = await MintTokenAsync();
+        _kol.StatusMaxHp = 0;
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/fight.php"))
+            .On("GET fight.php", FightWithoutHp);
+
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+
+        Assert.Equal(4, code);
+        Assert.Equal("HpBelowMinimum", json.GetProperty("stopReason").GetString());
+        Assert.Contains("--fight-action attack", json.GetProperty("openFight").GetProperty("finishCommand").GetString());
+        Assert.Equal(0, _kol.Count("POST", "fight.php"));
+    }
+
+    [Fact]
+    public async Task Not_in_a_fight_after_adventure_reads_the_open_choice_without_a_second_start()
+    {
+        var token = await MintTokenAsync();
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/fight.php"))
+            .On("GET fight.php", "<html><body><b>Not in a Fight</b> You're not currently in a fight.</body></html>")
+            .On("GET choice.php", ActionTests.ChoicePage);
+
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+
+        Assert.Equal(4, code);
+        Assert.Equal("NeedsDecision", json.GetProperty("stopReason").GetString());
+        Assert.Equal(1, _kol.Count("POST", "adventure.php"));
+    }
+
+    [Fact]
+    public async Task Main_php_without_an_encounter_counts_by_the_adventure_counter_and_never_restarts()
+    {
+        var token = await MintTokenAsync();
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/main.php"))
+            .On("GET main.php", "<html><body>The Kingdom</body></html>");
+
+        // Counter unchanged: stop, no second start.
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+        Assert.Equal(3, code);
+        Assert.Contains("No second start", json.GetProperty("detail").GetString());
+        Assert.Equal(1, _kol.Count("POST", "adventure.php"));
+
+        // Counter changed: the turn counts as done.
+        _kol.On("POST adventure.php", (_, _) => { _kol.StatusAdventures--; return FakeKol.Redirect("https://www.kingdomofloathing.com/main.php"); });
+        (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+        Assert.Equal(0, code);
+        Assert.Equal("Complete", json.GetProperty("stopReason").GetString());
+        Assert.Equal(2, _kol.Count("POST", "adventure.php"));
+    }
+
+    [Fact]
+    public async Task The_login_interstitial_is_retried_once_when_no_turn_was_spent()
+    {
+        var token = await MintTokenAsync();
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/main.php"))
+            .On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/choice.php"))
+            .On("GET main.php", "<html><body><b>Daily Reminders</b> New Events</body></html>")
+            .On("GET choice.php", ActionTests.ChoicePage);
+
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+
+        Assert.Equal(4, code);
+        Assert.Equal("NeedsDecision", json.GetProperty("stopReason").GetString());
+        Assert.Equal(2, _kol.Count("POST", "adventure.php"));
+    }
+
+    [Fact]
+    public async Task An_unknown_page_is_archived_redacted_with_the_request_trail()
+    {
+        var token = await MintTokenAsync();
+        _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/place.php?whichplace=odd"))
+            .On("GET place.php", "<html><body>Something strange <a href='x.php?pwd=0123456789abcdef0123456789abcdef'>x</a></body></html>");
+
+        var (code, json, _) = await Run(KolibriCli.AdventureCommandAsync, "run", "--location", "439", "--execute", "--approval-token", token);
+
+        Assert.Equal(3, code);
+        var path = json.GetProperty("unknownPagePath").GetString();
+        Assert.NotNull(path);
+        var archived = File.ReadAllText(path!);
+        Assert.Contains("KoLibri request trail", archived);
+        Assert.Contains("POST /adventure.php", archived);
+        Assert.DoesNotContain("0123456789abcdef0123456789abcdef", archived);
+        Assert.Contains("UnknownEncounter", Path.GetFileName(path));
     }
 
     [Fact]

@@ -13,6 +13,7 @@ internal sealed class FakeKol : HttpMessageHandler
 
     public int StatusAdventures { get; set; } = 50;
     public int StatusHp { get; set; } = 100;
+    public int StatusMaxHp { get; set; } = 100;
     public int Fullness { get; set; }
     public int FullnessLimit { get; set; } = 15;
     public long Meat { get; set; } = 10_000;
@@ -27,7 +28,7 @@ internal sealed class FakeKol : HttpMessageHandler
     }
 
     public string StatusJson() =>
-        $$"""{"name":"Tester","playerid":"1001","level":7,"meat":{{Meat}},"adventures":{{StatusAdventures}},"hp":{{StatusHp}},"maxhp":100,"mp":40,"maxmp":50,"full":{{Fullness}},"fullnessmax":{{FullnessLimit}},"drunk":0,"drunkmax":14,"spleen":0,"spleenmax":15,"pwd":"0123456789abcdef","familiar":"0","equipment":{"hat":"3","weapon":"0"},"effects":{} }""";
+        $$"""{"name":"Tester","playerid":"1001","level":7,"meat":{{Meat}},"adventures":{{StatusAdventures}},"hp":{{StatusHp}},"maxhp":{{StatusMaxHp}},"mp":40,"maxmp":50,"full":{{Fullness}},"fullnessmax":{{FullnessLimit}},"drunk":0,"drunkmax":14,"spleen":0,"spleenmax":15,"pwd":"0123456789abcdef","familiar":"0","equipment":{"hat":"3","weapon":"0"},"effects":{} }""";
 
     /// <summary>Adds a response for a route; several calls queue answers, the last one repeats.</summary>
     public FakeKol On(string route, Func<HttpRequestMessage, string, HttpResponseMessage> respond)
