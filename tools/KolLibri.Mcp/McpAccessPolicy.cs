@@ -1,6 +1,6 @@
 using System.Text.Json;
 using KoLibri.Core.Basis;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 

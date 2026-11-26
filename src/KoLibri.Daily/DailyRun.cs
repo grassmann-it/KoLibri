@@ -30,9 +30,22 @@ public sealed record DailyRunOptions
     /// <summary>"campfire", "hermit", "internet-shop".</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     public int CampfireReserve { get; init; } = 3;
+    /// <summary>0.4 DailyRoutineSnapshot values for the "sell clovers" branch (all 0 = branch off, as in the CLI).</summary>
+    public long AdventureReserveValue { get; init; }
+    public long CloverFloorValue { get; init; }
+    public long ExpectedCloverSaleValue { get; init; }
 }
 
 public enum DailyRunCompleteness { None, Complete, Partial, Failed }
+
+/// <summary>One step of the Internet Meme Shop run and what KoL answered (0.4: LibKolibri MemeShopStepResult).</summary>
+public sealed record MemeShopStep(string Description, bool Accepted, string Message, bool Unclear = false);
+
+/// <summary>Outcome of <see cref="DailyRun.RunMemeShopAsync"/> (0.4: LibKolibri MemeShopRunResult).</summary>
+public sealed record MemeShopRun(string Verdict, IReadOnlyList<MemeShopStep> Steps, int BaconBought, long BaconSpent, long BaconUnclear, bool Unclear)
+{
+    public PurchaseStatus? BaconStatus { get; init; }
+}
 
 public sealed record DailyRunResult(bool Executed, int AttemptedSteps, int SubmittedSteps, IReadOnlyList<string> FailedSteps)
 {
@@ -128,6 +141,13 @@ public static class DailyRun
             for (var i = 0; i < Math.Min(wanted, HermitDailyStock); i++)
                 steps.Add(new DailyStep("choice", "choice-clover", "1"));
         }
+        else if (!skipHermit && live.Permits > 0 && live.Clovers > 0
+                 && options.ExpectedCloverSaleValue > options.CloverFloorValue
+                 && options.ExpectedCloverSaleValue > options.AdventureReserveValue)
+        {
+            for (var i = 0; i < Math.Min(Math.Min(live.Clovers, live.Permits), HermitDailyStock); i++)
+                steps.Add(new DailyStep("choice", "choice-clover", "1"));
+        }
         else if (live.Permits == 0 && live.Clovers > 0 && live.WorthlessItems >= 1)
         {
             var tradeRuns = Math.Min(Math.Min(live.Clovers, live.WorthlessItems), HermitDailyStock);
@@ -149,6 +169,60 @@ public static class DailyRun
         foreach (var shopStep in shop.Steps)
             steps.Add(new DailyStep("choice", shopStep.ChoiceId, shopStep.OptionId));
         return steps;
+    }
+
+    /// <summary>
+    /// Today's Internet Meme Shop (0.4: LibKolibri KolibriClient.RunMemeShopAsync): optionally buys the missing BACON in
+    /// the mall first (price ceiling and Meat reserve apply), then pushes the BACON machine once and buys each daily item
+    /// that is still open. Progress is kept in the day's markers, so a second call the same KoL day only does what is left.
+    /// An unclear BACON purchase stops before the shop steps; an unclear shop step stops the run.
+    /// </summary>
+    public static async Task<MemeShopRun> RunMemeShopAsync(
+        KolibriSession session, bool topUpBacon = false, long maxBaconPrice = 1_500, long meatReserve = 200_000,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        var live = await ReadAsync(session, cancellationToken).ConfigureAwait(false);
+        var bacon = live.Bacon;
+        var bought = 0;
+        long spent = 0;
+        PurchaseStatus? baconStatus = null;
+        if (topUpBacon)
+        {
+            var needed = DailyInternetShopPlanner.BaconShortfall(live.MemeItemsDoneToday, bacon, live.BaconMachines > 0, live.BaconMachineUsedToday);
+            if (needed > 0)
+            {
+                var order = new PurchaseOrder(MemeShopCatalog.BaconItemId, needed, maxBaconPrice) { MeatReserve = meatReserve };
+                var quote = await session.Mall.QuoteAsync(order, cancellationToken).ConfigureAwait(false);
+                var result = await session.Mall.BuyAsync(quote, cancellationToken).ConfigureAwait(false);
+                baconStatus = result.Status;
+                bought = result.QuantityBought;
+                spent = result.MeatSpent;
+                bacon += bought;
+                // A BACON purchase whose answer is unknown may be booked: stop before the shop steps.
+                if (result.Status == PurchaseStatus.Unclear)
+                    return new MemeShopRun("Unclear", Array.Empty<MemeShopStep>(), bought, spent, Math.Max(1, quote.TotalCost - spent), true)
+                    { BaconStatus = baconStatus };
+            }
+        }
+        var plan = new DailyInternetShopPlanner().Plan(new InternetShopSnapshot
+        {
+            AlreadyPulledItemIds = live.MemeItemsDoneToday,
+            Bacon = bacon,
+            BaconMachineOwned = live.BaconMachines > 0,
+            BaconMachineUsedToday = live.BaconMachineUsedToday
+        });
+        var pulls = new FreePulls(session);
+        var steps = new List<MemeShopStep>();
+        var unclear = false;
+        foreach (var step in plan.Steps)
+        {
+            var (accepted, message, stepUnclear) = await ExecuteMemeStepAsync(session, pulls,
+                new DailyStep("choice", step.ChoiceId, step.OptionId), cancellationToken).ConfigureAwait(false);
+            steps.Add(new MemeShopStep(step.Description, accepted, message, stepUnclear));
+            if (stepUnclear) { unclear = true; break; }
+        }
+        return new MemeShopRun(unclear ? "Unclear" : plan.Verdict, steps, bought, spent, 0, unclear) { BaconStatus = baconStatus };
     }
 
     /// <summary>Sends the planned steps. Each step is one request (two for the leaves: visit, then burn).</summary>

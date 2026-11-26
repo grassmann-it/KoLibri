@@ -1,4 +1,4 @@
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 

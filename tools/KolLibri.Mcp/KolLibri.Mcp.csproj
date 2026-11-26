@@ -12,7 +12,18 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
-    <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
+    <!-- 0.5: the MCP server is built on the public KoLibri API (no KoLibri.Core, no LibKolibri).
+         PrivateAssets keeps the library types out of projects that reference the server (the Core test suite). -->
+    <ProjectReference Include="../../src/KoLibri/KoLibri.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../src/KoLibri.Safety/KoLibri.Safety.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../src/KoLibri.Daily/KoLibri.Daily.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../src/KoLibri.Extras/KoLibri.Extras.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KoLibri.Core.Tests" />
+    <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
 </Project>

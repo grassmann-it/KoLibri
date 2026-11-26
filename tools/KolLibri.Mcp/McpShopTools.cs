@@ -3,7 +3,7 @@ using System.Text.Json;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Markt;
 using LibKolibri;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 

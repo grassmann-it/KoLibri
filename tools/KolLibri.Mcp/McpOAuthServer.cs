@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 
