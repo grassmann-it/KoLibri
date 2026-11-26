@@ -1,18 +1,19 @@
 # KoLibri roadmap
 
-## Goals
+## Goal
 
-1. **LibKolibri is the product.** A .NET library (`KoLibri.LibKolibri`) that lets anyone build small
-   applications that talk to Kingdom of Loathing: mallbots, arbitrage, daily routines, adventure runners,
-   shop analytics. Stable public API, documented, no UI dependency.
-2. **`kolibri` (alias `kolicli`) and `kolibri-mcp` are for automation without writing .NET.** Scripts and AI
-   assistants use the same capabilities through the command line and through MCP, under limits the human
-   approves (rights, Meat budgets, price ceilings, reserves).
-3. **The desktop app is an example.** It shows what the library can do and is useful for manual play, but
-   it is not where features start.
-4. **Feature-complete with KoLmafia where that makes sense.** Data comes from KoLmafia's own data files and
-   reports; we import and credit them rather than re-deriving them. Where KoLmafia's approach does not fit
-   (for example embedding its scripting languages), we say so and offer a library or MCP equivalent.
+A KoLmafia-like client for Kingdom of Loathing, built on a .NET library you can program against.
+
+1. **Play by hand first.** Log in, see the character, adventure through the browser tab and the encounter view,
+   eat, drink and use items, buy from the mall, send KMail.
+2. **Simple auto-combat farming.** Run N turns in a zone with a combat strategy, stop on a choice, a defeat or a
+   HP threshold.
+3. **LibKolibri is the product: write your own tool with it.** The library ships game primitives — session,
+   requests, adventures, fights, choices, items, mall, KMail, data — with a small, documented public API.
+4. **We do not ship finished solutions in the library.** Diet optimizers, arbitrage, shop CRM, analytics or a
+   buffbot are things you build *with* LibKolibri. Some exist today as experimental extras in the apps; they
+   stay hidden by default and are not part of the library's promise.
+5. **The CLI, the MCP server and the desktop app are consumers of the library**, not where features start.
 
 ## Credits and data sources
 
@@ -23,45 +24,60 @@
 
 See [NOTICE.md](NOTICE.md).
 
-## 0.4.0 (this release)
+## 0.4.0 — Early Alpha (this release)
 
-Library with account, mall, shop, KMail, item use and adventure sessions; CLI with agent-mode guard; MCP over
-localhost HTTP with OAuth consent and per-grant limits; shop analytics and customer rewards; desktop early
-alpha; packages for Windows, Linux and macOS.
+Cut, don't build. What must work live on a real account:
 
-Known gaps are listed honestly in [planning/RELEASE_0_4_0.md](planning/RELEASE_0_4_0.md) and
-[planning/LEARNINGS_2026-11-21.md](planning/LEARNINGS_2026-11-21.md).
+- Login and reconnect; charpane / status with correct organ limits.
+- Inventory with use, eat, drink, chew; cast, rest, equip.
+- Manual adventuring through the browser tab and the encounter view: fight actions, choices, turtle encounters.
+- A simple auto-combat batch in the desktop: N turns in one zone, stop on a choice, a defeat or a HP threshold.
+- Mall search and price-guarded buying; sending KMail.
 
-## Next: 0.5 (library first)
+Extras are hidden, not deleted:
 
-- Publish `KoLibri.LibKolibri`, `KoLibri.Core`, `KoLibri.Cli` and `KoLibri.Mcp` on nuget.org.
-- Public API pass: one documented front door (`KolibriClient`), XML docs everywhere, API reference.
-- Cookbook of small apps: mallbot, arbitrage watcher, daily runner, shop CRM, adventure loop.
-- Move shop analytics, CRM and price suggestions from the MCP tool layer into the library.
-- IotM scanner as a library call, CLI command and MCP tool.
-- Consolidate the ~34 MCP tools into a smaller, clearer set.
-- Buffbot building blocks in LibKolibri (so a buffbot is a small app, like KoLmafia's): cast a skill on another
-  player (`runskillz.php` with `targetplayer`), poll and parse incoming KMail (requests, meat/items), reply or
-  send KMail with items and meat, mood/buff list with MP budget, soulsauce/MP restore (Soul Food is available as
-  `kolibri cast --skill 7185`), per-player cooldown and daily limits. Today: KMail send/read and self casts exist,
-  casting on others and an inbox watcher are missing.
-- Live-verify the remaining write tools (meme shop, item use, reprice, KMail, adventures).
+- Desktop: arbitrage, clan/stash and farm metrics are not shown.
+- CLI: arbitrage, bribe, snatch-plan, CRM, categorize and workflow-plan commands need `--experimental`.
+- MCP: only the core tools (status, inventory, adventure, choice, item use, mall buy) are offered unless the server
+  runs with `KOLIBRI_EXPERIMENTAL=1`.
 
-## 0.6 (KoLmafia data and reports)
+The library is usable from a source checkout but its public surface is still large and will change in 0.5.
+Known gaps are listed in [CHANGELOG.md](CHANGELOG.md).
 
-- Import of personal KoLmafia data: price and sales history, settings, session and combat logs.
-- Keep the bundled KoLmafia data snapshot current (scripted import, versioned, with provenance).
-- Pricegun: configurable freshness, clear attribution in every report that uses it.
-- Quest, path and ascension state (planning/KOLMAFIA_PARITAET.md AP10).
+## 0.5 — Library first, then NuGet
 
-## 0.7 and beyond (parity where sensible)
+1. **One core package.** Merge `KoLibri.Core` and the `LibKolibri` façade into one package `KoLibri`; delete the
+   old runtime/gateway layer.
+2. **A small public API.** Shrink the public surface from roughly a thousand types to a low three-digit number.
+   Delete unused types and aliases; guard the surface with `PublicAPI.txt` / ApiCompat.
+3. **Accounts by id or name** instead of the fixed `Main` / `Mallbot` roles.
+4. **New primitives:**
+   - raw page access (`GetPageAsync` / `PostAsync`) that still goes through the session and the rate limiter,
+   - `AdventureAsync(zone)` returning an encounter: fight, choice or non-combat,
+   - `ICombatStrategy` (like `IChoiceResolver`) and KoL combat macros,
+   - events: request, encounter, fight ended, item acquired, status changed,
+   - equip and outfits, familiar, reading KMail.
+5. **One adventure runner** instead of several parallel stacks.
+6. **Data in the package.** The KoLmafia data as an embedded resource or a `KoLibri.Data` package, plus a
+   `DataDirectory` option.
+7. **Policy out of the core.** Approval tokens, grants, usage ledger and the audit hash chain move to an optional
+   safety package or into the MCP server. Market extras and daily routines move into tools or stay experimental.
+8. **Cookbook** of three to five small apps: print the status, a farm loop with your own strategy, a mall buy under a
+   price ceiling, a KMail bot. `ConsumerSmoke` builds exactly these against the packed NuGets.
+9. **Dogfooding.** CLI, desktop and MCP use only the public library API.
+10. **Publish on nuget.org.** The library package first; the CLI and MCP server as dotnet tools.
 
-- Maximizer and moods, relay-style special pages, broader CLI command coverage (AP11 to AP14).
-- Script compatibility: a way to run common KoLmafia workflows, either through a limited ASH/JavaScript
-  bridge or through library equivalents. To be decided with users, not assumed.
-- OS keychain for secrets on macOS and Linux, signed Windows and macOS builds.
+## After 0.5 — towards KoLmafia parity
+
+1. State tracking: session state, quest log, counters and wanderers.
+2. Choice defaults from KoLmafia data; CCS-like combat scripts.
+3. Moods and buff upkeep, HP/MP restore, equipment rules.
+4. Crafting, coinmasters, closet / storage / stash.
+5. Relay overrides and a scripting bridge (limited ASH/JavaScript or library equivalents; to be decided with users).
+
+Maximizer, diet planning, arbitrage and CRM stay example apps outside the library.
 
 ## 1.0
 
-API stability promise for the library, a real-account verified test matrix per supported workflow, and a
+An API stability promise for the library, a real-account verified test matrix per supported workflow, and a
 documented list of what is intentionally not covered.
