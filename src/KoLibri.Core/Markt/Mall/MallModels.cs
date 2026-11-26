@@ -356,7 +356,7 @@ public sealed class KoLMallReadClient : IMallReadClient
 
     private async Task<IReadOnlyList<OwnShopListing>> FetchOwnShopCoreAsync()
     {
-        var uri = new Uri(_baseUri, KoLRoutes.ManageStore);
+        var uri = new Uri(_baseUri, KoLRoutes.StoreInventory);
         _security.EnsureAllowed(uri);
         try
         {

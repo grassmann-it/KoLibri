@@ -225,7 +225,7 @@ public sealed class StoreLister
         AccountCredentials credentials,
         CancellationToken cancellationToken)
     {
-        var uri = new Uri(_baseUri, "backoffice.php");
+        var uri = new Uri(_baseUri, KoLRoutes.StoreInventory);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Add("Cookie", credentials.CookieHeader);
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);

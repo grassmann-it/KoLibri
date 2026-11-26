@@ -16,6 +16,12 @@ public static class KoLRoutes
     /// <summary>Own-store management page used for reads and explicit price updates.</summary>
     public const string ManageStore = "managestore.php";
     public const string Backoffice = "backoffice.php";
+    /// <summary>
+    /// Own-store inventory tab (listings, prices, limits, the stock form and pwd).
+    /// Plain <c>backoffice.php</c> shows whichever tab was opened last, e.g. the
+    /// sales log after a CRM read, so reads must name the tab explicitly.
+    /// </summary>
+    public const string StoreInventory = "backoffice.php?which=1";
     /// <summary>Own-store sales activity; GET only and never a mutation.</summary>
     public const string StoreSalesLog = "backoffice.php?which=3";
     public const string Adventure = "adventure.php";
