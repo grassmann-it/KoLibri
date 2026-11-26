@@ -8,6 +8,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -343,7 +344,24 @@ namespace KoLibri
 
     // --- Kampf ----------------------------------------------------------------------------
 
-    public enum CombatActionKind { Attack, Skill, Item, RunAway, Macro, Stop }
+    public enum CombatActionKind
+    {
+        Attack,
+        Skill,
+        Item,
+        RunAway,
+        /// <summary>Experimentell in 0.5: der Läufer lehnt Makros mit NotSupportedException ab, bis sie live geprüft sind.</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
+        Macro,
+        Stop
+    }
+
+    /// <summary>Diagnose-Ids für [Experimental]-APIs. Nutzer schalten sie per NoWarn bewusst frei.</summary>
+    public static class KolibriDiagnostics
+    {
+        /// <summary>KoL-Combat-Makros: angelegt, aber vor dem Live-Test nicht freigeschaltet.</summary>
+        public const string CombatMacros = "KOLIBRI0001";
+    }
 
     public sealed record CombatAction(CombatActionKind Kind, int? Id = null, int? SecondId = null, string? Macro = null)
     {
@@ -353,7 +371,8 @@ namespace KoLibri
         public static CombatAction Stop { get; } = new(CombatActionKind.Stop);
         public static CombatAction Skill(SkillRef skill) => new(CombatActionKind.Skill, skill.Id);
         public static CombatAction Item(ItemRef item, ItemRef? second = null) => new(CombatActionKind.Item, item.Id, second?.Id);
-        /// <summary>KoL-Combat-Makro, wird über fight.php?action=macro geschickt.</summary>
+        /// <summary>KoL-Combat-Makro, wird über fight.php?action=macro geschickt. Experimentell in 0.5.</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
         public static CombatAction FromMacro(string macro) => new(CombatActionKind.Macro, Macro: macro);
     }
 
@@ -389,7 +408,8 @@ namespace KoLibri
     public static class CombatStrategies
     {
         public static ICombatStrategy AttackOnly { get; } = null!;
-        /// <summary>Jede Runde dasselbe Makro (KoL wertet es serverseitig aus).</summary>
+        /// <summary>Jede Runde dasselbe Makro (KoL wertet es serverseitig aus). Experimentell in 0.5, siehe KolibriDiagnostics.CombatMacros.</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
         public static ICombatStrategy Macro(string macro) => throw new NotImplementedException();
         /// <summary>Regel-DSL von 0.4 (AutoCombatPolicy.Parse), z.B. "if hp &lt; 30% then run; skill 1005 x3; attack".</summary>
         public static ICombatStrategy FromRules(string rules) => throw new NotImplementedException();

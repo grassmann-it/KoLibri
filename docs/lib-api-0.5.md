@@ -1,6 +1,6 @@
 # KoLibri 0.5: Bestandsaufnahme und API-Entwurf
 
-Status: **Entwurf zur Abstimmung.** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`). In diesem Schritt
+Status: **Entwurf, offene Fragen entschieden (§8).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`). In diesem Schritt
 wird keine App umgebaut und kein Lib-Code geändert. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
 [ROADMAP.md](../ROADMAP.md) (Abschnitt 0.5) ab.
 
@@ -30,7 +30,7 @@ Apps erzeugen falsche Treffer, deshalb sind die Zahlen eher zu hoch als zu niedr
 | davon von mindestens einer App genutzt | **415** (CLI 195, MCP 154, Desktop 269) |
 | nur von Tests, `OfflineDemo`, `UiQa` oder `ConsumerSmoke` genutzt | 228 |
 | nirgends außerhalb der eigenen Datei genannt (tot) | **330** |
-| **Entwurf 0.5: Paket `KoLibri`** | **107** |
+| **Entwurf 0.5: Paket `KoLibri`** | **108** |
 | **Entwurf 0.5: Paket `KoLibri.Safety`** (optional) | **13** |
 
 Nach Fähigkeit (aus [inventory.md](lib-api-0.5/inventory.md)):
@@ -361,9 +361,9 @@ public sealed record ActionResult(ActionStatus Status, int Completed, string? Re
 { IReadOnlyList<InventoryItem> ItemsGained, ItemsLost; Status? Before, After; }
 ```
 
-Nicht aufgenommen: Closet/Storage-Bewegungen, Combine, Friars und Moods (`EnsureEffectAsync`). Sie gehören zu
-"Danach – Richtung KoLmafia-Parität" und lassen sich bis dahin mit `PostAsync` bauen. Der Desktop nutzt sie heute;
-siehe Migration §7.
+Nicht aufgenommen (entschieden, §8 Punkt 5): Closet/Storage-Bewegungen, Combine, Friars und Moods
+(`EnsureEffectAsync`). Der Desktop baut sie in 0.5 über `session.PostAsync` (Guard-Art `RawPost`). Eigene Facetten
+wie `session.Storage` kommen erst mit "Danach – Richtung KoLmafia-Parität". Siehe Migration §7.
 
 ### 4.6 Abenteuer, Kampf, Choice
 
@@ -414,7 +414,11 @@ public static class ChoiceResolvers
 - `CombatStrategies.FromRules` übernimmt die Regel-DSL von 0.4 (`AutoCombatPolicy.Parse`). Damit laufen bestehende
   Policies unverändert. Intern wird `AutoCombatPolicy` zum Adapter.
 - `CombatStrategies.Macro` schickt ein KoL-Combat-Makro (`fight.php?action=macro`). KoL wertet es serverseitig aus,
-  das spart Requests pro Runde.
+  das spart Requests pro Runde. **In 0.5 nur als Typ angelegt** (§8 Punkt 6): `CombatStrategies.Macro`,
+  `CombatAction.FromMacro` und `CombatActionKind.Macro` tragen `[Experimental("KOLIBRI0001")]`
+  (`KolibriDiagnostics.CombatMacros`). Wer sie nutzt, bekommt einen Compilerfehler, bis er die Id per `NoWarn`
+  freischaltet. Läufer und `FightAsync` lehnen Makro-Aktionen in 0.5 mit `NotSupportedException` ab. Freigeschaltet
+  wird erst nach einem festgehaltenen Live-Test; dann entfallen Attribut und Sperre.
 - Turtle-Tamer-Begegnungen bleiben eine Choice. `ChoiceResolvers.Safe` erkennt sie am Titel wie heute
   `TurtleTamerEncounters` und fragt, solange keine Option konfiguriert ist.
 
@@ -484,9 +488,9 @@ public sealed class DailyMarkers       // Einmal-pro-KoL-Tag je Konto (Rollover 
 ```
 
 **Daily.** In der Lib bleiben nur die Bausteine: `DailyMarkers`, rohe Seiten, Choices, Läufe und Kauf. Die Routinen
-selbst (Campfire, Hermit, Meme-Shop, Free-Pulls, Internet-Shop, Daily-Orchestrator) wandern in ein Paket
-`KoLibri.Daily`. Es ist experimentell, wird nicht auf NuGet veröffentlicht und nutzt nur die öffentliche API. CLI und
-Desktop teilen es. So wird Daily der erste echte Dogfooding-Test.
+selbst (Campfire, Hermit, Meme-Shop, Free-Pulls, Internet-Shop, Daily-Orchestrator) wandern in das Projekt
+`src/KoLibri.Daily` (entschieden, §8 Punkt 4). Es hat `IsPackable=false`, wird also nicht auf NuGet veröffentlicht,
+und nutzt nur die öffentliche API. CLI und Desktop referenzieren es beide. So wird Daily der erste echte Dogfooding-Test.
 
 ### 4.9 Events
 
@@ -629,7 +633,7 @@ Paket `KoLibri.Extras` (nicht auf NuGet) oder direkt in die App, die sie braucht
   `session.GetPageAsync`/`PostAsync` umgebaut.
 - **Workflow und Skripte:** `KoLWorkflowPlanner`, `KoLWorkflowSnapshot`, `MafiaReadScript`
 - **Daily-Routinen:** alles unter `Spiel/Daily/` außer den Markern, dazu `Spiel/Adventure/DailyAdventure*`.
-  Ziel ist `KoLibri.Daily` (§4.8).
+  Ziel ist `src/KoLibri.Daily` mit `IsPackable=false` (§4.8).
 
 ### 6.3 `internal` (bleibt im Paket `KoLibri`, Tests per `InternalsVisibleTo`)
 
@@ -713,7 +717,7 @@ Die Apps werden in diesem Schritt nicht umgebaut. Die Liste ist der Fahrplan fü
 | `FetchMailboxPageAsync` / `SaveInboxMessageAsync` / `DeleteMailboxMessageAsync` | `session.Mail.GetAsync` / `SaveAsync` / `DeleteAsync` | D |
 | `RelayHost.Start(session, …)` / `StartAsync(accounts, role, …)`, `EnterUrl` | `session.StartRelayAsync(options)`, `RelayServer.EntryUri(path)` | CMD |
 | `DailyDoneStore` | `session.Daily` (`DailyMarkers`) | CMD |
-| `LiveDailySnapshotBuilder`, `DailyRoutineRunner`, `AutoCombatDailyBridge`, `DailyOrchestrator`, Planner | `KoLibri.Daily` (experimentell, auf öffentlicher API) | CMD |
+| `LiveDailySnapshotBuilder`, `DailyRoutineRunner`, `AutoCombatDailyBridge`, `DailyOrchestrator`, Planner | `src/KoLibri.Daily` (`IsPackable=false`, auf öffentlicher API) | CMD |
 | `MafiaDataLoader.Load(dir)` / `KoLmafiaCatalog` / `ItemClassifier` | `client.Data` (`GameData`), `KolibriOptions.DataDirectory` | CMD |
 | `AccessGate`, `GrantStore`, `UsageLedger`, `ApprovalTokenStore`, `PurchaseApprovalService`, `AuditEventJournal` | `KoLibri.Safety` (§5) | CMD |
 | `RoleScopedRuntime`, `McpRuntimeBootstrap` (Lib), `CoreAccountGateway`, `CoreMallGateway`, `IAccountGateway`, `IMallGateway` | entfällt; MCP nutzt `KolibriClient`/`KolibriSession` direkt | M |
@@ -721,22 +725,19 @@ Die Apps werden in diesem Schritt nicht umgebaut. Die Liste ist der Fahrplan fü
 
 ---
 
-## 8. Offene Fragen
+## 8. Entscheidungen
 
-1. **Ein Namespace oder mehrere?** Der Entwurf nutzt nur `KoLibri` (107 Typen). Alternative wären
-   `KoLibri.Adventure`, `KoLibri.Mall` usw. Das gäbe Namenskonflikte mit den Facetten-Properties
-   (`session.Adventure`) und mehr `using`-Zeilen in kleinen Skripten.
-2. **Async-Strategien?** `ICombatStrategy` und `IChoiceResolver` sind synchron. Eine Strategie, die nachdenken oder
-   einen Menschen fragen will, gibt `Stop`/`Ask` zurück. Reicht das, oder braucht es `ValueTask<CombatAction>`?
-   Vorschlag: synchron lassen, denn ein Mensch übernimmt über `RunResult.Open`.
-3. **Events oder `IObservable`/`Channel`?** Klassische .NET-Events sind am einfachsten. Für die UI genügt das. Für
-   Streams (MCP-Notifications) kann eine App selbst einen `Channel` daraus machen.
-4. **Wo liegt `KoLibri.Daily`?** Als eigenes Projekt unter `src/` (nicht gepackt) oder unter `tools/`? Vorschlag:
-   `src/KoLibri.Daily`, damit CLI und Desktop es teilen, mit `IsPackable=false`.
-5. **Closet, Storage, Moods, Friars** sind nicht in der API, der Desktop nutzt sie aber. Reicht `PostAsync`
-   übergangsweise, oder sollen sie als Facette `session.Storage` schon in 0.5 kommen?
-6. **Combat-Makros:** Soll `CombatStrategies.Macro` in 0.5 schon live geprüft werden, oder erst als Typ angelegt und
-   später freigeschaltet?
+Die offenen Fragen des ersten Entwurfs hat der Nutzer am 2026-11-26 entschieden. Die Abschnitte oben, der Stub und
+die PublicAPI-Dateien sind daran angepasst.
+
+| # | Frage | Entscheidung | Wirkung im Entwurf |
+|---|---|---|---|
+| 1 | Ein Namespace oder mehrere? | **Ein Namespace `KoLibri`** (dazu `KoLibri.Safety` im optionalen Paket). | Alle 108 Typen in `KoLibri`; keine Konflikte mit Facetten-Properties wie `session.Adventure`. |
+| 2 | Synchrone oder asynchrone Strategien? | **`ICombatStrategy` und `IChoiceResolver` bleiben synchron.** Ein Mensch übernimmt über `CombatAction.Stop` / `ChoiceDecision.Ask` und `RunResult.Open`. | Kein `ValueTask` in den Strategien (§4.6). |
+| 3 | Events oder Streams? | **Klassische .NET-Events.** Streams (`Channel`, `IObservable`) baut die App selbst. | `KolibriEvents` wie in §4.9; keine Stream-API in der Lib. |
+| 4 | Wo liegt `KoLibri.Daily`? | **`src/KoLibri.Daily`, `IsPackable=false`**, geteilt von CLI und Desktop. | §4.8, §6.2, §7. |
+| 5 | Closet, Storage, Moods, Friars? | **In 0.5 über `PostAsync`.** Eigene Facetten kommen später. | Nicht in `CharacterActions` (§4.5); Desktop-Migration über `session.PostAsync` (§7). |
+| 6 | Combat-Makros? | **In 0.5 nur als Typ angelegt**, erst nach Live-Test freigeschaltet. | `[Experimental("KOLIBRI0001")]` auf `CombatStrategies.Macro`, `CombatAction.FromMacro` und `CombatActionKind.Macro`; neue Klasse `KolibriDiagnostics`. Der Läufer lehnt Makros mit `NotSupportedException` ab (§4.6). |
 
 ---
 
@@ -747,7 +748,7 @@ Die Apps werden in diesem Schritt nicht umgebaut. Die Liste ist der Fahrplan fü
   `Unshipped` nach `Shipped`.
 - `PublicAPI.Unshipped.txt` wurde aus [KoLibri.Api.cs](lib-api-0.5/KoLibri.Api.cs) mit
   `Microsoft.CodeAnalysis.PublicApiAnalyzers` 3.3.4 erzeugt (`dotnet format analyzers --diagnostics RS0016`). Das Paket
-  `KoLibri` hat 929 Zeilen und 107 Typen, `KoLibri.Safety` 99 Zeilen und 13 Typen.
+  `KoLibri` hat 931 Zeilen und 108 Typen, `KoLibri.Safety` 99 Zeilen und 13 Typen.
 - Prüfen und neu erzeugen:
 
   ```bash
@@ -759,14 +760,16 @@ Die Apps werden in diesem Schritt nicht umgebaut. Die Liste ist der Fahrplan fü
   ```
 
   Das Skript legt zwei Wegwerfprojekte im Temp-Ordner an (net8.0, Nullable enable). Es baut mit RS0016, RS0017 und
-  RS0026 als Fehler. Zuletzt lief es mit 0 Fehlern und 0 Warnungen.
+  RS0026 als Fehler. Zuletzt lief es mit 0 Fehlern und 0 Warnungen. Der Analyzer 3.3.4 hält `[Experimental]` nicht
+  in den PublicAPI-Dateien fest. Die Markierung steht deshalb nur im Stub und in §8; eine neuere Analyzer-Version
+  (mit `[RSEXPERIMENTAL]`-Präfix) kann das beim Umbau nachholen.
 - Für den Umbau (Schritt 3) kommt der Analyzer in `src/KoLibri/KoLibri.csproj` und `src/KoLibri.Safety/…`. Die
   beiden Dateien hier ziehen dorthin um. Zusätzlich prüft ApiCompat im Pack-Schritt gegen das zuletzt veröffentlichte
   Paket.
 
 ## 10. Nächste Schritte
 
-1. Entwurf abstimmen und die offenen Fragen (§8) entscheiden.
+1. ~~Entwurf abstimmen und die offenen Fragen entscheiden.~~ Erledigt, siehe §8.
 2. `src/KoLibri` anlegen: Core und LibKolibri zusammenlegen, M0M1 löschen (§6.1) und Extras ausziehen (§6.2). Danach
    ist der Rest `internal` (§6.3), der Analyzer läuft gegen `PublicAPI.Unshipped.txt`.
 3. Neue Fassade über den internen Clients implementieren. Jede Facette bekommt Offline-Tests über

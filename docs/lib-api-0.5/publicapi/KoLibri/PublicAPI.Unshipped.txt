@@ -1,4 +1,5 @@
 #nullable enable
+const KoLibri.KolibriDiagnostics.CombatMacros = "KOLIBRI0001" -> string!
 KoLibri.Account
 KoLibri.Account.Account(KoLibri.AccountId Id, string! PlayerName, int? PlayerId, string? Label, System.Collections.Generic.IReadOnlyList<string!>! Tags) -> void
 KoLibri.Account.HasSession.get -> bool
@@ -392,6 +393,7 @@ KoLibri.KolibriClient.Events.get -> KoLibri.KolibriEvents!
 KoLibri.KolibriClient.LoginAsync(string! userName, string! password, KoLibri.LoginOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.KolibriSession!>!
 KoLibri.KolibriClient.OpenAsync(string! accountIdOrName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.KolibriSession!>!
 KoLibri.KolibriClient.Options.get -> KoLibri.KolibriOptions!
+KoLibri.KolibriDiagnostics
 KoLibri.KolibriEventArgs
 KoLibri.KolibriEventArgs.Account.get -> KoLibri.AccountId
 KoLibri.KolibriEventArgs.At.get -> System.DateTimeOffset
