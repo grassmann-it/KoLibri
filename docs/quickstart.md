@@ -11,6 +11,28 @@ KoLibri gives you a .NET library, a command line (`kolibri`), an MCP server (`ko
 client for Kingdom of Loathing. You act yourself through the CLI and desktop. An AI acts through MCP, only inside
 limits you approve.
 
+## What 0.4.0 can do / what is experimental
+
+**Supported in 0.4.0** (the scope we test live before the release):
+
+- Login and reconnect; status / charpane with organ limits.
+- Inventory: use, eat, drink, chew; cast, rest, equip.
+- Adventuring by hand: the browser tab and the encounter view (fight actions, choices).
+- A simple auto-combat batch in the desktop: N turns in one zone, stops on a choice, a defeat or a HP threshold.
+- Mall search and price-guarded buying.
+- Sending KMail.
+- `LibKolibri` from a source checkout, to write your own tool. Its API is still large and changes in 0.5.
+
+**Experimental, hidden by default:** arbitrage, foreign bribes, snatch planning, shop CRM / customer rewards,
+categorize, workflow plans, clan stash and farm metrics. They are not deleted, just
+not shown, and they get no live verification for this release.
+
+- CLI: add `--experimental` to see and run those commands.
+- MCP: start `kolibri-mcp` with `KOLIBRI_EXPERIMENTAL=1` to offer more than the core tools
+  (status, inventory, adventure, choice, item use, mall buy).
+
+Where this goes next: [ROADMAP.md](../ROADMAP.md).
+
 ## 1. Install
 
 **Download (no .NET needed).** Take the archive for your system from the GitHub releases page

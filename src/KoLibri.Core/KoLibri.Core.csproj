@@ -7,7 +7,7 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
 
     <PackageId>KoLibri.Core</PackageId>
-    <Description>Core domain layer for KoLibri: bounded adventure runner, adventure step spec, daily planners, hash-chain audit ledger, approval token store, KoLmafia data records.</Description>
+    <Description>Core layer for KoLibri (Kingdom of Loathing): KoL session and requests, adventure and combat steps, item and mall operations, KoLmafia data records. Used by KoLibri.LibKolibri; early alpha.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolmafia;core;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>

@@ -2,15 +2,20 @@
 
 **A drop-in .NET 8 connector for [Kingdom of Loathing](https://www.kingdomofloathing.com/).**
 
-LibKolibri gives a .NET tool the same plumbing that
+LibKolibri gives a .NET tool the building blocks that
 [KoLmafia](https://github.com/kolmafia/kolmafia) gives its scripts: the
-complete KoLmafia data snapshot, authenticated account reads, mall and
-price lookups, the daily-routine planners, the mall-arbitrage
-executors, a bounded adventure runner and a tamper-evident audit
-ledger — all behind a small, stable public API.
+KoLmafia data snapshot, an authenticated session, account reads,
+adventures and fights, consumables, mall search and price-guarded buying,
+and KMail. The idea is *write your own tool with LibKolibri*: the library
+ships primitives, not finished solutions such as diet optimizers,
+arbitrage bots or a shop CRM.
+
+> **Early Alpha (0.4.0).** The public API is still large and will shrink in
+> 0.5 (one core package, a small documented surface, NuGet). Expect breaking
+> changes; see [ROADMAP.md](../../ROADMAP.md).
 
 ```csharp
-using KoLibri.Core.Accounts;
+using KoLibri.Core.Basis;   // AccountRole
 using LibKolibri;
 
 // Sign in once; the session is stored encrypted and renewed with the saved password when KoL drops it.
@@ -48,13 +53,17 @@ purchase has a price ceiling and a meat reserve.
 
 ## Install
 
+NuGet publishing is planned for 0.5. Until then reference the project from
+a source checkout:
+
 ```xml
-<PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
+<ProjectReference Include="path/to/KoLibri/src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
 ```
 
-The package targets `net8.0`. `KoLibri.Core` comes in as a dependency —
-it carries the domain logic (planners, arbitators, runner, audit), while
-this package is the façade: runtime, contracts and role scoping.
+The project targets `net8.0` and pulls in `KoLibri.Core`, which carries the
+game logic. In 0.4.0 you still need a few core types directly — for example
+`AccountRole` from `KoLibri.Core.Basis`, as in the example above. 0.5 merges
+both into one package.
 
 ## What is in the box
 
@@ -62,6 +71,9 @@ this package is the façade: runtime, contracts and role scoping.
 |---|---|
 | **Data** | The complete KoLmafia data dump as JSON Lines: 12 103 items, 2 366 monsters, 1 657 skills, 3 015 effects, 601 adventures, 148 zones, 13 375 modifiers, 2 238 concoctions, 2 214 monster parts, 164 restores. Loaded into typed records. |
 | **Account reads** | Status, inventory, equipment, familiar, skills, effects — read-only, rate-limited, with a stale-cache fallback. |
+| **Adventures** | `OpenAdventureAsync`: a manual adventure session — visit a zone, fight (attack, skill, item), pick a choice option — one request at a time. |
+| **Consumables & character** | `UseItemAsync`, `ConsumeAsync` (eat/drink/chew), `CastSkillAsync`, `RestAsync`. |
+| **KMail** | `SendKMailAsync` / `SendKMailOutcomeAsync`, with items and meat. |
 | **Mall & pricing** | Mall search, own-store reads, pricegun history, a price provider that plugs into the pricing engine. |
 | **Daily routines** | Campfire leaves and the Day Shortener (222 leaves), the hermit permit / 11-leaf clover flow, the Internet Meme Shop (machine push, then the five once-a-day items). Planners are pure functions over a snapshot. Progress is kept per KoL day, so a repeat call only does what is left. |
 | **Mall buying** | Price-guarded buying: cheapest listing first, a price ceiling, a meat reserve, stores at their daily limit skipped, success only on KoL's own confirmation. Clover restock and the BACON top-up for the meme shop run on it. The Infinite BACON machine is not tradeable and is never bought. |
@@ -69,36 +81,34 @@ this package is the façade: runtime, contracts and role scoping.
 | **Audit** | An append-only journal with a SHA-256 hash chain over the rows. `VerifyChain()` reports the first tampered row. |
 | **Transfer** | Main ↔ Mallbot transfers with a preview/approval/commit flow and a dry-run default. |
 
+Daily routines, Main ↔ Mallbot transfer, own-shop repricing and the audit
+ledger are still in the box in 0.4.0, but they are not what the library is
+for. In 0.5 they move into tools or an optional package, and account roles
+give way to accounts addressed by id or name.
+
 ## The sample
 
-`sample/KolLibri.Sample` is a runnable consumer that shows the three
-things most tools need: build a runtime from the stored sessions, read
-the live account, and plan the daily routine from the live numbers.
+`sample/KolLibri.Sample` is a runnable consumer that shows what most
+tools need first: open the stored session (or log in), read status and
+inventory, and search the mall.
 
 ```bash
-dotnet run --project sample/KolLibri.Sample -- --role main
+dotnet run --project sample/KolLibri.Sample -- main
 ```
 
 ## API overview
 
-| Type | Purpose |
-|---|---|
-| `LibKolibriRuntime` | The root object. Owns the registered services. |
-| `RoleScopedRuntime` | Resolves a service per role (`Main`, `Mallbot`) with a fallback. `TryGet<T>(role, out var service)`. |
-| `McpRuntimeBootstrap` | Builds a runtime from the encrypted sessions on disk. One read client per role that has valid credentials. |
-| `CoreGatewayAdapters` | Adapters that expose the core gateways through the public contracts. |
-| `MainMallbotTransferGatewayAdapter` | The transfer gateway behind the public contract. |
-
-The domain types live in `KoLibri.Core` and are re-exported through the
-contracts in this package — you never need to reference the core
-assembly directly.
+Start with `KolibriClient`; it is the only entry point we intend to keep.
+Older runtime and gateway types (`LibKolibriRuntime`, `RoleScopedRuntime`,
+`McpRuntimeBootstrap`, `CoreGatewayAdapters`, transfer adapters) still
+exist in the assembly but are internal plumbing for the CLI and MCP
+server. Do not build on them; they go away in 0.5.
 
 ## What is not there yet
 
 Be clear-eyed before you build on it:
 
 - No ASH or JavaScript scripting layer, no relay browser, no maximizer combination search.
-- Foreign-bribe arbitrage is not automated.
 - Chat is read and send only; KMail cannot delete and has no outbox view.
 - Quest and path coverage is partial; unusual adventure choices need your own allowlist.
 - The API is `0.x` and may still move. The core is grouped in three layers: `KoLibri.Core.Basis` (accounts, security, safety, audit), `.Spiel` (adventure, daily, client reads, game data) and `.Markt` (mall, pricing, analytics). A lower layer never names a higher one.
@@ -118,8 +128,8 @@ are built in and are not optional:
    Each row carries the hash of the row before it, so a tampered log is
    detectable.
 
-The planners and arbitators are deliberately split from the executors:
-planning is a pure function over a snapshot, so you can show the operator
+Planning is kept apart from execution where the library plans at all:
+a plan is a pure function over a snapshot, so you can show the operator
 exactly what would happen before anything is submitted.
 
 ## Related

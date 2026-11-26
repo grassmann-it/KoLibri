@@ -24,6 +24,28 @@ from the live data, plans the routine and runs it.
 > - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](docs/usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
 > - Details: [CHANGELOG.md](CHANGELOG.md).
 
+## What 0.4.0 can do / what is experimental
+
+**Supported in 0.4.0** (the scope we test live before the release):
+
+- Login and reconnect; status / charpane with organ limits.
+- Inventory: use, eat, drink, chew; cast, rest, equip.
+- Adventuring by hand: the browser tab and the encounter view (fight actions, choices).
+- A simple auto-combat batch in the desktop: N turns in one zone, stops on a choice, a defeat or a HP threshold.
+- Mall search and price-guarded buying.
+- Sending KMail.
+- `LibKolibri` from a source checkout, to write your own tool. Its API is still large and changes in 0.5.
+
+**Experimental, hidden by default:** arbitrage, foreign bribes, snatch planning, shop CRM / customer rewards,
+categorize, workflow plans, clan stash and farm metrics. They are not deleted, just
+not shown, and they get no live verification for this release.
+
+- CLI: add `--experimental` to see and run those commands.
+- MCP: start `kolibri-mcp` with `KOLIBRI_EXPERIMENTAL=1` to offer more than the core tools
+  (status, inventory, adventure, choice, item use, mall buy).
+
+Where this goes next: [ROADMAP.md](ROADMAP.md).
+
 > KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
 > Where this is going: [ROADMAP.md](ROADMAP.md).
 > New here? Start with [docs/quickstart.md](docs/quickstart.md); [docs/usage.md](docs/usage.md) shows CLI (`kolibri` / `kolicli`), desktop, MCP and library side by side.
@@ -32,7 +54,7 @@ from the live data, plans the routine and runs it.
 
 | Project | Role | Package |
 |---|---|---|
-| `src/KoLibri.Core` | The domain: KoL connector, data catalog, daily planners, mall arbitrage, bounded runner, audit ledger | `KoLibri.Core` |
+| `src/KoLibri.Core` | The domain: KoL connector, data catalog, adventure and combat, mall, bounded runner (plus experimental planners) | `KoLibri.Core` |
 | `src/LibKolibri` | The public API façade over the core | `KoLibri.LibKolibri` |
 | `tools/KolLibri.Cli` | Command line front-end | — |
 | `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
@@ -234,6 +256,9 @@ kolibri-mcp --stdio            # read-only tools over stdio, no approval needed
 | `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`) |
 
 Every write is two steps: preview returns a `planId`, the same call with that id executes once.
+
+In 0.4.0 the server offers only the core tools by default (status, inventory, adventure, choice, item use,
+mall buy). Market, shop, transfer and daily tools from this table appear only with `KOLIBRI_EXPERIMENTAL=1`.
 
 Login management tools are not available to AI clients.
 
