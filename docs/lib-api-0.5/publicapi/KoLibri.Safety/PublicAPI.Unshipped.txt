@@ -1,0 +1,99 @@
+#nullable enable
+KoLibri.Safety.ApprovalGuard
+KoLibri.Safety.ApprovalGuard.ApprovalGuard(System.Collections.Generic.IReadOnlySet<KoLibri.GuardedActionKind>! requireApprovalFor, System.TimeSpan tokenLifetime) -> void
+KoLibri.Safety.ApprovalGuard.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.Safety.ApprovalGuard.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.Safety.ApprovalGuard.Issue(KoLibri.GuardedAction! action) -> KoLibri.Safety.ApprovalToken!
+KoLibri.Safety.ApprovalGuard.Present(string! token) -> void
+KoLibri.Safety.ApprovalToken
+KoLibri.Safety.ApprovalToken.Action.get -> KoLibri.GuardedAction!
+KoLibri.Safety.ApprovalToken.Action.init -> void
+KoLibri.Safety.ApprovalToken.ApprovalToken(string! Value, KoLibri.GuardedAction! Action, System.DateTimeOffset ExpiresAt) -> void
+KoLibri.Safety.ApprovalToken.ExpiresAt.get -> System.DateTimeOffset
+KoLibri.Safety.ApprovalToken.ExpiresAt.init -> void
+KoLibri.Safety.ApprovalToken.Value.get -> string!
+KoLibri.Safety.ApprovalToken.Value.init -> void
+KoLibri.Safety.AuditEntry
+KoLibri.Safety.AuditEntry.Account.get -> KoLibri.AccountId
+KoLibri.Safety.AuditEntry.Account.init -> void
+KoLibri.Safety.AuditEntry.At.get -> System.DateTimeOffset
+KoLibri.Safety.AuditEntry.At.init -> void
+KoLibri.Safety.AuditEntry.AuditEntry(long Sequence, System.DateTimeOffset At, KoLibri.AccountId Account, string! Kind, string! Summary, string! Hash, string! PreviousHash) -> void
+KoLibri.Safety.AuditEntry.Hash.get -> string!
+KoLibri.Safety.AuditEntry.Hash.init -> void
+KoLibri.Safety.AuditEntry.Kind.get -> string!
+KoLibri.Safety.AuditEntry.Kind.init -> void
+KoLibri.Safety.AuditEntry.PreviousHash.get -> string!
+KoLibri.Safety.AuditEntry.PreviousHash.init -> void
+KoLibri.Safety.AuditEntry.Sequence.get -> long
+KoLibri.Safety.AuditEntry.Sequence.init -> void
+KoLibri.Safety.AuditEntry.Summary.get -> string!
+KoLibri.Safety.AuditEntry.Summary.init -> void
+KoLibri.Safety.AuditJournal
+KoLibri.Safety.AuditJournal.Attach(KoLibri.KolibriEvents! events) -> void
+KoLibri.Safety.AuditJournal.AuditJournal(string! path) -> void
+KoLibri.Safety.AuditJournal.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.Safety.AuditJournal.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.Safety.AuditJournal.Dispose() -> void
+KoLibri.Safety.AuditJournal.Read(System.DateTimeOffset? since = null) -> System.Collections.Generic.IReadOnlyList<KoLibri.Safety.AuditEntry!>!
+KoLibri.Safety.AuditJournal.Verify() -> long?
+KoLibri.Safety.Budget
+KoLibri.Safety.Budget.Account.get -> KoLibri.AccountId
+KoLibri.Safety.Budget.Account.init -> void
+KoLibri.Safety.Budget.Budget(KoLibri.AccountId Account, long MeatPerDay, int? TurnsPerDay = null, long? MaxUnitPrice = null) -> void
+KoLibri.Safety.Budget.MaxUnitPrice.get -> long?
+KoLibri.Safety.Budget.MaxUnitPrice.init -> void
+KoLibri.Safety.Budget.MeatPerDay.get -> long
+KoLibri.Safety.Budget.MeatPerDay.init -> void
+KoLibri.Safety.Budget.TurnsPerDay.get -> int?
+KoLibri.Safety.Budget.TurnsPerDay.init -> void
+KoLibri.Safety.BudgetGuard
+KoLibri.Safety.BudgetGuard.BudgetGuard(System.Collections.Generic.IReadOnlyList<KoLibri.Safety.Budget!>! budgets, KoLibri.Safety.UsageLedger! ledger) -> void
+KoLibri.Safety.BudgetGuard.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.Safety.BudgetGuard.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.Safety.CompositeGuard
+KoLibri.Safety.CompositeGuard.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.Safety.CompositeGuard.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.Safety.CompositeGuard.CompositeGuard(params KoLibri.IActionGuard![]! guards) -> void
+KoLibri.Safety.Grant
+KoLibri.Safety.Grant.Account.get -> KoLibri.AccountId
+KoLibri.Safety.Grant.Account.init -> void
+KoLibri.Safety.Grant.ExpiresAt.get -> System.DateTimeOffset?
+KoLibri.Safety.Grant.ExpiresAt.init -> void
+KoLibri.Safety.Grant.Grant(string! Subject, KoLibri.AccountId Account, KoLibri.Safety.Rights Rights, System.DateTimeOffset? ExpiresAt) -> void
+KoLibri.Safety.Grant.MeatPerDay.get -> long?
+KoLibri.Safety.Grant.MeatPerDay.init -> void
+KoLibri.Safety.Grant.Rights.get -> KoLibri.Safety.Rights
+KoLibri.Safety.Grant.Rights.init -> void
+KoLibri.Safety.Grant.Subject.get -> string!
+KoLibri.Safety.Grant.Subject.init -> void
+KoLibri.Safety.Grant.TurnsPerDay.get -> int?
+KoLibri.Safety.Grant.TurnsPerDay.init -> void
+KoLibri.Safety.GrantGuard
+KoLibri.Safety.GrantGuard.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.Safety.GrantGuard.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.Safety.GrantGuard.GrantGuard(string! subject, KoLibri.Safety.IGrantStore! grants, KoLibri.Safety.UsageLedger! ledger) -> void
+KoLibri.Safety.IGrantStore
+KoLibri.Safety.IGrantStore.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.Safety.Grant!>!>!
+KoLibri.Safety.IGrantStore.RevokeAsync(string! subject, KoLibri.AccountId account, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.Safety.IGrantStore.SaveAsync(KoLibri.Safety.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.Safety.JsonGrantStore
+KoLibri.Safety.JsonGrantStore.JsonGrantStore(string! path) -> void
+KoLibri.Safety.JsonGrantStore.ListAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.Safety.Grant!>!>!
+KoLibri.Safety.JsonGrantStore.RevokeAsync(string! subject, KoLibri.AccountId account, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.Safety.JsonGrantStore.SaveAsync(KoLibri.Safety.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.Safety.Rights
+KoLibri.Safety.Rights.Adventure = 2 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.All = KoLibri.Safety.Rights.Read | KoLibri.Safety.Rights.Adventure | KoLibri.Safety.Rights.Consume | KoLibri.Safety.Rights.MallBuy | KoLibri.Safety.Rights.ShopChange | KoLibri.Safety.Rights.SendMail | KoLibri.Safety.Rights.RawPost -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.Consume = 4 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.MallBuy = 8 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.None = 0 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.RawPost = 64 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.Read = 1 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.SendMail = 32 -> KoLibri.Safety.Rights
+KoLibri.Safety.Rights.ShopChange = 16 -> KoLibri.Safety.Rights
+KoLibri.Safety.UsageLedger
+KoLibri.Safety.UsageLedger.MeatSpentToday(KoLibri.AccountId account) -> long
+KoLibri.Safety.UsageLedger.Record(KoLibri.AccountId account, long meat, int turns) -> void
+KoLibri.Safety.UsageLedger.TurnsSpentToday(KoLibri.AccountId account) -> int
+KoLibri.Safety.UsageLedger.UsageLedger(string! path) -> void

@@ -1,0 +1,929 @@
+#nullable enable
+KoLibri.Account
+KoLibri.Account.Account(KoLibri.AccountId Id, string! PlayerName, int? PlayerId, string? Label, System.Collections.Generic.IReadOnlyList<string!>! Tags) -> void
+KoLibri.Account.HasSession.get -> bool
+KoLibri.Account.HasSession.init -> void
+KoLibri.Account.Id.get -> KoLibri.AccountId
+KoLibri.Account.Id.init -> void
+KoLibri.Account.Label.get -> string?
+KoLibri.Account.Label.init -> void
+KoLibri.Account.PlayerId.get -> int?
+KoLibri.Account.PlayerId.init -> void
+KoLibri.Account.PlayerName.get -> string!
+KoLibri.Account.PlayerName.init -> void
+KoLibri.Account.SessionExpiresAt.get -> System.DateTimeOffset?
+KoLibri.Account.SessionExpiresAt.init -> void
+KoLibri.Account.Tags.get -> System.Collections.Generic.IReadOnlyList<string!>!
+KoLibri.Account.Tags.init -> void
+KoLibri.AccountId
+KoLibri.AccountId.AccountId() -> void
+KoLibri.AccountId.AccountId(string! Value) -> void
+KoLibri.AccountId.Value.get -> string!
+KoLibri.AccountId.Value.init -> void
+KoLibri.AccountRecord
+KoLibri.AccountRecord.Account.get -> KoLibri.Account!
+KoLibri.AccountRecord.Account.init -> void
+KoLibri.AccountRecord.AccountRecord(KoLibri.Account! Account, string? CookieHeader, string? Password, System.DateTimeOffset? ExpiresAt) -> void
+KoLibri.AccountRecord.CookieHeader.get -> string?
+KoLibri.AccountRecord.CookieHeader.init -> void
+KoLibri.AccountRecord.ExpiresAt.get -> System.DateTimeOffset?
+KoLibri.AccountRecord.ExpiresAt.init -> void
+KoLibri.AccountRecord.Password.get -> string?
+KoLibri.AccountRecord.Password.init -> void
+KoLibri.AccountRegistry
+KoLibri.AccountRegistry.FindAsync(string! idOrName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Account?>!
+KoLibri.AccountRegistry.ListAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.Account!>!>!
+KoLibri.AccountRegistry.LogoutAsync(KoLibri.AccountId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+KoLibri.AccountRegistry.RemoveAsync(KoLibri.AccountId id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+KoLibri.AccountRegistry.SetLabelAsync(KoLibri.AccountId id, string? label, System.Collections.Generic.IReadOnlyList<string!>? tags = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Account!>!
+KoLibri.ActionDeniedException
+KoLibri.ActionDeniedException.Action.get -> KoLibri.GuardedAction!
+KoLibri.ActionDeniedException.ActionDeniedException(KoLibri.GuardedAction! action, string! reason) -> void
+KoLibri.ActionDeniedException.Reason.get -> string!
+KoLibri.ActionResult
+KoLibri.ActionResult.ActionResult(KoLibri.ActionStatus Status, int Completed, string? Rejection, KoLibri.Page? Page) -> void
+KoLibri.ActionResult.After.get -> KoLibri.Status?
+KoLibri.ActionResult.After.init -> void
+KoLibri.ActionResult.Before.get -> KoLibri.Status?
+KoLibri.ActionResult.Before.init -> void
+KoLibri.ActionResult.Completed.get -> int
+KoLibri.ActionResult.Completed.init -> void
+KoLibri.ActionResult.ItemsGained.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.ActionResult.ItemsGained.init -> void
+KoLibri.ActionResult.ItemsLost.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.ActionResult.ItemsLost.init -> void
+KoLibri.ActionResult.Page.get -> KoLibri.Page?
+KoLibri.ActionResult.Page.init -> void
+KoLibri.ActionResult.Rejection.get -> string?
+KoLibri.ActionResult.Rejection.init -> void
+KoLibri.ActionResult.Status.get -> KoLibri.ActionStatus
+KoLibri.ActionResult.Status.init -> void
+KoLibri.ActionStatus
+KoLibri.ActionStatus.Done = 0 -> KoLibri.ActionStatus
+KoLibri.ActionStatus.Partial = 1 -> KoLibri.ActionStatus
+KoLibri.ActionStatus.Rejected = 2 -> KoLibri.ActionStatus
+KoLibri.ActionStatus.Unclear = 3 -> KoLibri.ActionStatus
+KoLibri.ActiveEffect
+KoLibri.ActiveEffect.ActiveEffect(int Id, string! Name, int Turns) -> void
+KoLibri.ActiveEffect.Id.get -> int
+KoLibri.ActiveEffect.Id.init -> void
+KoLibri.ActiveEffect.Name.get -> string!
+KoLibri.ActiveEffect.Name.init -> void
+KoLibri.ActiveEffect.Turns.get -> int
+KoLibri.ActiveEffect.Turns.init -> void
+KoLibri.Adventurer
+KoLibri.Adventurer.AdventureAsync(KoLibri.Location location, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Encounter!>!
+KoLibri.Adventurer.ChooseAsync(int choiceId, int option, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Encounter!>!
+KoLibri.Adventurer.FightAsync(KoLibri.CombatAction! action, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.FightRound!>!
+KoLibri.Adventurer.FightToEndAsync(KoLibri.ICombatStrategy! strategy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.FightResult!>!
+KoLibri.Adventurer.GetLocationAccessAsync(KoLibri.Location location, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.LocationAccess!>!
+KoLibri.Adventurer.GetOpenEncounterAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Encounter?>!
+KoLibri.Adventurer.RunAsync(KoLibri.RunRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.RunResult!>!
+KoLibri.BlockedEncounter
+KoLibri.BlockedEncounter.BlockedEncounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title, KoLibri.BlockReason Reason) -> void
+KoLibri.BlockedEncounter.Reason.get -> KoLibri.BlockReason
+KoLibri.BlockedEncounter.Reason.init -> void
+KoLibri.BlockReason
+KoLibri.BlockReason.Beaten = 2 -> KoLibri.BlockReason
+KoLibri.BlockReason.LocationLocked = 1 -> KoLibri.BlockReason
+KoLibri.BlockReason.NoAdventures = 0 -> KoLibri.BlockReason
+KoLibri.BlockReason.Other = 4 -> KoLibri.BlockReason
+KoLibri.BlockReason.UnknownPage = 3 -> KoLibri.BlockReason
+KoLibri.CharacterActions
+KoLibri.CharacterActions.CastAsync(KoLibri.SkillRef skill, int times = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.ConsumeAsync(KoLibri.ItemRef item, KoLibri.ConsumeKind kind, int quantity = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.EquipAsync(KoLibri.ItemRef item, KoLibri.EquipSlot? slot = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.GetStatusAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Status!>!
+KoLibri.CharacterActions.RestAsync(int times = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.SetFamiliarAsync(int familiarId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.UnequipAsync(KoLibri.EquipSlot slot, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.UseAsync(KoLibri.ItemRef item, int quantity = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.CharacterActions.WearOutfitAsync(int outfitId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.ChoiceContext
+KoLibri.ChoiceContext.ChoiceContext(KoLibri.Location? Location, int ChoiceId, string? Title, System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>! Options) -> void
+KoLibri.ChoiceContext.ChoiceId.get -> int
+KoLibri.ChoiceContext.ChoiceId.init -> void
+KoLibri.ChoiceContext.Location.get -> KoLibri.Location?
+KoLibri.ChoiceContext.Location.init -> void
+KoLibri.ChoiceContext.Options.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>!
+KoLibri.ChoiceContext.Options.init -> void
+KoLibri.ChoiceContext.Title.get -> string?
+KoLibri.ChoiceContext.Title.init -> void
+KoLibri.ChoiceDecision
+KoLibri.ChoiceDecision.ChoiceDecision(int? Option, KoLibri.ChoiceDecisionSource Source, string! Reason) -> void
+KoLibri.ChoiceDecision.Option.get -> int?
+KoLibri.ChoiceDecision.Option.init -> void
+KoLibri.ChoiceDecision.Reason.get -> string!
+KoLibri.ChoiceDecision.Reason.init -> void
+KoLibri.ChoiceDecision.Source.get -> KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceDecision.Source.init -> void
+KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceDecisionSource.BuiltIn = 1 -> KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceDecisionSource.Configured = 0 -> KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceDecisionSource.None = 3 -> KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceDecisionSource.Strategy = 2 -> KoLibri.ChoiceDecisionSource
+KoLibri.ChoiceEncounter
+KoLibri.ChoiceEncounter.ChoiceEncounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title, int ChoiceId, System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>! Options) -> void
+KoLibri.ChoiceEncounter.ChoiceId.get -> int
+KoLibri.ChoiceEncounter.ChoiceId.init -> void
+KoLibri.ChoiceEncounter.Options.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>!
+KoLibri.ChoiceEncounter.Options.init -> void
+KoLibri.ChoiceOption
+KoLibri.ChoiceOption.ChoiceOption(int Option, string! Text) -> void
+KoLibri.ChoiceOption.Option.get -> int
+KoLibri.ChoiceOption.Option.init -> void
+KoLibri.ChoiceOption.Text.get -> string!
+KoLibri.ChoiceOption.Text.init -> void
+KoLibri.ChoiceResolvers
+KoLibri.CombatAction
+KoLibri.CombatAction.CombatAction(KoLibri.CombatActionKind Kind, int? Id = null, int? SecondId = null, string? Macro = null) -> void
+KoLibri.CombatAction.Id.get -> int?
+KoLibri.CombatAction.Id.init -> void
+KoLibri.CombatAction.Kind.get -> KoLibri.CombatActionKind
+KoLibri.CombatAction.Kind.init -> void
+KoLibri.CombatAction.Macro.get -> string?
+KoLibri.CombatAction.Macro.init -> void
+KoLibri.CombatAction.SecondId.get -> int?
+KoLibri.CombatAction.SecondId.init -> void
+KoLibri.CombatActionKind
+KoLibri.CombatActionKind.Attack = 0 -> KoLibri.CombatActionKind
+KoLibri.CombatActionKind.Item = 2 -> KoLibri.CombatActionKind
+KoLibri.CombatActionKind.Macro = 4 -> KoLibri.CombatActionKind
+KoLibri.CombatActionKind.RunAway = 3 -> KoLibri.CombatActionKind
+KoLibri.CombatActionKind.Skill = 1 -> KoLibri.CombatActionKind
+KoLibri.CombatActionKind.Stop = 5 -> KoLibri.CombatActionKind
+KoLibri.CombatContext
+KoLibri.CombatContext.CombatContext(KoLibri.FightEncounter! Fight, int Round, int Hp, int MaxHp, int Mp, int MaxMp, System.Collections.Generic.IReadOnlyList<KoLibri.FightRound!>! History) -> void
+KoLibri.CombatContext.Effects.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ActiveEffect!>!
+KoLibri.CombatContext.Effects.init -> void
+KoLibri.CombatContext.Fight.get -> KoLibri.FightEncounter!
+KoLibri.CombatContext.Fight.init -> void
+KoLibri.CombatContext.History.get -> System.Collections.Generic.IReadOnlyList<KoLibri.FightRound!>!
+KoLibri.CombatContext.History.init -> void
+KoLibri.CombatContext.Hp.get -> int
+KoLibri.CombatContext.Hp.init -> void
+KoLibri.CombatContext.Inventory.get -> KoLibri.Inventory?
+KoLibri.CombatContext.Inventory.init -> void
+KoLibri.CombatContext.MaxHp.get -> int
+KoLibri.CombatContext.MaxHp.init -> void
+KoLibri.CombatContext.MaxMp.get -> int
+KoLibri.CombatContext.MaxMp.init -> void
+KoLibri.CombatContext.Mp.get -> int
+KoLibri.CombatContext.Mp.init -> void
+KoLibri.CombatContext.Round.get -> int
+KoLibri.CombatContext.Round.init -> void
+KoLibri.CombatStrategies
+KoLibri.ConsumeKind
+KoLibri.ConsumeKind.Chew = 2 -> KoLibri.ConsumeKind
+KoLibri.ConsumeKind.Drink = 1 -> KoLibri.ConsumeKind
+KoLibri.ConsumeKind.Eat = 0 -> KoLibri.ConsumeKind
+KoLibri.DailyMarkers
+KoLibri.DailyMarkers.DoneToday() -> System.Collections.Generic.IReadOnlyList<string!>!
+KoLibri.DailyMarkers.GameDay.get -> System.DateOnly
+KoLibri.DailyMarkers.IsDone(string! key) -> bool
+KoLibri.DailyMarkers.MarkDone(string! key) -> void
+KoLibri.Encounter
+KoLibri.Encounter.Encounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title) -> void
+KoLibri.Encounter.Location.get -> KoLibri.Location?
+KoLibri.Encounter.Location.init -> void
+KoLibri.Encounter.Page.get -> KoLibri.Page!
+KoLibri.Encounter.Page.init -> void
+KoLibri.Encounter.Title.get -> string?
+KoLibri.Encounter.Title.init -> void
+KoLibri.EncounterEventArgs
+KoLibri.EncounterEventArgs.Encounter.get -> KoLibri.Encounter!
+KoLibri.EncounterEventArgs.EncounterEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.Encounter! encounter) -> void
+KoLibri.Equipment
+KoLibri.Equipment.Equipment(System.Collections.Generic.IReadOnlyDictionary<KoLibri.EquipSlot, KoLibri.ItemRef?>! Slots, System.DateTimeOffset FetchedAt) -> void
+KoLibri.Equipment.FetchedAt.get -> System.DateTimeOffset
+KoLibri.Equipment.FetchedAt.init -> void
+KoLibri.Equipment.Slots.get -> System.Collections.Generic.IReadOnlyDictionary<KoLibri.EquipSlot, KoLibri.ItemRef?>!
+KoLibri.Equipment.Slots.init -> void
+KoLibri.EquipSlot
+KoLibri.EquipSlot.Accessory1 = 6 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Accessory2 = 7 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Accessory3 = 8 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Back = 1 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Familiar = 9 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Hat = 0 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.OffHand = 4 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Pants = 5 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Shirt = 2 -> KoLibri.EquipSlot
+KoLibri.EquipSlot.Weapon = 3 -> KoLibri.EquipSlot
+KoLibri.FightEncounter
+KoLibri.FightEncounter.FightEncounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title, string! MonsterName, int? MonsterId, int Round) -> void
+KoLibri.FightEncounter.MonsterId.get -> int?
+KoLibri.FightEncounter.MonsterId.init -> void
+KoLibri.FightEncounter.MonsterName.get -> string!
+KoLibri.FightEncounter.MonsterName.init -> void
+KoLibri.FightEncounter.Round.get -> int
+KoLibri.FightEncounter.Round.init -> void
+KoLibri.FightEndedEventArgs
+KoLibri.FightEndedEventArgs.FightEndedEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.FightResult! result) -> void
+KoLibri.FightEndedEventArgs.Result.get -> KoLibri.FightResult!
+KoLibri.FightOutcome
+KoLibri.FightOutcome.Lost = 2 -> KoLibri.FightOutcome
+KoLibri.FightOutcome.Ongoing = 0 -> KoLibri.FightOutcome
+KoLibri.FightOutcome.RanAway = 3 -> KoLibri.FightOutcome
+KoLibri.FightOutcome.Stopped = 4 -> KoLibri.FightOutcome
+KoLibri.FightOutcome.Unknown = 5 -> KoLibri.FightOutcome
+KoLibri.FightOutcome.Won = 1 -> KoLibri.FightOutcome
+KoLibri.FightResult
+KoLibri.FightResult.FightResult(KoLibri.FightOutcome Outcome, string! MonsterName, System.Collections.Generic.IReadOnlyList<KoLibri.FightRound!>! Rounds) -> void
+KoLibri.FightResult.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.FightResult.Items.init -> void
+KoLibri.FightResult.Meat.get -> long
+KoLibri.FightResult.Meat.init -> void
+KoLibri.FightResult.MonsterName.get -> string!
+KoLibri.FightResult.MonsterName.init -> void
+KoLibri.FightResult.Outcome.get -> KoLibri.FightOutcome
+KoLibri.FightResult.Outcome.init -> void
+KoLibri.FightResult.Rounds.get -> System.Collections.Generic.IReadOnlyList<KoLibri.FightRound!>!
+KoLibri.FightResult.Rounds.init -> void
+KoLibri.FightRound
+KoLibri.FightRound.Action.get -> KoLibri.CombatAction!
+KoLibri.FightRound.Action.init -> void
+KoLibri.FightRound.DamageDealt.get -> int
+KoLibri.FightRound.DamageDealt.init -> void
+KoLibri.FightRound.DamageTaken.get -> int
+KoLibri.FightRound.DamageTaken.init -> void
+KoLibri.FightRound.FightRound(int Round, KoLibri.CombatAction! Action, KoLibri.FightOutcome Outcome, int Hp, int Mp, KoLibri.Page! Page) -> void
+KoLibri.FightRound.Hp.get -> int
+KoLibri.FightRound.Hp.init -> void
+KoLibri.FightRound.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.FightRound.Items.init -> void
+KoLibri.FightRound.Meat.get -> long
+KoLibri.FightRound.Meat.init -> void
+KoLibri.FightRound.Mp.get -> int
+KoLibri.FightRound.Mp.init -> void
+KoLibri.FightRound.Outcome.get -> KoLibri.FightOutcome
+KoLibri.FightRound.Outcome.init -> void
+KoLibri.FightRound.Page.get -> KoLibri.Page!
+KoLibri.FightRound.Page.init -> void
+KoLibri.FightRound.Round.get -> int
+KoLibri.FightRound.Round.init -> void
+KoLibri.GameData
+KoLibri.GameData.FindItem(string! name) -> KoLibri.ItemInfo?
+KoLibri.GameData.FindLocation(string! name) -> KoLibri.LocationInfo?
+KoLibri.GameData.FindMonster(string! name) -> KoLibri.MonsterInfo?
+KoLibri.GameData.FindSkill(string! name) -> KoLibri.SkillInfo?
+KoLibri.GameData.Item(KoLibri.ItemRef item) -> KoLibri.ItemInfo?
+KoLibri.GameData.Location(KoLibri.Location location) -> KoLibri.LocationInfo?
+KoLibri.GameData.Skill(KoLibri.SkillRef skill) -> KoLibri.SkillInfo?
+KoLibri.GuardDecision
+KoLibri.GuardDecision.Allowed.get -> bool
+KoLibri.GuardDecision.Allowed.init -> void
+KoLibri.GuardDecision.GuardDecision(bool Allowed, string? Reason) -> void
+KoLibri.GuardDecision.Reason.get -> string?
+KoLibri.GuardDecision.Reason.init -> void
+KoLibri.GuardedAction
+KoLibri.GuardedAction.Account.get -> KoLibri.AccountId
+KoLibri.GuardedAction.Account.init -> void
+KoLibri.GuardedAction.GuardedAction(KoLibri.AccountId Account, KoLibri.GuardedActionKind Kind, string! Summary) -> void
+KoLibri.GuardedAction.Item.get -> KoLibri.ItemRef?
+KoLibri.GuardedAction.Item.init -> void
+KoLibri.GuardedAction.Kind.get -> KoLibri.GuardedActionKind
+KoLibri.GuardedAction.Kind.init -> void
+KoLibri.GuardedAction.Meat.get -> long
+KoLibri.GuardedAction.Meat.init -> void
+KoLibri.GuardedAction.Path.get -> string?
+KoLibri.GuardedAction.Path.init -> void
+KoLibri.GuardedAction.Quantity.get -> int
+KoLibri.GuardedAction.Quantity.init -> void
+KoLibri.GuardedAction.Summary.get -> string!
+KoLibri.GuardedAction.Summary.init -> void
+KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Adventure = 0 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Cast = 5 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Choice = 2 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Consume = 4 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Equip = 7 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Fight = 1 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.MallBuy = 8 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Other = 12 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.RawPost = 11 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Rest = 6 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.SendMail = 10 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.ShopChange = 9 -> KoLibri.GuardedActionKind
+KoLibri.GuardedActionKind.Use = 3 -> KoLibri.GuardedActionKind
+KoLibri.HandlerFailedEventArgs
+KoLibri.HandlerFailedEventArgs.EventName.get -> string!
+KoLibri.HandlerFailedEventArgs.Exception.get -> System.Exception!
+KoLibri.HandlerFailedEventArgs.HandlerFailedEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, string! eventName, System.Exception! exception) -> void
+KoLibri.IAccountStore
+KoLibri.IAccountStore.DeleteAsync(KoLibri.AccountId id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.IAccountStore.LoadAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.AccountRecord!>!>!
+KoLibri.IAccountStore.SaveAsync(KoLibri.AccountRecord! record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+KoLibri.IActionGuard
+KoLibri.IActionGuard.CheckAsync(KoLibri.GuardedAction! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>
+KoLibri.IActionGuard.CompletedAsync(KoLibri.GuardedAction! action, bool succeeded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+KoLibri.IChoiceResolver
+KoLibri.IChoiceResolver.Resolve(KoLibri.ChoiceContext! context) -> KoLibri.ChoiceDecision!
+KoLibri.ICombatStrategy
+KoLibri.ICombatStrategy.Next(KoLibri.CombatContext! context) -> KoLibri.CombatAction!
+KoLibri.Inventory
+KoLibri.Inventory.Count(KoLibri.ItemRef item) -> int
+KoLibri.Inventory.FetchedAt.get -> System.DateTimeOffset
+KoLibri.Inventory.FetchedAt.init -> void
+KoLibri.Inventory.Inventory(System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>! Items, System.DateTimeOffset FetchedAt) -> void
+KoLibri.Inventory.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.Inventory.Items.init -> void
+KoLibri.InventoryItem
+KoLibri.InventoryItem.InventoryItem(KoLibri.ItemRef Item, string! Name, int Quantity) -> void
+KoLibri.InventoryItem.Item.get -> KoLibri.ItemRef
+KoLibri.InventoryItem.Item.init -> void
+KoLibri.InventoryItem.Name.get -> string!
+KoLibri.InventoryItem.Name.init -> void
+KoLibri.InventoryItem.Quantity.get -> int
+KoLibri.InventoryItem.Quantity.init -> void
+KoLibri.InventoryReader
+KoLibri.InventoryReader.GetAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Inventory!>!
+KoLibri.InventoryReader.GetClosetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Inventory!>!
+KoLibri.InventoryReader.GetEquipmentAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Equipment!>!
+KoLibri.InventoryReader.GetStorageAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Inventory!>!
+KoLibri.ItemAcquiredEventArgs
+KoLibri.ItemAcquiredEventArgs.Item.get -> KoLibri.InventoryItem!
+KoLibri.ItemAcquiredEventArgs.ItemAcquiredEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.InventoryItem! item, KoLibri.ItemSource source) -> void
+KoLibri.ItemAcquiredEventArgs.Source.get -> KoLibri.ItemSource
+KoLibri.ItemInfo
+KoLibri.ItemInfo.AutosellPrice.get -> int
+KoLibri.ItemInfo.AutosellPrice.init -> void
+KoLibri.ItemInfo.Item.get -> KoLibri.ItemRef
+KoLibri.ItemInfo.Item.init -> void
+KoLibri.ItemInfo.ItemInfo(KoLibri.ItemRef Item, string! Name, KoLibri.ItemUse Use, bool Tradeable, int AutosellPrice) -> void
+KoLibri.ItemInfo.Name.get -> string!
+KoLibri.ItemInfo.Name.init -> void
+KoLibri.ItemInfo.OrganSize.get -> int
+KoLibri.ItemInfo.OrganSize.init -> void
+KoLibri.ItemInfo.Slot.get -> KoLibri.EquipSlot?
+KoLibri.ItemInfo.Slot.init -> void
+KoLibri.ItemInfo.Tradeable.get -> bool
+KoLibri.ItemInfo.Tradeable.init -> void
+KoLibri.ItemInfo.Use.get -> KoLibri.ItemUse
+KoLibri.ItemInfo.Use.init -> void
+KoLibri.ItemRef
+KoLibri.ItemRef.Id.get -> int
+KoLibri.ItemRef.Id.init -> void
+KoLibri.ItemRef.ItemRef() -> void
+KoLibri.ItemRef.ItemRef(int Id) -> void
+KoLibri.ItemSource
+KoLibri.ItemSource.Choice = 1 -> KoLibri.ItemSource
+KoLibri.ItemSource.Fight = 0 -> KoLibri.ItemSource
+KoLibri.ItemSource.Mail = 4 -> KoLibri.ItemSource
+KoLibri.ItemSource.Mall = 3 -> KoLibri.ItemSource
+KoLibri.ItemSource.NonCombat = 2 -> KoLibri.ItemSource
+KoLibri.ItemSource.Other = 6 -> KoLibri.ItemSource
+KoLibri.ItemSource.Use = 5 -> KoLibri.ItemSource
+KoLibri.ItemUse
+KoLibri.ItemUse.Combat = 8 -> KoLibri.ItemUse
+KoLibri.ItemUse.Drink = 2 -> KoLibri.ItemUse
+KoLibri.ItemUse.Equipment = 6 -> KoLibri.ItemUse
+KoLibri.ItemUse.Familiar = 7 -> KoLibri.ItemUse
+KoLibri.ItemUse.Food = 1 -> KoLibri.ItemUse
+KoLibri.ItemUse.MultiUsable = 5 -> KoLibri.ItemUse
+KoLibri.ItemUse.None = 0 -> KoLibri.ItemUse
+KoLibri.ItemUse.Spleen = 3 -> KoLibri.ItemUse
+KoLibri.ItemUse.Usable = 4 -> KoLibri.ItemUse
+KoLibri.KolibriClient
+KoLibri.KolibriClient.Accounts.get -> KoLibri.AccountRegistry!
+KoLibri.KolibriClient.Data.get -> KoLibri.GameData!
+KoLibri.KolibriClient.DisposeAsync() -> System.Threading.Tasks.ValueTask
+KoLibri.KolibriClient.Events.get -> KoLibri.KolibriEvents!
+KoLibri.KolibriClient.LoginAsync(string! userName, string! password, KoLibri.LoginOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.KolibriSession!>!
+KoLibri.KolibriClient.OpenAsync(string! accountIdOrName, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.KolibriSession!>!
+KoLibri.KolibriClient.Options.get -> KoLibri.KolibriOptions!
+KoLibri.KolibriEventArgs
+KoLibri.KolibriEventArgs.Account.get -> KoLibri.AccountId
+KoLibri.KolibriEventArgs.At.get -> System.DateTimeOffset
+KoLibri.KolibriEventArgs.KolibriEventArgs(KoLibri.AccountId account, System.DateTimeOffset at) -> void
+KoLibri.KolibriEvents
+KoLibri.KolibriEvents.Encounter -> System.EventHandler<KoLibri.EncounterEventArgs!>?
+KoLibri.KolibriEvents.FightEnded -> System.EventHandler<KoLibri.FightEndedEventArgs!>?
+KoLibri.KolibriEvents.HandlerFailed -> System.EventHandler<KoLibri.HandlerFailedEventArgs!>?
+KoLibri.KolibriEvents.ItemAcquired -> System.EventHandler<KoLibri.ItemAcquiredEventArgs!>?
+KoLibri.KolibriEvents.Request -> System.EventHandler<KoLibri.RequestEventArgs!>?
+KoLibri.KolibriEvents.StatusChanged -> System.EventHandler<KoLibri.StatusChangedEventArgs!>?
+KoLibri.KolibriException
+KoLibri.KolibriException.KolibriException(string! message, System.Exception? inner = null) -> void
+KoLibri.KolibriOptions
+KoLibri.KolibriOptions.AccountStore.get -> KoLibri.IAccountStore?
+KoLibri.KolibriOptions.AccountStore.init -> void
+KoLibri.KolibriOptions.ActionGuard.get -> KoLibri.IActionGuard?
+KoLibri.KolibriOptions.ActionGuard.init -> void
+KoLibri.KolibriOptions.BaseUri.get -> System.Uri!
+KoLibri.KolibriOptions.BaseUri.init -> void
+KoLibri.KolibriOptions.DataDirectory.get -> string?
+KoLibri.KolibriOptions.DataDirectory.init -> void
+KoLibri.KolibriOptions.HttpHandler.get -> System.Net.Http.HttpMessageHandler?
+KoLibri.KolibriOptions.HttpHandler.init -> void
+KoLibri.KolibriOptions.KolibriOptions() -> void
+KoLibri.KolibriOptions.Limiter.get -> KoLibri.LimiterOptions!
+KoLibri.KolibriOptions.Limiter.init -> void
+KoLibri.KolibriOptions.RequestTimeout.get -> System.TimeSpan
+KoLibri.KolibriOptions.RequestTimeout.init -> void
+KoLibri.KolibriOptions.StateDirectory.get -> string?
+KoLibri.KolibriOptions.StateDirectory.init -> void
+KoLibri.KolibriOptions.UserAgent.get -> string?
+KoLibri.KolibriOptions.UserAgent.init -> void
+KoLibri.KolibriSession
+KoLibri.KolibriSession.Account.get -> KoLibri.Account!
+KoLibri.KolibriSession.Adventure.get -> KoLibri.Adventurer!
+KoLibri.KolibriSession.Character.get -> KoLibri.CharacterActions!
+KoLibri.KolibriSession.Daily.get -> KoLibri.DailyMarkers!
+KoLibri.KolibriSession.DisposeAsync() -> System.Threading.Tasks.ValueTask
+KoLibri.KolibriSession.Events.get -> KoLibri.KolibriEvents!
+KoLibri.KolibriSession.GetApiAsync(string! what, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? query = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+KoLibri.KolibriSession.GetPageAsync(string! path, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? query = null, KoLibri.RequestLane lane = KoLibri.RequestLane.Auto, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Page!>!
+KoLibri.KolibriSession.GetPasswordHashAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<string!>!
+KoLibri.KolibriSession.Inventory.get -> KoLibri.InventoryReader!
+KoLibri.KolibriSession.IsExpired.get -> bool
+KoLibri.KolibriSession.Mail.get -> KoLibri.Mailbox!
+KoLibri.KolibriSession.Mall.get -> KoLibri.Mall!
+KoLibri.KolibriSession.PirateKeys.get -> KoLibri.PirateKeys!
+KoLibri.KolibriSession.PostAsync(string! path, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! form, KoLibri.RequestLane lane = KoLibri.RequestLane.Auto, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Page!>!
+KoLibri.KolibriSession.ReconnectAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+KoLibri.KolibriSession.Shop.get -> KoLibri.Shop!
+KoLibri.KolibriSession.StartRelayAsync(KoLibri.RelayOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.RelayServer!>!
+KoLibri.LimiterOptions
+KoLibri.LimiterOptions.ActionInterval.get -> System.TimeSpan
+KoLibri.LimiterOptions.ActionInterval.init -> void
+KoLibri.LimiterOptions.LimiterOptions() -> void
+KoLibri.LimiterOptions.ReadConcurrency.get -> int
+KoLibri.LimiterOptions.ReadConcurrency.init -> void
+KoLibri.LimiterOptions.ReadInterval.get -> System.TimeSpan
+KoLibri.LimiterOptions.ReadInterval.init -> void
+KoLibri.Location
+KoLibri.Location.Location() -> void
+KoLibri.Location.Location(int Snarfblat) -> void
+KoLibri.Location.Snarfblat.get -> int
+KoLibri.Location.Snarfblat.init -> void
+KoLibri.LocationAccess
+KoLibri.LocationAccess.Accessible.get -> bool
+KoLibri.LocationAccess.Accessible.init -> void
+KoLibri.LocationAccess.Location.get -> KoLibri.Location
+KoLibri.LocationAccess.Location.init -> void
+KoLibri.LocationAccess.LocationAccess(KoLibri.Location Location, bool Accessible, string? Reason) -> void
+KoLibri.LocationAccess.Reason.get -> string?
+KoLibri.LocationAccess.Reason.init -> void
+KoLibri.LocationInfo
+KoLibri.LocationInfo.Location.get -> KoLibri.Location
+KoLibri.LocationInfo.Location.init -> void
+KoLibri.LocationInfo.LocationInfo(KoLibri.Location Location, string! Name, string! Zone) -> void
+KoLibri.LocationInfo.Name.get -> string!
+KoLibri.LocationInfo.Name.init -> void
+KoLibri.LocationInfo.Zone.get -> string!
+KoLibri.LocationInfo.Zone.init -> void
+KoLibri.LoginOptions
+KoLibri.LoginOptions.AccountId.get -> string?
+KoLibri.LoginOptions.AccountId.init -> void
+KoLibri.LoginOptions.AllowIdentityChange.get -> bool
+KoLibri.LoginOptions.AllowIdentityChange.init -> void
+KoLibri.LoginOptions.Label.get -> string?
+KoLibri.LoginOptions.Label.init -> void
+KoLibri.LoginOptions.LoginOptions() -> void
+KoLibri.LoginOptions.RememberPassword.get -> bool
+KoLibri.LoginOptions.RememberPassword.init -> void
+KoLibri.Mailbox
+KoLibri.Mailbox.DeleteAsync(KoLibri.MailFolder folder, string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+KoLibri.Mailbox.GetAsync(KoLibri.MailFolder folder = KoLibri.MailFolder.Inbox, int page = 1, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.MailPage!>!
+KoLibri.Mailbox.SaveAsync(string! messageId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+KoLibri.Mailbox.SendAsync(KoLibri.MailMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.MailSendResult!>!
+KoLibri.MailEntry
+KoLibri.MailEntry.At.get -> System.DateTimeOffset?
+KoLibri.MailEntry.At.init -> void
+KoLibri.MailEntry.From.get -> string!
+KoLibri.MailEntry.From.init -> void
+KoLibri.MailEntry.Id.get -> string!
+KoLibri.MailEntry.Id.init -> void
+KoLibri.MailEntry.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.MailEntry.Items.init -> void
+KoLibri.MailEntry.MailEntry(string! Id, string! From, System.DateTimeOffset? At, string! Text, System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>! Items, long Meat) -> void
+KoLibri.MailEntry.Meat.get -> long
+KoLibri.MailEntry.Meat.init -> void
+KoLibri.MailEntry.Text.get -> string!
+KoLibri.MailEntry.Text.init -> void
+KoLibri.MailFolder
+KoLibri.MailFolder.Inbox = 0 -> KoLibri.MailFolder
+KoLibri.MailFolder.Outbox = 2 -> KoLibri.MailFolder
+KoLibri.MailFolder.Pvp = 3 -> KoLibri.MailFolder
+KoLibri.MailFolder.Saved = 1 -> KoLibri.MailFolder
+KoLibri.MailMessage
+KoLibri.MailMessage.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.MailMessage.Items.init -> void
+KoLibri.MailMessage.MailMessage(string! Recipient, string! Text) -> void
+KoLibri.MailMessage.Meat.get -> long
+KoLibri.MailMessage.Meat.init -> void
+KoLibri.MailMessage.Recipient.get -> string!
+KoLibri.MailMessage.Recipient.init -> void
+KoLibri.MailMessage.Text.get -> string!
+KoLibri.MailMessage.Text.init -> void
+KoLibri.MailPage
+KoLibri.MailPage.Entries.get -> System.Collections.Generic.IReadOnlyList<KoLibri.MailEntry!>!
+KoLibri.MailPage.Entries.init -> void
+KoLibri.MailPage.Folder.get -> KoLibri.MailFolder
+KoLibri.MailPage.Folder.init -> void
+KoLibri.MailPage.MailPage(KoLibri.MailFolder Folder, int Page, int PageCount, System.Collections.Generic.IReadOnlyList<KoLibri.MailEntry!>! Entries) -> void
+KoLibri.MailPage.Page.get -> int
+KoLibri.MailPage.Page.init -> void
+KoLibri.MailPage.PageCount.get -> int
+KoLibri.MailPage.PageCount.init -> void
+KoLibri.MailSendResult
+KoLibri.MailSendResult.MailSendResult(KoLibri.MailSendStatus Status, string? Message) -> void
+KoLibri.MailSendResult.Message.get -> string?
+KoLibri.MailSendResult.Message.init -> void
+KoLibri.MailSendResult.Status.get -> KoLibri.MailSendStatus
+KoLibri.MailSendResult.Status.init -> void
+KoLibri.MailSendStatus
+KoLibri.MailSendStatus.Refused = 1 -> KoLibri.MailSendStatus
+KoLibri.MailSendStatus.Sent = 0 -> KoLibri.MailSendStatus
+KoLibri.MailSendStatus.Unclear = 2 -> KoLibri.MailSendStatus
+KoLibri.Mall
+KoLibri.Mall.BuyAsync(KoLibri.PurchaseQuote! quote, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PurchaseResult!>!
+KoLibri.Mall.GetOffersAsync(KoLibri.ItemRef item, bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.MallOffers!>!
+KoLibri.Mall.GetPriceHistoryAsync(KoLibri.ItemRef item, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PriceHistory?>!
+KoLibri.Mall.QuoteAndBuyAsync(KoLibri.PurchaseOrder! order, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PurchaseResult!>!
+KoLibri.Mall.QuoteAsync(KoLibri.PurchaseOrder! order, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PurchaseQuote!>!
+KoLibri.Mall.SearchAsync(string! term, bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.MallSearchResult!>!
+KoLibri.MallListing
+KoLibri.MallListing.Item.get -> KoLibri.ItemRef
+KoLibri.MallListing.Item.init -> void
+KoLibri.MallListing.LimitPerDay.get -> int?
+KoLibri.MallListing.LimitPerDay.init -> void
+KoLibri.MallListing.MallListing(int StoreId, string! StoreName, KoLibri.ItemRef Item, long UnitPrice, int Quantity, int? LimitPerDay) -> void
+KoLibri.MallListing.Quantity.get -> int
+KoLibri.MallListing.Quantity.init -> void
+KoLibri.MallListing.StoreId.get -> int
+KoLibri.MallListing.StoreId.init -> void
+KoLibri.MallListing.StoreName.get -> string!
+KoLibri.MallListing.StoreName.init -> void
+KoLibri.MallListing.UnitPrice.get -> long
+KoLibri.MallListing.UnitPrice.init -> void
+KoLibri.MallOffers
+KoLibri.MallOffers.FetchedAt.get -> System.DateTimeOffset
+KoLibri.MallOffers.FetchedAt.init -> void
+KoLibri.MallOffers.Item.get -> KoLibri.ItemRef
+KoLibri.MallOffers.Item.init -> void
+KoLibri.MallOffers.Listings.get -> System.Collections.Generic.IReadOnlyList<KoLibri.MallListing!>!
+KoLibri.MallOffers.Listings.init -> void
+KoLibri.MallOffers.MallOffers(KoLibri.ItemRef Item, string! Name, System.Collections.Generic.IReadOnlyList<KoLibri.MallListing!>! Listings, System.DateTimeOffset FetchedAt) -> void
+KoLibri.MallOffers.Name.get -> string!
+KoLibri.MallOffers.Name.init -> void
+KoLibri.MallSearchResult
+KoLibri.MallSearchResult.FetchedAt.get -> System.DateTimeOffset
+KoLibri.MallSearchResult.FetchedAt.init -> void
+KoLibri.MallSearchResult.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.MallOffers!>!
+KoLibri.MallSearchResult.Items.init -> void
+KoLibri.MallSearchResult.MallSearchResult(string! Term, System.Collections.Generic.IReadOnlyList<KoLibri.MallOffers!>! Items, System.DateTimeOffset FetchedAt) -> void
+KoLibri.MallSearchResult.Term.get -> string!
+KoLibri.MallSearchResult.Term.init -> void
+KoLibri.MonsterInfo
+KoLibri.MonsterInfo.Attack.get -> int?
+KoLibri.MonsterInfo.Attack.init -> void
+KoLibri.MonsterInfo.Defense.get -> int?
+KoLibri.MonsterInfo.Defense.init -> void
+KoLibri.MonsterInfo.Hp.get -> int?
+KoLibri.MonsterInfo.Hp.init -> void
+KoLibri.MonsterInfo.Id.get -> int
+KoLibri.MonsterInfo.Id.init -> void
+KoLibri.MonsterInfo.MonsterInfo(int Id, string! Name, int? Hp, int? Attack, int? Defense) -> void
+KoLibri.MonsterInfo.Name.get -> string!
+KoLibri.MonsterInfo.Name.init -> void
+KoLibri.NonCombatEncounter
+KoLibri.NonCombatEncounter.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.NonCombatEncounter.Items.init -> void
+KoLibri.NonCombatEncounter.Meat.get -> long
+KoLibri.NonCombatEncounter.Meat.init -> void
+KoLibri.NonCombatEncounter.NonCombatEncounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title, System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>! Items, long Meat) -> void
+KoLibri.OrganState
+KoLibri.OrganState.Current.get -> int
+KoLibri.OrganState.Current.init -> void
+KoLibri.OrganState.Limit.get -> int?
+KoLibri.OrganState.Limit.init -> void
+KoLibri.OrganState.OrganState() -> void
+KoLibri.OrganState.OrganState(int Current, int? Limit) -> void
+KoLibri.Page
+KoLibri.Page.Html.get -> string!
+KoLibri.Page.Html.init -> void
+KoLibri.Page.Kind.get -> KoLibri.PageKind
+KoLibri.Page.Kind.init -> void
+KoLibri.Page.Page(System.Uri! Url, int StatusCode, string! Html, KoLibri.PageKind Kind, System.DateTimeOffset ReceivedAt) -> void
+KoLibri.Page.ReceivedAt.get -> System.DateTimeOffset
+KoLibri.Page.ReceivedAt.init -> void
+KoLibri.Page.StatusCode.get -> int
+KoLibri.Page.StatusCode.init -> void
+KoLibri.Page.Url.get -> System.Uri!
+KoLibri.Page.Url.init -> void
+KoLibri.PageKind
+KoLibri.PageKind.Choice = 2 -> KoLibri.PageKind
+KoLibri.PageKind.Error = 7 -> KoLibri.PageKind
+KoLibri.PageKind.Fight = 1 -> KoLibri.PageKind
+KoLibri.PageKind.LoginRequired = 4 -> KoLibri.PageKind
+KoLibri.PageKind.Maintenance = 5 -> KoLibri.PageKind
+KoLibri.PageKind.Normal = 0 -> KoLibri.PageKind
+KoLibri.PageKind.NotInFight = 3 -> KoLibri.PageKind
+KoLibri.PageKind.TooFast = 6 -> KoLibri.PageKind
+KoLibri.PirateKeyCounts
+KoLibri.PirateKeyCounts.Keys.get -> int
+KoLibri.PirateKeyCounts.Keys.init -> void
+KoLibri.PirateKeyCounts.Parts.get -> int
+KoLibri.PirateKeyCounts.Parts.init -> void
+KoLibri.PirateKeyCounts.PirateKeyCounts(int Parts, int Keys) -> void
+KoLibri.PirateKeyResult
+KoLibri.PirateKeyResult.After.get -> KoLibri.PirateKeyCounts!
+KoLibri.PirateKeyResult.After.init -> void
+KoLibri.PirateKeyResult.Before.get -> KoLibri.PirateKeyCounts!
+KoLibri.PirateKeyResult.Before.init -> void
+KoLibri.PirateKeyResult.Done.get -> int
+KoLibri.PirateKeyResult.Done.init -> void
+KoLibri.PirateKeyResult.Message.get -> string?
+KoLibri.PirateKeyResult.Message.init -> void
+KoLibri.PirateKeyResult.PirateKeyResult(int Requested, int Done, KoLibri.PirateKeyCounts! Before, KoLibri.PirateKeyCounts! After, string? Message) -> void
+KoLibri.PirateKeyResult.Requested.get -> int
+KoLibri.PirateKeyResult.Requested.init -> void
+KoLibri.PirateKeys
+KoLibri.PirateKeys.AssembleAsync(int count, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PirateKeyResult!>!
+KoLibri.PirateKeys.GetCountsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PirateKeyCounts!>!
+KoLibri.PirateKeys.GetRareOptionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceOption!>!>!
+KoLibri.PirateKeys.RedeemAsync(KoLibri.ItemRef rare, int count, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PirateKeyResult!>!
+KoLibri.PriceHistory
+KoLibri.PriceHistory.FetchedAt.get -> System.DateTimeOffset
+KoLibri.PriceHistory.FetchedAt.init -> void
+KoLibri.PriceHistory.Item.get -> KoLibri.ItemRef
+KoLibri.PriceHistory.Item.init -> void
+KoLibri.PriceHistory.Points.get -> System.Collections.Generic.IReadOnlyList<KoLibri.PricePoint!>!
+KoLibri.PriceHistory.Points.init -> void
+KoLibri.PriceHistory.PriceHistory(KoLibri.ItemRef Item, long? Value, long? Volume, System.Collections.Generic.IReadOnlyList<KoLibri.PricePoint!>! Points, System.DateTimeOffset FetchedAt) -> void
+KoLibri.PriceHistory.Value.get -> long?
+KoLibri.PriceHistory.Value.init -> void
+KoLibri.PriceHistory.Volume.get -> long?
+KoLibri.PriceHistory.Volume.init -> void
+KoLibri.PricePoint
+KoLibri.PricePoint.At.get -> System.DateTimeOffset
+KoLibri.PricePoint.At.init -> void
+KoLibri.PricePoint.Price.get -> long
+KoLibri.PricePoint.Price.init -> void
+KoLibri.PricePoint.PricePoint(System.DateTimeOffset At, long Price, long Volume) -> void
+KoLibri.PricePoint.Volume.get -> long
+KoLibri.PricePoint.Volume.init -> void
+KoLibri.PurchaseLine
+KoLibri.PurchaseLine.Bought.get -> int
+KoLibri.PurchaseLine.Bought.init -> void
+KoLibri.PurchaseLine.Message.get -> string?
+KoLibri.PurchaseLine.Message.init -> void
+KoLibri.PurchaseLine.PurchaseLine(int StoreId, long UnitPrice, int Requested, int Bought, string? Message) -> void
+KoLibri.PurchaseLine.Requested.get -> int
+KoLibri.PurchaseLine.Requested.init -> void
+KoLibri.PurchaseLine.StoreId.get -> int
+KoLibri.PurchaseLine.StoreId.init -> void
+KoLibri.PurchaseLine.UnitPrice.get -> long
+KoLibri.PurchaseLine.UnitPrice.init -> void
+KoLibri.PurchaseOrder
+KoLibri.PurchaseOrder.ExcludedStoreIds.get -> System.Collections.Generic.IReadOnlyList<int>!
+KoLibri.PurchaseOrder.ExcludedStoreIds.init -> void
+KoLibri.PurchaseOrder.Item.get -> KoLibri.ItemRef
+KoLibri.PurchaseOrder.Item.init -> void
+KoLibri.PurchaseOrder.MaxUnitPrice.get -> long
+KoLibri.PurchaseOrder.MaxUnitPrice.init -> void
+KoLibri.PurchaseOrder.MeatReserve.get -> long
+KoLibri.PurchaseOrder.MeatReserve.init -> void
+KoLibri.PurchaseOrder.PurchaseOrder(KoLibri.ItemRef Item, int Quantity, long MaxUnitPrice) -> void
+KoLibri.PurchaseOrder.Quantity.get -> int
+KoLibri.PurchaseOrder.Quantity.init -> void
+KoLibri.PurchaseQuote
+KoLibri.PurchaseQuote.Order.get -> KoLibri.PurchaseOrder!
+KoLibri.PurchaseQuote.Order.init -> void
+KoLibri.PurchaseQuote.Plan.get -> System.Collections.Generic.IReadOnlyList<KoLibri.MallListing!>!
+KoLibri.PurchaseQuote.Plan.init -> void
+KoLibri.PurchaseQuote.PlannedQuantity.get -> int
+KoLibri.PurchaseQuote.PlannedQuantity.init -> void
+KoLibri.PurchaseQuote.PurchaseQuote(KoLibri.PurchaseOrder! Order, System.Collections.Generic.IReadOnlyList<KoLibri.MallListing!>! Plan, long TotalCost, System.DateTimeOffset QuotedAt) -> void
+KoLibri.PurchaseQuote.QuotedAt.get -> System.DateTimeOffset
+KoLibri.PurchaseQuote.QuotedAt.init -> void
+KoLibri.PurchaseQuote.Shortfall.get -> string?
+KoLibri.PurchaseQuote.Shortfall.init -> void
+KoLibri.PurchaseQuote.TotalCost.get -> long
+KoLibri.PurchaseQuote.TotalCost.init -> void
+KoLibri.PurchaseResult
+KoLibri.PurchaseResult.Lines.get -> System.Collections.Generic.IReadOnlyList<KoLibri.PurchaseLine!>!
+KoLibri.PurchaseResult.Lines.init -> void
+KoLibri.PurchaseResult.MeatSpent.get -> long
+KoLibri.PurchaseResult.MeatSpent.init -> void
+KoLibri.PurchaseResult.PurchaseResult(KoLibri.PurchaseStatus Status, int QuantityBought, long MeatSpent, System.Collections.Generic.IReadOnlyList<KoLibri.PurchaseLine!>! Lines) -> void
+KoLibri.PurchaseResult.QuantityBought.get -> int
+KoLibri.PurchaseResult.QuantityBought.init -> void
+KoLibri.PurchaseResult.Status.get -> KoLibri.PurchaseStatus
+KoLibri.PurchaseResult.Status.init -> void
+KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.Bought = 0 -> KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.NothingBought = 2 -> KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.Partial = 1 -> KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.PriceChanged = 3 -> KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.Refused = 4 -> KoLibri.PurchaseStatus
+KoLibri.PurchaseStatus.Unclear = 5 -> KoLibri.PurchaseStatus
+KoLibri.RelayOptions
+KoLibri.RelayOptions.LogPath.get -> string?
+KoLibri.RelayOptions.LogPath.init -> void
+KoLibri.RelayOptions.Port.get -> int
+KoLibri.RelayOptions.Port.init -> void
+KoLibri.RelayOptions.RelayOptions() -> void
+KoLibri.RelayOptions.UseBrowserUserAgent.get -> bool
+KoLibri.RelayOptions.UseBrowserUserAgent.init -> void
+KoLibri.RelayServer
+KoLibri.RelayServer.BaseUri.get -> System.Uri!
+KoLibri.RelayServer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+KoLibri.RelayServer.EntryUri(string! path = "main.php") -> System.Uri!
+KoLibri.RequestEventArgs
+KoLibri.RequestEventArgs.Duration.get -> System.TimeSpan
+KoLibri.RequestEventArgs.Kind.get -> KoLibri.PageKind
+KoLibri.RequestEventArgs.Lane.get -> KoLibri.RequestLane
+KoLibri.RequestEventArgs.Method.get -> KoLibri.RequestMethod
+KoLibri.RequestEventArgs.Path.get -> string!
+KoLibri.RequestEventArgs.RequestEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.RequestMethod method, string! path, KoLibri.RequestLane lane, int statusCode, System.TimeSpan duration, System.TimeSpan waited, KoLibri.PageKind kind) -> void
+KoLibri.RequestEventArgs.StatusCode.get -> int
+KoLibri.RequestEventArgs.Waited.get -> System.TimeSpan
+KoLibri.RequestLane
+KoLibri.RequestLane.Action = 2 -> KoLibri.RequestLane
+KoLibri.RequestLane.Auto = 0 -> KoLibri.RequestLane
+KoLibri.RequestLane.Read = 1 -> KoLibri.RequestLane
+KoLibri.RequestMethod
+KoLibri.RequestMethod.Get = 0 -> KoLibri.RequestMethod
+KoLibri.RequestMethod.Post = 1 -> KoLibri.RequestMethod
+KoLibri.RunRequest
+KoLibri.RunRequest.Choices.get -> KoLibri.IChoiceResolver!
+KoLibri.RunRequest.Choices.init -> void
+KoLibri.RunRequest.Combat.get -> KoLibri.ICombatStrategy!
+KoLibri.RunRequest.Combat.init -> void
+KoLibri.RunRequest.Location.get -> KoLibri.Location
+KoLibri.RunRequest.Location.init -> void
+KoLibri.RunRequest.MaxRoundsPerFight.get -> int
+KoLibri.RunRequest.MaxRoundsPerFight.init -> void
+KoLibri.RunRequest.MaxTurns.get -> int
+KoLibri.RunRequest.MaxTurns.init -> void
+KoLibri.RunRequest.RunRequest(KoLibri.Location Location, int MaxTurns) -> void
+KoLibri.RunRequest.StopWhen.get -> System.Collections.Generic.IReadOnlyList<KoLibri.StopCondition!>!
+KoLibri.RunRequest.StopWhen.init -> void
+KoLibri.RunResult
+KoLibri.RunResult.Detail.get -> string?
+KoLibri.RunResult.Detail.init -> void
+KoLibri.RunResult.Encounters.get -> System.Collections.Generic.IReadOnlyList<KoLibri.Encounter!>!
+KoLibri.RunResult.Encounters.init -> void
+KoLibri.RunResult.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
+KoLibri.RunResult.Items.init -> void
+KoLibri.RunResult.MeatGained.get -> long
+KoLibri.RunResult.MeatGained.init -> void
+KoLibri.RunResult.Open.get -> KoLibri.Encounter?
+KoLibri.RunResult.Open.init -> void
+KoLibri.RunResult.RunResult(KoLibri.RunStopReason StopReason, int TurnsSpent, System.Collections.Generic.IReadOnlyList<KoLibri.Encounter!>! Encounters, string? Detail) -> void
+KoLibri.RunResult.StopReason.get -> KoLibri.RunStopReason
+KoLibri.RunResult.StopReason.init -> void
+KoLibri.RunResult.TurnsSpent.get -> int
+KoLibri.RunResult.TurnsSpent.init -> void
+KoLibri.RunStopReason
+KoLibri.RunStopReason.Blocked = 5 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.Cancelled = 6 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.Condition = 1 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.Defeat = 4 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.Error = 7 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.NeedsChoice = 2 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.NeedsCombat = 3 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.TurnsDone = 0 -> KoLibri.RunStopReason
+KoLibri.SessionExpiredException
+KoLibri.SessionExpiredException.Account.get -> KoLibri.AccountId
+KoLibri.SessionExpiredException.SessionExpiredException(KoLibri.AccountId account) -> void
+KoLibri.Shop
+KoLibri.Shop.AddAsync(KoLibri.ItemRef item, int quantity, long price, int limitPerDay = 0, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.Shop.GetListingsAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.ShopListing!>!>!
+KoLibri.Shop.GetSalesAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<KoLibri.ShopSale!>!>!
+KoLibri.Shop.RepriceAsync(System.Collections.Generic.IReadOnlyList<KoLibri.ShopPriceChange!>! changes, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.Shop.TakeBackAsync(KoLibri.ItemRef item, int quantity, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.ActionResult!>!
+KoLibri.ShopListing
+KoLibri.ShopListing.Item.get -> KoLibri.ItemRef
+KoLibri.ShopListing.Item.init -> void
+KoLibri.ShopListing.LimitPerDay.get -> int
+KoLibri.ShopListing.LimitPerDay.init -> void
+KoLibri.ShopListing.Name.get -> string!
+KoLibri.ShopListing.Name.init -> void
+KoLibri.ShopListing.Price.get -> long
+KoLibri.ShopListing.Price.init -> void
+KoLibri.ShopListing.Quantity.get -> int
+KoLibri.ShopListing.Quantity.init -> void
+KoLibri.ShopListing.ShopListing(KoLibri.ItemRef Item, string! Name, int Quantity, long Price, int LimitPerDay) -> void
+KoLibri.ShopPriceChange
+KoLibri.ShopPriceChange.Item.get -> KoLibri.ItemRef
+KoLibri.ShopPriceChange.Item.init -> void
+KoLibri.ShopPriceChange.LimitPerDay.get -> int?
+KoLibri.ShopPriceChange.LimitPerDay.init -> void
+KoLibri.ShopPriceChange.Price.get -> long
+KoLibri.ShopPriceChange.Price.init -> void
+KoLibri.ShopPriceChange.ShopPriceChange(KoLibri.ItemRef Item, long Price, int? LimitPerDay = null) -> void
+KoLibri.ShopSale
+KoLibri.ShopSale.At.get -> System.DateTimeOffset
+KoLibri.ShopSale.At.init -> void
+KoLibri.ShopSale.Buyer.get -> string!
+KoLibri.ShopSale.Buyer.init -> void
+KoLibri.ShopSale.Item.get -> KoLibri.ItemRef
+KoLibri.ShopSale.Item.init -> void
+KoLibri.ShopSale.Meat.get -> long
+KoLibri.ShopSale.Meat.init -> void
+KoLibri.ShopSale.Quantity.get -> int
+KoLibri.ShopSale.Quantity.init -> void
+KoLibri.ShopSale.ShopSale(System.DateTimeOffset At, string! Buyer, KoLibri.ItemRef Item, int Quantity, long Meat) -> void
+KoLibri.SkillInfo
+KoLibri.SkillInfo.MpCost.get -> int
+KoLibri.SkillInfo.MpCost.init -> void
+KoLibri.SkillInfo.Name.get -> string!
+KoLibri.SkillInfo.Name.init -> void
+KoLibri.SkillInfo.Skill.get -> KoLibri.SkillRef
+KoLibri.SkillInfo.Skill.init -> void
+KoLibri.SkillInfo.SkillInfo(KoLibri.SkillRef Skill, string! Name, int MpCost, bool UsableInCombat) -> void
+KoLibri.SkillInfo.UsableInCombat.get -> bool
+KoLibri.SkillInfo.UsableInCombat.init -> void
+KoLibri.SkillRef
+KoLibri.SkillRef.Id.get -> int
+KoLibri.SkillRef.Id.init -> void
+KoLibri.SkillRef.SkillRef() -> void
+KoLibri.SkillRef.SkillRef(int Id) -> void
+KoLibri.Status
+KoLibri.Status.Adventures.get -> int
+KoLibri.Status.Adventures.init -> void
+KoLibri.Status.Effects.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ActiveEffect!>!
+KoLibri.Status.Effects.init -> void
+KoLibri.Status.FamiliarId.get -> int?
+KoLibri.Status.FamiliarId.init -> void
+KoLibri.Status.FetchedAt.get -> System.DateTimeOffset
+KoLibri.Status.FetchedAt.init -> void
+KoLibri.Status.Fullness.get -> KoLibri.OrganState
+KoLibri.Status.Fullness.init -> void
+KoLibri.Status.Hp.get -> int
+KoLibri.Status.Hp.init -> void
+KoLibri.Status.Inebriety.get -> KoLibri.OrganState
+KoLibri.Status.Inebriety.init -> void
+KoLibri.Status.Level.get -> int
+KoLibri.Status.Level.init -> void
+KoLibri.Status.MaxHp.get -> int
+KoLibri.Status.MaxHp.init -> void
+KoLibri.Status.MaxMp.get -> int
+KoLibri.Status.MaxMp.init -> void
+KoLibri.Status.Meat.get -> long
+KoLibri.Status.Meat.init -> void
+KoLibri.Status.Mp.get -> int
+KoLibri.Status.Mp.init -> void
+KoLibri.Status.PathName.get -> string?
+KoLibri.Status.PathName.init -> void
+KoLibri.Status.PlayerName.get -> string!
+KoLibri.Status.PlayerName.init -> void
+KoLibri.Status.RoninTurnsRemaining.get -> int?
+KoLibri.Status.RoninTurnsRemaining.init -> void
+KoLibri.Status.Spleen.get -> KoLibri.OrganState
+KoLibri.Status.Spleen.init -> void
+KoLibri.Status.Status(string! PlayerName, int Level, long Meat, int Adventures, System.DateTimeOffset FetchedAt) -> void
+KoLibri.Status.StoragePullsRemaining.get -> int?
+KoLibri.Status.StoragePullsRemaining.init -> void
+KoLibri.StatusChangedEventArgs
+KoLibri.StatusChangedEventArgs.After.get -> KoLibri.Status!
+KoLibri.StatusChangedEventArgs.Before.get -> KoLibri.Status?
+KoLibri.StatusChangedEventArgs.StatusChangedEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.Status? before, KoLibri.Status! after) -> void
+KoLibri.StopCondition
+KoLibri.StopCondition.Id.get -> int?
+KoLibri.StopCondition.Id.init -> void
+KoLibri.StopCondition.Kind.get -> KoLibri.StopConditionKind
+KoLibri.StopCondition.Kind.init -> void
+KoLibri.StopCondition.StopCondition(KoLibri.StopConditionKind Kind, int Value, int? Id = null) -> void
+KoLibri.StopCondition.Value.get -> int
+KoLibri.StopCondition.Value.init -> void
+KoLibri.StopConditionKind
+KoLibri.StopConditionKind.AdventuresAtMost = 2 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.EffectMissing = 4 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.HpBelowPercent = 0 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.ItemCountAtLeast = 3 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.MeatAtMost = 5 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.MpBelowPercent = 1 -> KoLibri.StopConditionKind
+KoLibri.UnexpectedPageException
+KoLibri.UnexpectedPageException.Page.get -> KoLibri.Page!
+KoLibri.UnexpectedPageException.UnexpectedPageException(KoLibri.Page! page, string! message) -> void
+override KoLibri.AccountId.ToString() -> string!
+static KoLibri.ChoiceDecision.Ask(string! reason) -> KoLibri.ChoiceDecision!
+static KoLibri.ChoiceResolvers.AlwaysAsk.get -> KoLibri.IChoiceResolver!
+static KoLibri.ChoiceResolvers.FromTable(System.Collections.Generic.IReadOnlyDictionary<int, int>! optionByChoiceId) -> KoLibri.IChoiceResolver!
+static KoLibri.ChoiceResolvers.Safe(System.Collections.Generic.IReadOnlyDictionary<int, int>? optionByChoiceId = null) -> KoLibri.IChoiceResolver!
+static KoLibri.CombatAction.Attack.get -> KoLibri.CombatAction!
+static KoLibri.CombatAction.FromMacro(string! macro) -> KoLibri.CombatAction!
+static KoLibri.CombatAction.Item(KoLibri.ItemRef item, KoLibri.ItemRef? second = null) -> KoLibri.CombatAction!
+static KoLibri.CombatAction.RunAway.get -> KoLibri.CombatAction!
+static KoLibri.CombatAction.Skill(KoLibri.SkillRef skill) -> KoLibri.CombatAction!
+static KoLibri.CombatAction.Stop.get -> KoLibri.CombatAction!
+static KoLibri.CombatStrategies.AttackOnly.get -> KoLibri.ICombatStrategy!
+static KoLibri.CombatStrategies.FromDelegate(System.Func<KoLibri.CombatContext!, KoLibri.CombatAction!>! next) -> KoLibri.ICombatStrategy!
+static KoLibri.CombatStrategies.FromRules(string! rules) -> KoLibri.ICombatStrategy!
+static KoLibri.CombatStrategies.Macro(string! macro) -> KoLibri.ICombatStrategy!
+static KoLibri.GuardDecision.Allow.get -> KoLibri.GuardDecision!
+static KoLibri.GuardDecision.Deny(string! reason) -> KoLibri.GuardDecision!
+static KoLibri.ItemRef.implicit operator KoLibri.ItemRef(int id) -> KoLibri.ItemRef
+static KoLibri.KolibriClient.Create(KoLibri.KolibriOptions? options = null) -> KoLibri.KolibriClient!
+static KoLibri.Location.implicit operator KoLibri.Location(int snarfblat) -> KoLibri.Location
+static KoLibri.SkillRef.implicit operator KoLibri.SkillRef(int id) -> KoLibri.SkillRef
+static KoLibri.StopCondition.AdventuresAtMost(int adventures) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.EffectMissing(int effectId) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.HpBelowPercent(int percent) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.ItemCountAtLeast(KoLibri.ItemRef item, int count) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.MpBelowPercent(int percent) -> KoLibri.StopCondition!
