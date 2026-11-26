@@ -15,7 +15,7 @@ namespace KoLibri.Core.Markt;
 /// hash is not the plaintext password and it is never logged.
 ///
 /// The price must match the current listing exactly — <c>whichitem</c> is the
-/// item id followed by the nine-digit zero-padded price (see
+/// item id, a dot and the price, as the store page's radio buttons send it (see
 /// <see cref="FormatWhichItem"/>), and KoL rejects the purchase when it differs
 /// from the store's current price.
 /// </summary>
@@ -83,10 +83,12 @@ public sealed class MallBuyClient
     public const long MaxBindablePrice = 999_999_999;
 
     /// <summary>
-    /// KoL's price-bound item field, as KoLmafia sends it: the item id followed
-    /// by the unit price zero-padded to nine digits (item 10881 at 25,000 meat
-    /// is <c>10881000025000</c>). KoL refuses the purchase when the store's
-    /// current price differs, so this is the price binding.
+    /// KoL's price-bound item field, exactly as the store page's radio buttons
+    /// send it: item id, a dot, unit price (item 11389 at 194,000 meat is
+    /// <c>11389.194000</c>). Live 2026-11-26 KoL refused the old zero-padded
+    /// form (<c>11389000194000</c>) with "This store doesn't have that item at
+    /// that price" and accepted the dotted one. KoL refuses the purchase when the
+    /// store's current price differs, so this is the price binding.
     /// </summary>
     public static string FormatWhichItem(long itemId, long unitPrice)
     {
@@ -94,7 +96,7 @@ public sealed class MallBuyClient
         if (unitPrice <= 0 || unitPrice > MaxBindablePrice)
             throw new ArgumentOutOfRangeException(nameof(unitPrice));
         return itemId.ToString(CultureInfo.InvariantCulture)
-            + unitPrice.ToString("D9", CultureInfo.InvariantCulture);
+            + "." + unitPrice.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>

@@ -121,7 +121,7 @@ public sealed class MallReconcileTests
         Assert.Equal(200, result.SpentMeat);
         Assert.Equal(1, beforeReads);          // no separate preview round trip
         Assert.Single(handler.Bodies);
-        Assert.Contains("whichitem=789000000200", handler.Bodies[0]);
+        Assert.Contains("whichitem=789.200", handler.Bodies[0]);
     }
 
     [Fact]

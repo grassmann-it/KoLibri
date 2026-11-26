@@ -54,3 +54,16 @@ public sealed class OwnShopInventoryTabTests
         Assert.Equal(39_400, Assert.Single(shop, l => l.ItemId == "8424").Price);
     }
 }
+
+/// <summary>Live finding 2026-11-26: KoL accepts only the dotted price-bound whichitem.</summary>
+public sealed class MallWhichItemFormatTests
+{
+    [Fact]
+    public void Whichitem_is_item_dot_price_like_the_store_page_radio_buttons()
+    {
+        Assert.Equal("11389.194000", KoLibri.Core.Markt.MallBuyClient.FormatWhichItem(11389, 194_000));
+        Assert.Equal("684.230", KoLibri.Core.Markt.MallBuyClient.FormatWhichItem(684, 230));
+        var form = KoLibri.Core.Markt.MallBuyClient.BuildPurchaseForm(3871791, 11389, 194_000, 1, "HASH");
+        Assert.Equal("11389.194000", form["whichitem"]);
+    }
+}

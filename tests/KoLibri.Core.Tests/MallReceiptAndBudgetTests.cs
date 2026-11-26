@@ -111,7 +111,7 @@ public sealed class MallReceiptAndBudgetTests
         Assert.Equal(2, outcome.Quantity);
         Assert.Single(store.Forms);
         Assert.Contains("whichstore=111", store.Forms[0]);       // not the cheaper store of the other item
-        Assert.Contains("whichitem=8763000001000", store.Forms[0]);
+        Assert.Contains("whichitem=8763.1000", store.Forms[0]);
     }
 
     [Fact]

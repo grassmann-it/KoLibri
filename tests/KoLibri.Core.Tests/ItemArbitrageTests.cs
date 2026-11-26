@@ -48,7 +48,7 @@ public sealed class ItemArbitrageTests
                 // A real receipt covers what was ordered: meat for quantity x unit price and the count.
                 var fields = form.Split('&').Select(p => p.Split('=')).Where(p => p.Length == 2).ToDictionary(p => p[0], p => p[1]);
                 var qty = long.Parse(fields["quantity"]);
-                var price = long.Parse(fields["whichitem"][^9..]);
+                var price = long.Parse(fields["whichitem"].Split('.')[1]);
                 body = $"You spent {price * qty:N0} Meat. You acquire an item: BACON" + (qty > 1 ? $" ({qty})" : "");
             }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
