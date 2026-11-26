@@ -7,10 +7,10 @@ using KoLibri.Safety.Access;
 namespace KolLibri.Mcp;
 
 /// <summary>A client that registered itself (RFC 7591). Only redirect targets and a display name.</summary>
-public sealed record OAuthClient(string ClientId, string ClientName, IReadOnlyList<string> RedirectUris);
+internal sealed record OAuthClient(string ClientId, string ClientName, IReadOnlyList<string> RedirectUris);
 
 /// <summary>What an AI client asked for, as shown to the human. Strings here come from the client: escape before showing.</summary>
-public sealed record PendingConsent(
+internal sealed record PendingConsent(
     string Id, string Csrf, string ConfirmationCode, OAuthClient Client, string RedirectUri,
     string CodeChallenge, string? State, string Resource,
     IReadOnlyList<string> RequestedRights, IReadOnlyDictionary<string, RightLimit> RequestedLimits,
@@ -26,7 +26,7 @@ internal sealed record IssuedCode(
 /// bookkeeping, authorization codes with PKCE and token issue. The human decision
 /// happens on the consent page; this class never grants anything by itself.
 /// </summary>
-public sealed class McpOAuthServer
+internal sealed class McpOAuthServer
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly GrantStore _grants;

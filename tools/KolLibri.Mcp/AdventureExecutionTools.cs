@@ -1,6 +1,7 @@
 using System.Text.Json;
-using LibKolibri;
-using KoLibri.Core.Spiel;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using KoLibri;
 
 namespace KolLibri.Mcp;
 
@@ -43,8 +44,7 @@ public partial class KolibriMcpServer
     {
         cancellationToken.ThrowIfCancellationRequested();
         var bridge = _executionBridge
-            ?? throw new McpInvalidParamsException(
-                "Live adventure execution is not configured for this MCP host.");
+            ?? throw new McpInvalidParamsException("Live adventure execution is not configured for this MCP host.");
         var role = RoleFor(arguments, _options.DefaultRole);
         var location = RequiredString(arguments, "locationId");
         var runId = OptionalString(arguments, "runId") ?? $"mcp-{Guid.NewGuid():N}";
@@ -52,79 +52,19 @@ public partial class KolibriMcpServer
         var approvalToken = ApprovalTokenFor(arguments);
         var maxSteps = Math.Clamp(NullableIntProperty(arguments, "maxGatewaySteps") ?? 20, 1, 10_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 300);
-
-        var allowlist = new AdventureActionAllowlist { ChoiceResolver = new ChoiceResolver(new ChoiceResolutionConfigStore().Load()) }.AddAdventure(location);
-        foreach (var fightAction in ParseCsv(arguments, "fightActions"))
-            allowlist.AddFightAction(location, fightAction);
-        foreach (var choiceAction in ParseCsv(arguments, "choiceActions"))
-        {
-            var separator = choiceAction.IndexOf(':');
-            if (separator <= 0 || separator == choiceAction.Length - 1)
-                throw new McpInvalidParamsException("choiceActions entries must be CHOICE_ID:OPTION_ID.");
-            allowlist.AddChoiceOption(location, choiceAction[..separator], choiceAction[(separator + 1)..]);
-        }
-
+        // Allowlist of 0.4: the first configured fight action is used; without one a fight stops the run.
+        var fightActions = ParseCsv(arguments, "fightActions").Select(ParseFightAction).ToArray();
+        var table = ParseChoiceTable(arguments);
         // A catalog id ("adventure=543:Name") must reach KoL as the numeric snarfblat, not as text.
         var snarfblat = NullableIntProperty(arguments, "snarfblat");
-        if (snarfblat is null && AdventureLocationIds.TryGetSnarfblat(location, out var resolved)) snarfblat = resolved;
-        var request = new AdventureRunRequest
-        {
-            RunId = runId,
-            AdventureId = location,
-            Snarfblat = snarfblat is > 0 ? snarfblat : null,
-            Role = role,
-            DailyLimit = new AdventureDailyLimitContract
-            {
-                Day = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime),
-                MaxTurns = Math.Max(0, NullableIntProperty(arguments, "maxTurns") ?? int.MaxValue),
-                TurnsUsed = Math.Max(0, NullableIntProperty(arguments, "turnsUsed") ?? 0),
-                MaxRuns = Math.Max(0, NullableIntProperty(arguments, "maxRuns") ?? int.MaxValue),
-                RunsUsed = Math.Max(0, NullableIntProperty(arguments, "runsUsed") ?? 0)
-            }
-        };
-
+        if (snarfblat is null && TryGetSnarfblat(location, out var resolved)) snarfblat = resolved;
         var conditionsElement = FindArray(arguments, "conditions");
-        var conditions = conditionsElement is { } array
-            ? array.Deserialize<AdventureCondition[]>(McpJson.Options) ?? Array.Empty<AdventureCondition>()
-            : Array.Empty<AdventureCondition>();
-
-        var snapshotElement = NestedObject(arguments, "snapshot");
-        IAdventureConditionSnapshotProvider? snapshotProvider = null;
-        var hasAccount = _roleRuntime.TryGet<IAccountReadClient>(role, out var account);
-        if (execute && hasAccount && conditions.Length > 0)
-        {
-            // A real adventure never steers by a caller-supplied (possibly outdated) snapshot.
-            snapshotProvider = new AccountAdventureConditionSnapshotProvider(account!, conditions, forceRefresh: true);
-        }
-        else if (snapshotElement is { } snapshotValue)
-        {
-            var snapshot = Deserialize<AdventureConditionSnapshot>(snapshotValue, "snapshot");
-            // Previews use the static snapshot as given; a live run without account access keeps a stale flag.
-            snapshotProvider = new StaticAdventureConditionSnapshotProvider(execute ? snapshot : snapshot with { IsStale = false });
-        }
-        else if (hasAccount)
-        {
-            snapshotProvider = new AccountAdventureConditionSnapshotProvider(
-                account!,
-                conditions,
-                forceRefresh: execute || BoolProperty(arguments, "forceRefresh"));
-        }
-
+        var stopWhen = conditionsElement is { } array ? StopConditions(array) : Array.Empty<StopCondition>();
+        if (execute && snarfblat is not > 0)
+            throw new McpInvalidParamsException($"No location number (snarfblat) for '{location}'. Pass snarfblat. Nothing was sent.");
         var result = await bridge.RunBoundedAsync(
-            role,
-            request,
-            allowlist,
-            conditions,
-            snapshotProvider ?? new NullConditionSnapshotProvider(),
-            new BoundedAdventureRunnerOptions
-            {
-                MaxGatewaySteps = maxSteps,
-                MaxDuration = TimeSpan.FromSeconds(maxDurationSeconds)
-            },
-            execute,
-            approvalToken,
-            cancellationToken).ConfigureAwait(false);
-
+            role, runId, location, snarfblat ?? 0, fightActions.FirstOrDefault(), CreateChoiceResolver(table), stopWhen,
+            maxSteps, TimeSpan.FromSeconds(maxDurationSeconds), execute, approvalToken, cancellationToken).ConfigureAwait(false);
         if (execute && result.Steps.Count == 0) BookUnits(0); // nothing was sent: nothing is used
         return new
         {
@@ -148,44 +88,17 @@ public partial class KolibriMcpServer
     {
         cancellationToken.ThrowIfCancellationRequested();
         var bridge = _executionBridge
-            ?? throw new McpInvalidParamsException(
-                "Live choice-chain execution is not configured for this MCP host.");
+            ?? throw new McpInvalidParamsException("Live choice-chain execution is not configured for this MCP host.");
         var role = RoleFor(arguments, _options.DefaultRole);
         var runId = RequiredString(arguments, "runId");
         var execute = McpArgs.Execute(arguments);
         var approvalToken = ApprovalTokenFor(arguments);
         var maxChoices = Math.Clamp(NullableIntProperty(arguments, "maxChoices") ?? 10, 1, 1_000);
         var maxDurationSeconds = Math.Max(1, NullableIntProperty(arguments, "maxDurationSeconds") ?? 120);
-
         var location = OptionalString(arguments, "locationId");
-        var choiceRules = new List<(string, string)>();
-        var resolverAllowlist = new AdventureActionAllowlist { ChoiceResolver = new ChoiceResolver(new ChoiceResolutionConfigStore().Load()) };
-        var allowlist = location is null ? resolverAllowlist : resolverAllowlist.AddAdventure(location);
-        foreach (var choiceAction in ParseCsv(arguments, "choiceActions"))
-        {
-            var separator = choiceAction.IndexOf(':');
-            if (separator <= 0 || separator == choiceAction.Length - 1)
-                throw new McpInvalidParamsException("choiceActions entries must be CHOICE_ID:OPTION_ID.");
-            var choiceId = choiceAction[..separator];
-            var optionId = choiceAction[(separator + 1)..];
-            if (location is not null) allowlist.AddChoiceOption(location, choiceId, optionId);
-            else choiceRules.Add((choiceId, optionId)); // bound to the stored run's location by the bridge
-        }
-
         var result = await bridge.RunChoiceChainAsync(
-            role,
-            runId,
-            allowlist,
-            new BoundedChoiceChainOptions
-            {
-                MaxChoices = maxChoices,
-                MaxDuration = TimeSpan.FromSeconds(maxDurationSeconds)
-            },
-            execute,
-            approvalToken,
-            cancellationToken,
-            choiceRules).ConfigureAwait(false);
-
+            role, runId, CreateChoiceResolver(ParseChoiceTable(arguments)), maxChoices, TimeSpan.FromSeconds(maxDurationSeconds),
+            execute, approvalToken, cancellationToken).ConfigureAwait(false);
         if (execute && result.Steps.Count == 0) BookUnits(0); // nothing was sent: nothing is used
         return new
         {
@@ -210,8 +123,7 @@ public partial class KolibriMcpServer
         var bridge = _executionBridge
             ?? throw new McpInvalidParamsException("Live account access is not configured for this MCP host.");
         var role = RoleFor(arguments, _options.DefaultRole);
-        var detection = await bridge.DetectOpenChoiceAsync(role, cancellationToken).ConfigureAwait(false)
-            ?? throw new McpInvalidParamsException("No live session is available to check for an open choice.");
+        var detection = await bridge.DetectOpenChoiceAsync(role, cancellationToken).ConfigureAwait(false);
         if (detection.IsUnavailable)
             throw new McpInvalidParamsException(detection.Message); // "could not ask" is an error, never "free"
         return new
@@ -219,20 +131,94 @@ public partial class KolibriMcpServer
             readOnly = true,
             role = role.ToString(),
             open = detection.IsOpen,
-            kind = detection.Kind.ToString(),
+            kind = detection.Kind,
             message = detection.Message,
-            choiceId = detection.Choice?.ChoiceId,
+            choiceId = detection.Choice?.ChoiceId.ToString(CultureInfo.InvariantCulture),
             title = detection.Choice?.Title,
-            options = detection.Choice?.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
-            instruction = detection.Kind == OpenChoiceKind.Choice ? AskUserInstruction : null
+            options = detection.Choice?.Options.Select(o => new { number = o.Option, text = o.Text }).ToArray(),
+            instruction = detection.Kind == "Choice" ? AskUserInstruction : null
         };
+    }
+
+    private static readonly Regex SnarfblatInId = new(@"(?:^|[=:])(\d+)(?:[:]|$)", RegexOptions.Compiled);
+
+    /// <summary>"adventure=543:Name" → 543, "113" → 113 (as AdventureLocationIds in 0.4).</summary>
+    internal static bool TryGetSnarfblat(string? locationId, out int snarfblat)
+    {
+        snarfblat = 0;
+        if (string.IsNullOrWhiteSpace(locationId)) return false;
+        var match = SnarfblatInId.Match(locationId.Trim());
+        return match.Success && int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out snarfblat) && snarfblat > 0;
+    }
+
+    /// <summary>fightActions entries: attack, run, skill:ID, item:ID.</summary>
+    internal static CombatAction ParseFightAction(string text)
+    {
+        var value = text.Trim().ToLowerInvariant();
+        if (value is "attack") return CombatAction.Attack;
+        if (value is "run" or "runaway") return CombatAction.RunAway;
+        if (value.StartsWith("skill:", StringComparison.Ordinal) && int.TryParse(value[6..], out var skill) && skill > 0) return CombatAction.Skill(skill);
+        if (value.StartsWith("item:", StringComparison.Ordinal) && int.TryParse(value[5..], out var item) && item > 0) return CombatAction.Item(item);
+        throw new McpInvalidParamsException($"fightActions entry '{text}' is not one of attack, run, skill:ID, item:ID.");
+    }
+
+    private static Dictionary<int, int> ParseChoiceTable(JsonElement arguments)
+    {
+        var table = new Dictionary<int, int>();
+        foreach (var choiceAction in ParseCsv(arguments, "choiceActions"))
+        {
+            var separator = choiceAction.IndexOf(':');
+            if (separator <= 0 || separator == choiceAction.Length - 1
+                || !int.TryParse(choiceAction[..separator], out var choiceId) || !int.TryParse(choiceAction[(separator + 1)..], out var optionId))
+                throw new McpInvalidParamsException("choiceActions entries must be CHOICE_ID:OPTION_ID.");
+            table[choiceId] = optionId;
+        }
+        return table;
+    }
+
+    /// <summary>The choice policy file of 0.4 (defaults, ask|auto-safe) plus the call's choiceActions.</summary>
+    private static IChoiceResolver CreateChoiceResolver(IReadOnlyDictionary<int, int> extra)
+    {
+        var config = new ChoiceResolutionConfigStore(Environment.GetEnvironmentVariable("KOLIBRI_CHOICE_POLICY")).Load();
+        var table = new Dictionary<int, int>();
+        foreach (var (id, entry) in config.Choices)
+            if (int.TryParse(id, out var choiceId)) table[choiceId] = entry.Option;
+        foreach (var (id, option) in extra) table[id] = option;
+        return config.Mode == ChoiceResolutionMode.AutoSafe ? ChoiceResolvers.Safe(table) : ChoiceResolvers.FromTable(table);
+    }
+
+    /// <summary>0.4 conditions as stop conditions; unsupported kinds are refused before anything is sent.</summary>
+    private static IReadOnlyList<StopCondition> StopConditions(JsonElement conditions)
+    {
+        var result = new List<StopCondition>();
+        foreach (var c in conditions.EnumerateArray())
+        {
+            string Text(string name)
+            {
+                if (c.ValueKind != JsonValueKind.Object) return "";
+                foreach (var p in c.EnumerateObject())
+                    if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                        return p.Value.ValueKind == JsonValueKind.Number ? p.Value.GetRawText() : p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() ?? "" : "";
+                return "";
+            }
+            var kind = Text("kind").ToLowerInvariant();
+            var op = Text("operator").ToLowerInvariant();
+            var target = int.TryParse(Text("target"), out var t) ? Math.Max(0, t) : 0;
+            if (kind is "itemcount" && op is "" or "atleast" && int.TryParse(Text("key"), out var item) && item > 0)
+                result.Add(StopCondition.ItemCountAtLeast(item, target));
+            else if (kind is "adventuresremaining" or "turnsremaining" && op is "atmost")
+                result.Add(StopCondition.AdventuresAtMost(target));
+            else
+                throw new McpInvalidParamsException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5-dev (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
+        }
+        return result;
     }
 
     internal const string AskUserInstruction =
         "A choice adventure is open and needs the user's decision. Show the options to the user and ask which one to take; do not guess. "
         + "After the user decided, the choice is submitted with the CLI (kolibri choice submit) or by resuming the run.";
 
-    private static object? NeedsDecisionPayload(NeedsDecisionInfo? info)
+    private static object? NeedsDecisionPayload(McpNeedsDecision? info)
         => info is null ? null : new
         {
             status = "NeedsDecision",
@@ -241,7 +227,7 @@ public partial class KolibriMcpServer
             adventureId = info.AdventureId,
             choiceId = info.ChoiceId,
             title = info.Title,
-            options = info.Options.Select(o => new { number = o.Number, text = o.Text }).ToArray(),
+            options = info.Options.Select(o => new { number = o.Option, text = o.Text }).ToArray(),
             reason = info.Reason,
             instruction = AskUserInstruction
         };
@@ -290,25 +276,6 @@ public partial class KolibriMcpServer
             + "\"approvalToken\":{\"type\":\"string\"},"
             + "\"planId\":{\"type\":\"string\"}"
             + "},\"required\":[\"runId\"],\"additionalProperties\":true}");
-}
-
-/// <summary>Returns a fixed snapshot without touching an account gateway.</summary>
-internal sealed class StaticAdventureConditionSnapshotProvider : IAdventureConditionSnapshotProvider
-{
-    private readonly AdventureConditionSnapshot _snapshot;
-
-    public StaticAdventureConditionSnapshotProvider(AdventureConditionSnapshot snapshot)
-        => _snapshot = snapshot ?? new AdventureConditionSnapshot();
-
-    public ValueTask<AdventureConditionSnapshot> ReadAsync(CancellationToken cancellationToken = default)
-        => ValueTask.FromResult(_snapshot);
-}
-
-/// <summary>Default no-snapshot provider; treated by the runner as conditions-blocked.</summary>
-internal sealed class NullConditionSnapshotProvider : IAdventureConditionSnapshotProvider
-{
-    public ValueTask<AdventureConditionSnapshot> ReadAsync(CancellationToken cancellationToken = default)
-        => ValueTask.FromResult(new AdventureConditionSnapshot { IsStale = true, UnavailableReason = "No condition snapshot was supplied." });
 }
 
 public partial class KolibriMcpServer

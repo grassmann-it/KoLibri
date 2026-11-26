@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KoLibri;
+using KoLibri.Daily;
 using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
@@ -189,7 +190,7 @@ public partial class KolibriMcpServer
     /// previews and returns a plan id; the call with that id (same arguments) executes, once.
     /// Rights, limits and budgets come from the caller's grant; without a token nothing runs.
     /// </summary>
-    public void EnableWriteTools(AccessGate gate, IAccountActions actions)
+    internal void EnableWriteTools(AccessGate gate, IAccountActions actions)
     {
         Register("kol_mall_buy",
             "Buy an item from the mall under a price ceiling. Call without planId to preview worst-case cost and get a planId, then again with the same arguments plus planId to buy. Needs right 'mall.buy'.",

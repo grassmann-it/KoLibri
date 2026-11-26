@@ -1,158 +1,184 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
+using KoLibri;
 
 namespace KolLibri.Mcp;
 
-/// <summary>
-/// Result returned by the bounded execution bridge. The MCP layer serializes
-/// the inner <see cref="BoundedAdventureRunResult"/> / <see cref="BoundedChoiceChainResult"/>
-/// alongside a couple of meta fields so callers can correlate with the audit
-/// ledger.
-/// </summary>
+/// <summary>An open choice that needs the user's decision (0.4: NeedsDecisionInfo).</summary>
+public sealed record McpNeedsDecision(
+    string RunId, string? AdventureId, string? ChoiceId, string? Title, IReadOnlyList<ChoiceOption> Options, string? Reason, string AccountRole);
+
+/// <summary>What is open on the account: a choice, a fight, nothing, or unknown (0.4: OpenChoiceDetection).</summary>
+public sealed record McpOpenChoice(string Kind, ChoiceEncounter? Choice, string? Reason = null)
+{
+    public bool IsOpen => Kind is "Choice" or "Fight";
+    public bool IsUnavailable => Kind == "Unavailable";
+    public string Message => Kind switch
+    {
+        "Unavailable" => $"The open choice could not be read: {Reason ?? "unknown error"}. Nothing is assumed to be free.",
+        "Choice" => "A choice adventure is open. Continue there (or decide with `kolibri choice submit`).",
+        "Fight" => "A fight is open. Continue there.",
+        _ => "No choice or fight is open."
+    };
+}
+
 public sealed record AdventureExecutionBridgeResult(
     bool Executed,
     string StopReason,
     IReadOnlyList<object> Steps,
     string? AuditPath,
     string? RequestId,
-    NeedsDecisionInfo? NeedsDecision = null,
-    OpenChoiceDetection? OpenChoice = null);
+    McpNeedsDecision? NeedsDecision = null);
 
 /// <summary>
-/// Shared bridge that turns an MCP tool call into a bounded runner invocation.
-/// Preview paths short-circuit before any transport is created.
+/// Live adventure execution for the MCP tools, on KoLibri's Adventurer (0.5: replaces the gateway, checkpoint store and
+/// bounded runners of KoLibri.Core). Previews send nothing; a live call needs an approval token (the gated HTTP host
+/// supplies its own after the plan/execute step).
 /// </summary>
 public sealed class AdventureMcpExecutionBridge : IDisposable
 {
-    private readonly IAdventureExecutionGatewayFactory _factory;
-    private readonly IAdventureRunCheckpointStore _checkpointStore;
-    private readonly IAuditEventJournal _auditJournal;
-    private readonly string _auditPath;
+    private readonly McpAccounts _accounts;
 
-    public AdventureMcpExecutionBridge(
-        IAdventureExecutionGatewayFactory factory,
-        IAdventureRunCheckpointStore checkpointStore,
-        IAuditEventJournal? auditJournal = null,
-        string? auditPath = null)
-    {
-        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-        _checkpointStore = checkpointStore ?? throw new ArgumentNullException(nameof(checkpointStore));
-        _auditJournal = auditJournal ?? new AuditEventJournal(
-            auditPath ?? Path.Combine(Path.GetTempPath(), "kolibri-mcp-audit.jsonl"));
-        _auditPath = auditPath ?? "<memory>";
-    }
+    public AdventureMcpExecutionBridge(McpAccounts accounts) => _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
 
-    public string AuditPath => _auditPath;
+    public string AuditPath => "<memory>";
 
-    public void Dispose()
-    {
-        if (_auditJournal is IDisposable disposable) disposable.Dispose();
-    }
-
+    /// <summary>One bounded adventure (fight with the first allowed action, choices by the resolver, stop conditions).</summary>
     public async ValueTask<AdventureExecutionBridgeResult> RunBoundedAsync(
-        AccountRole role,
-        AdventureRunRequest request,
-        AdventureActionAllowlist allowlist,
-        IReadOnlyList<AdventureCondition> conditions,
-        IAdventureConditionSnapshotProvider snapshotProvider,
-        BoundedAdventureRunnerOptions options,
-        bool execute,
-        string? approvalToken,
+        AccountRole role, string runId, string locationId, int snarfblat, CombatAction? fightAction, IChoiceResolver choices,
+        IReadOnlyList<StopCondition> stopWhen, int maxSteps, TimeSpan maxDuration, bool execute, string? approvalToken,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(allowlist);
-
-        if (!execute)
-            return PreviewResult(BoundedAdventureRunStopReason.ReadyToRun.ToString(), Array.Empty<object>());
-
-        var gateway = await ResolveGatewayAsync(role, approvalToken, cancellationToken).ConfigureAwait(false);
-
-        var runner = new BoundedAdventureRunner(gateway);
-        var result = await runner.RunAsync(request, allowlist, conditions, snapshotProvider, options, cancellationToken)
-            .ConfigureAwait(false);
-        return ToBridgeResult(result.Steps, result.StopReason.ToString(), result.NeedsDecision);
+        if (!execute) return new(false, "ReadyToRun", Array.Empty<object>(), AuditPath, null);
+        RequireToken(approvalToken);
+        await using var session = await _accounts.OpenAsync(role, cancellationToken).ConfigureAwait(false);
+        var strategy = new FirstActionStrategy(fightAction);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(maxDuration);
+        var result = await session.Adventure.RunAsync(new RunRequest(snarfblat, 1)
+        {
+            Combat = strategy,
+            Choices = choices,
+            StopWhen = stopWhen,
+            MaxRoundsPerFight = Math.Max(1, maxSteps)
+        }, deadline.Token).ConfigureAwait(false);
+        var stopReason = result.StopReason switch
+        {
+            RunStopReason.TurnsDone => "Complete",
+            RunStopReason.Condition => "ConditionsSatisfied",
+            RunStopReason.NeedsChoice => "NeedsDecision",
+            RunStopReason.NeedsCombat when strategy.HadNoAction => "GatewayStopped",
+            RunStopReason.NeedsCombat => "StepLimitReached",
+            RunStopReason.Cancelled => "DeadlineReached",
+            _ => "GatewayStopped"
+        };
+        var needs = result.StopReason == RunStopReason.NeedsChoice && result.Open is ChoiceEncounter open
+            ? new McpNeedsDecision(runId, locationId, open.ChoiceId.ToString(System.Globalization.CultureInfo.InvariantCulture), open.Title,
+                open.Options, result.Detail, role.ToString())
+            : null;
+        return new(result.Encounters.Count > 0, stopReason, result.Encounters.Select(e => Step(e, result.Detail)).ToArray(), AuditPath,
+            result.Encounters.Count > 0 ? runId : null, needs);
     }
 
-    /// <summary>Read only: whether a choice/fight is open. Null when the host has no live session to ask.</summary>
-    public async ValueTask<OpenChoiceDetection?> DetectOpenChoiceAsync(AccountRole role, CancellationToken cancellationToken)
-        => _factory is IOpenChoiceProbe probe
-            ? await probe.DetectOpenChoiceAsync(role, cancellationToken).ConfigureAwait(false)
-            : null;
+    public async ValueTask<McpOpenChoice> DetectOpenChoiceAsync(AccountRole role, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var session = await _accounts.OpenAsync(role, cancellationToken).ConfigureAwait(false);
+            return Open(await session.Adventure.GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false));
+        }
+        catch (SessionExpiredException) { return new("Unavailable", null, "the session expired (login page)"); }
+        catch (Exception e) when (e is KolibriException or HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return new("Unavailable", null, e.Message);
+        }
+    }
 
+    /// <summary>Answers the open choice(s) of a stopped run with the resolver, at most <paramref name="maxChoices"/>.</summary>
     public async ValueTask<AdventureExecutionBridgeResult> RunChoiceChainAsync(
-        AccountRole role,
-        string runId,
-        AdventureActionAllowlist allowlist,
-        BoundedChoiceChainOptions options,
-        bool execute,
-        string? approvalToken,
-        CancellationToken cancellationToken,
-        IReadOnlyList<(string ChoiceId, string OptionId)>? choiceRules = null)
+        AccountRole role, string runId, IChoiceResolver choices, int maxChoices, TimeSpan maxDuration, bool execute,
+        string? approvalToken, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
-        ArgumentNullException.ThrowIfNull(allowlist);
-
-        if (!execute)
-            return PreviewResult(BoundedChoiceChainStopReason.Complete.ToString(), Array.Empty<object>());
-
-        var gateway = await ResolveGatewayAsync(role, approvalToken, cancellationToken).ConfigureAwait(false);
-
-        if (choiceRules is { Count: > 0 }
-            && await gateway.CheckpointStore.LoadAsync(runId.Trim(), cancellationToken).ConfigureAwait(false) is { } stored)
+        if (!execute) return new(false, "Complete", Array.Empty<object>(), AuditPath, null);
+        RequireToken(approvalToken);
+        await using var session = await _accounts.OpenAsync(role, cancellationToken).ConfigureAwait(false);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(maxDuration);
+        var steps = new List<object>();
+        var stop = "ChoiceLimitReached";
+        McpNeedsDecision? needs = null;
+        try
         {
-            // The user's decision applies to the run being resumed, whatever its location id was.
-            allowlist.AddAdventure(stored.AdventureId);
-            foreach (var (choiceId, optionId) in choiceRules)
-                allowlist.AddChoiceOption(stored.AdventureId, choiceId, optionId);
+            for (var i = 0; i < maxChoices; i++)
+            {
+                var open = await session.Adventure.GetOpenEncounterAsync(deadline.Token).ConfigureAwait(false);
+                if (open is not ChoiceEncounter choice) { stop = open is FightEncounter ? "FightOpen" : "Complete"; break; }
+                var decision = choices.Resolve(new ChoiceContext(choice.Location, choice.ChoiceId, choice.Title, choice.Options));
+                if (decision.Option is not { } option)
+                {
+                    stop = "NeedsDecision";
+                    needs = new McpNeedsDecision(runId.Trim(), null, choice.ChoiceId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        choice.Title, choice.Options, decision.Reason, role.ToString());
+                    break;
+                }
+                var next = await session.Adventure.ChooseAsync(choice.ChoiceId, option, deadline.Token).ConfigureAwait(false);
+                steps.Add(new { status = "Complete", choiceId = choice.ChoiceId, option, title = choice.Title, next = Kind(next) });
+            }
         }
-
-        var runner = new BoundedChoiceChainRunner(gateway);
-        var result = await runner.RunAsync(runId.Trim(), allowlist, options, cancellationToken).ConfigureAwait(false);
-        return ToBridgeResult(result.Steps, result.StopReason.ToString(), result.NeedsDecision);
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { stop = "DeadlineReached"; }
+        catch (KolibriException exception) when (exception is not SessionExpiredException)
+        {
+            stop = "GatewayStopped";
+            steps.Add(new { status = "Aborted", abortReason = exception.Message });
+        }
+        return new(steps.Count > 0, stop, steps, AuditPath, steps.Count > 0 ? runId : null, needs);
     }
 
-    private async ValueTask<AdventureExecutionGateway> ResolveGatewayAsync(
-        AccountRole role,
-        string? approvalToken,
-        CancellationToken cancellationToken)
+    public void Dispose() { }
+
+    private static void RequireToken(string? approvalToken)
     {
         if (string.IsNullOrWhiteSpace(approvalToken))
             throw new McpInvalidParamsException("execute=true requires an approvalToken.");
-
-        var gateway = await _factory.CreateAsync(role, approvalToken!, cancellationToken).ConfigureAwait(false)
-            ?? throw new McpInvalidParamsException(
-                $"No live adventure execution transport is configured for role {role}.");
-        return gateway;
     }
 
-    private AdventureExecutionBridgeResult PreviewResult(string stopReason, IReadOnlyList<object> steps)
-        => new(Executed: false, StopReason: stopReason, Steps: steps, AuditPath: _auditPath, RequestId: null);
+    private static McpOpenChoice Open(Encounter? encounter) => encounter switch
+    {
+        ChoiceEncounter c => new("Choice", c),
+        FightEncounter => new("Fight", null),
+        _ => new("None", null)
+    };
 
-    private static AdventureExecutionBridgeResult ToBridgeResult(
-        IReadOnlyList<AdventureExecutionResult> steps,
-        string stopReason,
-        NeedsDecisionInfo? needsDecision = null)
-        => new(
-            // A run that sent nothing (unknown run, aborted before any step) did not execute anything.
-            Executed: steps.Count > 0,
-            StopReason: stopReason,
-            Steps: steps.Select(step => new
-            {
-                status = step.Status.ToString(),
-                requestId = step.RequestId,
-                responseHash = step.Response?.ResponseHash,
-                abortReason = step.AbortReason?.ToString(),
-                requiresRefresh = step.RequiresRefresh,
-                complete = step.IsComplete
-            }).Cast<object>().ToArray(),
-            AuditPath: "<memory>",
-            RequestId: steps.Count == 0 ? null : steps[^1].RequestId,
-            NeedsDecision: needsDecision);
+    private static string Kind(Encounter encounter) => encounter switch
+    {
+        FightEncounter => "Fight",
+        ChoiceEncounter => "Choice",
+        NonCombatEncounter => "NonCombat",
+        BlockedEncounter b => "Blocked:" + b.Reason,
+        _ => encounter.GetType().Name
+    };
+
+    private static object Step(Encounter encounter, string? detail) => new
+    {
+        status = Kind(encounter),
+        requestId = (string?)null,
+        responseHash = (string?)null,
+        abortReason = encounter is BlockedEncounter blocked ? blocked.Reason.ToString() : null,
+        requiresRefresh = false,
+        complete = encounter is NonCombatEncounter,
+        monster = (encounter as FightEncounter)?.MonsterName,
+        title = encounter.Title
+    };
+
+    /// <summary>0.4 allowlist rule: the first allowed fight action every round; no allowed action stops the run.</summary>
+    private sealed class FirstActionStrategy(CombatAction? action) : ICombatStrategy
+    {
+        public bool HadNoAction { get; private set; }
+
+        public CombatAction Next(CombatContext context)
+        {
+            if (action is not null) return action;
+            HadNoAction = true;
+            return CombatAction.Stop;
+        }
+    }
 }
-
-/// <summary>
-/// In-memory checkpoint store used when the MCP host wants bounded execution
-/// without writing to disk. The bounded runners read/write checkpoints per
-/// run id and a single instance is safe for one tool call.
-/// </summary>

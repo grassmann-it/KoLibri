@@ -8,7 +8,7 @@ namespace KolLibri.Mcp;
 /// The consent page. All text comes from the structured request and the fixed catalog;
 /// what the client says about itself is shown separately and escaped.
 /// </summary>
-public static class McpConsentPage
+internal static class McpConsentPage
 {
     public static readonly IReadOnlyDictionary<string, RightLimit> Defaults = new Dictionary<string, RightLimit>
     {

@@ -1,11 +1,10 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
 using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 
 /// <summary>Result of the per-call check: allowed or a message for the AI, plus a way to book the outcome.</summary>
-public sealed record ToolAuthorization(bool Allowed, string? Message, UsageReservation? Reservation = null, PlanTicket? Plan = null)
+internal sealed record ToolAuthorization(bool Allowed, string? Message, UsageReservation? Reservation = null, PlanTicket? Plan = null)
 {
     public static ToolAuthorization Ok(UsageReservation? reservation = null) => new(true, null, reservation);
     public static ToolAuthorization Deny(string message) => new(false, message);
@@ -14,13 +13,13 @@ public sealed record ToolAuthorization(bool Allowed, string? Message, UsageReser
 }
 
 /// <summary>Decides, for one tool call, whether it may run. Installed by the host; null means unrestricted.</summary>
-public delegate ToolAuthorization ToolAuthorizer(string toolName, JsonElement arguments);
+internal delegate ToolAuthorization ToolAuthorizer(string toolName, JsonElement arguments);
 
 /// <summary>
 /// Maps MCP tools to operations of the catalog. Tools without a mapping are refused
 /// over HTTP, so a newly added tool is closed until someone assigns it a right.
 /// </summary>
-public static class McpAccessPolicy
+internal static class McpAccessPolicy
 {
     private static readonly Dictionary<string, string> ReadTools = new(StringComparer.Ordinal)
     {
