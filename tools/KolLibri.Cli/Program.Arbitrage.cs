@@ -21,12 +21,14 @@ internal static partial class KolibriCli
         };
     }
 
-    private static void PrintArbitrageHelp()
+    private static void PrintArbitrageHelp() => PrintArbitrageHelp(Console.Out);
+
+    private static void PrintArbitrageHelp(TextWriter w)
     {
-        Console.WriteLine("  arbitrage plan --role mallbot --item ITEM_ID [--max-price N] [--budget N] [--margin PERCENT]");
-        Console.WriteLine("                 [--tax PERCENT] [--reserve N] [--units N] [--reference-price N] [--refresh]   (read-only)");
-        Console.WriteLine("  arbitrage buy  ...same options... [--execute --approval-token TOKEN] [--then list --price N | --then send-to main]");
-        Console.WriteLine("                 without --execute: plan plus a preview of every purchase; nothing is sent");
+        w.WriteLine("  arbitrage plan --role mallbot --item ITEM_ID [--max-price N] [--budget N] [--margin PERCENT]");
+        w.WriteLine("                 [--tax PERCENT] [--reserve N] [--units N] [--reference-price N] [--refresh]   (read-only)");
+        w.WriteLine("  arbitrage buy  ...same options... [--execute --approval-token TOKEN] [--then list --price N | --then send-to main]");
+        w.WriteLine("                 without --execute: plan plus a preview of every purchase; nothing is sent");
     }
 
     private static T ArbitrageNumber<T>(string[] args, string name, T fallback) where T : struct, IParsable<T>
