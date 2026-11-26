@@ -204,7 +204,7 @@ public sealed class KoLShopMutationClient
     private async Task<(string Pwd, DateTimeOffset ObservedAt, IReadOnlyDictionary<string, ShopInventoryState> Listings)> GetStorePageAsync(
         CancellationToken cancellationToken)
     {
-        var uri = new Uri(_baseUri, KoLRoutes.ManageStore);
+        var uri = new Uri(_baseUri, KoLRoutes.StoreInventory);
         using var response = await _http.GetAsync(uri, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
