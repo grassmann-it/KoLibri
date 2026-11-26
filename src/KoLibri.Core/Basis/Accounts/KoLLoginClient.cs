@@ -79,11 +79,20 @@ public sealed class KoLLoginClient
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private DateTimeOffset? _lastRequestAt;
 
+    private readonly Func<CookieContainer, HttpMessageHandler>? _handlerFactory;
+
     public KoLLoginClient(KoLLoginOptions? options = null)
     {
         _options = options ?? new KoLLoginOptions();
         _options.Validate();
     }
+
+    /// <summary>
+    /// For the KoLibri facade: <paramref name="handlerFactory"/> builds the whole handler chain (limiter
+    /// included) around the cookie container the login reads its session cookie from.
+    /// </summary>
+    internal KoLLoginClient(KoLLoginOptions? options, Func<CookieContainer, HttpMessageHandler>? handlerFactory)
+        : this(options) => _handlerFactory = handlerFactory;
 
     public async Task<KoLLoginResult> LoginAsync(
         string userName,
@@ -121,16 +130,17 @@ public sealed class KoLLoginClient
         CancellationToken cancellationToken)
     {
 
-        using var handler = new HttpClientHandler
+        var cookieJar = new CookieContainer();
+        using var handler = _handlerFactory?.Invoke(cookieJar) ?? new KoLRateLimitedHandler(new HttpClientHandler
         {
             UseCookies = true,
-            CookieContainer = new CookieContainer(),
+            CookieContainer = cookieJar,
             // Redirects are followed explicitly below so a Location header
             // cannot send login cookies to an untrusted host.
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
-        };
-        using var client = new HttpClient(new KoLRateLimitedHandler(handler))
+        });
+        using var client = new HttpClient(handler)
         {
             BaseAddress = _options.BaseUri,
             Timeout = _options.Timeout
@@ -224,7 +234,7 @@ public sealed class KoLLoginClient
         if (KoLHtmlResponseClassifier.Classify(loginBody) == KoLHtmlResponseKind.Empty)
             throw new KoLLoginException(KoLLoginFailureReason.InvalidResponse, "KoL returned an empty login response.");
 
-        var cookies = handler.CookieContainer.GetCookies(_options.BaseUri)
+        var cookies = cookieJar.GetCookies(_options.BaseUri)
             .Cast<Cookie>()
             .Where(cookie => !string.IsNullOrWhiteSpace(cookie.Value))
             .ToArray();

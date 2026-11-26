@@ -20,5 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="KoLibri.Core.Tests" />
+    <!-- Transition (0.5): the KoLibri facade builds on Core internals until Core is folded into it. -->
+    <InternalsVisibleTo Include="KoLibri" />
   </ItemGroup>
 </Project>

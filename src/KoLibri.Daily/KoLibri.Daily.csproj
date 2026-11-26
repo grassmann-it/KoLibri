@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>KoLibri.Daily</RootNamespace>
+    <!-- Shared by CLI and Desktop, not published on NuGet (docs/lib-api-0.5.md §8, point 4). -->
+    <IsPackable>false</IsPackable>
+    <Version>0.5.0-dev</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Dogfooding: only the public KoLibri API. -->
+    <ProjectReference Include="../KoLibri/KoLibri.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KoLibri.Tests" />
+  </ItemGroup>
+</Project>
