@@ -45,6 +45,6 @@ public sealed class WoResidualTests
     public void Login_clear_roles_default_only_when_option_absent()
     {
         Assert.Equal(2, StrictOptions.LoginRoles(Array.Empty<string>()).Count);
-        Assert.Equal(new[] { AccountRole.Mallbot }, StrictOptions.LoginRoles(new[] { "--role", "mallbot" }));
+        Assert.Equal(new[] { KoLibri.Cli.AccountRole.Mallbot }, StrictOptions.LoginRoles(new[] { "--role", "mallbot" }));
     }
 }

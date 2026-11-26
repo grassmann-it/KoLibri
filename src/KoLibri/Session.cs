@@ -163,7 +163,7 @@ namespace KoLibri
             var session = new CoreBasis.AccountSession(
                 new CoreBasis.AccountProfile { Id = _record.Account.Id.Value, DisplayName = _record.Account.PlayerName, Role = CoreBasis.AccountRole.Main },
                 Credentials);
-            var host = CoreBasis.RelayHost.Start(session, options.Port, options.LogPath, options.UseBrowserUserAgent,
+            var host = CoreBasis.RelayHost.Start(session, options.Port, options.LogPath, options.UseBrowserUserAgent, options.Output,
                 upstreamHandler: Client.Options.HttpHandler is null ? null : new NonDisposingHandler(Client.Options.HttpHandler),
                 kolOrigin: Client.Options.BaseUri.GetLeftPart(UriPartial.Authority),
                 limiter: Client.Limiter);
@@ -401,6 +401,8 @@ namespace KoLibri
         public int Port { get; init; }
         public string? LogPath { get; init; }
         public bool UseBrowserUserAgent { get; init; }
+        /// <summary>Gets one line per relayed request (redacted), e.g. for a console. Ergänzt in 0.5 Schritt 3.</summary>
+        public Action<string>? Output { get; init; }
     }
 
     public sealed class RelayServer : IAsyncDisposable

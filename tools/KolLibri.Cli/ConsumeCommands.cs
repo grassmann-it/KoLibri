@@ -1,6 +1,4 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
-using LibKolibri;
+using KoLibri;
 
 internal static partial class KolibriCli
 {
@@ -9,28 +7,32 @@ internal static partial class KolibriCli
     {
         StrictOptions.Only(args, new[] { "--role", "--kind", "--item", "--qty" }, new[] { "--execute" });
         var role = StrictOptions.Role(args);
-        var kind = (StrictOptions.Value(args, "--kind") ?? "").ToLowerInvariant() switch
+        var (kind, kindName) = (StrictOptions.Value(args, "--kind") ?? "").ToLowerInvariant() switch
         {
-            "food" or "eat" => CharacterConsumableKind.Food,
-            "drink" or "booze" => CharacterConsumableKind.Drink,
-            "spleen" => CharacterConsumableKind.Spleen,
+            "food" or "eat" => (ConsumeKind.Eat, "Food"),
+            "drink" or "booze" => (ConsumeKind.Drink, "Drink"),
+            "spleen" => (ConsumeKind.Chew, "Spleen"),
             _ => throw new ArgumentException("--kind food|drink|spleen is required.")
         };
         var item = StrictOptions.RequiredInt(args, "--item", 1, int.MaxValue, "ITEM_ID");
         var qty = StrictOptions.Int(args, "--qty", 1, 1, 1_000);
         if (!HasFlag(args, "--execute"))
         {
-            WriteJson(new { command = "consume", previewOnly = true, executed = false, role = role.ToString(), kind = kind.ToString(), item, quantity = qty,
+            WriteJson(new { command = "consume", previewOnly = true, executed = false, role = role.ToString(), kind = kindName, item, quantity = qty,
                 note = "Preview only. Add --execute to eat, drink or take it." });
             return 0;
         }
-        using var kol = await KolibriClient.OpenAsync(role);
-        var status = await kol.GetStatusAsync(true);
-        var (consumed, rejection) = await kol.ConsumeAsync(item, kind, qty);
-        var after = await kol.GetStatusAsync(true);
-        WriteJson(new { command = "consume", executed = true, role = role.ToString(), kind = kind.ToString(), item, requested = qty, consumed, rejection, complete = consumed == qty,
-            before = new { status.Adventures, status.Fullness, status.Inebriety, status.Spleen },
-            after = new { after.Adventures, after.Fullness, after.Inebriety, after.Spleen } });
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var result = await session.Character.ConsumeAsync(item, kind, qty);
+        var status = result.Before ?? await session.Character.GetStatusAsync(refresh: true);
+        var after = result.After ?? await session.Character.GetStatusAsync(refresh: true);
+        var consumed = result.Completed;
+        WriteJson(new { command = "consume", executed = true, role = role.ToString(), kind = kindName, item, requested = qty, consumed, rejection = result.Rejection,
+            complete = consumed == qty, unclear = result.Status == ActionStatus.Unclear ? true : (bool?)null,
+            before = new { status.Adventures, Fullness = status.Fullness.Current, Inebriety = status.Inebriety.Current, Spleen = status.Spleen.Current },
+            after = new { after.Adventures, Fullness = after.Fullness.Current, Inebriety = after.Inebriety.Current, Spleen = after.Spleen.Current } });
         return consumed == qty ? 0 : 3;
     }
 
@@ -46,13 +48,17 @@ internal static partial class KolibriCli
                 note = "Preview only. Add --execute to rest at the campground." });
             return 0;
         }
-        using var kol = await KolibriClient.OpenAsync(role);
-        var outcome = await kol.RestAsync(times);
-        var done = outcome.Rests.Count;
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var result = await session.Character.RestAsync(times);
+        var done = result.Completed;
+        var problem = result.Status == ActionStatus.Done ? null : result.Rejection;
+        var spent = result.Before is { } b && result.After is { } a ? Math.Max(0, b.Adventures - a.Adventures) : 0;
         WriteJson(new { command = "rest", executed = true, role = role.ToString(), requested = times, done,
-            adventuresSpent = outcome.AdventuresSpent, problem = outcome.Problem, complete = done == times,
-            afterEach = outcome.Rests.Select(r => new { r.Hp, r.Mp }).ToArray() });
-        return done == times && outcome.Problem is null ? 0 : 3;
+            adventuresSpent = spent, problem, complete = done == times,
+            afterEach = done > 0 && result.After is { } last ? new object[] { new { last.Hp, last.Mp } } : Array.Empty<object>() });
+        return done == times && problem is null ? 0 : 3;
     }
 
     /// <summary>cast --role R --skill ID [--times N] [--execute]  (Soul Food = 7185)</summary>
@@ -68,24 +74,18 @@ internal static partial class KolibriCli
                 note = "Preview only. Add --execute to cast." });
             return 0;
         }
-        using var kol = await KolibriClient.OpenAsync(role);
-        var before = await kol.GetStatusAsync(true);
-        // One cast per request, so the confirmed count is real: a single request for N casts could only
-        // show that something changed, not how many casts took effect.
-        var confirmed = 0;
-        var hp = before.CurrentHp;
-        var mp = before.CurrentMp;
-        string? rejection = null;
-        string? page = null;
-        for (var i = 0; i < times; i++)
-        {
-            (hp, mp, rejection, page) = await kol.CastSkillAsync(skill, 1);
-            if (rejection is not null) break;
-            confirmed++;
-        }
+        var (client, session) = await OpenForActionAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        // One cast per request inside the library, so the confirmed count is real.
+        var result = await session.Character.CastAsync(skill, times);
+        var before = result.Before;
+        var after = result.After;
+        var confirmed = result.Completed;
         var complete = confirmed == times;
-        WriteJson(new { command = "cast", executed = true, role = role.ToString(), skill, times, requested = times, confirmed, complete, rejection, page,
-            before = new { before.CurrentHp, before.CurrentMp }, after = new { Hp = hp, Mp = mp } });
+        WriteJson(new { command = "cast", executed = true, role = role.ToString(), skill, times, requested = times, confirmed, complete,
+            rejection = complete ? null : result.Rejection, page = (string?)null,
+            before = new { CurrentHp = before?.Hp, CurrentMp = before?.Mp }, after = new { Hp = after?.Hp, Mp = after?.Mp } });
         return complete ? 0 : 3;
     }
 }

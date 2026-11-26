@@ -456,7 +456,7 @@ public sealed class AdventureChoiceHardeningTests
             "--location", "adventure=543:Your Mushroom Garden", "--snarfblat", "543", "--fight-action", "attack",
             "--choice-action", "9001:2", "--max-steps", "7", "--conditions-file", "my conditions.json", "--execute"
         };
-        var command = KolibriCli.BuildContinueCommand(args, "adventure=543:Your Mushroom Garden", AccountRole.Main, 543);
+        var command = KolibriCli.BuildContinueCommand(args, "adventure=543:Your Mushroom Garden", KoLibri.Cli.AccountRole.Main, 543);
         Assert.Contains("--snarfblat 543", command);
         Assert.Contains("--fight-action attack", command);
         Assert.Contains("--choice-action 9001:2", command);

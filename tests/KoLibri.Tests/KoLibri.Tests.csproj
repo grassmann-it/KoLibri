@@ -7,10 +7,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Only the 0.5 packages: these tests prove the public API is enough (no KoLibri.Core reference). -->
+    <!-- Only the 0.5 projects: these tests prove the public API is enough (no KoLibri.Core reference). -->
     <ProjectReference Include="../../src/KoLibri/KoLibri.csproj" />
     <ProjectReference Include="../../src/KoLibri.Safety/KoLibri.Safety.csproj" />
     <ProjectReference Include="../../src/KoLibri.Daily/KoLibri.Daily.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Extras/KoLibri.Extras.csproj" />
+    <!-- The CLI runs against the same fake KoL (KolibriCli.OptionsOverride); it references no KoLibri.Core. -->
+    <ProjectReference Include="../../tools/KolLibri.Cli/KolLibri.Cli.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">

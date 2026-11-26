@@ -1,34 +1,13 @@
 using System.Globalization;
 using System.Text.Json;
-using KoLibri.Core.Spiel;
+using System.Text.RegularExpressions;
+using KoLibri;
 
-// These commands intentionally stop at the read/preview boundary.  Keeping
-// them in a separate partial keeps the existing pricing CLI stable while the
-// adventure executor is still being integrated behind an approved transport.
+// `kolibri adventure run`: the live adventure loop, on KoLibri's Adventurer (RunAsync / FightToEndAsync / ChooseAsync).
+// The other adventure subcommands of 0.4 were previews on the core kernel; they come back in a follow-up PR.
 internal static partial class KolibriCli
 {
-    private sealed record CliAdventureLocation(
-        string Id,
-        string Name,
-        string? Description,
-        bool Enabled,
-        bool PreviewOnly);
-
-    private static readonly IReadOnlyList<CliAdventureLocation> AdventureLocations =
-    [
-        new("skeleton-of-crimbos-past", "Skeleton of Crimbos Past",
-            "Daily skeleton adventure used by the adventure planner.", true, true),
-        new("knucklebones", "Knucklebones target",
-            "Generic allowlisted location for a bounded knucklebones preview.", false, true),
-        new("lucky-surprise-egg", "Lucky Surprise Egg",
-            "Egg consumption is planned separately and never sent by this CLI.", false, true),
-        new("elf-guard", "Elf Guard",
-            "Read-only placeholder for an explicitly configured Elf Guard run.", false, true),
-        new("crimbuccaneer", "Crimbuccaneer",
-            "Read-only placeholder for an explicitly configured Crimbuccaneer run.", false, true)
-    ];
-
-    private static async Task<int> AdventureCommandAsync(string[] args)
+    internal static async Task<int> AdventureCommandAsync(string[] args)
     {
         if (args.Length == 0 || HasFlag(args, "--help") || IsHelp(args[0]))
         {
@@ -38,337 +17,101 @@ internal static partial class KolibriCli
 
         return args[0].ToLowerInvariant() switch
         {
-            "locations" or "location" or "list" => await AdventureLocationsAsync(args[1..]),
-            "start" or "begin" => await AdventureStartAsync(args[1..]),
-            "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
-            "step" or "advance" => await AdventureStepAsync(args[1..]),
-            "bounded-preview" or "run-preview" => await AdventureBoundedPreviewAsync(args[1..]),
-            "choice-chain" or "choicechain" => await AdventureChoiceChainAsync(args[1..]),
             "run" or "execute" => await AdventureRunAsync(args[1..]),
-            "stop" or "abort" => await AdventureStopAsync(args[1..]),
+            "locations" or "location" or "list" or "start" or "begin" or "inspect" or "status" or "resume" or "step" or "advance"
+                or "bounded-preview" or "run-preview" or "choice-chain" or "choicechain" or "stop" or "abort" => NotYet($"adventure {args[0]}"),
             _ => Fail($"Unknown adventure command: {args[0]}")
         };
     }
 
-    private static Task<int> AdventureLocationsAsync(string[] args)
-    {
-        var catalogPath = GetOption(args, "--catalog");
-        IReadOnlyList<object> catalogLocations = Array.Empty<object>();
-        if (catalogPath is not null)
-        {
-            var catalog = AdventureLocationCatalog.LoadJson(catalogPath, JsonOptions);
-            catalogLocations = catalog.Locations.Cast<object>().ToArray();
-        }
-        var requested = GetOption(args, "--location")
-            ?? GetOption(args, "--adventure");
-        var locations = string.IsNullOrWhiteSpace(requested)
-            ? AdventureLocations
-            : AdventureLocations.Where(x => string.Equals(x.Id, requested.Trim(), StringComparison.OrdinalIgnoreCase)
-                || string.Equals(x.Name, requested.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
-        var locationDocuments = catalogLocations.Count == 0
-            ? locations.Cast<object>().ToArray()
-            : catalogLocations;
+    internal const string DefaultFightAction = "attack";
+    internal const int DefaultMaxFightRounds = 30;
+    internal const int DefaultMinHpPercent = 20;
 
-        WriteJson(new
-        {
-            command = "adventure locations",
-            readOnly = true,
-            mutating = false,
-            post = false,
-            previewOnly = true,
-            count = locationDocuments.Count,
-            locations = locationDocuments,
-            catalogPath,
-            catalog = catalogLocations
-        });
-        return Task.FromResult(0);
+    private static readonly Regex SnarfblatInId = new(@"(?:^|[=:])(\d+)(?:[:]|$)", RegexOptions.Compiled);
+
+    /// <summary>"adventure=543:Name" → 543, "113" → 113 (as AdventureLocationIds in 0.4).</summary>
+    internal static bool TryGetSnarfblat(string? locationId, out int snarfblat)
+    {
+        snarfblat = 0;
+        if (string.IsNullOrWhiteSpace(locationId)) return false;
+        var match = SnarfblatInId.Match(locationId.Trim());
+        return match.Success && int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out snarfblat) && snarfblat > 0;
     }
 
-    private static Task<int> AdventureStartAsync(string[] args)
+    /// <summary>--fight-action → combat action: attack, run, skill:ID, item:ID.</summary>
+    internal static CombatAction ParseFightAction(string text)
     {
-        var location = ReadAdventureId(args);
-        var runId = GetOption(args, "--run-id")
-            ?? GetOption(args, "--id")
-            ?? $"preview-{Guid.NewGuid():N}";
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var maxTurns = ReadInt(args, "--max-turns", ReadInt(args, "--turns", int.MaxValue));
-        var turnsUsed = ReadInt(args, "--turns-used", 0);
-        var maxRuns = ReadInt(args, "--max-runs", int.MaxValue);
-        var runsUsed = ReadInt(args, "--runs-used", 0);
-        var limit = new AdventureDailyLimitContract
-        {
-            Day = DateOnly.FromDateTime(DateTime.UtcNow),
-            MaxTurns = Math.Max(0, maxTurns),
-            TurnsUsed = Math.Max(0, turnsUsed),
-            MaxRuns = Math.Max(0, maxRuns),
-            RunsUsed = Math.Max(0, runsUsed)
-        };
-        var request = new AdventureRunRequest
-        {
-            RunId = runId,
-            AdventureId = location,
-            Role = role,
-            DailyLimit = limit
-        };
-        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
-        var decision = new AdventureRunKernel().Begin(request, allowlist);
-        var checkpointPath = CheckpointPath(args);
-        if (checkpointPath is not null)
-            SaveCheckpoint(checkpointPath, decision.Checkpoint);
-
-        WriteJson(new
-        {
-            command = "adventure start",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            approvalRequired = true,
-            runId,
-            role = role.ToString(),
-            location,
-            decision = DecisionDocument(decision),
-            checkpoint = decision.Checkpoint,
-            checkpointPath
-        });
-        return Task.FromResult(decision.IsAborted ? 3 : 0);
+        var value = text.Trim().ToLowerInvariant();
+        if (value is "attack") return CombatAction.Attack;
+        if (value is "run" or "runaway") return CombatAction.RunAway;
+        if (value.StartsWith("skill:", StringComparison.Ordinal) && int.TryParse(value[6..], out var skill) && skill > 0) return CombatAction.Skill(skill);
+        if (value.StartsWith("item:", StringComparison.Ordinal) && int.TryParse(value[5..], out var item) && item > 0) return CombatAction.Item(item);
+        throw new ArgumentException($"--fight-action '{text}' is not one of attack, run, skill:ID, item:ID. Nothing was sent.");
     }
 
-    private static Task<int> AdventureInspectAsync(string[] args)
+    /// <summary>The fight rule of 0.4: the first configured action every round, and the fight is handed back below the HP floor.</summary>
+    internal sealed class CliCombatStrategy(CombatAction? action, int minHpPercent) : ICombatStrategy
     {
-        var checkpointPath = CheckpointPath(args);
-        var checkpoint = checkpointPath is null ? null : ReadCheckpoint(checkpointPath);
-        var location = checkpoint?.AdventureId ?? ReadOptionalAdventureId(args);
-        AdventureEncounterState? encounter = null;
-        var fixturePath = GetOption(args, "--fixture");
-        if (fixturePath is not null)
-        {
-            if (location is null)
-                throw new ArgumentException("--location is required when --fixture is used.");
-            var html = File.ReadAllText(fixturePath);
-            encounter = new KoLAdventureEncounterParser().Parse(
-                location,
-                Uri.TryCreate(GetOption(args, "--uri"), UriKind.Absolute, out var uri) ? uri : null,
-                html,
-                ReadInt(args, "--retry", 0));
-        }
+        public string? StopReason { get; private set; }
 
-        WriteJson(new
+        public CombatAction Next(CombatContext context)
         {
-            command = "adventure inspect",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            requiresRefresh = checkpoint is not null && checkpoint.InFlightRequestId is not null,
-            runId = checkpoint?.RunId ?? GetOption(args, "--run-id"),
-            location,
-            checkpoint,
-            encounter = encounter is null ? null : EncounterDocument(encounter)
-        });
-        return Task.FromResult(0);
-    }
-
-    private static Task<int> AdventureStepAsync(string[] args)
-    {
-        var checkpointPath = CheckpointPath(args);
-        var checkpoint = checkpointPath is null ? null : ReadCheckpoint(checkpointPath);
-        var location = checkpoint?.AdventureId ?? ReadAdventureId(args);
-        var runId = checkpoint?.RunId
-            ?? GetOption(args, "--run-id")
-            ?? $"preview-{Guid.NewGuid():N}";
-        var role = checkpoint?.Role ?? ParseRole(GetOption(args, "--role") ?? "main");
-        var actionId = GetOption(args, "--action-id")
-            ?? GetOption(args, "--action")
-            ?? "attack";
-        var encounterId = GetOption(args, "--encounter");
-        var monster = GetOption(args, "--monster");
-        var round = ReadInt(args, "--round", checkpoint?.FightRound is { } previous ? previous + 1 : 1);
-        var choiceId = GetOption(args, "--choice-id") ?? GetOption(args, "--choice");
-        var optionId = GetOption(args, "--option");
-        var available = ParseCsv(GetOption(args, "--available"));
-        var fixturePath = GetOption(args, "--fixture");
-        AdventureEncounterState? fixture = null;
-        if (fixturePath is not null)
-        {
-            var html = File.ReadAllText(fixturePath);
-            fixture = new KoLAdventureEncounterParser().Parse(
-                location,
-                Uri.TryCreate(GetOption(args, "--uri"), UriKind.Absolute, out var uri) ? uri : null,
-                html);
-            encounterId ??= fixture.Location;
-            round = fixture.FightRound ?? round;
-            choiceId ??= fixture.ChoiceId;
-            available = fixture.AvailableChoices.Count == 0 ? available : fixture.AvailableChoices;
-        }
-
-        var observedResponseHash = fixture?.ResponseHash ?? PreviewHash(args);
-        var allowlist = new AdventureActionAllowlist().AddAdventure(location);
-        AdventureKernelObservation observation;
-        if (!string.IsNullOrWhiteSpace(choiceId))
-        {
-            optionId ??= available.FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(optionId))
-                throw new ArgumentException("A choice step needs --option or --available.");
-            allowlist.AddChoiceOption(location, choiceId, optionId, encounterId);
-            observation = new AdventureKernelObservation
+            if (minHpPercent > 0 && (context.MaxHp <= 0 || 100L * context.Hp < (long)minHpPercent * context.MaxHp))
             {
-                AdventureId = location,
-                Kind = AdventureEncounterKind.Choice,
-                EncounterId = encounterId,
-                ChoiceId = choiceId,
-                AvailableChoices = available.Count == 0 ? new[] { optionId } : available,
-                ResponseHash = observedResponseHash
-            };
-        }
-        else
-        {
-            allowlist.AddFightAction(location, actionId, encounterId, round, monster);
-            observation = new AdventureKernelObservation
+                StopReason = "HpBelowMinimum";
+                return CombatAction.Stop;
+            }
+            if (action is null)
             {
-                AdventureId = location,
-                Kind = AdventureEncounterKind.Fight,
-                EncounterId = encounterId,
-                MonsterId = monster,
-                FightRound = round,
-                ResponseHash = observedResponseHash
-            };
+                StopReason = "UnknownFight";
+                return CombatAction.Stop;
+            }
+            return action;
         }
-
-        AdventureKernelDecision decision;
-        if (checkpoint is null)
-        {
-            var started = new AdventureRunKernel().Begin(
-                new AdventureRunRequest
-                {
-                    RunId = runId,
-                    AdventureId = location,
-                    Role = role,
-                    DailyLimit = new AdventureDailyLimitContract
-                    {
-                        Day = DateOnly.FromDateTime(DateTime.UtcNow),
-                        MaxTurns = ReadInt(args, "--max-turns", int.MaxValue),
-                        MaxRuns = ReadInt(args, "--max-runs", int.MaxValue)
-                    }
-                },
-                allowlist);
-            decision = started.IsAborted
-                ? started
-                : new AdventureRunKernel().Observe(started.State, observation, allowlist);
-        }
-        else
-        {
-            var state = checkpoint.ToState();
-            decision = state.IsTerminal
-                ? new AdventureKernelDecision
-                {
-                    State = state,
-                    Checkpoint = checkpoint,
-                    AbortReason = state is AdventureAbortedRunState aborted ? aborted.Reason : AdventureAbortReason.TerminalState
-                }
-                : new AdventureRunKernel().Observe(state, observation, allowlist);
-        }
-
-        if (checkpointPath is not null && !decision.IsAborted)
-            SaveCheckpoint(checkpointPath, decision.Checkpoint);
-
-        WriteJson(new
-        {
-            command = "adventure step",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            approvalRequired = true,
-            wouldPost = decision.NextAction is not null,
-            runId,
-            location,
-            fixture = fixture is not null,
-            observation,
-            decision = DecisionDocument(decision),
-            checkpoint = decision.Checkpoint,
-            checkpointPath
-        });
-        return Task.FromResult(decision.IsAborted ? 3 : 0);
     }
 
-    private static Task<int> AdventureStopAsync(string[] args)
+    /// <summary>Records every automatic choice, like the 0.4 resolver log (autoChoices).</summary>
+    internal sealed class LoggingChoiceResolver(IChoiceResolver inner, string location) : IChoiceResolver
     {
-        var checkpointPath = CheckpointPath(args);
-        var checkpoint = checkpointPath is null ? null : ReadCheckpoint(checkpointPath);
-        var runId = checkpoint?.RunId ?? GetOption(args, "--run-id") ?? ReadOptionalAdventureId(args);
-        if (string.IsNullOrWhiteSpace(runId))
-            throw new ArgumentException("--run-id or --checkpoint is required.");
-        var reason = GetOption(args, "--reason") ?? "Stopped by operator preview.";
-        WriteJson(new
+        public List<object> Log { get; } = new();
+
+        public ChoiceDecision Resolve(ChoiceContext context)
         {
-            command = "adventure stop",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            stopped = true,
-            aborted = true,
-            runId,
-            location = checkpoint?.AdventureId,
-            reason,
-            checkpoint,
-            checkpointPath,
-            note = "The local preview was stopped; no KoL request was sent."
-        });
-        return Task.FromResult(0);
+            var decision = inner.Resolve(context);
+            if (decision.Option is { } option)
+                Log.Add(new { adventureId = location, choiceId = context.ChoiceId.ToString(CultureInfo.InvariantCulture), title = context.Title, option,
+                    source = decision.Source.ToString(), reason = decision.Reason });
+            return decision;
+        }
     }
 
-    private static Task<int> AdventureBoundedPreviewAsync(string[] args)
+    /// <summary>The 0.4 condition file (AdventureCondition JSON) as stop conditions; unsupported kinds stop before anything is sent.</summary>
+    internal static IReadOnlyList<StopCondition> ReadStopConditions(JsonElement[] conditions)
     {
-        var location = ReadAdventureId(args);
-        var runId = GetOption(args, "--run-id") ?? $"preview-{Guid.NewGuid():N}";
-        var conditionsPath = GetOption(args, "--conditions-file");
-        var snapshotPath = GetOption(args, "--snapshot-file");
-        var conditions = conditionsPath is null
-            ? Array.Empty<AdventureCondition>()
-            : ReadJsonArray<AdventureCondition>(conditionsPath, "conditions");
-        AdventureConditionSnapshot? snapshot = snapshotPath is null
-            ? null
-            : ReadJsonObject<AdventureConditionSnapshot>(snapshotPath, "snapshot");
-        var results = snapshot is null
-            ? conditions.Select(condition => new AdventureConditionResult
-            {
-                Condition = condition.Normalize(),
-                IsSatisfied = false,
-                Reason = "A fresh condition snapshot is required before an adventure run can start."
-            }).ToArray()
-            : AdventureConditionEvaluator.EvaluateAll(conditions, snapshot);
-        var stopReason = conditions.Length == 0
-            ? "No conditions supplied; preview is ready for an explicit bounded run."
-            : snapshot is null
-                ? "ConditionsBlocked"
-                : results.All(result => result.IsSatisfied) ? "ConditionsSatisfied" : "ReadyToRun";
-
-        WriteJson(new
+        var result = new List<StopCondition>();
+        foreach (var c in conditions)
         {
-            command = "adventure bounded-preview",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            approvalRequired = true,
-            runId,
-            location,
-            maxGatewaySteps = Math.Clamp(ReadInt(args, "--max-steps", 20), 1, 10_000),
-            maxDurationSeconds = Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)),
-            stopReason,
-            conditions = results,
-            conditionSource = conditionsPath,
-            snapshotSource = snapshotPath,
-            note = "Preview only; no adventure.php, fight.php or choice.php request was sent."
-        });
-        return Task.FromResult(stopReason == "ConditionsBlocked" ? 3 : 0);
+            string Text(string name)
+            {
+                if (c.ValueKind != JsonValueKind.Object) return "";
+                foreach (var p in c.EnumerateObject())
+                    if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                        return p.Value.ValueKind == JsonValueKind.Number ? p.Value.GetRawText() : p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() ?? "" : "";
+                return "";
+            }
+            var kind = Text("kind").ToLowerInvariant();
+            var op = Text("operator").ToLowerInvariant();
+            var target = int.TryParse(Text("target"), out var t) ? Math.Max(0, t) : 0;
+            var key = Text("key");
+            if (kind is "itemcount" && op is "" or "atleast" && int.TryParse(key, out var item) && item > 0)
+                result.Add(StopCondition.ItemCountAtLeast(item, target));
+            else if (kind is "adventuresremaining" or "turnsremaining" && op is "atmost")
+                result.Add(StopCondition.AdventuresAtMost(target));
+            else
+                throw new ArgumentException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5-dev (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
+        }
+        return result;
     }
 
     private static async Task<int> AdventureRunAsync(string[] args)
@@ -378,11 +121,9 @@ internal static partial class KolibriCli
         var role = ParseRole(GetOption(args, "--role") ?? "main");
         // An explicit --snarfblat wins; otherwise a catalog id ("adventure=543:Name") supplies it.
         var snarfblat = ReadNullableInt(args, "--snarfblat")
-            ?? (AdventureLocationIds.TryGetSnarfblat(location, out var catalogSnarfblat) ? catalogSnarfblat : (int?)null);
+            ?? (TryGetSnarfblat(location, out var catalogSnarfblat) ? catalogSnarfblat : (int?)null);
         var conditionsPath = GetOption(args, "--conditions-file");
-        var conditions = conditionsPath is null
-            ? Array.Empty<AdventureCondition>()
-            : ReadJsonArray<AdventureCondition>(conditionsPath, "conditions");
+        var conditions = conditionsPath is null ? Array.Empty<JsonElement>() : ReadJsonArray<JsonElement>(conditionsPath, "conditions");
         if (!HasFlag(args, "--execute"))
         {
             WriteJson(new
@@ -405,111 +146,96 @@ internal static partial class KolibriCli
         var approvalToken = GetOption(args, "--approval-token");
         if (string.IsNullOrWhiteSpace(approvalToken))
             throw new ArgumentException("Live adventure execution requires --approval-token.");
-
         if (!await AgentGuard.ApprovalTokenValidAsync(approvalToken).ConfigureAwait(false))
             throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
-        var approval = new DelegateAdventureApprovalHook((context, _) =>
-            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
-        var verification = new DelegateAdventureVerificationHook((context, _) =>
-            ValueTask.FromResult(context.Response.Accepted == true && context.Observation.Kind != AdventureEncounterKind.Unknown
-                ? AdventureVerificationResult.Success()
-                : AdventureVerificationResult.Failed("The live response was not a known, accepted adventure encounter.")));
 
-        await using var session = await KoLAdventureSessionFactory.CreateAsync(
-            role,
-            approval,
-            verification,
-            cancellationToken: CancellationToken.None).ConfigureAwait(false);
-        var resolver = CreateChoiceResolver();
-        var allowlist = new AdventureActionAllowlist { ChoiceResolver = resolver }.AddAdventure(location);
+        // Everything that can be refused is checked before a session is opened.
+        var stopWhen = ReadStopConditions(conditions);
         var fightActions = GetOptions(args, "--fight-action").ToList();
         // Documented default: a fight that opens during the run is fought with "attack" until it ends,
         // bounded by --max-fight-rounds and --min-hp-percent. --no-auto-fight turns this off; the run then
         // stops at the fight and names the command to finish it.
         var autoFight = fightActions.Count == 0 && !HasFlag(args, "--no-auto-fight");
         if (autoFight) fightActions.Add(DefaultFightAction);
-        foreach (var actionId in fightActions)
-            allowlist.AddFightAction(location, actionId);
+        var fightAction = fightActions.Count > 0 ? ParseFightAction(fightActions[0]) : null;
+        foreach (var extra in fightActions.Skip(1)) ParseFightAction(extra);
+        var choiceTable = new Dictionary<int, int>();
         foreach (var choice in GetOptions(args, "--choice-action"))
         {
             var separator = choice.IndexOf(':');
-            if (separator <= 0 || separator == choice.Length - 1)
+            if (separator <= 0 || separator == choice.Length - 1
+                || !int.TryParse(choice[..separator], out var choiceId) || !int.TryParse(choice[(separator + 1)..], out var optionId))
                 throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID.");
-            allowlist.AddChoiceOption(location, choice[..separator], choice[(separator + 1)..]);
+            choiceTable[choiceId] = optionId;
         }
+        if (snarfblat is not > 0)
+            throw new ArgumentException($"No location number (snarfblat) for '{location}'. Pass --snarfblat N. Nothing was sent.");
 
-        // --max-turns N = up to N adventures in a row (default 1). Each adventure gets its own run id and
-        // checkpoint; the loop continues only after a clean Complete whose turn the status counter confirms.
         var turnsWanted = Math.Max(1, ReadInt(args, "--max-turns", ReadInt(args, "--turns", 1)));
         var loopStarted = DateTimeOffset.UtcNow;
         var loopDeadline = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300 * Math.Min(turnsWanted, 100))));
         var minHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100);
-        var runner = new BoundedAdventureRunner(session.Gateway);
-        var runnerOptions = new BoundedAdventureRunnerOptions
-        {
-            MaxGatewaySteps = ReadInt(args, "--max-steps", 20),
-            MaxFightRounds = Math.Max(0, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds)),
-            MinimumHpPercent = minHpPercent,
-            MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300))),
-            HitPointsProvider = async ct =>
-            {
-                var status = await session.AccountReader.FetchStatusAsync(true, ct).ConfigureAwait(false);
-                return status.IsStale || status.MaximumHp <= 0 ? null : (status.CurrentHp, status.MaximumHp);
-            }
-        };
-        var allSteps = new List<AdventureExecutionResult>();
+        var maxFightRounds = Math.Max(1, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds));
+        var resolver = new LoggingChoiceResolver(CreateChoiceResolver(LoadChoicePolicy(), choiceTable), location);
+
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var steps = new List<object>();
         var turns = new List<object>();
-        BoundedAdventureRunResult result = null!;
+        string stopReason = "Complete";
+        RunResult? result = null;
         string? loopStop = null;
+        string? fightStop = null;
         var currentRunId = runId;
-        var before = await session.AccountReader.FetchStatusAsync(true, CancellationToken.None).ConfigureAwait(false);
+        var before = await session.Character.GetStatusAsync(refresh: true);
         for (var turn = 1; turn <= turnsWanted; turn++)
         {
             if (turn > 1) currentRunId = $"{runId}-{turn}";
-            var request = new AdventureRunRequest
+            var strategy = new CliCombatStrategy(fightAction, minHpPercent);
+            result = await session.Adventure.RunAsync(new RunRequest(snarfblat.Value, 1)
             {
-                RunId = currentRunId,
-                AdventureId = location,
-                Snarfblat = snarfblat,
-                Role = role,
-                DailyLimit = new AdventureDailyLimitContract
-                {
-                    Day = DateOnly.FromDateTime(DateTime.UtcNow),
-                    MaxTurns = int.MaxValue,
-                    MaxRuns = Math.Max(0, ReadInt(args, "--max-runs", int.MaxValue))
-                }
-            };
-            var provider = new AccountAdventureConditionSnapshotProvider(session.AccountReader, conditions, forceRefresh: true);
-            result = await runner.RunAsync(request, allowlist, conditions, provider, runnerOptions).ConfigureAwait(false);
-            allSteps.AddRange(result.Steps);
-            var after = await session.AccountReader.FetchStatusAsync(true, CancellationToken.None).ConfigureAwait(false);
+                Combat = strategy,
+                Choices = resolver,
+                StopWhen = stopWhen,
+                MaxRoundsPerFight = maxFightRounds
+            });
+            stopReason = StopReasonName(result, strategy, maxFightRounds);
+            if (result.StopReason == RunStopReason.NeedsCombat) fightStop = stopReason;
+            steps.AddRange(result.Encounters.Select(e => StepDocument(e, result)));
+            var after = await session.Character.GetStatusAsync(refresh: true);
             turns.Add(new
             {
                 turn,
                 runId = currentRunId,
-                stopReason = result.StopReason.ToString(),
-                monster = result.Steps.Select(StepMonster).LastOrDefault(name => name is not null),
+                stopReason,
+                monster = result.Encounters.OfType<FightEncounter>().Select(f => f.MonsterName).LastOrDefault(),
                 adventuresBefore = before.Adventures,
                 adventuresAfter = after.Adventures,
-                hp = after.MaximumHp > 0 ? $"{after.CurrentHp}/{after.MaximumHp}" : null
+                hp = after.MaxHp > 0 ? $"{after.Hp}/{after.MaxHp}" : null
             });
-            if (result.StopReason != BoundedAdventureRunStopReason.Complete) break;
+            if (result.StopReason != RunStopReason.TurnsDone) break;
             if (turn == turnsWanted) break;
-            if (!before.IsStale && !after.IsStale && after.Adventures == before.Adventures)
+            if (after.Adventures == before.Adventures)
             { loopStop = "The adventure counter did not change after a completed adventure; stopping instead of guessing."; break; }
             if (after.Adventures <= 0) { loopStop = "No adventures left."; break; }
-            if (minHpPercent > 0 && (after.MaximumHp <= 0 || 100L * after.CurrentHp < (long)minHpPercent * after.MaximumHp))
+            if (minHpPercent > 0 && (after.MaxHp <= 0 || 100L * after.Hp < (long)minHpPercent * after.MaxHp))
             { loopStop = $"HP is below {minHpPercent}% (or unknown) before the next adventure."; break; }
             if (DateTimeOffset.UtcNow - loopStarted >= loopDeadline) { loopStop = "The run's time limit was reached."; break; }
             before = after;
         }
 
-        var needs = result.NeedsDecision;
-        var leftover = needs is null && result.StopReason != BoundedAdventureRunStopReason.Complete
-            ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
-            : null;
+        var needs = result?.StopReason == RunStopReason.NeedsChoice && result.Open is ChoiceEncounter open ? open : null;
+        object? leftover = null;
+        var leftoverFight = false;
+        if (needs is null && result?.StopReason is not (RunStopReason.TurnsDone or RunStopReason.NeedsCombat))
+        {
+            var state = await DetectOpenAsync(session);
+            leftoverFight = state.Kind == "Fight";
+            leftover = state.IsUnavailable ? new { open = (bool?)null, message = state.Message } : state.IsOpen ? OpenChoiceDocument(state, role) : null;
+        }
         var continueCommand = BuildContinueCommand(args, location, role, snarfblat);
-        var fightOpen = needs is null ? FightStopDocument(result, leftover, args, location, role, snarfblat) : null;
+        var fightOpen = needs is null ? FightStopDocument(fightStop ?? stopReason, leftoverFight, args, location, role, snarfblat) : null;
         WriteJson(new
         {
             command = "adventure run",
@@ -523,61 +249,90 @@ internal static partial class KolibriCli
             turnsRequested = turnsWanted,
             turnsDone = turns.Count,
             loopStop,
-            stopReason = result.StopReason.ToString(),
-            needsDecision = needs is null ? null : NeedsDecisionDocument(needs, continueCommand),
+            stopReason,
+            needsDecision = needs is null ? null : NeedsDecisionDocument(needs, runId, location, role, result!.Detail, continueCommand),
             openChoice = leftover,
             openFight = fightOpen,
             autoChoices = resolver.Log,
-            conditions = result.Conditions,
+            conditions = Array.Empty<object>(),
             turns,
-            steps = allSteps.Select(step => new
-            {
-                status = step.Status.ToString(),
-                requestId = step.RequestId,
-                responseHash = step.Response?.ResponseHash,
-                abortReason = step.AbortReason?.ToString(),
-                messages = step.Messages,
-                requiresRefresh = step.RequiresRefresh,
-                complete = step.IsComplete,
-                monster = StepMonster(step),
-                turtleMonster = TurtleTamerEncounters.IsTurtleMonster(StepMonster(step)) ? true : (bool?)null,
-                unknownPagePath = step.UnknownPagePath
-            }).ToArray(),
-            unknownPagePath = allSteps.Select(step => step.UnknownPagePath).LastOrDefault(path => path is not null),
-            auditPath = KoLAdventureSessionFactory.DefaultAuditPath
+            steps = steps.ToArray(),
+            detail = result?.Detail,
+            unknownPagePath = (string?)null,
+            auditPath = (string?)null
         });
         if (needs is not null || leftover is not null || fightOpen is not null) return 4; // a choice or fight is open: needs the user, not an error
         if (loopStop is not null && loopStop.StartsWith("The adventure counter", StringComparison.Ordinal)) return 3;
-        return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
+        return stopReason is "GatewayStopped" ? 3 : 0;
     }
 
-    internal static string? StepMonster(AdventureExecutionResult step)
+    /// <summary>The 0.4 stop reason names (BoundedAdventureRunStopReason) for a 0.5 run result.</summary>
+    internal static string StopReasonName(RunResult result, CliCombatStrategy strategy, int maxFightRounds) => result.StopReason switch
     {
-        var combat = step.Response?.Observation?.Combat ?? step.Response?.Encounter?.Combat;
-        return combat?.MonsterName ?? combat?.Monster;
+        RunStopReason.TurnsDone => "Complete",
+        RunStopReason.Condition => "ConditionsSatisfied",
+        RunStopReason.NeedsChoice => "NeedsDecision",
+        RunStopReason.NeedsCombat when strategy.StopReason == "HpBelowMinimum" => "HpBelowMinimum",
+        RunStopReason.NeedsCombat when strategy.StopReason == "UnknownFight" => "UnknownFight",
+        RunStopReason.NeedsCombat => "FightRoundLimitReached",
+        RunStopReason.Cancelled => "DeadlineReached",
+        _ => "GatewayStopped"
+    };
+
+    private static object StepDocument(Encounter encounter, RunResult result)
+    {
+        var monster = (encounter as FightEncounter)?.MonsterName;
+        var kind = encounter switch
+        {
+            FightEncounter => "Fight",
+            ChoiceEncounter => "Choice",
+            NonCombatEncounter => "NonCombat",
+            BlockedEncounter b => "Blocked:" + b.Reason,
+            _ => encounter.GetType().Name
+        };
+        return new
+        {
+            status = kind,
+            requestId = (string?)null,
+            responseHash = (string?)null,
+            abortReason = encounter is BlockedEncounter blocked ? blocked.Reason.ToString() : null,
+            messages = encounter.Title is { } title ? new[] { title } : Array.Empty<string>(),
+            requiresRefresh = false,
+            complete = encounter is NonCombatEncounter,
+            monster,
+            turtleMonster = IsTurtleMonster(monster) ? true : (bool?)null,
+            unknownPagePath = (string?)null
+        };
     }
 
-    internal const string DefaultFightAction = "attack";
-    internal const int DefaultMaxFightRounds = 30;
-    internal const int DefaultMinHpPercent = 20;
+    private static readonly Regex TurtleMonster = new(@"\b(turtles?|tortoises?|terrapins?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>A fight against a turtle monster (only a marker; taming is never automated).</summary>
+    internal static bool IsTurtleMonster(string? monsterName) => !string.IsNullOrWhiteSpace(monsterName) && TurtleMonster.IsMatch(monsterName);
+
+    internal static object NeedsDecisionDocument(ChoiceEncounter choice, string runId, string location, AccountRole role, string? reason, string? continueCommand = null)
+        => new
+        {
+            status = "NeedsDecision",
+            runId,
+            role = role.ToString(),
+            adventureId = location,
+            choiceId = choice.ChoiceId.ToString(CultureInfo.InvariantCulture),
+            title = choice.Title,
+            options = choice.Options.Select(o => new { number = o.Option, text = o.Text }).ToArray(),
+            reason,
+            instruction = "A choice adventure is open and needs the user's decision. Show the options to the user and ask which one to take; do not guess.",
+            resumeCommand = $"kolibri choice submit --role {role.ToString().ToLowerInvariant()} --choice {choice.ChoiceId} --option <N> --execute --approval-token <token>",
+            thenContinue = continueCommand
+        };
 
     /// <summary>
     /// When a run stops while a fight is still open (no usable fight action, round limit, HP floor), say so
     /// and name the exact command that finishes it. Never a silent stop mid-fight.
     /// </summary>
-    internal static object? FightStopDocument(
-        BoundedAdventureRunResult result, object? leftover, string[] args, string location,
-        KoLibri.Core.Basis.AccountRole role, int? snarfblat)
+    internal static object? FightStopDocument(string stopReason, bool leftoverFight, string[] args, string location, AccountRole role, int? snarfblat)
     {
-        var last = result.LastStep;
-        var unknownFight = last?.AbortReason == AdventureAbortReason.UnknownFight;
-        var openFightState = last?.State is AdventureFightRunState;
-        var stoppedMidFight = result.StopReason is BoundedAdventureRunStopReason.FightRoundLimitReached
-            or BoundedAdventureRunStopReason.HpBelowMinimum;
-        var leftoverFight = leftover is not null
-            && leftover.GetType().GetProperty("kind")?.GetValue(leftover) as string == nameof(OpenChoiceKind.Fight);
-        if (!(unknownFight || stoppedMidFight || leftoverFight
-              || (openFightState && result.StopReason != BoundedAdventureRunStopReason.Complete)))
+        if (!(stopReason is "FightRoundLimitReached" or "HpBelowMinimum" or "UnknownFight" || leftoverFight))
             return null;
 
         var finish = string.Join(' ', new[]
@@ -586,11 +341,11 @@ internal static partial class KolibriCli
             snarfblat is > 0 ? $"--snarfblat {snarfblat.Value}" : "",
             "--fight-action", DefaultFightAction, "--execute", "--approval-token", "<token>"
         }.Where(x => x.Length > 0));
-        var why = result.StopReason switch
+        var why = stopReason switch
         {
-            BoundedAdventureRunStopReason.FightRoundLimitReached => "the fight round limit was reached",
-            BoundedAdventureRunStopReason.HpBelowMinimum => "HP is below the configured minimum (or unknown)",
-            _ when unknownFight => "no fight action is configured for this fight (--no-auto-fight or a non-matching --fight-action)",
+            "FightRoundLimitReached" => "the fight round limit was reached",
+            "HpBelowMinimum" => "HP is below the configured minimum (or unknown)",
+            "UnknownFight" => "no fight action is configured for this fight (--no-auto-fight or a non-matching --fight-action)",
             _ => "the run stopped before the fight ended"
         };
         return new
@@ -608,13 +363,13 @@ internal static partial class KolibriCli
     };
 
     /// <summary>The command that continues this run later: same location, snarfblat, rules and limits.</summary>
-    internal static string BuildContinueCommand(string[] args, string location, KoLibri.Core.Basis.AccountRole role, int? snarfblat)
+    internal static string BuildContinueCommand(string[] args, string location, AccountRole role, int? snarfblat)
     {
         var parts = new List<string>
         {
             "kolibri adventure run", "--location", Quote(location), "--role", role.ToString().ToLowerInvariant()
         };
-        if (snarfblat is > 0) parts.AddRange(new[] { "--snarfblat", snarfblat.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        if (snarfblat is > 0) parts.AddRange(new[] { "--snarfblat", snarfblat.Value.ToString(CultureInfo.InvariantCulture) });
         foreach (var action in GetOptions(args, "--fight-action")) parts.AddRange(new[] { "--fight-action", Quote(action) });
         foreach (var choice in GetOptions(args, "--choice-action")) parts.AddRange(new[] { "--choice-action", Quote(choice) });
         if (HasFlag(args, "--no-auto-fight")) parts.Add("--no-auto-fight");
@@ -628,505 +383,28 @@ internal static partial class KolibriCli
         => value.Length > 0 && value.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ':' or '=' or ',' or '/')
             ? value : "\"" + value.Replace("\"", "\\\"") + "\"";
 
-    private static async Task<int> AdventureChoiceChainAsync(string[] args)
-    {
-        var location = ReadAdventureId(args);
-        var runId = GetOption(args, "--run-id");
-        if (string.IsNullOrWhiteSpace(runId))
-            throw new ArgumentException("choice-chain requires --run-id for an existing checkpoint.");
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var maxChoices = Math.Clamp(ReadInt(args, "--max-choices", 10), 1, 1_000);
-        var maxDuration = Math.Max(1, ReadInt(args, "--max-duration-seconds", 120));
-        var choiceActions = GetOptions(args, "--choice-action");
-
-        if (!HasFlag(args, "--execute"))
-        {
-            WriteJson(new
-            {
-                command = "adventure choice-chain",
-                readOnly = true,
-                previewOnly = true,
-                executed = false,
-                approvalRequired = true,
-                runId,
-                role = role.ToString(),
-                location,
-                maxChoices,
-                maxDurationSeconds = maxDuration,
-                choiceActions,
-                note = "Preview only. Add --execute and --approval-token to submit allowlisted choice requests."
-            });
-            return 0;
-        }
-
-        var approvalToken = GetOption(args, "--approval-token");
-        if (string.IsNullOrWhiteSpace(approvalToken))
-            throw new ArgumentException("Live choice-chain execution requires --approval-token.");
-        if (!await AgentGuard.ApprovalTokenValidAsync(approvalToken).ConfigureAwait(false))
-            throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
-        var approval = new DelegateAdventureApprovalHook((_, _) =>
-            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
-        var verification = new DelegateAdventureVerificationHook((context, _) =>
-            ValueTask.FromResult(context.Response.Accepted == true && context.Observation.Kind != AdventureEncounterKind.Unknown
-                ? AdventureVerificationResult.Success()
-                : AdventureVerificationResult.Failed("The live response was not a known, accepted choice encounter.")));
-
-        await using var session = await KoLAdventureSessionFactory.CreateAsync(
-            role, approval, verification, cancellationToken: CancellationToken.None).ConfigureAwait(false);
-        var resolver = CreateChoiceResolver();
-        var allowlist = new AdventureActionAllowlist { ChoiceResolver = resolver }.AddAdventure(location);
-        foreach (var choice in choiceActions)
-        {
-            var separator = choice.IndexOf(':');
-            if (separator <= 0 || separator == choice.Length - 1)
-                throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID.");
-            allowlist.AddChoiceOption(location, choice[..separator], choice[(separator + 1)..]);
-        }
-
-        var result = await new BoundedChoiceChainRunner(session.Gateway).RunAsync(
-            runId,
-            allowlist,
-            new BoundedChoiceChainOptions
-            {
-                MaxChoices = maxChoices,
-                MaxDuration = TimeSpan.FromSeconds(maxDuration)
-            }).ConfigureAwait(false);
-        var chainNeeds = result.NeedsDecision;
-        var chainLeftover = chainNeeds is null && result.StopReason != BoundedChoiceChainStopReason.Complete
-            ? await DetectLeftoverChoiceAsync(session).ConfigureAwait(false)
-            : null;
-        WriteJson(new
-        {
-            command = "adventure choice-chain",
-            readOnly = false,
-            previewOnly = false,
-            executed = true,
-            approvalRequired = true,
-            runId,
-            role = role.ToString(),
-            location,
-            stopReason = result.StopReason.ToString(),
-            needsDecision = chainNeeds is null ? null : NeedsDecisionDocument(chainNeeds),
-            openChoice = chainLeftover,
-            autoChoices = resolver.Log,
-            steps = result.Steps.Select(step => new
-            {
-                status = step.Status.ToString(),
-                requestId = step.RequestId,
-                responseHash = step.Response?.ResponseHash,
-                abortReason = step.AbortReason?.ToString(),
-                nextAction = step.NextAction is null ? null : KernelActionDocument(step.NextAction)
-            }).ToArray()
-        });
-        if (chainNeeds is not null || chainLeftover is not null) return 4;
-        return result.StopReason == BoundedChoiceChainStopReason.Aborted ? 3 : 0;
-    }
-
-    private static async Task<int> CombatCommandAsync(string[] args)
-    {
-        if (args.Length == 0 || HasFlag(args, "--help") || IsHelp(args[0]))
-        {
-            PrintCombatHelp();
-            return 0;
-        }
-
-        return args[0].ToLowerInvariant() switch
-        {
-            "preview" or "inspect" => await CombatPreviewAsync(args[1..], manual: false),
-            "manual" or "step" => await CombatPreviewAsync(args[1..], manual: true),
-            "auto" or "autocombat" => await AutoCombatCommandAsync(args[1..]),
-            _ => Fail($"Unknown combat command: {args[0]}")
-        };
-    }
-
-    private static Task<int> CombatPreviewAsync(string[] args, bool manual)
-    {
-        var location = ReadOptionalAdventureId(args) ?? "preview";
-        var fixturePath = GetOption(args, "--fixture");
-        var fixture = fixturePath is null
-            ? null
-            : new KoLCombatObservationParser().Parse(
-                File.ReadAllText(fixturePath),
-                Uri.TryCreate(GetOption(args, "--uri"), UriKind.Absolute, out var fixtureUri) ? fixtureUri : null);
-        var round = Math.Max(1, ReadInt(args, "--round", fixture?.Round is > 0 ? fixture.Round : 1));
-        var actionId = GetOption(args, "--action-id")
-            ?? GetOption(args, "--action")
-            ?? "attack";
-        var kindOption = GetOption(args, "--kind");
-        var selectedId = GetOption(args, "--skill") ?? GetOption(args, "--item");
-        if (!string.IsNullOrWhiteSpace(selectedId)
-            && !actionId.Contains(':', StringComparison.Ordinal))
-            actionId = $"{kindOption ?? (GetOption(args, "--skill") is not null ? "skill" : "item")}:{selectedId}";
-        var encounter = GetOption(args, "--encounter");
-        var monster = GetOption(args, "--monster") ?? fixture?.MonsterName;
-        var allowlist = new AdventureActionAllowlist()
-            .AddAdventure(location)
-            .AddFightAction(location, actionId, encounter, round, monster);
-        var allowed = allowlist.TryGetFightAction(location, encounter, monster, round, out var action);
-        var fields = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["action"] = actionId,
-            ["round"] = round.ToString(CultureInfo.InvariantCulture)
-        };
-        if (!string.IsNullOrWhiteSpace(encounter)) fields["encounter"] = encounter;
-        if (!string.IsNullOrWhiteSpace(monster)) fields["monster"] = monster;
-
-        var combatId = GetOption(args, "--combat-id")
-            ?? GetOption(args, "--id")
-            ?? "preview";
-        var expectedHash = fixture?.ResponseHash ?? PreviewHash(args);
-        var selected = ParseManualCombatAction(actionId, kindOption, GetOption(args, "--quantity"));
-        if (fixture is not null && fixture.AvailableActions.Count > 0)
-            allowed &= fixture.AvailableActions.Any(candidate =>
-                candidate.Kind switch
-                {
-                    CombatActionKind.Attack => selected.Kind == ManualCombatActionKind.Attack,
-                    CombatActionKind.Skill => selected.Kind == ManualCombatActionKind.Skill
-                        && (string.IsNullOrWhiteSpace(candidate.Id)
-                            || string.Equals(candidate.Id, selected.Id, StringComparison.OrdinalIgnoreCase)),
-                    CombatActionKind.Item => selected.Kind == ManualCombatActionKind.Item
-                        && (string.IsNullOrWhiteSpace(candidate.Id)
-                            || string.Equals(candidate.Id, selected.Id, StringComparison.OrdinalIgnoreCase)),
-                    CombatActionKind.Run => selected.Kind == ManualCombatActionKind.Run,
-                    _ => false
-                });
-        var previewAbortReasons = new List<ManualCombatAbortReason>();
-        if (!allowed) previewAbortReasons.Add(ManualCombatAbortReason.ActionNotLegal);
-        if (fixture is not null && fixture.IsTerminal)
-            previewAbortReasons.Add(ManualCombatAbortReason.TerminalCombat);
-        var observation = new ManualCombatObservation
-        {
-            CombatId = combatId,
-            AdventureId = location,
-            MonsterName = monster,
-            MonsterId = fixture?.MonsterId,
-            Round = round,
-            PlayerHp = fixture?.PlayerHp ?? ReadInt(args, "--hp", 0),
-            PlayerMaxHp = fixture?.PlayerMaxHp ?? ReadInt(args, "--max-hp", 0),
-            PlayerMp = fixture?.PlayerMp ?? ReadInt(args, "--mp", 0),
-            PlayerMaxMp = fixture?.PlayerMaxMp ?? ReadInt(args, "--max-mp", 0),
-            EnemyHp = fixture?.EnemyHp ?? 0,
-            EnemyMaxHp = fixture?.EnemyMaxHp ?? 0,
-            EnemyMp = fixture?.EnemyMp ?? 0,
-            EnemyMaxMp = fixture?.EnemyMaxMp ?? 0,
-            ResponseHash = expectedHash,
-            Outcome = fixture is null ? ManualCombatOutcome.Active : MapOutcome(fixture.Outcome),
-            Message = fixture is null ? "Synthetic read-only combat observation." : null
-        }.Normalize();
-        var request = new ManualCombatRequest
-        {
-            CombatId = combatId,
-            AdventureId = location,
-            Action = selected,
-            ExpectedRound = round,
-            ExpectedResponseHash = expectedHash,
-            AccountId = GetOption(args, "--account") ?? "default"
-        }.Normalize();
-        request.Validate();
-        var preview = new ManualCombatPreview
-        {
-            OperationId = GetOption(args, "--operation-id") ?? $"preview-{Guid.NewGuid():N}",
-            Request = request,
-            Observation = observation,
-            CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5),
-            RequiresApproval = manual,
-            AbortReasons = previewAbortReasons,
-            Messages = new[] { "Preview only; no transport was invoked." }
-        };
-
-        WriteJson(new
-        {
-            command = manual ? "combat manual" : "combat preview",
-            mode = manual ? "manual" : "preview",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            approvalRequired = manual,
-            wouldPost = allowed && previewAbortReasons.Count == 0,
-            action = allowed && previewAbortReasons.Count == 0 ? CombatActionDocument(action) : null,
-            manualAction = ManualCombatActionDocument(selected),
-            preview = ManualPreviewDocument(preview),
-            observation = ManualObservationDocument(observation),
-            requestFields = fields,
-            allowlisted = allowed,
-            location,
-            encounter,
-            monster,
-            round,
-            safety = "No fight.php request is sent by this command."
-        });
-        return Task.FromResult(previewAbortReasons.Count == 0 ? 0 : 3);
-    }
-
-    private static ManualCombatAction ParseManualCombatAction(
-        string actionText,
-        string? kindText,
-        string? quantityText)
-    {
-        var quantity = int.TryParse(quantityText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? Math.Max(1, parsed)
-            : 1;
-        var value = actionText.Trim();
-        var separator = value.IndexOf(':');
-        var inferredKind = separator > 0 ? value[..separator] : value;
-        var id = separator > 0
-            ? value[(separator + 1)..]
-            : kindText is "skill" or "cast" or "item" or "use" or "useitem"
-                ? value
-                : null;
-        var kind = (kindText ?? inferredKind).Trim().ToLowerInvariant();
-        return kind switch
-        {
-            "attack" or "hit" => ManualCombatAction.Attack(),
-            "skill" or "cast" => ManualCombatAction.Skill(
-                string.IsNullOrWhiteSpace(id) ? throw new ArgumentException("Skill action needs an id (use --skill ID).") : id),
-            "item" or "use" or "useitem" => ManualCombatAction.Item(
-                string.IsNullOrWhiteSpace(id) ? throw new ArgumentException("Item action needs an id (use --item ID).") : id, quantity),
-            "run" or "flee" or "runaway" => ManualCombatAction.Run(),
-            _ => ManualCombatAction.Attack()
-        };
-    }
-
-    private static ManualCombatOutcome MapOutcome(CombatOutcome outcome)
-        => outcome switch
-        {
-            CombatOutcome.Victory => ManualCombatOutcome.Won,
-            CombatOutcome.Defeat => ManualCombatOutcome.Lost,
-            CombatOutcome.Fled => ManualCombatOutcome.Fled,
-            CombatOutcome.Ongoing => ManualCombatOutcome.Active,
-            _ => ManualCombatOutcome.Unknown
-        };
-
-    private static async Task<int> AutoCombatCommandAsync(string[] args)
-    {
-        if (args.Length > 0 && (IsHelp(args[0]) || HasFlag(args, "--help")))
-        {
-            PrintCombatHelp();
-            return 0;
-        }
-
-        if (args.Length > 0
-            && args[0] is "preview" or "run" or "inspect" or "step")
-            args = args[1..];
-
-        var policy = BuildAutoCombatPolicy(args);
-        var maxRounds = Math.Clamp(ReadInt(args, "--max-rounds", policy.Budget.MaxRounds), 1, 100);
-        var context = new AutoCombatContext
-        {
-            Round = 1,
-            Hp = Math.Max(0, ReadInt(args, "--hp", 100)),
-            MaxHp = Math.Max(0, ReadInt(args, "--max-hp", 100)),
-            Mp = Math.Max(0, ReadInt(args, "--mp", 0)),
-            MaxMp = Math.Max(0, ReadInt(args, "--max-mp", 0)),
-            Monster = GetOption(args, "--monster"),
-            Effects = ParseCsv(GetOption(args, "--effects")),
-            ActionsTaken = 0
-        };
-        var usage = new AutoCombatUsage();
-        var recoveryPlan = ReadRecoveryPlan(args);
-        var decisions = new List<object>();
-        for (var round = 1; round <= maxRounds; round++)
-        {
-            if (recoveryPlan is not null && !recoveryPlan.CanEnterCombat)
-            {
-                decisions.Add(new
-                {
-                    round,
-                    decision = (object?)null,
-                    wouldPost = false,
-                    stopReason = "RecoveryBlocked",
-                    recovery = recoveryPlan
-                });
-                break;
-            }
-            var snapshot = context with
-            {
-                Round = round,
-                ActionsTaken = usage.ActionsTaken,
-                SkillUses = usage.SkillUses,
-                ItemUses = usage.ItemUses,
-                RunAttempts = usage.RunAttempts,
-                ManualDecisions = usage.ManualDecisions,
-                RuleUses = usage.RuleUses
-            };
-            var decision = policy.Evaluate(snapshot, usage);
-            decisions.Add(new
-            {
-                round,
-                decision,
-                wouldPost = decision.IsAction && decision.Action.Kind is not AutoCombatActionKind.Manual and not AutoCombatActionKind.Abort
-            });
-            if (!decision.IsAction || decision.Action.Kind is AutoCombatActionKind.Run or AutoCombatActionKind.Abort)
-                break;
-            usage = usage with
-            {
-                ActionsTaken = usage.ActionsTaken + 1,
-                SkillUses = usage.SkillUses + (decision.Action.Kind == AutoCombatActionKind.Skill ? 1 : 0),
-                ItemUses = usage.ItemUses + (decision.Action.Kind == AutoCombatActionKind.Item ? 1 : 0),
-                RunAttempts = usage.RunAttempts + (decision.Action.Kind == AutoCombatActionKind.Run ? 1 : 0),
-                ManualDecisions = usage.ManualDecisions + (decision.Action.Kind == AutoCombatActionKind.Manual ? 1 : 0)
-            };
-        }
-
-        WriteJson(new
-        {
-            command = "autocombat",
-            mode = "dry-run",
-            readOnly = true,
-            previewOnly = true,
-            mutating = false,
-            post = false,
-            executed = false,
-            approvalRequired = true,
-            location = ReadOptionalAdventureId(args),
-            monster = context.Monster,
-            maxRounds,
-            policy,
-            context,
-            recovery = recoveryPlan,
-            decisions,
-            stopReason = decisions.Count == 0
-                ? "No decision was evaluated."
-                : recoveryPlan is not null && !recoveryPlan.CanEnterCombat
-                    ? "RecoveryBlocked"
-                    : null,
-            safety = "Combat execution is disabled; no fight.php request is sent."
-        });
-        await Task.CompletedTask;
-        return 0;
-    }
-
-    private static RecoveryPlan? ReadRecoveryPlan(string[] args)
-    {
-        var snapshotPath = GetOption(args, "--recovery-snapshot");
-        if (snapshotPath is null)
-            return null;
-        if (!File.Exists(snapshotPath))
-            throw new ArgumentException($"Recovery snapshot '{snapshotPath}' was not found.");
-        try
-        {
-            var snapshot = JsonSerializer.Deserialize<RecoverySnapshot>(
-                File.ReadAllText(snapshotPath), JsonOptions)
-                ?? throw new ArgumentException("Recovery snapshot is empty.");
-            var policyPath = GetOption(args, "--recovery-policy");
-            var policy = policyPath is null
-                ? new RecoveryPolicy()
-                : JsonSerializer.Deserialize<RecoveryPolicy>(File.ReadAllText(policyPath), JsonOptions)
-                    ?? throw new ArgumentException("Recovery policy is empty.");
-            return new RecoveryPlanner(policy).Plan(snapshot);
-        }
-        catch (JsonException exception)
-        {
-            throw new ArgumentException("Recovery snapshot or policy is not valid JSON.", exception);
-        }
-    }
-
-    private static AutoCombatPolicy BuildAutoCombatPolicy(string[] args)
-    {
-        var policyText = GetOption(args, "--policy");
-        var policyPath = GetOption(args, "--policy-file");
-        if (policyPath is not null)
-            policyText = File.ReadAllText(policyPath);
-        if (!string.IsNullOrWhiteSpace(policyText))
-            return policyText.TrimStart().StartsWith("{", StringComparison.Ordinal)
-                ? AutoCombatPolicy.FromJson(policyText)
-                : AutoCombatPolicy.Parse(policyText);
-
-        var rules = new List<AutoCombatRule>();
-        foreach (var skill in GetOptions(args, "--skill"))
-            rules.Add(new AutoCombatRule
-            {
-                Id = $"skill:{skill}",
-                When = new AutoCombatPredicate { MinMp = 1 },
-                Action = AutoCombatAction.Skill(skill, "CLI skill priority")
-            });
-        foreach (var item in GetOptions(args, "--item"))
-            rules.Add(new AutoCombatRule
-            {
-                Id = $"item:{item}",
-                When = AutoCombatPredicate.Any,
-                Action = AutoCombatAction.Item(item, "CLI item priority")
-            });
-        var fallback = HasFlag(args, "--manual-on-fallback")
-            ? AutoCombatAction.Manual("Manual review requested by CLI.")
-            : AutoCombatAction.Attack("Default bounded attack.");
-        return new AutoCombatPolicy
-        {
-            Rules = rules,
-            DefaultAction = fallback,
-            Budget = new AutoCombatBudget
-            {
-                MaxRounds = Math.Clamp(ReadInt(args, "--max-rounds", 10), 1, 100),
-                MaxActions = Math.Clamp(ReadInt(args, "--max-actions", 10), 1, 100),
-                MaxSkillUses = Math.Max(0, ReadInt(args, "--max-skills", int.MaxValue)),
-                MaxItemUses = Math.Max(0, ReadInt(args, "--max-items", int.MaxValue))
-            }
-        };
-    }
-
     private static string ReadAdventureId(string[] args)
-        => ReadOptionalAdventureId(args)
-            ?? throw new ArgumentException("--location LOCATION is required.");
-
-    private static string? ReadOptionalAdventureId(string[] args)
         => GetOption(args, "--location")
             ?? GetOption(args, "--adventure")
-            ?? Positionals(args).FirstOrDefault();
-
-    private static string? CheckpointPath(string[] args)
-        => GetOption(args, "--checkpoint") ?? GetOption(args, "--state");
-
-    private static AdventureCheckpoint ReadCheckpoint(string path)
-    {
-        if (!File.Exists(path))
-            throw new ArgumentException($"Checkpoint file '{path}' was not found.");
-        try
-        {
-            return JsonSerializer.Deserialize<AdventureCheckpoint>(File.ReadAllText(path), JsonOptions)
-                ?? throw new ArgumentException($"Checkpoint file '{path}' is empty.");
-        }
-        catch (JsonException exception)
-        {
-            throw new ArgumentException($"Checkpoint file '{path}' is not valid JSON.", exception);
-        }
-    }
+            ?? Positionals(args).FirstOrDefault()
+            ?? throw new ArgumentException("--location LOCATION is required.");
 
     private static T[] ReadJsonArray<T>(string path, string propertyName)
     {
-        using var document = ReadJsonDocument(path);
-        var element = document.RootElement.ValueKind == JsonValueKind.Array
-            ? document.RootElement
-            : document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : default;
-        if (element.ValueKind != JsonValueKind.Array)
-            throw new ArgumentException($"{path} must be a JSON array or an object with '{propertyName}'.");
-        return element.Deserialize<T[]>(JsonOptions) ?? Array.Empty<T>();
-    }
-
-    private static T ReadJsonObject<T>(string path, string propertyName)
-    {
-        using var document = ReadJsonDocument(path);
-        var element = document.RootElement.ValueKind == JsonValueKind.Object
-            && document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : document.RootElement;
-        return element.Deserialize<T>(JsonOptions)
-            ?? throw new ArgumentException($"{path} does not contain a valid {typeof(T).Name} object.");
-    }
-
-    private static JsonDocument ReadJsonDocument(string path)
-    {
         if (!File.Exists(path))
             throw new ArgumentException($"JSON file '{path}' was not found.");
-        try { return JsonDocument.Parse(File.ReadAllText(path)); }
+        JsonDocument document;
+        try { document = JsonDocument.Parse(File.ReadAllText(path)); }
         catch (JsonException exception) { throw new ArgumentException($"JSON file '{path}' is invalid.", exception); }
-    }
-
-    private static void SaveCheckpoint(string path, AdventureCheckpoint checkpoint)
-    {
-        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
-        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-        File.WriteAllText(path, JsonSerializer.Serialize(checkpoint, JsonOptions));
+        using (document)
+        {
+            var element = document.RootElement.ValueKind == JsonValueKind.Array
+                ? document.RootElement
+                : document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : default;
+            if (element.ValueKind != JsonValueKind.Array)
+                throw new ArgumentException($"{path} must be a JSON array or an object with '{propertyName}'.");
+            return element.Deserialize<T[]>(JsonOptions) ?? Array.Empty<T>();
+        }
     }
 
     private static int ReadInt(string[] args, string name, int fallback)
@@ -1138,11 +416,6 @@ internal static partial class KolibriCli
         => int.TryParse(GetOption(args, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value
             : null;
-
-    private static IReadOnlyList<string> ParseCsv(string? value)
-        => string.IsNullOrWhiteSpace(value)
-            ? Array.Empty<string>()
-            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static IReadOnlyList<string> Positionals(string[] args)
     {
@@ -1160,146 +433,13 @@ internal static partial class KolibriCli
         return values;
     }
 
-    private static string PreviewHash(string[] args)
-        => $"cli-preview:{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(string.Join('\u001f', args)))).ToLowerInvariant()}";
-
-    private static object DecisionDocument(AdventureKernelDecision decision)
-        => new
-        {
-            phase = decision.State.Phase.ToString(),
-            stateKind = decision.State.StateKind.ToString(),
-            aborted = decision.IsAborted,
-            complete = decision.IsComplete,
-            requiresRefresh = decision.RequiresRefresh,
-            abortReason = decision.AbortReason?.ToString(),
-            action = decision.NextAction is null ? null : KernelActionDocument(decision.NextAction)
-        };
-
-    private static object KernelActionDocument(AdventureKernelAction action)
-        => action switch
-        {
-            AdventureFightAction fight => new
-            {
-                kind = action.Kind.ToString(),
-                adventureId = action.AdventureId,
-                actionId = fight.ActionId,
-                round = fight.Round,
-                encounterId = fight.EncounterId,
-                monsterId = fight.MonsterId
-            },
-            AdventureChoiceAction choice => new
-            {
-                kind = action.Kind.ToString(),
-                adventureId = action.AdventureId,
-                choiceId = choice.ChoiceId,
-                optionId = choice.OptionId,
-                encounterId = choice.EncounterId,
-                extraFields = choice.ExtraFields
-            },
-            _ => new { kind = action.Kind.ToString(), adventureId = action.AdventureId }
-        };
-
-    private static object CombatActionDocument(AdventureFightAction action)
-        => new
-        {
-            kind = "Fight",
-            actionId = action.ActionId,
-            round = action.Round,
-            adventureId = action.AdventureId,
-            encounterId = action.EncounterId,
-            monsterId = action.MonsterId
-        };
-
-    private static object ManualCombatActionDocument(ManualCombatAction action)
-        => new
-        {
-            kind = action.Kind.ToString(),
-            actionId = action.ActionId,
-            quantity = action.Quantity,
-            type = action.Type.ToString()
-        };
-
-    private static object ManualObservationDocument(ManualCombatObservation observation)
-        => new
-        {
-            combatId = observation.CombatId,
-            adventureId = observation.AdventureId,
-            monsterId = observation.MonsterId,
-            monsterName = observation.MonsterName,
-            round = observation.Round,
-            playerHp = observation.PlayerHp,
-            playerMaxHp = observation.PlayerMaxHp,
-            playerMp = observation.PlayerMp,
-            playerMaxMp = observation.PlayerMaxMp,
-            enemyHp = observation.EnemyHp,
-            enemyMaxHp = observation.EnemyMaxHp,
-            outcome = observation.Outcome.ToString(),
-            responseHash = observation.ResponseHash,
-            effects = observation.Effects,
-            availableActions = observation.AvailableActions.Select(ManualCombatActionDocument).ToArray()
-        };
-
-    private static object ManualPreviewDocument(ManualCombatPreview preview)
-        => new
-        {
-            operationId = preview.OperationId,
-            fingerprint = preview.Fingerprint,
-            createdAt = preview.CreatedAt,
-            expiresAt = preview.ExpiresAt,
-            requiresApproval = preview.RequiresApproval,
-            ready = preview.IsReady,
-            request = new
-            {
-                preview.Request.CombatId,
-                preview.Request.AdventureId,
-                action = ManualCombatActionDocument(preview.Request.Action),
-                preview.Request.ExpectedRound,
-                preview.Request.ExpectedResponseHash,
-                preview.Request.AccountId
-            },
-            abortReasons = preview.AbortReasons,
-            messages = preview.Messages
-        };
-
-    private static object EncounterDocument(AdventureEncounterState encounter)
-        => new
-        {
-            adventureId = encounter.AdventureId,
-            kind = encounter.Kind.ToString(),
-            location = encounter.Location,
-            choiceId = encounter.ChoiceId,
-            availableChoices = encounter.AvailableChoices,
-            canContinue = encounter.CanContinue,
-            fightRound = encounter.FightRound,
-            responseHash = encounter.ResponseHash,
-            retryCount = encounter.RetryCount,
-            advisories = encounter.Advisories,
-            extraFields = encounter.ExtraFields
-        };
-
     private static void PrintAdventureHelp()
     {
-        Console.WriteLine("  adventure locations [--location ID]                 read-only location catalog");
-        Console.WriteLine("  adventure start --location ID [--role main] [--run-id ID] [--checkpoint PATH]");
-        Console.WriteLine("  adventure inspect [--checkpoint PATH] [--location ID] [--fixture HTML]");
-        Console.WriteLine("  adventure step --location ID [--action attack] [--round N] [--checkpoint PATH]");
-        Console.WriteLine("  adventure bounded-preview --location ID [--conditions-file PATH] [--snapshot-file PATH]");
-        Console.WriteLine("  adventure run --location ID [--snarfblat N] [--execute --approval-token TOKEN]");
-        Console.WriteLine("      fights: default action 'attack' (override with --fight-action ID, disable with --no-auto-fight), bounded by");
-        Console.WriteLine("      --max-fight-rounds N (30) and --min-hp-percent N (20); a fight left open is reported as openFight with the command to finish it");
-        Console.WriteLine("  choice pending|submit|policy                         see `choice --help`; adventure run exits 4 with needsDecision when a choice needs you");
-        Console.WriteLine("  adventure stop --run-id ID [--checkpoint PATH] [--reason TEXT]");
-        Console.WriteLine("  All adventure commands are previews; no adventure.php/fight.php/choice.php POST is sent.");
-    }
-
-    private static void PrintCombatHelp()
-    {
-        Console.WriteLine("  combat preview [--location ID] [--action attack] [--round N] [--monster NAME]");
-        Console.WriteLine("  combat inspect [--location ID] [--round N]                     preview encounter metadata");
-        Console.WriteLine("  combat manual [--location ID] --action ACTION [--round N]       one-step dry-run");
-        Console.WriteLine("  autocombat --dry-run [--location ID] [--max-rounds N] [--skill ID] [--item ID] [--recovery-snapshot FILE]");
-        Console.WriteLine("  autocombat --policy 'skill(123) -> attack' [--dry-run]");
-        Console.WriteLine("  Combat commands are preview-only; no fight.php POST is sent.");
+        Console.WriteLine("  adventure run --location ID [--snarfblat N] [--role main] [--max-turns N] [--execute --approval-token TOKEN]");
+        Console.WriteLine("      fights: default action 'attack' (override with --fight-action attack|run|skill:ID|item:ID, disable with --no-auto-fight),");
+        Console.WriteLine("      bounded by --max-fight-rounds N (30) and --min-hp-percent N (20); a fight left open is reported as openFight with the command to finish it");
+        Console.WriteLine("      choices: --choice-action CHOICE:OPTION plus the defaults of `choice policy`; an unknown choice stops with needsDecision (exit 4)");
+        Console.WriteLine("  choice pending|submit|policy                         see `choice --help`");
+        Console.WriteLine("  adventure locations|start|inspect|step|stop|choice-chain: not in 0.5-dev yet (follow-up PR).");
     }
 }

@@ -1,14 +1,12 @@
 using System.Globalization;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
-using LibKolibri;
+using KoLibri;
+using KoLibri.Extras;
 
 internal static partial class KolibriCli
 {
     /// <summary>Live Meat or an error: a cached value must never decide a purchase.</summary>
-    private static Task<long> FreshMeatAsync(KoLAccountReadClient api, CancellationToken ct)
-        => new LiveArbitrageAccountReads(api).MeatAsync(ct);
+    private static async Task<long> FreshMeatAsync(KolibriSession session, CancellationToken ct)
+        => (await session.Character.GetStatusAsync(refresh: true, ct).ConfigureAwait(false)).Meat;
 
     private static async Task<int> ArbitrageAsync(string[] args)
     {
@@ -86,24 +84,19 @@ internal static partial class KolibriCli
             throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
 
         var refresh = HasFlag(args, "--refresh");
-        var http = await ReadAuthenticatedHttpAsync(role);
-        var api = new KoLAccountReadClient(http, itemNameResolver: BuildItemNameResolver()) { ReadCharsheetForOrganLimits = true };
-        var mall = new KoLMallReadClient(http, itemNameResolver: BuildItemNameResolver());
-        using var pricegunHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var meat = await FreshMeatAsync(api, CancellationToken.None);
-        var plan = await ItemArbitrageService.PlanAsync(mall, new PricegunReadClient(pricegunHttp), itemId, settings, meat,
-            forceRefresh: refresh);
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
+        var meat = await FreshMeatAsync(session, CancellationToken.None);
+        var plan = await ItemArbitrageService.PlanAsync(session, itemId, settings, meat, refresh: refresh);
         if (!buy)
         {
             WriteJson(new { command = "arbitrage plan", readOnly = true, role = role.ToString(), meat, settings, plan });
             return 0;
         }
 
-        var credentials = (await AccountSessionManager.CreateDefault().GetSessionAsync(role))?.Credentials
-            ?? throw new InvalidOperationException($"{role} is not logged in.");
         var ledger = new ArbitrageSpendLedger(ArbitrageSpendLedger.DefaultPath());
-        var executor = ItemArbitrageExecutor.Create(http, credentials, mall, new LiveArbitrageAccountReads(api), ledger,
-            role.ToString(), plan, settings);
+        var executor = new ItemArbitrageExecutor(session, ledger, role.ToString(), settings);
         if (!execute)
         {
             var preview = await executor.PreviewAsync(plan);
@@ -117,26 +110,31 @@ internal static partial class KolibriCli
             followUp = new { skipped = true, reason = "A purchase is unclear; check the account before listing or sending." };
         else if (run.UnitsBought > 0 && listPrice > 0)
         {
-            var lister = new StoreLister(http);
-            var listed = (await lister.ReadOwnListingsAsync(credentials)).FirstOrDefault(x => x.ItemId == itemId);
+            var listed = (await session.Shop.GetListingsAsync(refresh: true)).FirstOrDefault(x => x.Item.Id == itemId);
             if (listed is not null)
                 followUp = new { list = "skipped", reason = $"Already listed at {listed.Price:N0}; KoL only lists items that are not listed yet." };
             else
             {
-                var result = await lister.ListAsync(credentials, itemId, (int)listPrice, run.UnitsBought);
-                followUp = new { list = result.Accepted ? "listed" : "not listed", quantity = run.UnitsBought, price = (int)listPrice, result.Message };
+                var result = await session.Shop.AddAsync(itemId, run.UnitsBought, listPrice);
+                followUp = new { list = result.Status == ActionStatus.Done ? "listed" : "not listed", quantity = run.UnitsBought, price = (int)listPrice,
+                    Message = result.Rejection };
             }
         }
         else if (run.UnitsBought > 0 && sendTo is { } to)
         {
-            using var client = await KolibriClient.OpenAsync(role);
-            var recipient = await client.OtherAccountNameAsync()
-                ?? throw new InvalidOperationException("The other account is not stored; nothing was sent.");
-            var outcome = await client.SendKMailOutcomeAsync(recipient, "Sent with KoLibri.",
-                [new KoLMailAttachment(itemId, run.UnitsBought)], 0);
+            // The recipient is the name KoL itself reports for the other account's live session, never a stored name.
+            string recipient;
+            await using (var other = await client.OpenAsync(AccountIdOf(to)))
+                recipient = (await other.Character.GetStatusAsync(refresh: true)).PlayerName;
+            if (string.IsNullOrWhiteSpace(recipient))
+                throw new InvalidOperationException("The other account's player name could not be read; nothing was sent.");
+            var outcome = await session.Mail.SendAsync(new MailMessage(recipient, "Sent with KoLibri.")
+            {
+                Items = new[] { new InventoryItem(itemId, plan.ItemName ?? itemId.ToString(CultureInfo.InvariantCulture), run.UnitsBought) }
+            });
             // Unconfirmed: the mail may have arrived; never report it as not sent.
-            followUp = new { sendTo = to.ToString(), quantity = run.UnitsBought, sent = outcome == KoLMailSendOutcome.Sent,
-                unconfirmed = outcome == KoLMailSendOutcome.Unconfirmed };
+            followUp = new { sendTo = to.ToString(), quantity = run.UnitsBought, sent = outcome.Status == MailSendStatus.Sent,
+                unconfirmed = outcome.Status == MailSendStatus.Unclear };
         }
         WriteJson(new { command = "arbitrage buy", executed = true, role = role.ToString(), unitsBought = run.UnitsBought,
             meatSpent = run.MeatSpent, unclear = run.Unclear, steps = run.Steps, followUp });

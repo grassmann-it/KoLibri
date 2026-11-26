@@ -271,12 +271,12 @@ public sealed class ChoiceResolutionTests
     [Fact]
     public void Cli_policy_set_enforces_ranges()
     {
-        var config = KolibriCli.ApplyChoicePolicySet(new ChoiceResolutionConfig(),
+        var config = KolibriCli.ApplyChoicePolicySet(new KoLibri.Cli.ChoiceResolutionConfig(),
             new[] { "--mode", "auto-safe", "--max-meat", "50", "--choice", "9001", "--option", "2" });
-        Assert.Equal(ChoiceResolutionMode.AutoSafe, config.Mode);
+        Assert.Equal(KoLibri.Cli.ChoiceResolutionMode.AutoSafe, config.Mode);
         Assert.Equal(50, config.MaxMeatCost);
         Assert.Equal(2, config.Choices["9001"].Option);
-        Assert.Throws<ArgumentException>(() => KolibriCli.ApplyChoicePolicySet(new ChoiceResolutionConfig(), new[] { "--max-hp-percent", "101" }));
-        Assert.Throws<ArgumentException>(() => KolibriCli.ApplyChoicePolicySet(new ChoiceResolutionConfig(), new[] { "--mode", "yolo" }));
+        Assert.Throws<ArgumentException>(() => KolibriCli.ApplyChoicePolicySet(new KoLibri.Cli.ChoiceResolutionConfig(), new[] { "--max-hp-percent", "101" }));
+        Assert.Throws<ArgumentException>(() => KolibriCli.ApplyChoicePolicySet(new KoLibri.Cli.ChoiceResolutionConfig(), new[] { "--mode", "yolo" }));
     }
 }

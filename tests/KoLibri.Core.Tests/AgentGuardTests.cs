@@ -80,9 +80,9 @@ public sealed class AgentGuardTests
         var dir = Path.Combine(Path.GetTempPath(), "kolibri-guard-" + Guid.NewGuid().ToString("N"));
         try
         {
-            using var store = new KoLibri.Core.Basis.ApprovalTokenStore(dir);
+            using var store = new KoLibri.Cli.ApprovalTokenStore(dir);
             Assert.False(await AgentGuard.ApprovalTokenValidAsync("anything", store)); // no stored token
-            await store.SaveAsync(new KoLibri.Core.Basis.ApprovalToken("secret-token", DateTimeOffset.UtcNow));
+            await store.SaveAsync(new KoLibri.Cli.ApprovalToken("secret-token", DateTimeOffset.UtcNow));
             Assert.False(await AgentGuard.ApprovalTokenValidAsync("wrong", store));
             Assert.False(await AgentGuard.ApprovalTokenValidAsync("  ", store));
             Assert.False(await AgentGuard.ApprovalTokenValidAsync(null, store));

@@ -1,10 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
-using KoLibri.Cli.Repl;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
+using KoLibri;
 
 return await KolibriCli.RunAsync(args);
 
@@ -50,7 +47,7 @@ internal static partial class KolibriCli
                 "token" => await TokenDispatchAsync(args[1..]),
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
-                "mafia-script" => await MafiaScriptAsync(args[1..]),
+                "mafia-script" => NotYet(args[0]),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
                 "consume" => await ConsumeAsync(args[1..]),
@@ -63,24 +60,24 @@ internal static partial class KolibriCli
                 "mall-reconcile" => await MallReconcileAsync(args[1..]),
                 "arbitrage" => await ArbitrageAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
-                "compare" or "history" => await CompareAsync(args[1..]),
-                "bribe-rank" => await BribeRankAsync(args[1..]),
-                "bribe-plan" => await BribePlanAsync(args[1..]),
-                "workflow-plan" => await WorkflowPlanAsync(args[1..]),
-                "adventure-plan" => await AdventurePlanAsync(args[1..]),
+                "compare" or "history" => NotYet(args[0]),
+                "bribe-rank" => NotYet(args[0]),
+                "bribe-plan" => NotYet(args[0]),
+                "workflow-plan" => NotYet(args[0]),
+                "adventure-plan" => NotYet(args[0]),
                 "adventure" => await AdventureCommandAsync(args[1..]),
                 "choice" => await ChoiceCommandAsync(args[1..]),
                 "daily" => await DailyCommandAsync(args[1..]),
-                "market-scan" or "market" => await MarketScanCommands.RunAsync(args[1..], JsonOptions),
-                "daily-audit" => await DailyAuditCommandAsync(args[1..]),
-                "combat" => await CombatCommandAsync(args[1..]),
-                "autocombat" or "auto-combat" => await AutoCombatCommandAsync(args[1..]),
-                "categorize" => await CategorizeAsync(args[1..]),
-                "reprice" => await RepriceAsync(args[1..]),
-                "batch" => await RepriceAsync(args[1..]),
-                "snatch-plan" => await SnatchPlanAsync(args[1..]),
-                "watchlist" or "scheduler" => await WatchlistSchedulerCommand.RunAsync(args[1..], ReadClientAsync, JsonOptions),
-                "repl" => await ReplMainAsync(args[1..]),
+                "market-scan" or "market" => NotYet(args[0]),
+                "daily-audit" => NotYet(args[0]),
+                "combat" => NotYet(args[0]),
+                "autocombat" or "auto-combat" => NotYet(args[0]),
+                "categorize" => NotYet(args[0]),
+                "reprice" => NotYet(args[0]),
+                "batch" => NotYet(args[0]),
+                "snatch-plan" => NotYet(args[0]),
+                "watchlist" or "scheduler" => NotYet(args[0]),
+                "repl" => NotYet(args[0]),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
                 _ => Fail($"Unknown command: {args[0]}")
             };
@@ -99,21 +96,72 @@ internal static partial class KolibriCli
         }
     }
 
+    /// <summary>Commands that stay out of 0.5-dev until they move onto the new library (follow-up PR). Nothing is sent.</summary>
+    internal const int NotYetExitCode = 3;
+
+    internal static int NotYet(string command)
+    {
+        Console.Error.WriteLine($"'{command}' is not available in KoLibri 0.5-dev: it moves onto the new KoLibri library in a follow-up PR. Nothing was sent.");
+        return NotYetExitCode;
+    }
+
     private static async Task<int> StatusAsync(string[] args)
     {
-        var client = await ReadClientAsync(ParseRole(GetOption(args, "--role") ?? "main"));
-        var status = await client.Api.FetchStatusAsync(forceRefresh: HasFlag(args, "--refresh"));
-        WriteJson(status);
+        var (client, session) = await OpenAsync(ParseRole(GetOption(args, "--role") ?? "main"));
+        await using var _ = client;
+        await using var __ = session;
+        var status = await session.Character.GetStatusAsync(refresh: HasFlag(args, "--refresh"));
+        var equipment = await session.Inventory.GetEquipmentAsync();
+        WriteJson(StatusDocument(status, equipment, session.Account.PlayerId));
         return 0;
     }
+
+    /// <summary>The 0.4 status JSON (KoLStatusSnapshot field names), built from the 0.5 records.</summary>
+    internal static object StatusDocument(Status s, Equipment? equipment, int? playerId) => new
+    {
+        playerName = s.PlayerName,
+        adventures = s.Adventures,
+        meat = s.Meat,
+        level = s.Level,
+        fetchedAt = s.FetchedAt,
+        isStale = false,
+        adventuresKnown = true,
+        currentHp = s.Hp,
+        maximumHp = s.MaxHp,
+        currentMp = s.Mp,
+        maximumMp = s.MaxMp,
+        effects = s.Effects.Select(e => e.Name).ToArray(),
+        fullness = s.Fullness.Current,
+        inebriety = s.Inebriety.Current,
+        spleen = s.Spleen.Current,
+        storagePullsRemaining = s.StoragePullsRemaining,
+        pathName = s.PathName,
+        roninTurnsRemaining = s.RoninTurnsRemaining,
+        timedEffects = s.Effects.Select(e => new { name = e.Name, turnsRemaining = e.Turns, id = e.Id }).ToArray(),
+        playerId = playerId?.ToString(CultureInfo.InvariantCulture),
+        familiarId = s.FamiliarId?.ToString(CultureInfo.InvariantCulture),
+        fullnessLimit = s.Fullness.Limit,
+        inebrietyLimit = s.Inebriety.Limit,
+        spleenLimit = s.Spleen.Limit,
+        equipment = equipment?.Slots.Where(kv => kv.Value is not null)
+            .ToDictionary(kv => kv.Key.ToString(), kv => kv.Value!.Value.Id.ToString(CultureInfo.InvariantCulture))
+    };
+
+    internal static object InventoryDocument(Inventory inventory) => new
+    {
+        items = inventory.Items.Select(i => new { itemId = i.Item.Id.ToString(CultureInfo.InvariantCulture), name = i.Name, quantity = i.Quantity }).ToArray(),
+        fetchedAt = inventory.FetchedAt,
+        isStale = false
+    };
 
     private static async Task<int> InventoryAsync(string[] args)
     {
         var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var client = await ReadClientAsync(role);
+        var (client, session) = await OpenAsync(role);
+        await using var _ = client;
+        await using var __ = session;
         if (HasFlag(args, "--probe"))
         {
-            using var http = await ReadAuthenticatedHttpAsync(role);
             foreach (var path in new[] {
                 "api.php?what=inventory",
                 "api.php?what=inventory&for=KoLibri",
@@ -138,9 +186,9 @@ internal static partial class KolibriCli
             {
                 try
                 {
-                    var r = await http.GetAsync(path);
-                    var body = await r.Content.ReadAsStringAsync();
-                    Console.Error.WriteLine($"--- {path} [{r.StatusCode}] len={body.Length} ---");
+                    var page = await session.GetPageAsync(path);
+                    var body = page.Html;
+                    Console.Error.WriteLine($"--- {path} [{(System.Net.HttpStatusCode)page.StatusCode}] len={body.Length} ---");
                     if (body.Length > 0)
                         Console.Error.WriteLine(body.Substring(0, Math.Min(600, body.Length)));
                     if (HasFlag(args, "--full"))
@@ -158,35 +206,9 @@ internal static partial class KolibriCli
             }
             return 0;
         }
-        var inventory = await client.Api.FetchInventoryAsync(forceRefresh: HasFlag(args, "--refresh"));
-        WriteJson(inventory);
+        var inventory = await session.Inventory.GetAsync(refresh: HasFlag(args, "--refresh"));
+        WriteJson(InventoryDocument(inventory));
         return 0;
-    }
-
-    private static async Task<(KoLAccountReadClient Api, KoLMallReadClient Mall)> ReadClientAsync(AccountRole role)
-    {
-        var http = await ReadAuthenticatedHttpAsync(role);
-        // Build an item-id → display-name resolver from the bundled Mafia
-        // vendor data so inventory snapshots show "seal tooth" instead of "44".
-        var resolver = BuildItemNameResolver();
-        return (new KoLAccountReadClient(http, itemNameResolver: resolver),
-                new KoLMallReadClient(http, itemNameResolver: resolver));
-    }
-
-    private static Func<string, string?>? BuildItemNameResolver() => KoLibri.Core.Spiel.BundledItemNames.Resolver;
-
-    private static async Task<HttpClient> ReadAuthenticatedHttpAsync(AccountRole role)
-    {
-        var accounts = AccountSessionManager.CreateDefault();
-        var session = await accounts.GetSessionAsync(role)
-            ?? throw new InvalidOperationException($"{role} is not logged in. Run 'login --role {role.ToString().ToLowerInvariant()}'.");
-        if (string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
-
-        var http = KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials,
-            new Uri("https://www.kingdomofloathing.com/"));
-        return http;
     }
 
     private static async Task<string> ReadPasswordAsync()
@@ -252,43 +274,9 @@ internal static partial class KolibriCli
 
     private static void WriteJson<T>(T value) => Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));
 
-    private static async Task<int> ReplMainAsync(string[] args)
-    {
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
-        var dataDir = GetOption(args, "--data")
-            ?? Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data");
-        if (!Directory.Exists(dataDir))
-        {
-            Console.Error.WriteLine($"Vendor directory '{dataDir}' is missing.");
-            return 1;
-        }
-        var loader = new MafiaDataLoader();
-        loader.Load(dataDir, out var diagnostics);
-        if (diagnostics.WarningCount > 0)
-            Console.Error.WriteLine($"Catalog loaded with {diagnostics.WarningCount} parse warnings.");
-
-        var context = new KoLibriReplContext(role, loader.Load(dataDir),
-            readClientFactory: r => new KoLAccountReadClient(BuildHttpForRole(r).GetAwaiter().GetResult()),
-            mallClientFactory: r => new KoLMallReadClient(BuildHttpForRole(r).GetAwaiter().GetResult(), itemNameResolver: BuildItemNameResolver()));
-        var session = new ReplSession(context);
-        return await session.RunAsync(CancellationToken.None);
-    }
-
-    private static async Task<HttpClient> BuildHttpForRole(AccountRole role)
-    {
-        var accounts = AccountSessionManager.CreateDefault();
-        var session = await accounts.GetSessionAsync(role)
-            ?? throw new InvalidOperationException($"{role} is not logged in. Run 'login --role {role.ToString().ToLowerInvariant()}'.");
-        if (string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
-        return KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials,
-            new Uri("https://www.kingdomofloathing.com/"));
-    }
-
     internal static void PrintHelp(TextWriter w, bool experimental)
     {
-        w.WriteLine("KoLibri CLI 0.4.0 (EARLY ALPHA) - previews by default; live actions need --execute and your approval.");
+        w.WriteLine("KoLibri CLI 0.5.0-dev (EARLY ALPHA) - previews by default; live actions need --execute and your approval.");
         w.WriteLine("  Live use needs your own KoL account (one session per account), requests are rate limited (default 2 s), AI agents must get your confirmation.");
         w.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
         w.WriteLine("  relay --role main|mallbot [--port 8766] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
@@ -301,53 +289,23 @@ internal static partial class KolibriCli
         w.WriteLine("  token show                                      shows the current token");
         w.WriteLine("  status --role main|mallbot [--refresh]");
         w.WriteLine("  inventory --role main|mallbot [--refresh]");
-        w.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         w.WriteLine("  shop --role mallbot [--refresh]");
         PrintKeysHelp(w);
         w.WriteLine("  consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]   eat/drink/spleen (preview without --execute)");
         w.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests are free; other rests can cost adventures)");
         w.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
         w.WriteLine("  mall-reconcile --role mallbot [--settle|--release]   resolve unclear Mall purchase Meat (asks to confirm the amount)");
-        w.WriteLine("  adventure-plan --role main [--target 100] [--yield 0.5] [--skeleton-available] [--refresh]");
-        w.WriteLine("  adventure choice-chain --location ID --run-id RUN [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
-        w.WriteLine("                 [--periodic --iterations N --interval SEC --workers 1..20]  (read-only)");
-        w.WriteLine("  adventure locations|start|inspect|step|stop ...                 (previews; only adventure run --execute and choice-chain --execute send requests)");
-        w.WriteLine("  daily campfire [--leaves N] [--reserve N] [--knucklebones N] [--shortner-price N] [--meat N] [--not-useful]");
-        w.WriteLine("  daily hermit   [--permits N] [--clovers N] [--adventure-value N] [--clover-floor N] [--reserve N]");
-        w.WriteLine("                 [--clover-sale N] [--wishes N] [--wish-buy N] [--wish-price N]");
-        w.WriteLine("  daily internet-shop [--already-claimed NAME] [--meat N]");
-        w.WriteLine("  daily routine [--leaves N] [--permits N] [--clovers N] [--main-meat N] [--mallbot-meat N]");
-        w.WriteLine("                 [--bag-price N] [--bag-stock N] [--already-claimed NAME]");
-        w.WriteLine("                 [--mall-price N] [--bacon-median N] [--owned-machines N]");
-        w.WriteLine("                 [--adventure-value N] [--clover-floor N] [--clover-sale N]");
-        w.WriteLine("                 [--output PATH] [--execute --approval-token TOKEN --role main|mallbot]");
-        w.WriteLine("  daily go [--role main|mallbot|all] [--main-leaves N] [--hermit-clovers N] [--mallbot-leaves N] [--main-meat N]");
-        w.WriteLine("           [--mallbot-meat N] [--main-permits N] [--mallbot-permits N]");
-        w.WriteLine("           [--bag-price N] [--bag-stock N] [--execute --approval-token TOKEN]");
-        w.WriteLine("           [--already-claimed NAME] [--output PATH]");
-        w.WriteLine("  combat preview|inspect|manual ...                              (preview-only)");
-        w.WriteLine("  autocombat --dry-run [--max-rounds N] [--skill ID] [--item ID]");
-        w.WriteLine("  repl [--role main|mallbot] [--data PATH]      starts the interactive read-only REPL");
+        w.WriteLine("  adventure run --location ID [--role main] [--max-turns N] [--fight-action attack|skill:ID|item:ID|run]");
+        w.WriteLine("                [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
+        w.WriteLine("  choice pending|submit|policy ...                 open choices; submit previews unless --execute");
+        w.WriteLine("  daily run [--role main|mallbot] [--hermit-clovers N] [--skip campfire|hermit|internet-shop] [--execute --approval-token TOKEN]");
         if (experimental)
         {
             w.WriteLine();
-            w.WriteLine("Experimental (--experimental or KOLIBRI_EXPERIMENTAL=1; hidden in 0.4.0):");
+            w.WriteLine("Experimental (--experimental or KOLIBRI_EXPERIMENTAL=1; hidden in 0.5.0-dev):");
             w.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
             w.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
             w.WriteLine("  pricegun --item ITEM_ID [--refresh]");
-            w.WriteLine("  compare --role mallbot --item ITEM_ID [--item ITEM_ID] [--refresh]");
-            w.WriteLine("  bribe-rank --role mallbot --item 8691 [--currency-value CURRENCY:MEAT] [--refresh]");
-            w.WriteLine("  bribe-plan --role mallbot [--quantity 40] [--reserve 1000000] [--refresh]");
-            w.WriteLine("  workflow-plan [--refresh] [--offline --main-ready --mallbot-ready]");
-            w.WriteLine("                [--meat N --bag-price N --bag-stock N --quantity N --reserve N]");
-            w.WriteLine("  categorize --role mallbot [--limit 20] [--refresh]");
-            w.WriteLine("  reprice --role mallbot [--filter tiny|high|tiny-and-high|all] [--refresh]");
-            w.WriteLine("  snatch-plan --role mallbot [--item ITEM_ID ...] [--limit 20] [--workers 8]");
-            w.WriteLine("              [--budget N --reserve N --min-margin 0.10 --min-profit N --min-spread N]");
-            w.WriteLine("  watchlist add|remove|list --store PATH --item ITEM_ID [--tradeable true --can-sell true]");
-            w.WriteLine("  watchlist scan --role mallbot [--once|--periodic --interval SEC --iterations N] [--workers 8]");
-            w.WriteLine("              [--store PATH --watchlist-id ID --budget N --reserve N --transfer-cost N]");
-            w.WriteLine("              [--min-sales N --min-liquidity 0.05 --max-age-hours 6]");
             w.WriteLine("  apply-prices --role mallbot --set ITEM_ID:EXPECTED:NEW [--set ...] [--commit]");
             PrintArbitrageHelp(w);
             w.WriteLine("  apply-prices is preview-only by default; only --commit sends the price change.");
@@ -358,7 +316,12 @@ internal static partial class KolibriCli
             w.WriteLine("Experimental market and shop commands are hidden; add --experimental to list them.");
         }
         w.WriteLine();
-        w.WriteLine("There are no purchase or transfer commands.");
-        w.WriteLine("Adventure and combat commands send no live POSTs; they only produce previews.");
+        w.WriteLine("Not in 0.5-dev yet (they move onto the new library in a follow-up PR; nothing is sent):");
+        w.WriteLine("  mafia-script, repl, adventure-plan, adventure start|step|inspect|stop|locations|choice-chain, combat, autocombat,");
+        w.WriteLine("  daily campfire|hermit|internet-shop|routine|go|bridge|breakfast, daily-audit");
+        if (experimental)
+            w.WriteLine("  experimental: compare, bribe-rank, bribe-plan, workflow-plan, categorize, reprice, snatch-plan, watchlist, market-scan");
+        w.WriteLine();
+        w.WriteLine("There are no transfer commands. Adventure, consume and daily commands only send requests with --execute.");
     }
 }

@@ -1,18 +1,19 @@
-using KoLibri.Core.Basis;
+using KoLibri;
 
-/// <summary>Shared by <c>login clear</c> in the CLI and the REPL: removes the stored secret, keeps the profile.</summary>
+/// <summary>Shared by <c>login clear</c>: removes the stored cookie and password, keeps the account.</summary>
 internal static class LoginClear
 {
-    /// <summary>Returns the roles whose credentials were removed (roles without a profile are skipped).</summary>
+    /// <summary>Returns the roles whose credentials were removed (roles without an account are skipped).</summary>
     public static async Task<IReadOnlyList<AccountRole>> ClearAsync(
-        AccountSessionManager accounts, IEnumerable<AccountRole> roles, CancellationToken cancellationToken = default)
+        AccountRegistry accounts, IEnumerable<AccountRole> roles, CancellationToken cancellationToken = default)
     {
         var cleared = new List<AccountRole>();
+        var known = await accounts.ListAsync(cancellationToken).ConfigureAwait(false);
         foreach (var role in roles)
         {
-            var profile = await accounts.GetProfileAsync(role, cancellationToken).ConfigureAwait(false);
-            if (profile is null) continue;
-            await accounts.ClearCredentialsAsync(role, cancellationToken).ConfigureAwait(false);
+            var account = known.FirstOrDefault(a => a.Id.Value == KolibriCli.AccountIdOf(role));
+            if (account is null) continue;
+            await accounts.LogoutAsync(account.Id, cancellationToken).ConfigureAwait(false);
             cleared.Add(role);
         }
         return cleared;

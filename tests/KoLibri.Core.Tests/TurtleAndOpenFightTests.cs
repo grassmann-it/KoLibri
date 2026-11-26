@@ -62,14 +62,12 @@ public sealed class TurtleAndOpenFightTests
     }
 
     [Theory]
-    [InlineData(BoundedAdventureRunStopReason.FightRoundLimitReached, "round limit")]
-    [InlineData(BoundedAdventureRunStopReason.HpBelowMinimum, "HP is below")]
-    public void A_run_that_stops_mid_fight_names_the_open_fight_and_the_finishing_command(
-        BoundedAdventureRunStopReason reason, string expected)
+    [InlineData("FightRoundLimitReached", "round limit")]
+    [InlineData("HpBelowMinimum", "HP is below")]
+    public void A_run_that_stops_mid_fight_names_the_open_fight_and_the_finishing_command(string reason, string expected)
     {
-        var result = new BoundedAdventureRunResult { StopReason = reason, Steps = Array.Empty<AdventureExecutionResult>() };
-        var doc = KolibriCli.FightStopDocument(result, null, new[] { "--location", "adventure=439:The Skeleton Store" },
-            "adventure=439:The Skeleton Store", AccountRole.Main, 439);
+        var doc = KolibriCli.FightStopDocument(reason, false, new[] { "--location", "adventure=439:The Skeleton Store" },
+            "adventure=439:The Skeleton Store", KoLibri.Cli.AccountRole.Main, 439);
         Assert.NotNull(doc);
         var json = JsonSerializer.Serialize(doc);
         Assert.Contains(expected, json);
@@ -79,11 +77,5 @@ public sealed class TurtleAndOpenFightTests
 
     [Fact]
     public void A_completed_run_reports_no_open_fight()
-    {
-        var result = new BoundedAdventureRunResult
-        {
-            StopReason = BoundedAdventureRunStopReason.Complete, Steps = Array.Empty<AdventureExecutionResult>()
-        };
-        Assert.Null(KolibriCli.FightStopDocument(result, null, Array.Empty<string>(), "x", AccountRole.Main, null));
-    }
+        => Assert.Null(KolibriCli.FightStopDocument("Complete", false, Array.Empty<string>(), "x", KoLibri.Cli.AccountRole.Main, null));
 }

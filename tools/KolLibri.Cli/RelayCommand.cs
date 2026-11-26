@@ -1,4 +1,4 @@
-using KoLibri.Core.Basis;
+using KoLibri;
 
 internal static partial class KolibriCli
 {
@@ -20,21 +20,22 @@ internal static partial class KolibriCli
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "relay-log.jsonl"));
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
-        var accounts = AccountSessionManager.CreateDefault();
-        var session = await accounts.GetSessionAsync(role)
-            ?? throw new InvalidOperationException($"{role} is not logged in. Run 'login --role {role.ToString().ToLowerInvariant()}'.");
-        var cookie = session.Credentials.CookieHeader;
-        if (string.IsNullOrWhiteSpace(cookie))
-            throw new InvalidOperationException($"{role} has no valid KoL session. Log in again.");
-        var sessionUa = session.Credentials.UserAgent ?? KoLUserAgent.LegacyValue;
-
-        RelayHost host;
-        try { host = RelayHost.Start(session, port, logPath, browserUa, Console.WriteLine); }
+        var (client, session) = await OpenAsync(role);
+        await using var _client = client;
+        await using var _session = session;
+        RelayServer host;
+        try
+        {
+            host = await session.StartRelayAsync(new RelayOptions
+            {
+                Port = port, LogPath = logPath, UseBrowserUserAgent = browserUa, Output = Console.WriteLine
+            });
+        }
         catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 1; }
-        using var _ = host;
-        Console.WriteLine($"KoLibri relay for {role} ({session.Profile.DisplayName}) on {host.Origin}/");
-        Console.WriteLine($"Open this URL in your own browser (it carries the secret for this run): {host.EnterUrl("/main.php")}");
-        Console.WriteLine($"User-Agent sent to KoL: {(browserUa ? "the browser's own" : sessionUa)}");
+        await using var _ = host;
+        Console.WriteLine($"KoLibri relay for {role} ({session.Account.PlayerName}) on {host.BaseUri.GetLeftPart(UriPartial.Authority)}/");
+        Console.WriteLine($"Open this URL in your own browser (it carries the secret for this run): {host.EntryUri("/main.php")}");
+        Console.WriteLine($"User-Agent sent to KoL: {(browserUa ? "the browser's own" : "the stored session's")}");
         Console.WriteLine($"Log: {logPath}   (Ctrl-C to stop)");
         using var stop = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
