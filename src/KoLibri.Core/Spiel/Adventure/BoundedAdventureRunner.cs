@@ -19,6 +19,13 @@ public sealed record BoundedAdventureRunnerOptions
     /// </summary>
     public AutoCombatPolicy? CombatPolicy { get; init; }
 
+    /// <summary>
+    /// Fresh (current, maximum) HP for the <see cref="MinimumHpPercent"/> check when the fight page does
+    /// not show the player's HP (fight.php usually does not; KoL shows it in the charpane). Null result =
+    /// unknown, which still stops the run.
+    /// </summary>
+    public Func<CancellationToken, ValueTask<(int Current, int Maximum)?>>? HitPointsProvider { get; init; }
+
     public BoundedAdventureRunnerOptions Normalize()
         => this with
         {
@@ -135,12 +142,16 @@ public sealed class BoundedAdventureRunner
             {
                 if (settings.MaxFightRounds > 0 && fightRounds >= settings.MaxFightRounds)
                     return Result(BoundedAdventureRunStopReason.FightRoundLimitReached, steps, Array.Empty<AdventureConditionResult>());
-                if (settings.MinimumHpPercent > 0 && !HpAtLeast(current, settings.MinimumHpPercent))
+                if (settings.MinimumHpPercent > 0
+                    && !await HpAtLeastAsync(current, settings, cancellationToken).ConfigureAwait(false))
                     return Result(BoundedAdventureRunStopReason.HpBelowMinimum, steps, Array.Empty<AdventureConditionResult>());
                 fightRounds++;
             }
 
-            var observed = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
+            // Without conditions there is nothing to evaluate between rounds; the start already checked the snapshot.
+            var observed = conditions.Length == 0
+                ? Array.Empty<AdventureConditionResult>()
+                : await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
             if (observed.Any(condition => condition.IsBlocked))
                 return Result(BoundedAdventureRunStopReason.ConditionsBlocked, steps, observed);
             if (observed.Count > 0 && observed.All(x => x.IsSatisfied))
@@ -190,10 +201,16 @@ public sealed class BoundedAdventureRunner
             pending.EncounterId, pending.MonsterId), evaluated.PolicyDecision), null);
     }
 
-    private static bool HpAtLeast(AdventureExecutionResult result, int percent)
+    private static async ValueTask<bool> HpAtLeastAsync(
+        AdventureExecutionResult result, BoundedAdventureRunnerOptions settings, CancellationToken cancellationToken)
     {
+        var percent = settings.MinimumHpPercent;
         var combat = result.Response?.Encounter?.Combat ?? result.Response?.Observation?.Combat;
-        return combat is { PlayerHp: { } hp, PlayerMaxHp: > 0 and var max } && 100L * hp >= (long)percent * max;
+        if (combat is { PlayerHp: { } hp, PlayerMaxHp: > 0 and var max })
+            return 100L * hp >= (long)percent * max;
+        if (settings.HitPointsProvider is not { } provider) return false;
+        var fresh = await provider(cancellationToken).ConfigureAwait(false);
+        return fresh is { Maximum: > 0 } value && 100L * value.Current >= (long)percent * value.Maximum;
     }
 
     private async ValueTask<IReadOnlyList<AdventureConditionResult>> EvaluateAsync(

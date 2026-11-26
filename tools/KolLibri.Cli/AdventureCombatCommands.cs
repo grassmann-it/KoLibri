@@ -438,33 +438,71 @@ internal static partial class KolibriCli
             allowlist.AddChoiceOption(location, choice[..separator], choice[(separator + 1)..]);
         }
 
-        var request = new AdventureRunRequest
+        // --max-turns N = up to N adventures in a row (default 1). Each adventure gets its own run id and
+        // checkpoint; the loop continues only after a clean Complete whose turn the status counter confirms.
+        var turnsWanted = Math.Max(1, ReadInt(args, "--max-turns", ReadInt(args, "--turns", 1)));
+        var loopStarted = DateTimeOffset.UtcNow;
+        var loopDeadline = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300 * Math.Min(turnsWanted, 100))));
+        var minHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100);
+        var runner = new BoundedAdventureRunner(session.Gateway);
+        var runnerOptions = new BoundedAdventureRunnerOptions
         {
-            RunId = runId,
-            AdventureId = location,
-            Snarfblat = snarfblat,
-            Role = role,
-            DailyLimit = new AdventureDailyLimitContract
+            MaxGatewaySteps = ReadInt(args, "--max-steps", 20),
+            MaxFightRounds = Math.Max(0, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds)),
+            MinimumHpPercent = minHpPercent,
+            MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300))),
+            HitPointsProvider = async ct =>
             {
-                Day = DateOnly.FromDateTime(DateTime.UtcNow),
-                MaxTurns = Math.Max(0, ReadInt(args, "--max-turns", int.MaxValue)),
-                MaxRuns = Math.Max(0, ReadInt(args, "--max-runs", int.MaxValue))
+                var status = await session.AccountReader.FetchStatusAsync(true, ct).ConfigureAwait(false);
+                return status.IsStale || status.MaximumHp <= 0 ? null : (status.CurrentHp, status.MaximumHp);
             }
         };
-        var provider = new AccountAdventureConditionSnapshotProvider(session.AccountReader, conditions, forceRefresh: true);
-        var runner = new BoundedAdventureRunner(session.Gateway);
-        var result = await runner.RunAsync(
-            request,
-            allowlist,
-            conditions,
-            provider,
-            new BoundedAdventureRunnerOptions
+        var allSteps = new List<AdventureExecutionResult>();
+        var turns = new List<object>();
+        BoundedAdventureRunResult result = null!;
+        string? loopStop = null;
+        var currentRunId = runId;
+        var before = await session.AccountReader.FetchStatusAsync(true, CancellationToken.None).ConfigureAwait(false);
+        for (var turn = 1; turn <= turnsWanted; turn++)
+        {
+            if (turn > 1) currentRunId = $"{runId}-{turn}";
+            var request = new AdventureRunRequest
             {
-                MaxGatewaySteps = ReadInt(args, "--max-steps", 20),
-                MaxFightRounds = Math.Max(0, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds)),
-                MinimumHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100),
-                MaxDuration = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300)))
-            }).ConfigureAwait(false);
+                RunId = currentRunId,
+                AdventureId = location,
+                Snarfblat = snarfblat,
+                Role = role,
+                DailyLimit = new AdventureDailyLimitContract
+                {
+                    Day = DateOnly.FromDateTime(DateTime.UtcNow),
+                    MaxTurns = int.MaxValue,
+                    MaxRuns = Math.Max(0, ReadInt(args, "--max-runs", int.MaxValue))
+                }
+            };
+            var provider = new AccountAdventureConditionSnapshotProvider(session.AccountReader, conditions, forceRefresh: true);
+            result = await runner.RunAsync(request, allowlist, conditions, provider, runnerOptions).ConfigureAwait(false);
+            allSteps.AddRange(result.Steps);
+            var after = await session.AccountReader.FetchStatusAsync(true, CancellationToken.None).ConfigureAwait(false);
+            turns.Add(new
+            {
+                turn,
+                runId = currentRunId,
+                stopReason = result.StopReason.ToString(),
+                monster = result.Steps.Select(StepMonster).LastOrDefault(name => name is not null),
+                adventuresBefore = before.Adventures,
+                adventuresAfter = after.Adventures,
+                hp = after.MaximumHp > 0 ? $"{after.CurrentHp}/{after.MaximumHp}" : null
+            });
+            if (result.StopReason != BoundedAdventureRunStopReason.Complete) break;
+            if (turn == turnsWanted) break;
+            if (!before.IsStale && !after.IsStale && after.Adventures == before.Adventures)
+            { loopStop = "The adventure counter did not change after a completed adventure; stopping instead of guessing."; break; }
+            if (after.Adventures <= 0) { loopStop = "No adventures left."; break; }
+            if (minHpPercent > 0 && (after.MaximumHp <= 0 || 100L * after.CurrentHp < (long)minHpPercent * after.MaximumHp))
+            { loopStop = $"HP is below {minHpPercent}% (or unknown) before the next adventure."; break; }
+            if (DateTimeOffset.UtcNow - loopStarted >= loopDeadline) { loopStop = "The run's time limit was reached."; break; }
+            before = after;
+        }
 
         var needs = result.NeedsDecision;
         var leftover = needs is null && result.StopReason != BoundedAdventureRunStopReason.Complete
@@ -482,13 +520,17 @@ internal static partial class KolibriCli
             runId,
             location,
             role = role.ToString(),
+            turnsRequested = turnsWanted,
+            turnsDone = turns.Count,
+            loopStop,
             stopReason = result.StopReason.ToString(),
             needsDecision = needs is null ? null : NeedsDecisionDocument(needs, continueCommand),
             openChoice = leftover,
             openFight = fightOpen,
             autoChoices = resolver.Log,
             conditions = result.Conditions,
-            steps = result.Steps.Select(step => new
+            turns,
+            steps = allSteps.Select(step => new
             {
                 status = step.Status.ToString(),
                 requestId = step.RequestId,
@@ -501,10 +543,11 @@ internal static partial class KolibriCli
                 turtleMonster = TurtleTamerEncounters.IsTurtleMonster(StepMonster(step)) ? true : (bool?)null,
                 unknownPagePath = step.UnknownPagePath
             }).ToArray(),
-            unknownPagePath = result.Steps.Select(step => step.UnknownPagePath).LastOrDefault(path => path is not null),
+            unknownPagePath = allSteps.Select(step => step.UnknownPagePath).LastOrDefault(path => path is not null),
             auditPath = KoLAdventureSessionFactory.DefaultAuditPath
         });
         if (needs is not null || leftover is not null || fightOpen is not null) return 4; // a choice or fight is open: needs the user, not an error
+        if (loopStop is not null && loopStop.StartsWith("The adventure counter", StringComparison.Ordinal)) return 3;
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
     }
 
