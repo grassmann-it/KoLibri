@@ -275,6 +275,38 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public async Task Daily_run_finds_the_markers_the_0_4_cli_wrote_under_the_player_id()
+    {
+        // As in the live store of 0.4: the profile has no player id, only the status reports it ("playerid":"1001").
+        var stored = _store.Records["main"];
+        await _store.SaveAsync(stored with { Account = stored.Account with { PlayerId = null } }, default);
+        string today;
+        await using (var client = KolibriCli.CreateClient())
+        await using (var session = await client.OpenAsync("main"))
+            today = session.Daily.GameDay.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var keys = new[] { "campfire-leaf", "day-shortener", "hermit-clovers", "bacon-machine", "meme-buy:viral video", "meme-buy:plus one" };
+        var markers = keys.ToDictionary(k => "main:1001|" + k, _ => today);
+        markers["mallbot:2002|campfire-leaf"] = today;
+        // The file the 0.4 DailyDoneStore wrote (same name and JSON shape; KolibriOptions.StateDirectory points here).
+        File.WriteAllText(Path.Combine(_state, "daily-done.json"), JsonSerializer.Serialize(markers));
+        _kol.On("GET api.php?what=inventory", """{"11341":230,"8763":400,"9025":1,"42":3,"10881":1}""");
+
+        var (code, json, _) = await Cli("daily", "run", "--role", "main", "--hermit-clovers", "3");
+
+        Assert.Equal(0, code);
+        var live = json.GetProperty("live");
+        Assert.True(live.GetProperty("dayShortenerDoneToday").GetBoolean());
+        Assert.True(live.GetProperty("baconMachineUsedToday").GetBoolean());
+        Assert.Equal(new[] { "viral video", "plus one" }, live.GetProperty("memeItemsDoneToday").EnumerateArray().Select(e => e.GetString()));
+        var steps = json.GetProperty("steps").EnumerateArray()
+            .Select(s => s.GetProperty("id").GetString() + ":" + s.GetProperty("option").GetString()).ToArray();
+        Assert.DoesNotContain(steps, s => s.StartsWith("choice-campfire") || s.StartsWith("choice-day-shortner") || s.StartsWith("choice-clover")
+                                          || s.StartsWith(DailyInternetShopPlanner.MachineChoiceId));
+        Assert.DoesNotContain("meme-buy:viral video", steps);
+        Assert.DoesNotContain("meme-buy:plus one", steps);
+    }
+
+    [Fact]
     public async Task Daily_run_execute_burns_one_leaf_and_marks_the_day()
     {
         var token = await MintTokenAsync();

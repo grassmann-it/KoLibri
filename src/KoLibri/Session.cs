@@ -187,17 +187,22 @@ namespace KoLibri
         // ------------------------------------------------------------------ internals
 
         /// <summary>
-        /// Marker owner. With the 0.4 account store it is the 0.4 key ("Main:&lt;player id&gt;"), so markers written by
-        /// the 0.4 CLI stay valid; otherwise the account id.
+        /// Marker owner, as 0.4's DailyDoneStore.AccountKey: for the CLI accounts "main"/"mallbot" it is
+        /// "Main:&lt;player id&gt;", with the player id KoL itself reported in the last status read (the stored
+        /// profile may not have one), else the stored id, else the name. Markers written by the 0.4 CLI stay valid.
+        /// Other accounts use their account id.
         /// </summary>
         private string DailyKey()
         {
             var account = _record.Account;
-            if (Client.Store is not RoleAccountStore || account.Id.Value is not ("main" or "mallbot")) return account.Id.Value;
+            if (account.Id.Value is not ("main" or "mallbot")) return account.Id.Value;
             var role = account.Id.Value == "main" ? "Main" : "Mallbot";
-            var identity = account.PlayerId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? account.PlayerName;
+            var identity = _observedPlayerId is { Length: > 0 } seen ? seen
+                : account.PlayerId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? account.PlayerName;
             return string.IsNullOrWhiteSpace(identity) ? role : $"{role}:{identity.Trim()}";
         }
+
+        private string? _observedPlayerId;
 
         /// <summary>A read through the core read client: one reconnect on a login page, never stale data.</summary>
         internal async Task<T> ReadAsync<T>(Func<CoreSpiel.KoLAccountReadClient, Task<T>> read, CancellationToken cancellationToken)
@@ -213,6 +218,8 @@ namespace KoLibri
             }
             if (result is CoreSpiel.KoLStatusSnapshot { IsStale: true } or CoreSpiel.KoLInventorySnapshot { IsStale: true })
                 throw new KolibriException("KoL could not be read just now; only an older copy is available, so nothing is assumed.");
+            if (result is CoreSpiel.KoLStatusSnapshot { PlayerId: { Length: > 0 } playerId })
+                _observedPlayerId = playerId;
             return result;
         }
 
