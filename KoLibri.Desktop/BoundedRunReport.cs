@@ -26,6 +26,9 @@ public sealed record BoundedRunReport(
             BoundedAdventureRunStopReason.StepLimitReached => ("the step limit was reached", false),
             BoundedAdventureRunStopReason.FightRoundLimitReached => ("the combat round limit was reached; the fight is still open", true),
             BoundedAdventureRunStopReason.HpBelowMinimum => ("HP is below the stop threshold (or unknown); the fight is still open", true),
+            BoundedAdventureRunStopReason.CombatPolicyStopped => (failure is { Length: > 0 }
+                ? $"the combat plan has no action for this round ({failure}); the fight is still open"
+                : "the combat plan has no action for this round; the fight is still open", true),
             BoundedAdventureRunStopReason.DeadlineReached => ("the time limit was reached", false),
             BoundedAdventureRunStopReason.GatewayStopped => (failure is { Length: > 0 }
                 ? AdventureFailureMapper.Describe(failure).Text : "KoL stopped the run (fight, error or refresh needed)", true),

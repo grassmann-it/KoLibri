@@ -97,6 +97,26 @@ public static class AutoCombatAdventureAdapter
             _ => null
         };
 
+    /// <summary>
+    /// The adventure-kernel fight action ids a policy can emit (attack, run, skill:id, item:id), so a
+    /// batch allowlist is derived from the policy instead of a hard-coded attack. Without a policy, or
+    /// for a policy without any fight action, the list is just "attack".
+    /// </summary>
+    public static IReadOnlyList<string> AllowedFightActionIds(AutoCombatPolicy? policy)
+    {
+        if (policy is null) return new[] { "attack" };
+        var ids = policy.Rules.Select(rule => rule.Then).Append(policy.DefaultAction)
+            .Where(action => action is not null)
+            .Select(action => action!.Kind == AutoCombatActionKind.Run ? "run" : ToActionId(action))
+            .Where(id => id is not null).Select(id => id!)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return ids.Length == 0 ? new[] { "attack" } : ids;
+    }
+
+    /// <summary>The kernel action id of the enabled legal action that matches <paramref name="action"/>.</summary>
+    internal static string? LegalAdventureActionId(AutoCombatAction action, IReadOnlyList<CombatAction> legal)
+        => legal.FirstOrDefault(candidate => IsLegal(action, new[] { candidate }))?.AdventureActionId;
+
     private static bool IsLegal(AutoCombatAction action, IReadOnlyList<CombatAction> legal)
     {
         if (legal.Count == 0) return false;

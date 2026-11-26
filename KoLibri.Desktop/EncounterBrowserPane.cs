@@ -139,17 +139,20 @@ public sealed class EncounterBrowserPane : IDisposable
 
     public ValueTask RunTurnsAsync(
         EncounterBrowserLocationRow? row, int maxTurns = 0, string? itemId = null,
-        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0)
+        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0,
+        AutoCombatPolicy? combatPolicy = null)
         => RunAsync((session, browser, token) =>
         {
             var location = row is null ? null : new AdventureLocation(row.LocationId, row.DisplayName,
                 row.Zone, row.Snarfblat, row.TurnCost, Array.Empty<AdventureEncounterMetadata>());
-            return session.RunTurnsAsync(browser, location, maxTurns, itemId, token, maxFightRounds, minimumHpPercent);
+            return session.RunTurnsAsync(browser, location, maxTurns, itemId, token, maxFightRounds, minimumHpPercent,
+                combatPolicy);
         }, cancellationToken);
 
     /// <summary>Runs (or, with a null row, continues) the batch described by <paramref name="job"/>.</summary>
     public ValueTask RunJobAsync(EncounterBrowserLocationRow? row, AdventureJob job, CancellationToken cancellationToken = default)
-        => RunTurnsAsync(row, job.Turns, job.ItemId, cancellationToken, job.MaxFightRounds, job.MinimumHpPercent);
+        => RunTurnsAsync(row, job.Turns, job.ItemId, cancellationToken, job.MaxFightRounds, job.MinimumHpPercent,
+            job.CombatPolicy);
 
     public ValueTask FightCurrentAsync(CombatTarget target, AutoCombatPolicy policy, int maxRounds, int minimumHpPercent)
         => RunAsync((session, browser, token) => session.FightCurrentAsync(browser, target, policy, maxRounds, minimumHpPercent, token));

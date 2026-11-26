@@ -6,6 +6,9 @@ namespace KoLibri.Desktop;
 /// </summary>
 public sealed record AdventureJob(int Turns, string? ItemId, int MaxFightRounds, int MinimumHpPercent)
 {
+    /// <summary>The combat plan for fights in this job; null means attack.</summary>
+    public KoLibri.Core.Spiel.AutoCombatPolicy? CombatPolicy { get; init; }
+
     /// <summary>The one default turn budget (matches the "turnBudget" setting default).</summary>
     public const int DefaultTurns = 100;
 
