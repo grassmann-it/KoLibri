@@ -223,8 +223,10 @@ public sealed class AdventureHttpTransportTests
         using var transport = new HttpAdventureExecutionTransport(client,
             ProbeOptions(new AdventureStateSnapshot(50, false), new AdventureStateSnapshot(49, false)));
 
-        var ex = await Assert.ThrowsAsync<AdventureHttpTransportException>(() => transport.StartAdventureAsync(StartWithFields()));
-        Assert.Contains("counter changed", ex.Message);
+        // The turn was spent and nothing is open: the adventure is over (reported complete), never started again.
+        var result = await transport.StartAdventureAsync(StartWithFields());
+        Assert.Equal(AdventureEncounterKind.Complete, result.Observation?.Kind);
+        Assert.Contains("counter changed", result.Message);
         Assert.Single(handler.Requests.Where(r => r.Method == HttpMethod.Post));
     }
 

@@ -958,7 +958,8 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
             || result.UnknownPagePath is not null
             || !UnknownPageArchive.ShouldArchive(result.AbortReason))
             return result;
-        var path = UnknownPageArchive.TrySave(directory, result.AbortReason!.Value, result.Response?.Html, _clock.GetUtcNow());
+        var path = UnknownPageArchive.TrySave(directory, result.AbortReason!.Value, result.Response?.Html, _clock.GetUtcNow(),
+            result.Response?.Trail, result.Response?.PrecedingHtml);
         return path is null
             ? result
             : result with { UnknownPagePath = path };

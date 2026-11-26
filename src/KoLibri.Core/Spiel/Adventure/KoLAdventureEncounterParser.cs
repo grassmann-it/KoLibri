@@ -49,6 +49,15 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
                 advisories, null, responseHash, retryCount, extraFields);
         }
 
+        if (IsNotInAFightPage(html))
+        {
+            // KoL's fight.php answers 200 with this page when no fight is open (usually right after one
+            // ended). Nothing is open, so the adventure is over; the run never treats it as a fight.
+            advisories.Add("KoL answered 'Not in a Fight': no fight is open; the adventure is over.");
+            return Build(adventureId, AdventureEncounterKind.Complete, path, null, [], false,
+                advisories, null, responseHash, retryCount, extraFields);
+        }
+
         var choiceId = ExtractInputValue(html, "whichchoice");
         var choices = ExtractChoices(html).ToList();
         var labels = ExtractChoiceLabels(html, choiceId, choices);
@@ -99,6 +108,12 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         return Build(adventureId, AdventureEncounterKind.Unknown, path, null, [], false,
             advisories, null, responseHash, retryCount, extraFields);
     }
+
+    /// <summary>KoL's "Not in a Fight" page (fight.php, HTTP 200, no fight open).</summary>
+    public static bool IsNotInAFightPage(string? html)
+        => !string.IsNullOrEmpty(html)
+            && (html.Contains("You're not currently in a fight", StringComparison.OrdinalIgnoreCase)
+                || html.Contains(">Not in a Fight<", StringComparison.OrdinalIgnoreCase));
 
     private static AdventureEncounterState Build(
         string adventureId,

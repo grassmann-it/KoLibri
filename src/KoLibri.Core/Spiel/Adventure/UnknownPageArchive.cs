@@ -44,16 +44,28 @@ public static class UnknownPageArchive
     /// <c>&lt;directory&gt;/&lt;utc time&gt;-&lt;reason&gt;-&lt;hash8&gt;.html</c>. Returns the path, or null when
     /// there is no page or the file could not be written (diagnostics never break a run).
     /// </summary>
-    public static string? TrySave(string directory, AdventureAbortReason reason, string? html, DateTimeOffset now)
+    /// <remarks>
+    /// <paramref name="trail"/> (how the client got to the page: requests, status codes, redirect targets) is
+    /// written as a comment at the top; <paramref name="precedingHtml"/> (the page read just before, e.g.
+    /// main.php after a redirect) goes, redacted, to the same name with <c>.prev.html</c>.
+    /// </remarks>
+    public static string? TrySave(string directory, AdventureAbortReason reason, string? html, DateTimeOffset now,
+        IReadOnlyList<string>? trail = null, string? precedingHtml = null)
     {
         if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrEmpty(html)) return null;
         try
         {
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(html)))[..8].ToLowerInvariant();
-            var name = $"{now.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{reason}-{hash}.html";
+            var name = $"{now.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{reason}-{hash}";
             Directory.CreateDirectory(directory);
-            var path = Path.Combine(directory, name);
-            File.WriteAllText(path, Redact(html), Encoding.UTF8);
+            var path = Path.Combine(directory, name + ".html");
+            var header = trail is { Count: > 0 }
+                ? "<!-- KoLibri request trail:\n" + string.Join("\n", trail.Select(step => "  " + step.Replace("--", "- -")))
+                  + (string.IsNullOrEmpty(precedingHtml) ? "" : $"\n  preceding page: {name}.prev.html") + "\n-->\n"
+                : string.Empty;
+            File.WriteAllText(path, Redact(header + html), Encoding.UTF8);
+            if (!string.IsNullOrEmpty(precedingHtml))
+                File.WriteAllText(Path.Combine(directory, name + ".prev.html"), Redact(precedingHtml), Encoding.UTF8);
             return path;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException

@@ -96,8 +96,12 @@ public static class KoLAdventureSessionFactory
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             var code = (int)response.StatusCode;
             // First safely open encounter: return at once, a later probe failure must not lose it.
-            if (response.StatusCode == HttpStatusCode.OK)
+            // fight.php also answers 200 with "Not in a Fight" when nothing is open: that is no encounter.
+            if (response.StatusCode == HttpStatusCode.OK
+                && !(page == "fight.php" && KoLAdventureEncounterParser.IsNotInAFightPage(
+                    await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false))))
                 return new AdventureStateSnapshot(status.Adventures, true, Fresh: !status.IsStale && status.AdventuresKnown);
+            if (response.StatusCode == HttpStatusCode.OK) continue;
             // Only a redirect with a usable target means "no encounter"; anything else is unknown.
             var freeRedirect = code is >= 300 and < 400 && response.Headers.Location is not null;
             if (!freeRedirect)

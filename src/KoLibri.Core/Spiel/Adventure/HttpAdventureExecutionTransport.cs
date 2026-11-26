@@ -215,6 +215,8 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
 
         Interlocked.Increment(ref _httpRequestCount);
         LastRequest = request;
+        var trail = new List<string>();
+        string? precedingHtml = null;
 
         HttpResponseMessage response;
         try
@@ -231,6 +233,7 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
 
         using (response)
         {
+            trail.Add($"{message.Method} {uri.AbsolutePath} -> {Describe(response)}");
             try
             {
                 // KoL answers adventure.php with a redirect to fight.php or choice.php. Follow exactly
@@ -270,6 +273,8 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                 // by the state probe below, not by the page text.
                                 var mainHtml = await ReadBoundedBodyAsync(mainResponse.Content, timeout.Token)
                                     .ConfigureAwait(false);
+                                trail.Add($"GET /main.php -> {Describe(mainResponse)}");
+                                precedingHtml = mainHtml;
                                 if (InterstitialErrorMarkers.Any(m => mainHtml.Contains(m, StringComparison.OrdinalIgnoreCase)))
                                     throw new AdventureHttpTransportException(
                                         "KoL adventure start was redirected to main.php, but the page is a login or error page; no further start was sent.");
@@ -285,11 +290,12 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php and the adventure state could not be re-read; not retrying.", ex);
                             }
+                            trail.Add($"state probe -> adventures {afterState.Adventures}, encounter {(afterState.EncounterOpen ? "open" : "none")}");
                             if (afterState.EncounterOpen)
                             {
                                 // The redirect only meant "state changed": a fight or choice is open. Continue it
                                 // (read-only GET of fight.php, then choice.php); no second start is sent.
-                                var open = await OpenEncounterPageAsync(currentUri, timeout.Token).ConfigureAwait(false)
+                                var open = await OpenEncounterPageAsync(currentUri, trail, timeout.Token).ConfigureAwait(false)
                                     ?? throw new AdventureHttpTransportException(
                                         "KoL adventure start was redirected to main.php and an encounter is open, but neither fight.php nor choice.php could be read; no further start was sent.");
                                 followed?.Dispose();
@@ -301,13 +307,43 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                             if (baseline is null)
                                 throw new AdventureHttpTransportException(
                                     $"KoL adventure start was redirected to main.php; no fight or choice is open (adventures now {afterState.Adventures}). "
-                                    + "No pre-start counter exists to prove the turn was not spent, so the start was not repeated: check the adventure counter, then run the command again.");
+                                    + "No pre-start counter exists to prove the turn was not spent, so the start was not repeated: check the adventure counter, then run the command again."
+                                    + $" Requests: {string.Join("; ", trail)}.");
                             if (!afterState.Fresh || !baseline.Fresh)
                                 throw new AdventureHttpTransportException(
                                     "KoL adventure start was redirected to main.php but the adventure counter is stale; not retrying.");
                             if (afterState.Adventures != baseline.Adventures)
-                                throw new AdventureHttpTransportException(
-                                    $"KoL adventure start was redirected to main.php, the adventure counter changed ({baseline.Adventures} -> {afterState.Adventures}) and no encounter is open; the turn may have been spent, not retrying. Check the account.");
+                            {
+                                // The start spent the turn and nothing is open (e.g. a fight that ended at once):
+                                // the adventure is over. Report it as complete; never send the start again.
+                                var done = precedingHtml ?? string.Empty;
+                                var doneHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                                    $"main-after-start|{request.RequestId}|{done}"))).ToLowerInvariant();
+                                var completed = new AdventureTransportResponse
+                                {
+                                    RequestId = request.RequestId,
+                                    RunId = request.RunId,
+                                    AdventureId = request.AdventureId,
+                                    ResponseUri = new Uri(currentUri, "/main.php"),
+                                    StatusCode = HttpStatusCode.OK,
+                                    Html = done,
+                                    BodyBytes = Encoding.UTF8.GetByteCount(done),
+                                    ResponseHash = doneHash,
+                                    RequestFingerprint = request.ActionFingerprint,
+                                    Accepted = true,
+                                    Message = $"KoL adventure start was redirected to main.php; the adventure counter changed ({baseline.Adventures} -> {afterState.Adventures}) and no encounter is open, so the adventure counts as done.",
+                                    Observation = new AdventureKernelObservation
+                                    {
+                                        AdventureId = request.AdventureId,
+                                        Kind = AdventureEncounterKind.Complete,
+                                        EncounterId = "/main.php",
+                                        ResponseHash = doneHash
+                                    },
+                                    Trail = trail.ToArray()
+                                };
+                                LastResponse = completed;
+                                return completed;
+                            }
                             var (retry, retryUri) = BuildMessage();
                             using (retry)
                             {
@@ -315,6 +351,7 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                                 var again = await _http
                                     .SendAsync(retry, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                                     .ConfigureAwait(false);
+                                trail.Add($"{retry.Method} {retryUri.AbsolutePath} (retry, counter unchanged) -> {Describe(again)}");
                                 followed?.Dispose();
                                 followed = again;
                                 current = again;
@@ -333,13 +370,34 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                         Interlocked.Increment(ref _httpRequestCount);
                         var next = await _http.SendAsync(follow, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                             .ConfigureAwait(false);
+                        trail.Add($"GET {target.AbsolutePath} -> {Describe(next)}");
                         followed?.Dispose();
                         followed = next;
                         current = next;
                         currentUri = target;
                     }
                     EnsureNoRedirect(currentUri, current);
-                    return await BuildResultAsync(current, currentUri).ConfigureAwait(false);
+                    var built = await BuildResultAsync(current, currentUri).ConfigureAwait(false);
+                    if (operation == AdventureTransportOperation.Adventure
+                        && currentUri.AbsolutePath.EndsWith("fight.php", StringComparison.OrdinalIgnoreCase)
+                        && KoLAdventureEncounterParser.IsNotInAFightPage(built.Html))
+                    {
+                        // KoL sent the start to fight.php, but no fight is open. A choice may be open instead:
+                        // read choice.php once (GET, no second start). Otherwise "Not in a Fight" stands and
+                        // the parser reports the adventure as over.
+                        var choice = await OpenEncounterPageAsync(currentUri, trail, timeout.Token, "choice.php")
+                            .ConfigureAwait(false);
+                        if (choice is { } open)
+                        {
+                            followed?.Dispose();
+                            followed = open.Response;
+                            precedingHtml = built.Html;
+                            built = await BuildResultAsync(open.Response, open.Uri).ConfigureAwait(false);
+                        }
+                        built = built with { Trail = trail.ToArray() };
+                        LastResponse = built;
+                    }
+                    return built;
                 }
                 finally { followed?.Dispose(); }
 
@@ -368,7 +426,9 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
                     Accepted = response.IsSuccessStatusCode,
                     Message = response.IsSuccessStatusCode
                         ? null
-                        : $"KoL adventure request returned HTTP {(int)response.StatusCode}."
+                        : $"KoL adventure request returned HTTP {(int)response.StatusCode}.",
+                    Trail = trail.ToArray(),
+                    PrecedingHtml = precedingHtml
                 };
                 LastResponse = result;
                 return result;
@@ -552,21 +612,46 @@ public class HttpAdventureExecutionTransport : IAdventureExecutionHttpTransport,
         return !InterstitialErrorMarkers.Any(m => html.Contains(m, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>GETs fight.php, then choice.php, and returns the first that answers 200 (the open encounter page).</summary>
-    private async Task<(HttpResponseMessage Response, Uri Uri)?> OpenEncounterPageAsync(Uri from, CancellationToken ct)
+    /// <summary>
+    /// GETs fight.php, then choice.php, and returns the first that answers 200 with an open encounter.
+    /// fight.php's 200 "Not in a Fight" page means no fight and is skipped.
+    /// </summary>
+    private async Task<(HttpResponseMessage Response, Uri Uri)?> OpenEncounterPageAsync(
+        Uri from, List<string> trail, CancellationToken ct, params string[] pages)
     {
-        foreach (var page in new[] { "fight.php", "choice.php" })
+        foreach (var page in pages.Length == 0 ? new[] { "fight.php", "choice.php" } : pages)
         {
             var uri = new Uri(from, "/" + page);
             _security.EnsureAllowed(uri, "KoL open encounter read");
             Interlocked.Increment(ref _httpRequestCount);
             var response = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Get, uri),
                 HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            trail.Add($"GET /{page} -> {Describe(response)}");
+            if (response.StatusCode == HttpStatusCode.OK && page == "fight.php")
+            {
+                // Buffer the body so it can be checked here and read again by the caller.
+                await response.Content.LoadIntoBufferAsync().ConfigureAwait(false);
+                if (KoLAdventureEncounterParser.IsNotInAFightPage(
+                        await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)))
+                {
+                    trail[^1] += " (Not in a Fight)";
+                    response.Dispose();
+                    continue;
+                }
+            }
             if (response.StatusCode == HttpStatusCode.OK)
                 return (response, uri);
             response.Dispose();
         }
         return null;
+    }
+
+    private static string Describe(HttpResponseMessage response)
+    {
+        var code = (int)response.StatusCode;
+        return response.Headers.Location is { } location
+            ? $"{code} {RedirectTarget(response)}"
+            : code.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static readonly HashSet<string> FollowableRoutes = new(StringComparer.OrdinalIgnoreCase)

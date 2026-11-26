@@ -608,6 +608,15 @@ public sealed record AdventureTransportResponse
     /// <summary>Optional echo of the request's action fingerprint.</summary>
     public string? RequestFingerprint { get; init; }
 
+    /// <summary>
+    /// How the HTTP adapter got to this page: each request and its answer ("POST /adventure.php -> 302 /main.php").
+    /// Kept with an archived unknown page so the path that led there is visible.
+    /// </summary>
+    public IReadOnlyList<string> Trail { get; init; } = Array.Empty<string>();
+
+    /// <summary>The page read just before this one on the same request (for example main.php after a redirect).</summary>
+    public string? PrecedingHtml { get; init; }
+
     public string? EffectiveResponseHash
         => ResponseHash
             ?? Observation?.ResponseHash
