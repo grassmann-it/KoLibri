@@ -505,6 +505,7 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
                 "The response hash was already checkpointed for this run.", cancellationToken,
                 response).ConfigureAwait(false);
 
+        observation = InferOpeningFightRound(state, observation);
         var validationError = ValidateObservation(state, observation);
         if (validationError is not null)
             return await AbortAndPersistAsync(marked, state,
@@ -727,6 +728,26 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
         };
     }
 
+    /// <summary>
+    /// KoL's first fight page after adventure.php does not always carry an <c>onturn</c> marker,
+    /// while every later round (and a fight re-opened by a second run) does. Without this, a fresh run
+    /// stopped with UnknownFight on its first fight while the next run fought the same fight normally.
+    /// Only the opening page of a fight is inferred as round 1, and only when the page shows an ongoing
+    /// fight that offers an enabled action; mid-fight a missing round still stops the run.
+    /// </summary>
+    internal static AdventureKernelObservation InferOpeningFightRound(
+        AdventureRunState state,
+        AdventureKernelObservation observation)
+    {
+        if (observation.Kind != AdventureEncounterKind.Fight
+            || observation.FightRound.HasValue
+            || state.Phase == AdventureRunPhase.Fight
+            || observation.Combat is not { Outcome: CombatOutcome.Ongoing } combat
+            || !combat.AvailableActions.Any(action => action.IsEnabled && action.AdventureActionId is not null))
+            return observation;
+        return observation with { FightRound = 1, CanContinue = true };
+    }
+
     private static (AdventureAbortReason Reason, string Message)? ValidateObservation(
         AdventureRunState state,
         AdventureKernelObservation observation)
@@ -917,12 +938,30 @@ public sealed class AdventureExecutionGateway : IAsyncDisposable, IDisposable
         await _lane.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await operation(cancellationToken).ConfigureAwait(false);
+            return ArchiveUnknownPage(await operation(cancellationToken).ConfigureAwait(false));
         }
         finally
         {
             _lane.Release();
         }
+    }
+
+    /// <summary>
+    /// When set, a run that stops on an unknown or undecidable page keeps that page, redacted,
+    /// in this directory (see <see cref="UnknownPageArchive"/>). Null keeps nothing (fixtures, tests).
+    /// </summary>
+    public string? UnknownPageDirectory { get; init; }
+
+    private AdventureExecutionResult ArchiveUnknownPage(AdventureExecutionResult result)
+    {
+        if (UnknownPageDirectory is not { } directory
+            || result.UnknownPagePath is not null
+            || !UnknownPageArchive.ShouldArchive(result.AbortReason))
+            return result;
+        var path = UnknownPageArchive.TrySave(directory, result.AbortReason!.Value, result.Response?.Html, _clock.GetUtcNow());
+        return path is null
+            ? result
+            : result with { UnknownPagePath = path };
     }
 
     private static string NewRequestId()

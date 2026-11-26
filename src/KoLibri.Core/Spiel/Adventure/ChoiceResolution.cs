@@ -132,6 +132,17 @@ public static class TurtleTamerEncounters
     public static bool IsTurtleEncounter(string? title)
         => !string.IsNullOrWhiteSpace(title) && TitlePattern.IsMatch(title);
 
+    private static readonly Regex MonsterPattern = new(
+        @"\b(turtles?|tortoises?|terrapins?)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A fight against a turtle monster (KoLmafia's monster data names them all "... turtle",
+    /// "tortoise" or "terrapin"). Only a marker for the result; taming is never automated.
+    /// </summary>
+    public static bool IsTurtleMonster(string? monsterName)
+        => !string.IsNullOrWhiteSpace(monsterName) && MonsterPattern.IsMatch(monsterName);
+
     public static string DecisionReason(string choiceId, string? title, string? inner)
         => $"Turtle Tamer random encounter '{title}' (choice {choiceId}) is open and has no configured answer. "
          + $"Pick an option with `kolibri choice submit --choice {choiceId} --option <N>`, or set a default once with "

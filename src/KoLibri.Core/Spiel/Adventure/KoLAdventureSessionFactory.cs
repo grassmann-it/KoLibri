@@ -38,15 +38,20 @@ public static class KoLAdventureSessionFactory
         var session = await manager.GetRequiredSessionAsync(role, cancellationToken).ConfigureAwait(false);
         var http = KoLLoginClient.CreateAuthenticatedClient(
             session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        return Create(session, http, approval, verification, checkpoints, auditJournal, options);
+        return Create(session, http, approval, verification, checkpoints, auditJournal, options,
+            UnknownPageArchive.DefaultDirectory);
     }
 
-    /// <summary>Creates a session and takes ownership of the supplied HTTP client.</summary>
+    /// <summary>
+    /// Creates a session and takes ownership of the supplied HTTP client. Pass
+    /// <paramref name="unknownPageDirectory"/> (usually <see cref="UnknownPageArchive.DefaultDirectory"/>)
+    /// to keep redacted copies of pages a run could not handle; null keeps none.
+    /// </summary>
     public static KoLAdventureSession Create(
         AccountSession session, HttpClient http,
         IAdventureApprovalHook approval, IAdventureVerificationHook verification,
         IAdventureRunCheckpointStore? checkpoints = null, IAuditEventJournal? auditJournal = null,
-        AdventureHttpTransportOptions? options = null)
+        AdventureHttpTransportOptions? options = null, string? unknownPageDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(http);
@@ -67,7 +72,10 @@ public static class KoLAdventureSessionFactory
                 transport,
                 checkpoints ?? new JsonFileAdventureRunCheckpointStore(DefaultCheckpointDirectory),
                 approval: hooks,
-                verification: hooks);
+                verification: hooks)
+            {
+                UnknownPageDirectory = unknownPageDirectory
+            };
             return new KoLAdventureSession(session, http, transport, accountReader, gateway, journal, auditJournal is null);
         }
         catch
