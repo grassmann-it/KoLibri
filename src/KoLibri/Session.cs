@@ -213,6 +213,7 @@ namespace KoLibri
             catch (Exception exception) when (Mapping.IsLoginPage(exception))
             {
                 _expired = true;
+                if (!Client.Options.MayAutoReconnect) throw new SessionExpiredException(_record.Account.Id);
                 await ReconnectAsync(cancellationToken).ConfigureAwait(false);
                 result = await read(Reader).ConfigureAwait(false);
             }
@@ -296,7 +297,7 @@ namespace KoLibri
             if (page.Kind == PageKind.LoginRequired)
             {
                 _expired = true;
-                if (effective == RequestLane.Read && !string.IsNullOrEmpty(_record.Password ?? (await Client.FindRecordAsync(_record.Account.Id.Value, true, cancellationToken).ConfigureAwait(false))?.Password))
+                if (effective == RequestLane.Read && Client.Options.MayAutoReconnect && !string.IsNullOrEmpty(_record.Password ?? (await Client.FindRecordAsync(_record.Account.Id.Value, true, cancellationToken).ConfigureAwait(false))?.Password))
                 {
                     await ReconnectAsync(cancellationToken).ConfigureAwait(false);
                     page = await SendOnceAsync(method, uri, form, lane, cancellationToken).ConfigureAwait(false);

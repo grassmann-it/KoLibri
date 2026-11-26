@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;

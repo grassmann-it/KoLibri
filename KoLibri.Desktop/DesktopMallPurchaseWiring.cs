@@ -1,7 +1,4 @@
 using System.Globalization;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

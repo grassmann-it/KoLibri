@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 

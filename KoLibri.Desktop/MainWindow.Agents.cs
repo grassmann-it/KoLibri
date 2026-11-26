@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using LibKolibri.Access;
 
 namespace KoLibri.Desktop;
 

@@ -1,7 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 

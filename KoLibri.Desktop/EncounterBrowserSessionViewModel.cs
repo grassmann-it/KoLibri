@@ -1,7 +1,4 @@
-using LibKolibri;
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

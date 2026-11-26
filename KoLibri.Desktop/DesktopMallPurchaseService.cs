@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 

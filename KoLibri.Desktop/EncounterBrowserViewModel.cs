@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

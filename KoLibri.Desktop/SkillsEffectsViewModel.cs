@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

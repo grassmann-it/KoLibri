@@ -1,4 +1,3 @@
-using KoLibri.Core.Basis;
 
 namespace KoLibri.Desktop;
 

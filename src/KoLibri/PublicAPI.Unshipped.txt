@@ -968,3 +968,17 @@ KoLibri.MallListing.QuantityKnown.get -> bool
 KoLibri.MallListing.QuantityKnown.init -> void
 KoLibri.Account.HasPassword.get -> bool
 KoLibri.Account.HasPassword.init -> void
+KoLibri.KolibriOptions.AutoReconnect.get -> System.Func<bool>?
+KoLibri.KolibriOptions.AutoReconnect.init -> void
+KoLibri.Status.Ascensions.get -> int?
+KoLibri.Status.Ascensions.init -> void
+KoLibri.Status.FamiliarName.get -> string?
+KoLibri.Status.FamiliarName.init -> void
+KoLibri.Status.FamiliarWeight.get -> int?
+KoLibri.Status.FamiliarWeight.init -> void
+KoLibri.Status.Hardcore.get -> bool?
+KoLibri.Status.Hardcore.init -> void
+KoLibri.Status.PathId.get -> int?
+KoLibri.Status.PathId.init -> void
+KoLibri.Status.PlayerId.get -> int?
+KoLibri.Status.PlayerId.init -> void

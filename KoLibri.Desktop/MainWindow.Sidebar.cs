@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 

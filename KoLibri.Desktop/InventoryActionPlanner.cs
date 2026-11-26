@@ -1,4 +1,3 @@
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop.ContextMenus;
 
 namespace KoLibri.Desktop;

@@ -1,9 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop.ContextMenus;
-using KoLibri.Core.Basis;
-using LibKolibri;
 
 namespace KoLibri.Desktop;
 

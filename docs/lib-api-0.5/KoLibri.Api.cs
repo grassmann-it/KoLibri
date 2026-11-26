@@ -55,6 +55,8 @@ namespace KoLibri
         public HttpMessageHandler? HttpHandler { get; init; }
         /// <summary>Hook vor jeder verändernden Aktion. Standard: alles erlaubt. Siehe KoLibri.Safety.</summary>
         public IActionGuard? ActionGuard { get; init; }
+        /// <summary>Darf die Lib mit gespeichertem Passwort selbst neu anmelden? Vor jedem automatischen Reconnect gefragt; null = ja. Ergänzt in Schritt 3 (Desktop).</summary>
+        public Func<bool>? AutoReconnect { get; init; }
     }
 
     public sealed class LimiterOptions
@@ -238,6 +240,13 @@ namespace KoLibri
         public string? PathName { get; init; }
         public int? RoninTurnsRemaining { get; init; }
         public int? StoragePullsRemaining { get; init; }
+        /// <summary>Ergänzt in Schritt 3 (Desktop-Charpane).</summary>
+        public int? PlayerId { get; init; }
+        public string? FamiliarName { get; init; }
+        public int? FamiliarWeight { get; init; }
+        public int? PathId { get; init; }
+        public int? Ascensions { get; init; }
+        public bool? Hardcore { get; init; }
     }
 
     public readonly record struct OrganState(int Current, int? Limit);

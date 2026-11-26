@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 

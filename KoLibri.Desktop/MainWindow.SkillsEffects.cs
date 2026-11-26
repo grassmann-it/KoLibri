@@ -1,5 +1,3 @@
-using KoLibri.Core.Spiel;
-using LibKolibri;
 
 namespace KoLibri.Desktop;
 
