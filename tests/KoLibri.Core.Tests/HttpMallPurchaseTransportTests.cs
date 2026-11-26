@@ -62,7 +62,7 @@ public sealed class HttpMallPurchaseTransportTests
         Assert.NotNull(sent.RequestUri);
         Assert.Equal(string.Empty, sent.RequestUri!.Query);
         var body = handler.RequestBodies[0];
-        Assert.Contains("whichitem=789000000100", body, StringComparison.Ordinal);
+        Assert.Contains("whichitem=789.100", body, StringComparison.Ordinal);
         Assert.Contains("whichstore=123", body, StringComparison.Ordinal);
         Assert.Contains("buying=1", body, StringComparison.Ordinal);
         Assert.Contains("quantity=2", body, StringComparison.Ordinal);

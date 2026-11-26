@@ -14,8 +14,8 @@ public sealed class DesktopMallPurchaseServiceTests
     [Fact]
     public async Task BuyClientAndTransportSendTheSamePriceBoundForm()
     {
-        var expected = "whichitem=789000000100";
-        Assert.Equal("789000000100", MallBuyClient.FormatWhichItem(789, 100));
+        var expected = "whichitem=789.100";
+        Assert.Equal("789.100", MallBuyClient.FormatWhichItem(789, 100));
 
         var clientHandler = new Handler(_ => Ok("You acquire an item (2). You spent 200 Meat."));
         using var http = new HttpClient(clientHandler);
