@@ -220,6 +220,56 @@ public sealed class AdventureChoiceHardeningTests
         Assert.Single(transport.Requests); // the fight round was never sent
     }
 
+    // Live 2026-11-26: fight.php shows no player HP, so every fight stopped with "HP below minimum (or unknown)".
+    private static AdventureKernelObservation FightWithoutHp(int round)
+    {
+        var fight = Fight(round, 0);
+        return fight with { Combat = fight.Combat! with { PlayerHp = null, PlayerMaxHp = null } };
+    }
+
+    [Fact]
+    public async Task A_fight_page_without_hp_uses_the_fresh_status_hp()
+    {
+        using var transport = new AdventureExecutionFixtureTransport();
+        transport.EnqueueObservation(AdventureTransportOperation.Adventure, FightWithoutHp(1));
+        transport.EnqueueObservation(AdventureTransportOperation.Fight, Fight(2, 90) with { Kind = AdventureEncounterKind.Complete, CanContinue = false });
+        await using var gateway = new AdventureExecutionGateway(transport, new InMemoryAdventureRunCheckpointStore());
+        var asked = 0;
+
+        var result = await new BoundedAdventureRunner(gateway).RunAsync(
+            new AdventureRunRequest { RunId = "hp-status", AdventureId = "skeleton" }, FightAllowlist(),
+            options: new BoundedAdventureRunnerOptions
+            {
+                MinimumHpPercent = 50,
+                HitPointsProvider = _ => { asked++; return ValueTask.FromResult<(int, int)?>((494, 504)); }
+            });
+
+        Assert.NotEqual(BoundedAdventureRunStopReason.HpBelowMinimum, result.StopReason);
+        Assert.Equal(1, asked);
+        Assert.Equal(2, transport.Requests.Count); // the attack was sent
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(-1)] // provider returns unknown
+    public async Task Status_hp_below_the_minimum_or_unknown_still_stops(int hp)
+    {
+        using var transport = new AdventureExecutionFixtureTransport();
+        transport.EnqueueObservation(AdventureTransportOperation.Adventure, FightWithoutHp(1));
+        await using var gateway = new AdventureExecutionGateway(transport, new InMemoryAdventureRunCheckpointStore());
+
+        var result = await new BoundedAdventureRunner(gateway).RunAsync(
+            new AdventureRunRequest { RunId = "hp-low", AdventureId = "skeleton" }, FightAllowlist(),
+            options: new BoundedAdventureRunnerOptions
+            {
+                MinimumHpPercent = 50,
+                HitPointsProvider = _ => ValueTask.FromResult<(int, int)?>(hp < 0 ? null : (hp, 100))
+            });
+
+        Assert.Equal(BoundedAdventureRunStopReason.HpBelowMinimum, result.StopReason);
+        Assert.Single(transport.Requests);
+    }
+
     [Fact]
     public async Task The_runner_stops_at_the_fight_round_limit()
     {
