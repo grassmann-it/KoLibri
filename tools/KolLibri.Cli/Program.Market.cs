@@ -10,6 +10,8 @@ internal static partial class KolibriCli
 {
     private static async Task<int> ShopAsync(string[] args)
     {
+        if (args.Length > 0 && args[0].Equals("add", StringComparison.OrdinalIgnoreCase))
+            return await ShopAddAsync(args[1..]);
         var client = await ReadClientAsync(ParseRole(GetOption(args, "--role") ?? "mallbot"));
         var shop = await client.Mall.FetchOwnShopAsync(forceRefresh: HasFlag(args, "--refresh"));
         WriteJson(new { fetchedAt = DateTimeOffset.UtcNow, count = shop.Count, listings = shop });

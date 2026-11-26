@@ -1,0 +1,76 @@
+<html><head>
+<script language=Javascript>
+<!--
+if (parent.frames.length == 0) location.href="game.php";
+var actions = {  }
+var notchat = true;//-->
+</script>
+<script language=Javascript src="https://images.kingdomofloathing.com/scripts/keybinds.min.2.js"></script>
+<script language=Javascript src="https://images.kingdomofloathing.com/scripts/window.20111231.js"></script>
+<script language="javascript">function chatFocus(){if(top.chatpane.document.chatform.graf) top.chatpane.document.chatform.graf.focus();}
+if (typeof defaultBind != 'undefined') { defaultBind(47, 2, chatFocus); defaultBind(190, 2, chatFocus);defaultBind(191, 2, chatFocus); defaultBind(47, 8, chatFocus);defaultBind(190, 8, chatFocus); defaultBind(191, 8, chatFocus); }</script><script> tp=top
+var todo = [];
+function nextAction() {
+	var next_todo = todo.shift();
+	if (next_todo) {
+		eval(next_todo);
+	}
+}
+function dojax(dourl, afterFunc, hoverCaller, failureFunc, method, params) {
+	$.ajax({
+		type: method || 'GET', url: dourl, cache: false,
+		data: params || null,
+		global: false,
+		success: function (out) {
+			nextAction();
+			if (out.match(/no\|/)) {
+				var parts = out.split(/\|/);
+				if (failureFunc) failureFunc(parts[1]);
+				else if (window.dojaxFailure) window.dojaxFailure(parts[1]);
+				else if (tp.chatpane.handleMessage) tp.chatpane.handleMessage({type: 'event', msg: 'Oops!  Sorry, Dave, you appear to be ' + parts[1]});
+				else  $('#ChatWindow').append('<font color="green">Oops!  Sorry, Dave, you appear to be ' + parts[1] + '.</font><br />' + "\n");
+				return;
+			}
+
+			if (hoverCaller)  {
+				float_results(hoverCaller, out);
+				if (afterFunc) { afterFunc(out); }
+				return;
+			}
+$(tp.mainpane.document).find("#effdiv").remove(); if(!window.dontscroll || (window.dontscroll && dontscroll==0)) { window.scroll(0,0);}
+			var $eff = $(tp.mainpane.document).find('#effdiv');
+			if ($eff.length == 0) {
+				var d = tp.mainpane.document.createElement('DIV');
+				d.id = 'effdiv';
+				var b = tp.mainpane.document.body;
+				if ($('#content_').length > 0) {
+					b = $('#content_ div:first')[0];
+				}
+				b.insertBefore(d, b.firstChild);
+				$eff = $(d);
+			}
+			$eff.find('a[name="effdivtop"]').remove().end()
+				.prepend('<a name="effdivtop"></a><center>' + out + '</center>').css('display','block');
+			if (!window.dontscroll || (window.dontscroll && dontscroll==0)) {
+				tp.mainpane.document.location = tp.mainpane.document.location + "#effdivtop";
+			}
+			if (afterFunc) { afterFunc(out); }
+		}
+	});
+}
+</script><script language=Javascript src="https://images.kingdomofloathing.com/scripts/jquery-1.3.1.min.js"></script>
+<script language=Javascript src='https://images.kingdomofloathing.com/scripts/rcm.20160406.js'></script>	<link rel="stylesheet" type="text/css" href="https://images.kingdomofloathing.com/styles.20230117d.css">
+<style type='text/css'>
+.faded {
+	zoom: 1;
+	filter: alpha(opacity=35);
+	opacity: 0.35;
+	-khtml-opacity: 0.35; 
+    -moz-opacity: 0.35;
+}
+</style>
+
+</head>
+
+<body>
+<div id='menu' class=rcm></div><center></center><center><table  width=95%  cellspacing=0 cellpadding=0><tr><td style="background-color: blue" align=center ><b style="color: white">Results:</b></td></tr><tr><td style="padding: 5px; border: 1px solid blue;"><center><table><tr><td>You hack into reality and manifest a:<form method="get" action="inv_use.php"><input type=hidden name=whichitem value=11473 /><input type=hidden name=qty value=1 /><input type=hidden name=pwd value="PWD" /><select name="rare"><option value=""></option><option value='11452'>ancient Elf dessert spoon</option><option value='11456'>baby rigging snake</option><option value='11448'>brown pirate pants</option><option value='11432'>Cocktails of the Age of Sail</option><option value='11458'>Crimbuccaneer bombjacket</option><option value='11445'>Crimbuccaneer fledges (disintegrating)</option><option value='11406'>Crimbuccaneer invasion map</option><option value='11404'>Crimbuccaneer lantern</option><option value='11442'>Crimbuccaneer runebone</option><option value='11420'>Crimbuccaneer tavern swab</option><option value='11419'>Elf Guard broom</option><option value='11434'>Elf Guard clipboard</option><option value='11429'>Elf Guard Field Manual: Culinary Arts</option><option value='11449'>Elf Guard Field Manual: Extortion</option><option value='11454'>Elf Guard Field Manual: Wilderness Sleeping</option><option value='11446'>Elf Guard fuel tank</option><option value='11421'>Elf Guard hangover cure</option><option value='11415'>Elf Guard insignia (general)</option><option value='11437'>Elf Guard red and white beret</option><option value='11453'>Elf Guard SCUBA tank</option><option value='11417'>Elf Guard strategic map</option><option value='11457'>Elvish underarmor</option><option value='11455'>free boots</option><option value='11439'>gunwale</option><option value='11447'>massive wrench</option><option value='11451'>punching mirror</option><option value='11450'>The Encyclopedia of Fruit</option><option value='11431'>whalegun</option></select><input type="submit" class="button" value="Do It!" /></form></blockquote></td></tr></table></center></td></tr><tr><td height=4></td></tr></table><table  width=95%  cellspacing=0 cellpadding=0><tr><td style="background-color: blue" align=center ><b style="color: white">The Kingdom of Loathing</b></td></tr><tr><td style="padding: 5px; border: 1px solid blue;"><center><table><tr><td><style>.x2 { image-rendering: auto; }</style><center><div id=background  style='position: relative; width:700px;height:600px'  ><img id="place_bg" class="x2" src="https://images.kingdomofloathing.com/otherimages/main/background.png" srcset="https://images.kingdomofloathing.com/otherimages/main/background2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/background.png 1x" style="position: absolute; bottom: 0; left: 0" border=0><div id=newmain_campground class="element" style=' position: absolute; top: 119; left: 265; height: 62; width: 87;'><a  href=campground.php><img src="https://images.kingdomofloathing.com/otherimages/main/campground.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/campground2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/campground.png 1x" width=87 height=62 border=0 alt="The Campground" title="The Campground"></a></div><div id=newmain_desertbeach class="element" style=' position: absolute; top: 391; left: 168; height: 113; width: 83;'><a  href=place.php?whichplace=desertbeach><img src="https://images.kingdomofloathing.com/otherimages/main/desertbeach.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/desertbeach2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/desertbeach.png 1x" width=83 height=113 border=0 alt="Desert Beach" title="Desert Beach"></a></div><div id=newmain_island class="element" style=' position: absolute; top: 405; left: 378; height: 105; width: 153;'><a  href=island.php><img src="https://images.kingdomofloathing.com/otherimages/main/island.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/island2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/island.png 1x" width=153 height=105 border=0 alt="The Mysterious Island of Mystery" title="The Mysterious Island of Mystery"></a></div><div id=newmain_mountains class="element" style=' position: absolute; top: 74; left: 366; height: 154; width: 153;'><a  href=place.php?whichplace=mountains><img src="https://images.kingdomofloathing.com/otherimages/main/mountains.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/mountains2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/mountains.png 1x" width=153 height=154 border=0 alt="The Big Mountains" title="The Big Mountains"></a></div><div id=newmain_oldman1 class="element" style=' position: absolute; top: 224; left: 166; height: 31; width: 92;'><a  href=oldman.php><img src="https://images.kingdomofloathing.com/otherimages/main/oldman1.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/oldman12x.png 2x, https://images.kingdomofloathing.com/otherimages/main/oldman1.png 1x" width=92 height=31 border=0 alt="A Seaside Cabin" title="A Seaside Cabin"></a></div><div id=newmain_plains class="element" style=' position: absolute; top: 205; left: 256; height: 106; width: 192;'><a  href=place.php?whichplace=plains><img src="https://images.kingdomofloathing.com/otherimages/main/plains.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/plains2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/plains.png 1x" width=192 height=106 border=0 alt="The Nearby Plains" title="The Nearby Plains"></a></div><div id=newmain_seasmoke class="element" style=' position: absolute; top: 197; left: 170; height: 40; width: 12;'><div style="background-image: url(https://images.kingdomofloathing.com/otherimages/main/seasmoke_strip10.png); background-position-x: 0px; background-repeat: no-repeat; height: 40px; width: 12px;"></div><style> @keyframes strip-newmain_seasmoke { from { background-position-x: 0px; } to { background-position-x: -120px }} #newmain_seasmoke > div { background-position: 0px; animation: strip-newmain_seasmoke 1000ms steps(10) infinite; }</style></div><div id=newmain_sorclair class="element" style=' position: absolute; top: 256; left: 452; height: 103; width: 66;'><a  href=place.php?whichplace=nstower><img src="https://images.kingdomofloathing.com/otherimages/main/sorclair.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/sorclair2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/sorclair.png 1x" width=66 height=103 border=0 alt="The Lair of the Naughty Sorceress" title="The Lair of the Naughty Sorceress"></a></div><div id=newmain_town class="element" style=' position: absolute; top: 102; left: 160; height: 81; width: 74;'><a  href=place.php?whichplace=town><img src="https://images.kingdomofloathing.com/otherimages/main/seasidetown.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/seasidetown2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/seasidetown.png 1x" width=74 height=81 border=0 alt="Seaside Town" title="Seaside Town"></a></div><div id=newmain_woods class="element" style=' position: absolute; top: 311; left: 240; height: 156; width: 158;'><a  href=place.php?whichplace=woods><img src="https://images.kingdomofloathing.com/otherimages/main/woods.png" class="x2" srcset="https://images.kingdomofloathing.com/otherimages/main/woods2x.png 2x, https://images.kingdomofloathing.com/otherimages/main/woods.png 1x" width=158 height=156 border=0 alt="The Distant Woods" title="The Distant Woods"></a></div></div><p></center></td></tr></table></center></td></tr><tr><td height=4></td></tr></table><table><tr><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td></tr><tr><td align=center colspan=4><b>Today is <a target=_blank href="doc.php?topic=arrrborday">Arrrbor Day</a>!</b><br>Head down to <a href="woods.php">the Distant Woods</a>, and help the pirates plant some trees!</td></tr><tr><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/bansai.gif"></td></tr></table><table><tr><td align=center><img src="https://images.kingdomofloathing.com/itemimages/familiar25.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/cornucopia.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/familiar25.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/cornucopia.gif"></td></tr><tr><td align=center colspan=4><b>Today is <a target=_blank href="doc.php?topic=feastofboris">the Feast of Boris</a>!</b><br>Eat, eat, eat!</td></tr><tr><td align=center><img src="https://images.kingdomofloathing.com/itemimages/cornucopia.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/familiar25.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/cornucopia.gif"></td><td align=center><img src="https://images.kingdomofloathing.com/itemimages/familiar25.gif"></td></tr></table></td></tr></table></center></td></tr><tr><td height=4></td></tr></table></center></body></html>
