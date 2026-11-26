@@ -12,6 +12,13 @@ public sealed record BoundedAdventureRunnerOptions
     /// <summary>Stop before each automatic fight round when HP is below this percentage (or unknown); 0 = off.</summary>
     public int MinimumHpPercent { get; init; }
 
+    /// <summary>
+    /// When set, this policy picks every automatic fight action (skill, item, attack, run) from the
+    /// current fight page. If it has no legal action the run stops with the fight left open.
+    /// Null keeps the allowlist's own fight action (the desktop default is attack).
+    /// </summary>
+    public AutoCombatPolicy? CombatPolicy { get; init; }
+
     public BoundedAdventureRunnerOptions Normalize()
         => this with
         {
@@ -42,7 +49,9 @@ public enum BoundedAdventureRunStopReason
     /// <summary>The configured fight round limit was reached; the fight is left open.</summary>
     FightRoundLimitReached,
     /// <summary>HP was below the configured minimum (or unknown) before a fight round; the fight is left open.</summary>
-    HpBelowMinimum
+    HpBelowMinimum,
+    /// <summary>The combat policy had no legal action for this round; the fight is left open.</summary>
+    CombatPolicyStopped
 }
 
 public sealed record BoundedAdventureRunResult
@@ -53,6 +62,8 @@ public sealed record BoundedAdventureRunResult
         = Array.Empty<AdventureConditionResult>();
     /// <summary>Set when <see cref="StopReason"/> is NeedsDecision: the open choice and its options.</summary>
     public NeedsDecisionInfo? NeedsDecision { get; init; }
+    /// <summary>Why the run stopped, when the runner has a reason to show (e.g. the combat policy's).</summary>
+    public string? StopMessage { get; init; }
 
     public AdventureExecutionResult? LastStep => Steps.Count == 0 ? null : Steps[^1];
     public bool IsSafeStop => StopReason is not BoundedAdventureRunStopReason.GatewayStopped;
@@ -89,6 +100,7 @@ public sealed class BoundedAdventureRunner
         var steps = new List<AdventureExecutionResult>();
         var started = _clock.GetUtcNow();
         var fightRounds = 0;
+        var combatUsage = new AutoCombatUsage();
 
         var initial = await EvaluateAsync(conditions, snapshotProvider, cancellationToken).ConfigureAwait(false);
         if (initial.Any(x => x.IsBlocked))
@@ -134,9 +146,48 @@ public sealed class BoundedAdventureRunner
             if (observed.Count > 0 && observed.All(x => x.IsSatisfied))
                 return Result(BoundedAdventureRunStopReason.ConditionsSatisfied, steps, observed);
 
-            current = await _gateway.ExecutePendingAsync(request.RunId, allowlist, cancellationToken).ConfigureAwait(false);
+            if (current.NextAction is AdventureFightAction pending && settings.CombatPolicy is { } policy)
+            {
+                var (decision, blocked) = await DecideFightAsync(policy, request.RunId, current, pending, combatUsage, cancellationToken)
+                    .ConfigureAwait(false);
+                if (blocked is not null)
+                    return Result(BoundedAdventureRunStopReason.CombatPolicyStopped, steps, Array.Empty<AdventureConditionResult>())
+                        with { StopMessage = blocked };
+                var (checkpoint, action, policyDecision) = decision!.Value;
+                current = action.ActionId == pending.ActionId
+                    ? await _gateway.ExecutePendingAsync(request.RunId, allowlist, cancellationToken).ConfigureAwait(false)
+                    : await _gateway.ExecuteManualActionAsync(checkpoint, action, allowlist, cancellationToken).ConfigureAwait(false);
+                combatUsage = combatUsage.After(policyDecision);
+            }
+            else
+                current = await _gateway.ExecutePendingAsync(request.RunId, allowlist, cancellationToken).ConfigureAwait(false);
             steps.Add(current);
         }
+    }
+
+    /// <summary>
+    /// Lets the policy pick this round's action from the fight page. Returns the action to send, or a
+    /// reason to stop (no observation, no legal action, or the page offers a different action set).
+    /// </summary>
+    private async ValueTask<((AdventureCheckpoint Checkpoint, AdventureFightAction Action, AutoCombatDecision Decision)? Decision, string? Blocked)>
+        DecideFightAsync(AutoCombatPolicy policy, string runId, AdventureExecutionResult current, AdventureFightAction pending,
+            AutoCombatUsage usage, CancellationToken cancellationToken)
+    {
+        var combat = current.Response?.Encounter?.Combat ?? current.Response?.Observation?.Combat;
+        if (combat is null)
+            return (null, "The fight page could not be read, so the combat policy cannot choose an action.");
+        var evaluated = AutoCombatAdventureAdapter.Evaluate(policy, combat, pending.AdventureId, pending.EncounterId, usage);
+        if (!evaluated.Allowed)
+            return (null, evaluated.BlockReason ?? "The combat policy chose no action for this round.");
+        var actionId = AutoCombatAdventureAdapter.LegalAdventureActionId(
+            evaluated.PolicyDecision.Action, combat.Normalize().AvailableActions);
+        var checkpoint = await _gateway.CheckpointStore.LoadAsync(runId, cancellationToken).ConfigureAwait(false);
+        if (actionId is null || checkpoint is null || checkpoint.InFlightRequestId is not null
+            || checkpoint.ObservedFightActions is { } offered
+                && !offered.Any(candidate => candidate.IsEnabled && candidate.AdventureActionId == actionId))
+            return (null, $"The combat policy action '{evaluated.PolicyDecision.Action.Kind} {evaluated.PolicyDecision.Action.Id}' is not offered on this fight page.");
+        return ((checkpoint, new AdventureFightAction(pending.AdventureId, actionId, pending.Round,
+            pending.EncounterId, pending.MonsterId), evaluated.PolicyDecision), null);
     }
 
     private static bool HpAtLeast(AdventureExecutionResult result, int percent)

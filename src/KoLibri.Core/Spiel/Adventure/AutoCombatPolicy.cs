@@ -242,6 +242,23 @@ public sealed record AutoCombatUsage
     public int ManualDecisions { get; init; }
     public IReadOnlyDictionary<string, int> RuleUses { get; init; }
         = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>The usage after <paramref name="decision"/> was sent once.</summary>
+    public AutoCombatUsage After(AutoCombatDecision decision)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        var ruleUses = RuleUses.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        if (decision.RuleId is { } rule) ruleUses[rule] = ruleUses.GetValueOrDefault(rule) + 1;
+        var kind = decision.Action.Kind;
+        return this with
+        {
+            ActionsTaken = ActionsTaken + 1,
+            SkillUses = SkillUses + (kind == AutoCombatActionKind.Skill ? 1 : 0),
+            ItemUses = ItemUses + (kind == AutoCombatActionKind.Item ? 1 : 0),
+            RunAttempts = RunAttempts + (kind == AutoCombatActionKind.Run ? 1 : 0),
+            RuleUses = ruleUses
+        };
+    }
 }
 
 /// <summary>Hard ceilings enforced before a policy can emit an action.</summary>

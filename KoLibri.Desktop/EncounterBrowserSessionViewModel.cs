@@ -22,6 +22,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     private string? _runId;
     private AdventureRunRequest? _batchTemplate;
     private IReadOnlyList<AdventureCondition> _batchConditions = Array.Empty<AdventureCondition>();
+    private AutoCombatPolicy? _batchPolicy;
     private int _batchRemaining;
     private bool _requiresRecheck;
     private string? _lastMessage;
@@ -304,26 +305,22 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             if (outcome is null || outcome.IsComplete || outcome.IsAborted || outcome.RequiresRefresh
                 || outcome.RequestId is null) return outcome;
 
-            var ruleUses = usage.RuleUses.ToDictionary(pair => pair.Key, pair => pair.Value);
-            if (decision.PolicyDecision.RuleId is { } rule)
-                ruleUses[rule] = ruleUses.GetValueOrDefault(rule) + 1;
-            var action = decision.PolicyDecision.Action.Kind;
-            usage = usage with
-            {
-                ActionsTaken = usage.ActionsTaken + 1,
-                SkillUses = usage.SkillUses + (action == AutoCombatActionKind.Skill ? 1 : 0),
-                ItemUses = usage.ItemUses + (action == AutoCombatActionKind.Item ? 1 : 0),
-                RunAttempts = usage.RunAttempts + (action == AutoCombatActionKind.Run ? 1 : 0),
-                RuleUses = ruleUses
-            };
+            usage = usage.After(decision.PolicyDecision);
         }
         LastMessage = $"Fight paused after {maxRounds} actions.";
         return outcome;
     }
 
+    /// <summary>
+    /// Runs (or, with a null location, continues) a batch of turns. In fights the
+    /// <paramref name="combatPolicy"/> picks each action and the fight allowlist is derived from it;
+    /// without a policy the batch attacks. A choice without a saved answer, a defeat, the HP
+    /// threshold, an error or an unclear page stops the batch and shows the encounter.
+    /// </summary>
     public async ValueTask<ManualStepOutcome?> RunTurnsAsync(
         EncounterBrowserViewModel browser, AdventureLocation? location, int maxTurns, string? itemId,
-        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0)
+        CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0,
+        AutoCombatPolicy? combatPolicy = null)
     {
         _browser = browser;
         if (_openSession is null || RunId is not null)
@@ -347,9 +344,12 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             _batchConditions = string.IsNullOrWhiteSpace(itemId)
                 ? Array.Empty<AdventureCondition>()
                 : new[] { new AdventureCondition { Kind = AdventureConditionKind.ItemCount, Key = itemId, Target = 1 } };
+            _batchPolicy = combatPolicy;
             _allowlist = new AdventureActionAllowlist
                 { WaitForManualChoice = true, ChoiceResolver = ChoiceResolverFactory() }
-                .AddAdventure(location.LocationId).AddFightAction(location.LocationId, "attack");
+                .AddAdventure(location.LocationId);
+            foreach (var actionId in AutoCombatAdventureAdapter.AllowedFightActionIds(combatPolicy))
+                _allowlist.AddFightAction(location.LocationId, actionId);
         }
         if (_batchTemplate is null || _batchRemaining <= 0 || string.IsNullOrWhiteSpace(ApprovalToken))
         {
@@ -369,14 +369,18 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         }
         var generation = _generation;
         var batch = await live.RunTurnsAsync(_batchTemplate, _allowlist, _batchRemaining, _batchConditions,
-            new BoundedAdventureRunnerOptions { MaxFightRounds = maxFightRounds, MinimumHpPercent = minimumHpPercent },
+            new BoundedAdventureRunnerOptions
+            {
+                MaxFightRounds = maxFightRounds, MinimumHpPercent = minimumHpPercent, CombatPolicy = _batchPolicy
+            },
             cancellationToken);
         // "End run" while the batch was in flight: do not resurrect the ended session.
         if (generation != _generation) return null;
         _batchRemaining = batch.TurnsRemaining;
         var stopReason = batch.LastRun.StopReason;
         var failure = batch.LastRun.LastStep is { } failed && failed.IsAborted ? failed.State.AbortMessage : null;
-        LastReport = BoundedRunReport.From(batch.TurnsStarted, _batchRemaining, stopReason, batch.Drops, failure);
+        LastReport = BoundedRunReport.From(batch.TurnsStarted, _batchRemaining, stopReason, batch.Drops,
+            failure ?? batch.LastRun.StopMessage);
         if (stopReason == BoundedAdventureRunStopReason.ConditionsSatisfied ||
             batch.LastRun.Conditions is { Count: > 0 } conditions && conditions.All(condition => condition.IsSatisfied))
             _batchRemaining = 0;
@@ -452,6 +456,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     {
         _generation++;
         _batchTemplate = null;
+        _batchPolicy = null;
         _batchRemaining = 0;
         _requiresRecheck = false;
         RunId = null;

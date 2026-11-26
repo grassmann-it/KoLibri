@@ -238,6 +238,13 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             SelectedSkills.Select(s => s.Id).ToArray(),
             SelectedItems.Select(i => i.Id).ToArray());
 
+    /// <summary>
+    /// The policy for fights in an adventure batch: the plan's skills and items, then attack. Null
+    /// when no skill or item is picked, so the batch keeps its plain attack default.
+    /// </summary>
+    public KoLibri.Core.Spiel.AutoCombatPolicy? BuildBatchPolicy()
+        => SelectedSkills.Count == 0 && SelectedItems.Count == 0 ? null : BuildPolicy();
+
     /// <summary>The accounts the operator wants to fight on.</summary>
     public ObservableCollection<AccountRole> Roles { get; } = new()
     {
