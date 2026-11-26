@@ -496,12 +496,22 @@ internal static partial class KolibriCli
                 abortReason = step.AbortReason?.ToString(),
                 messages = step.Messages,
                 requiresRefresh = step.RequiresRefresh,
-                complete = step.IsComplete
+                complete = step.IsComplete,
+                monster = StepMonster(step),
+                turtleMonster = TurtleTamerEncounters.IsTurtleMonster(StepMonster(step)) ? true : (bool?)null,
+                unknownPagePath = step.UnknownPagePath
             }).ToArray(),
+            unknownPagePath = result.Steps.Select(step => step.UnknownPagePath).LastOrDefault(path => path is not null),
             auditPath = KoLAdventureSessionFactory.DefaultAuditPath
         });
         if (needs is not null || leftover is not null || fightOpen is not null) return 4; // a choice or fight is open: needs the user, not an error
         return result.StopReason == BoundedAdventureRunStopReason.GatewayStopped ? 3 : 0;
+    }
+
+    internal static string? StepMonster(AdventureExecutionResult step)
+    {
+        var combat = step.Response?.Observation?.Combat ?? step.Response?.Encounter?.Combat;
+        return combat?.MonsterName ?? combat?.Monster;
     }
 
     internal const string DefaultFightAction = "attack";

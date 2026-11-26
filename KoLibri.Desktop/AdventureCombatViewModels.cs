@@ -710,6 +710,8 @@ public class AdventureViewModel : DesktopViewModel
             AdventureId = result.Checkpoint.AdventureId;
         Encounter = result.Response?.Encounter;
         RunMessage = result.Messages.Count == 0 ? result.Status.ToString() : string.Join(" ", result.Messages);
+        if (result.UnknownPagePath is { } savedPage)
+            RunMessage += $" The page was saved (redacted) to {savedPage}.";
         Diagnostics.Clear();
         foreach (var message in result.Messages)
             Diagnostics.Add(message);

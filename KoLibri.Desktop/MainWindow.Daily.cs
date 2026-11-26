@@ -233,7 +233,7 @@ public partial class MainWindow
                 : AdventureVerificationResult.Failed("The live response was rejected by KoL.")));
         await using var session = KoLAdventureSessionFactory.Create(account,
             KoLLoginClient.CreateAuthenticatedClient(account.Credentials, new Uri("https://www.kingdomofloathing.com/")),
-            approval, verification);
+            approval, verification, unknownPageDirectory: UnknownPageArchive.DefaultDirectory);
         var dispatcher = new KoLibri.Core.Spiel.FreePullDispatcher(
             http, KoLibri.Core.Spiel.FreePullDispatcher.DefaultBaseUri);
         using var audit = new KoLibri.Core.Spiel.BridgeAuditLog(

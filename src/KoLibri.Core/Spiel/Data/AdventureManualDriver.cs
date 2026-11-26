@@ -20,6 +20,11 @@ public sealed record ManualStepOutcome
     public required string? Message { get; init; }
     public required string? RequestId { get; init; }
     public IReadOnlyList<QuestDrop> Drops { get; init; } = Array.Empty<QuestDrop>();
+    /// <summary>Redacted copy of the page the run could not handle, when one was saved.</summary>
+    public string? UnknownPagePath { get; init; }
+
+    /// <summary>" The page was saved (redacted) to …" or empty, for user-facing stop messages.</summary>
+    public string SavedPageNote => UnknownPagePath is null ? string.Empty : $" The page was saved (redacted) to {UnknownPagePath}.";
 }
 
 /// <summary>
@@ -166,6 +171,7 @@ public sealed class AdventureManualDriver
             StopReason = result.AbortReason?.ToString() ?? result.Status.ToString(),
             NextAction = result.NextAction,
             Message = result.Messages.Count == 0 ? result.State.AbortMessage : string.Join(" ", result.Messages),
+            UnknownPagePath = result.UnknownPagePath,
             RequestId = result.RequestId,
             Drops = result.Response?.Html is { } html ? DropTracker.ReadDrops(html) : Array.Empty<QuestDrop>()
         };

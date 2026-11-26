@@ -195,7 +195,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         RunId = outcome.IsComplete || (outcome.IsAborted && !outcome.RequiresRefresh)
             ? null : outcome.RunId;
         LastMessage = outcome.IsAborted || outcome.RequiresRefresh
-            ? $"Adventure start stopped: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}"
+            ? $"Adventure start stopped: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}{outcome.SavedPageNote}"
             : $"Started '{location.DisplayName}' as {outcome.RunId}.";
         AppendLog("start", outcome);
         RefreshEncounterSummary(outcome);
@@ -250,7 +250,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         }
         else if (outcome.IsAborted)
         {
-            LastMessage = $"Step aborted: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}";
+            LastMessage = $"Step aborted: {AdventureFailureMapper.Describe(outcome.Message ?? outcome.StopReason).Text}{outcome.SavedPageNote}";
         }
         else
         {
@@ -385,6 +385,8 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             batch.LastRun.Conditions is { Count: > 0 } conditions && conditions.All(condition => condition.IsSatisfied))
             _batchRemaining = 0;
         LastMessage = LastReport.Summary;
+        if (batch.LastRun.LastStep?.UnknownPagePath is { } savedPage)
+            LastMessage += $" The page was saved (redacted) to {savedPage}.";
         if (batch.LastRun.LastStep is not { } last) return null;
 
         var outcome = AdventureManualDriver.ToOutcome(last, last.Checkpoint.RunId, last.Checkpoint.AdventureId);

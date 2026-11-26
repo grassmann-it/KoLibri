@@ -773,6 +773,8 @@ public sealed record AdventureExecutionResult
     public string? RequestId { get; init; }
     public AdventureTransportResponse? Response { get; init; }
     public IReadOnlyList<string> Messages { get; init; } = Array.Empty<string>();
+    /// <summary>The redacted copy of the response page when the run stopped on an unknown page; see <see cref="UnknownPageArchive"/>.</summary>
+    public string? UnknownPagePath { get; init; }
 
     public AdventureRunState State => Decision.State;
     public AdventureCheckpoint Checkpoint => Decision.Checkpoint;
