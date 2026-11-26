@@ -114,7 +114,10 @@
           <NumericUpDown Value="{Binding MaxCombatRounds}" Minimum="{Binding MaxCombatRoundsMin}" Maximum="{Binding MaxCombatRoundsMax}" FormatString="N0" AutomationProperties.Name="Max combat rounds (the game ends a fight at 50)"/>
         </StackPanel>
       </WrapPanel>
-      <CheckBox IsChecked="{Binding OptionalTools}" Content="Show optional tools (Arbitrage, ...)"/>
+      <CheckBox IsChecked="{Binding ExperimentalTools}" Content="Show experimental tools (Arbitrage, clan lounge and stash, farm figures)"
+                AutomationProperties.Name="Show experimental tools"/>
+      <TextBlock IsVisible="{Binding ExperimentalFromEnvironment}" Text="KOLIBRI_EXPERIMENTAL is set: experimental tools are on."
+                 FontSize="12" Opacity="0.8"/>
       <StackPanel Spacing="3" Width="240">
         <TextBlock Text="Theme (saved with the header button too)" FontSize="12" Opacity="0.8"/>
         <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" HorizontalAlignment="Stretch" AutomationProperties.Name="Theme"/>

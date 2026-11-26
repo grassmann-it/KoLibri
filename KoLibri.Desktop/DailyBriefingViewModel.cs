@@ -125,9 +125,10 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
             Rows.Add(BuildRow("Internet-Shop", "Claim the free pulls",
                 "3 free pulls (egg, internet bacon, BACON machine)",
                 "open"));
-            Rows.Add(BuildRow("Arbitrage", "Restock clovers",
-                "buy 11-leaf clovers below the price ceiling",
-                "open"));
+            if (ExperimentalFeatures.IsEnabled(_settings()))
+                Rows.Add(BuildRow("Arbitrage", "Restock clovers",
+                    "buy 11-leaf clovers below the price ceiling",
+                    "open"));
             Rows.Add(BuildRow("Bacons", "Buy BACON",
                 live.BaconMachines > 0
                     ? $"{live.BaconMachines} machine(s), {live.Bacon} BACON in inventory"

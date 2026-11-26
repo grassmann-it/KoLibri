@@ -70,7 +70,7 @@ public partial class MainWindow
         if (_arbitrageExpander is not null)
             _arbitrageExpander.Expanded += async (_, _) =>
             {
-                if (_arbitrageLoaded) return;
+                if (_arbitrageLoaded || !_experimental) return;
                 await RunBusyOperationAsync("Loading Arbitrage", token => LoadArbitrageAsync(false, token));
             };
         ApplySettings(reload: false);
@@ -81,7 +81,7 @@ public partial class MainWindow
     {
         if (reload) _settings = _settingsStore.Load();
         if (reload) _daily?.RebuildSteps();
-        if (_arbitrageExpander is not null) _arbitrageExpander.IsVisible = _settings.OptionalTools;
+        ApplyExperimentalVisibility();
         var variant = _settings.Theme switch
         {
             "Dark" => ThemeVariant.Dark,
@@ -97,6 +97,21 @@ public partial class MainWindow
             turns.Value = (decimal)_settings.Get("turnBudget");
         }
         if (_combatCatalogLoaded) ApplyCombatDefaults();
+    }
+
+    /// <summary>
+    /// Shows or hides the extras outside the 0.4.0 scope (see <see cref="ExperimentalFeatures"/>). Hidden panels are
+    /// also collapsed, so nothing behind them loads in the background.
+    /// </summary>
+    private void ApplyExperimentalVisibility()
+    {
+        _experimental = ExperimentalFeatures.IsEnabled(_settings);
+        foreach (var name in new[] { "ArbitrageExpander", "ClanLounge", "ClanStash", "FarmFiguresExpander" })
+        {
+            if (this.FindControl<Expander>(name) is not { } expander) continue;
+            expander.IsVisible = _experimental;
+            if (!_experimental) expander.IsExpanded = false;
+        }
     }
 
     private void ApplyCombatDefaults()

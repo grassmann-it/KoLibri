@@ -105,7 +105,7 @@
           </Grid>
         </StackPanel>
       </Border>
-      <Expander Header="Farm figures and plan">
+      <Expander x:Name="FarmFiguresExpander" Header="Farm figures and plan" IsVisible="False">
         <StackPanel Spacing="8">
           <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
             <Border Classes="panel-subtle">

@@ -60,7 +60,10 @@ public sealed class DesktopSettings
     public bool PricegunDisplay { get; set; } = true;
     /// <inheritdoc cref="PricegunDisplay"/>
     public bool DailyDefaults { get; set; } = true;
+    /// <inheritdoc cref="PricegunDisplay"/>
     public bool OptionalTools { get; set; } = true;
+    /// <summary>Default OFF: shows the extras outside the 0.4.0 scope. See <see cref="ExperimentalFeatures"/>.</summary>
+    public bool ExperimentalTools { get; set; }
     public string Theme { get; set; } = "Light";
     /// <summary>"conservative" (default) or "browser-like": base values of the read lane and the global cap; explicit numbers and environment variables still win.</summary>
     public string LimiterPreset { get; set; } = "conservative";
@@ -212,6 +215,7 @@ public sealed class DesktopSettingsStore
             settings.PricegunDisplay = Bool(root, "pricegunDisplay", settings.PricegunDisplay);
             settings.DailyDefaults = Bool(root, "dailyDefaults", settings.DailyDefaults);
             settings.OptionalTools = Bool(root, "optionalTools", settings.OptionalTools);
+            settings.ExperimentalTools = Bool(root, "experimentalTools", settings.ExperimentalTools);
             if (Str(root, "theme") is "Light" or "Dark" or "System") settings.Theme = Str(root, "theme")!;
             settings.BoozeItems = Consumables(root, "boozeItems");
             settings.SpleenItems = Consumables(root, "spleenItems");
@@ -243,6 +247,7 @@ public sealed class DesktopSettingsStore
             pricegunDisplay = settings.PricegunDisplay,
             dailyDefaults = settings.DailyDefaults,
             optionalTools = settings.OptionalTools,
+            experimentalTools = settings.ExperimentalTools,
             theme = settings.Theme,
             boozeItems = settings.BoozeItems,
             spleenItems = settings.SpleenItems,

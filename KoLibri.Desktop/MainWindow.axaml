@@ -157,7 +157,7 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <Expander x:Name="ClanLounge" Header="Clan VIP lounge">
+              <Expander x:Name="ClanLounge" Header="Clan VIP lounge" IsVisible="False">
                 <StackPanel Spacing="8">
                   <Button x:Name="ReadClanLounge" Content="Load lounge" Click="ReadClanLoungeClick" />
                   <TextBlock x:Name="ClanLoungeStatus" TextWrapping="Wrap" />
@@ -215,7 +215,7 @@
                   </StackPanel>
                 </StackPanel>
               </Expander>
-              <Expander x:Name="ClanStash" Header="Clan stash">
+              <Expander x:Name="ClanStash" Header="Clan stash" IsVisible="False">
                 <StackPanel Spacing="8">
                   <Button x:Name="ReadClanStash" Content="Load stash" Click="ReadClanStashClick" />
                   <TextBlock x:Name="ClanStashStatus" TextWrapping="Wrap" />
