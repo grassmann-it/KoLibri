@@ -1,7 +1,7 @@
 # KoLibri 0.5: Bestandsaufnahme und API-Entwurf
 
-Status: **Entwurf, offene Fragen entschieden (§8).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`). In diesem Schritt
-wird keine App umgebaut und kein Lib-Code geändert. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
+Status: **Entwurf entschieden (§8), Schritt 3 Teil 1 umgesetzt (§11).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
+Der Entwurf selbst baute keine App um; den Umsetzungsstand beschreibt §11. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
 [ROADMAP.md](../ROADMAP.md) (Abschnitt 0.5) ab.
 
 Zum Dokument gehören diese Dateien:
@@ -9,11 +9,11 @@ Zum Dokument gehören diese Dateien:
 | Datei | Inhalt |
 |---|---|
 | [lib-api-0.5/KoLibri.Api.cs](lib-api-0.5/KoLibri.Api.cs) | Der Entwurf als kompilierbarer Stub. Er ist die **Quelle der Wahrheit** für alle Signaturen hier. |
-| [lib-api-0.5/publicapi/KoLibri/](lib-api-0.5/publicapi/KoLibri/) | Vorschlag für `PublicAPI.Shipped.txt` und `PublicAPI.Unshipped.txt` des Pakets `KoLibri` |
-| [lib-api-0.5/publicapi/KoLibri.Safety/](lib-api-0.5/publicapi/KoLibri.Safety/) | Dasselbe für das optionale Paket `KoLibri.Safety` |
+| [../src/KoLibri/PublicAPI.Unshipped.txt](../src/KoLibri/PublicAPI.Unshipped.txt) | `PublicAPI.Shipped.txt` und `PublicAPI.Unshipped.txt` des Pakets `KoLibri` (seit Schritt 3 im Projekt, vorher unter `lib-api-0.5/publicapi/`) |
+| [../src/KoLibri.Safety/PublicAPI.Unshipped.txt](../src/KoLibri.Safety/PublicAPI.Unshipped.txt) | Dasselbe für das optionale Paket `KoLibri.Safety` |
 | [lib-api-0.5/inventory.md](lib-api-0.5/inventory.md) | Generierte Typ-Inventur: jeder öffentliche Typ heute, nach Fähigkeit gruppiert, mit App-Nutzung |
 | [lib-api-0.5/entry-methods.md](lib-api-0.5/entry-methods.md) | Generierte Methoden-Inventur der rund 45 Einstiegsklassen |
-| [lib-api-0.5/check-api.sh](lib-api-0.5/check-api.sh) | Kompiliert den Stub mit dem PublicApiAnalyzer und erzeugt bei Bedarf die PublicAPI-Dateien neu |
+| [lib-api-0.5/check-api.sh](lib-api-0.5/check-api.sh) | Prüft Stub und echte Projekte gegen die PublicAPI-Dateien und erzeugt sie bei Bedarf aus dem Stub neu |
 
 ---
 
@@ -224,7 +224,7 @@ Hier steht nur der Kern jeder Fähigkeit.
 
 Die Signaturen sind hier gekürzt (ohne `CancellationToken cancellationToken = default` am Ende jeder Async-Methode).
 Vollständig stehen sie in [KoLibri.Api.cs](lib-api-0.5/KoLibri.Api.cs) und
-[PublicAPI.Unshipped.txt](lib-api-0.5/publicapi/KoLibri/PublicAPI.Unshipped.txt).
+[PublicAPI.Unshipped.txt](../src/KoLibri/PublicAPI.Unshipped.txt).
 
 ### 4.1 Einstieg und Optionen
 
@@ -763,16 +763,93 @@ die PublicAPI-Dateien sind daran angepasst.
   RS0026 als Fehler. Zuletzt lief es mit 0 Fehlern und 0 Warnungen. Der Analyzer 3.3.4 hält `[Experimental]` nicht
   in den PublicAPI-Dateien fest. Die Markierung steht deshalb nur im Stub und in §8; eine neuere Analyzer-Version
   (mit `[RSEXPERIMENTAL]`-Präfix) kann das beim Umbau nachholen.
-- Für den Umbau (Schritt 3) kommt der Analyzer in `src/KoLibri/KoLibri.csproj` und `src/KoLibri.Safety/…`. Die
-  beiden Dateien hier ziehen dorthin um. Zusätzlich prüft ApiCompat im Pack-Schritt gegen das zuletzt veröffentlichte
-  Paket.
+- Seit Schritt 3 sitzt der Analyzer in `src/KoLibri/KoLibri.csproj` und `src/KoLibri.Safety/KoLibri.Safety.csproj`
+  (RS0016/RS0017/RS0026 als Fehler); die PublicAPI-Dateien liegen dort. `check-api.sh` prüft zuerst den Stub und
+  baut dann die echten Projekte, beide gegen dieselben Dateien. Stub und Implementierung können also nicht
+  auseinanderlaufen. ApiCompat gegen das zuletzt veröffentlichte Paket kommt mit dem ersten NuGet-Release.
 
 ## 10. Nächste Schritte
 
 1. ~~Entwurf abstimmen und die offenen Fragen entscheiden.~~ Erledigt, siehe §8.
-2. `src/KoLibri` anlegen: Core und LibKolibri zusammenlegen, M0M1 löschen (§6.1) und Extras ausziehen (§6.2). Danach
-   ist der Rest `internal` (§6.3), der Analyzer läuft gegen `PublicAPI.Unshipped.txt`.
-3. Neue Fassade über den internen Clients implementieren. Jede Facette bekommt Offline-Tests über
-   `KolibriOptions.HttpHandler`.
+2. ~~`src/KoLibri` anlegen, der Analyzer läuft gegen `PublicAPI.Unshipped.txt`.~~ Erledigt als Übergang (§11.1):
+   Core bleibt eigene Assembly hinter der Fassade. Zusammenlegen, M0M1 löschen (§6.1) und Extras ausziehen (§6.2)
+   folgen, wenn MCP und Desktop umgezogen sind.
+3. ~~Neue Fassade über den internen Clients implementieren, Offline-Tests über `KolibriOptions.HttpHandler`.~~
+   Erledigt (§11).
 4. Apps nach §7 umziehen: zuerst das MCP (kleinste Fläche), dann die CLI, zuletzt der Desktop.
 5. Das Cookbook als `ConsumerSmoke` gegen die gepackten Pakete bauen.
+
+---
+
+## 11. Umsetzungsstand Schritt 3 (Teil 1: Paketstruktur und API)
+
+Stand 2026-11-26, Zweig `release/0.5.0`. Geliefert in zwei Teil-PRs: **dieser Teil** bringt die Pakete und die
+implementierte API; **Teil 2** zieht die CLI um (§11.4).
+
+### 11.1 Struktur
+
+| Projekt | Inhalt | Verweise |
+|---|---|---|
+| `src/KoLibri` | Paket `KoLibri` 0.5.0-dev, Namespace `KoLibri`, genau die 108 Typen aus dem Stub | `KoLibri.Core` mit `PrivateAssets="all"` |
+| `src/KoLibri.Safety` | Paket `KoLibri.Safety` 0.5.0-dev: `CompositeGuard`, `GrantGuard`/`JsonGrantStore`, `BudgetGuard`/`UsageLedger`, `ApprovalGuard`, `AuditJournal` | nur `KoLibri` |
+| `src/KoLibri.Daily` | `IsPackable=false`: `IDailyTask`, `DelegateDailyTask`, `DailyRunner` (Vorschau, einmal pro KoL-Tag, Stopp nach Unclear) | nur `KoLibri` |
+| `tests/KoLibri.Tests` | 28 Offline-Tests mit Fake-Handler, nur gegen die öffentliche API | `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` |
+
+**Übergang Core.** Die Spiellogik bleibt in `KoLibri.Core`. `KoLibri` verweist mit `PrivateAssets="all"` darauf:
+Wer `KoLibri` referenziert, kompiliert nur gegen die Entwurfs-API (ein Zugriff auf `KoLibri.Core.*` ist ein
+Compilerfehler, siehe Test `Public_surface_lives_in_the_KoLibri_namespaces_only`), `KoLibri.Core.dll` liegt zur
+Laufzeit trotzdem daneben. MCP, Desktop und die alte CLI greifen weiter direkt auf Core zu und bauen unverändert.
+Core bekommt `InternalsVisibleTo("KoLibri")` und zwei kleine interne Ergänzungen: einen `KoLLoginClient`-Konstruktor
+mit eigener Handler-Kette (Login über Limiter und Offline-Handler) und `DailyDoneStore.DoneToday`. Für das
+NuGet-Paket muss `KoLibri.Core.dll` noch ins `lib/`-Verzeichnis gepackt werden; das kommt mit dem Pack-Schritt.
+
+**PublicAPI.** `Shipped` ist leer, `Unshipped` ist der Entwurf; der Analyzer meldet keine Abweichung. Keine
+Signatur aus dem Stub wurde geändert, kein öffentliches Mitglied kam dazu.
+
+### 11.2 Bewusste Abweichungen im Verhalten
+
+Die Signaturen sind unverändert; abweichend vom Text in §4 ist:
+
+| # | Stelle | Verhalten in 0.5.0-dev | Grund |
+|---|---|---|---|
+| 1 | Standard-`IAccountStore` | liest und schreibt die Dateien von 0.4 (`accounts.json` + verschlüsselte Secrets), Ids nur `main` und `mallbot`; andere Ids → `KolibriException`. `RemoveAsync` löscht die Zugangsdaten, das Profil bleibt. Labels/Tags in einer Nebendatei | gespeicherte Sitzungen von CLI/MCP/Desktop bleiben gültig; freie Ids mit eigenem `AccountStore` oder nach der Datenmigration |
+| 2 | `LimiterOptions` | Standard 2 s (Action) / 1 s (Read) / 2 parallel wie 0.4, Untergrenze 1 s bzw. 200 ms | gleiche Drosselung wie heute live bewiesen |
+| 3 | `GameData` ohne `DataDirectory` | mitgelieferter Ordner `external/kolmafia-data` neben der Anwendung, keine eingebettete Ressource | Paketgröße; eingebettet beim Pack-Schritt |
+| 4 | `DailyMarkers` | Rollover 03:30 US Eastern wie 0.4 (nicht Arizona); gleiche Datei `daily-done.json`, mit dem 0.4-Store der Schlüssel `Main:<Spieler-Id>` | Marker der 0.4-CLI (`daily run`) gelten weiter |
+| 5 | `Shop.TakeBackAsync` | `NotSupportedException` | Core hat keinen geprüften Request; vorerst `session.PostAsync` |
+| 6 | `Shop.RepriceAsync` | ändert nur Preise; ein abweichendes `LimitPerDay` → `Rejected`, nichts gesendet | Core kann das Tageslimit nicht setzen |
+| 7 | `Mailbox` | `MailFolder.Pvp` → `NotSupportedException`; `MailEntry.Items` bleibt leer | Core liest diesen Ordner und die Anhänge nicht |
+| 8 | `PirateKeyCounts.Parts` | Anzahl kompletter Teile-Sätze (je ein Alpha/Bravo/Charlie/Delta) | das ist die Zahl, die `AssembleAsync` braucht |
+| 9 | `ActionResult.Page` | `null` bei Use/Consume/Cast/Rest/Equip | `CharacterActionClient` gibt die Seite nicht heraus; Status vorher/nachher ist gesetzt |
+| 10 | `Adventurer` | eigener kleiner Ablauf über rohe Seiten (`adventure.php`, `fight.php`, `choice.php`) mit den Core-Parsern statt `AdventureRunKernel`; Interstitial nach dem ersten Zug wird nur wiederholt, wenn der Adventure-Zähler gleich blieb; ein Zug ohne Zählerwechsel stoppt den Lauf (wie die 0.4-CLI) | der Kernel hängt an Checkpoints, Allowlists und Rollen; die Schleife der CLI bleibt bis Teil 2 unverändert |
+| 11 | `GetPriceHistoryAsync` | eigener `HttpClient` für pricegun.loathers.net, ohne KoL-Cookie, nicht über die KoL-Allowlist | anderer Host |
+| 12 | Lesefehler | liefert Core nur eine alte Kopie (`IsStale`), wirft die Fassade `KolibriException` | Läufe sollen nie mit geratenem Zustand weitermachen |
+| 13 | `CombatStrategies.FromRules` | Regelnutzung ("x3") wird bei jedem Aufruf aus `CombatContext.History` nachgerechnet | Strategien bleiben rein |
+| 14 | Guard | GET auf der Action-Lane über `GetPageAsync` → `GuardedActionKind.Other`; Kampf-/Choice-/Kaufschritte der Facetten mit ihrer eigenen Art | Safety kann rohe Aktionen trotzdem sehen |
+
+### 11.3 Prüfung
+
+- `docs/lib-api-0.5/check-api.sh`: Stub und echte Projekte, 0 Fehler.
+- `tests/KoLibri.Tests`: Login mit Identitätsprüfung, Kontensuche, Status/Inventar/Equipment, redigierte
+  Request-Events, Handler-Fehler, Guard (Deny sendet nichts, RawPost mit `pwd`), Login-Seite auf einer Action wird
+  nie wiederholt, Wartungsseite, Spieldaten, Daily-Marker, 0.4-Kontendateien, Abenteuer → Kampf → Sieg mit Beute,
+  Lauf mit Choice-Tabelle, Stopp an unbekannter Choice, Stopp-Bedingung, Regel-Strategie, Makro-Sperre,
+  Choice-Vorprüfung, Organ-Prüfung vor dem Konsum, Kaufplanung, alle Safety-Guards, `DailyRunner`, README-Beispiel.
+- Die bestehende Suite (`tests/KoLibri.Core.Tests`) bleibt grün. Keine Live-Requests.
+
+### 11.4 Teil 2: CLI-Umzug
+
+Die CLI (`tools/KolLibri.Cli`, rund 6.600 Zeilen, 35 Befehle) bleibt in diesem Teil unverändert auf Core. Ihre
+Ausgaben hängen tief an Core-Typen (z. B. `adventure run`: `requestId`, `responseHash`, `abortReason` je Schritt).
+Plan für Teil 2:
+
+1. Live bewiesene Befehle zuerst auf `KolibriClient`/`KolibriSession`: `login`/`login refresh|status|clear`,
+   `status`, `inventory`, `consume`/`rest`/`cast`, `adventure run` (Schleife über `AdventureAsync`/`FightAsync`/
+   `ChooseAsync` mit `--fight-action`/`--choice-action` als Strategie bzw. Choice-Tabelle), `choice submit`, Mall-Kauf
+   (`QuoteAsync`/`BuyAsync`), `shop`/`shop add`, `apply-prices` (`RepriceAsync`), `keys`, `daily run` (Routinen nach
+   `KoLibri.Daily`), `arbitrage buy`. Ausgabe-Struktur und Exit-Codes bleiben; die JSON-Felder werden in der CLI aus den
+   neuen Ergebnissen gebaut. Approval-Token und AgentGuard bleiben CLI-Logik (`token` über `KoLibri.Safety.ApprovalGuard`
+   oder die bestehende Token-Datei), das Experimental-Gate ebenfalls.
+2. Experimentelle Markt-Befehle (CRM, Bribe, Watchlist, Snatch, Reprice-Analyse) brauchen Extras (§6.2). Sie ziehen
+   mit ihrem Code in die CLI oder in `KoLibri.Extras`; erst danach fällt der Core-Verweis der CLI.
+3. CLI-Tests mit `KolibriOptions.HttpHandler` gegen die neue API, dazu ein Golden-Vergleich der JSON-Ausgaben alt/neu.

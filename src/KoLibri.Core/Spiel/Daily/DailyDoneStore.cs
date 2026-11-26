@@ -68,6 +68,19 @@ public sealed class DailyDoneStore
             }, write: true);
     }
 
+    /// <summary>Actions marked done today for an account (for the KoLibri facade's DailyMarkers).</summary>
+    internal IReadOnlyList<string> DoneToday(string account)
+    {
+        var prefix = account.ToLowerInvariant() + "|";
+        var today = KolDay(_clock.GetUtcNow());
+        lock (_gate)
+            return Transact(map => (IReadOnlyList<string>)map
+                .Where(kv => kv.Value == today && kv.Key.StartsWith(prefix, StringComparison.Ordinal))
+                .Select(kv => kv.Key[prefix.Length..]).OrderBy(k => k, StringComparer.Ordinal).ToArray(), write: false);
+    }
+
+    internal DateTimeOffset Now => _clock.GetUtcNow();
+
     private static string Key(string account, string action) => $"{account.ToLowerInvariant()}|{action}";
 
     /// <summary>Reads, changes and writes the marker file as one step that is serialized across processes

@@ -14,6 +14,10 @@ arbitrage bots or a shop CRM.
 > 0.5 (one core package, a small documented surface, NuGet). Expect breaking
 > changes; see [ROADMAP.md](../../ROADMAP.md).
 
+> **Coming in 0.5: the `KoLibri` package** ([src/KoLibri](../KoLibri/README.md)). One namespace, about 100 types,
+> accounts by free id instead of roles, pure combat/choice strategies, events and one guard hook. Its README has a
+> compiled minimal example. LibKolibri stays for MCP and Desktop until they move over.
+
 ```csharp
 using KoLibri.Core.Basis;   // AccountRole
 using LibKolibri;

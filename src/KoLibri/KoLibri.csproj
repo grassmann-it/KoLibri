@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>KoLibri</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- RS0016/RS0017: the public surface must match PublicAPI.*.txt exactly (docs/lib-api-0.5.md §9). -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0026;RS0036;RS0037</WarningsAsErrors>
+
+    <PackageId>KoLibri</PackageId>
+    <Version>0.5.0-dev</Version>
+    <Description>Kingdom of Loathing client library for .NET 8: one KolibriClient, sessions per account, status and inventory, consumables, adventures and fights with pure strategies, mall search and price-guarded buying, own shop, KMail, events and one guard hook. Early alpha.</Description>
+    <PackageTags>kol;kingdom-of-loathing;kolmafia;game-client;net8</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt;PublicAPI.Unshipped.txt" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Transition (0.5 step 3): the game logic still lives in KoLibri.Core. PrivateAssets="all" keeps its
+         public types away from consumers of this project: they compile against the KoLibri API only, while
+         KoLibri.Core.dll is still copied next to them at run time. -->
+    <ProjectReference Include="../KoLibri.Core/KoLibri.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KoLibri.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

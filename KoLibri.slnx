@@ -1,10 +1,14 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/KoLibri/KoLibri.csproj" />
+    <Project Path="src/KoLibri.Safety/KoLibri.Safety.csproj" />
+    <Project Path="src/KoLibri.Daily/KoLibri.Daily.csproj" />
     <Project Path="src/KoLibri.Core/KoLibri.Core.csproj" />
     <Project Path="src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj" />
+    <Project Path="tests/KoLibri.Tests/KoLibri.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/KolLibri.Cli/KolLibri.Cli.csproj" />

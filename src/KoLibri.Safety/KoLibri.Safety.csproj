@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>KoLibri.Safety</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0026;RS0036;RS0037</WarningsAsErrors>
+
+    <PackageId>KoLibri.Safety</PackageId>
+    <Version>0.5.0-dev</Version>
+    <Description>Optional guards for KoLibri: grants, budgets with a usage ledger, approval tokens and a hash-chained audit journal, all as IActionGuard.</Description>
+    <PackageTags>kol;kingdom-of-loathing;kolibri;safety;net8</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt;PublicAPI.Unshipped.txt" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Only the public KoLibri API; no KoLibri.Core. -->
+    <ProjectReference Include="../KoLibri/KoLibri.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KoLibri.Tests" />
+  </ItemGroup>
+</Project>
