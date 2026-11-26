@@ -278,6 +278,21 @@ public sealed class KolibriClient : IDisposable
         return new CharacterActionClient(_http, hash);
     }
 
+    /// <summary>Crimbo 2023 pirate encryption keys: assemble parts, read the rare-item form, redeem keys.</summary>
+    public async Task<PirateKeyClient> OpenPirateKeysAsync(CancellationToken cancellationToken = default)
+    {
+        var hash = await new FreePullDispatcher(_http, FreePullDispatcher.DefaultBaseUri)
+            .ReadSessionHashAsync(_session.Credentials, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(hash))
+            throw new InvalidOperationException("No request hash for this account; nothing was sent.");
+        return new PirateKeyClient(_http, hash);
+    }
+
+    /// <summary>Lists <paramref name="quantity"/> of an item in the own store and reads the store back.</summary>
+    public Task<ShopAddOutcome> AddToShopAsync(int itemId, int quantity, int price, int dailyLimit = 0, CancellationToken cancellationToken = default)
+        => ShopStocker.AddAsync(new StoreLister(_http), _session.Credentials, ct => _mall.FetchOwnShopAsync(true, ct),
+            itemId, quantity, price, dailyLimit, cancellationToken);
+
     /// <summary>
     /// Eats, drinks or takes a spleen item. Returns how many KoL confirmed by the inventory count going
     /// down, and the reason when KoL refused (too full, too drunk, spleen limit).

@@ -54,6 +54,7 @@ internal static partial class KolibriCli
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
                 "consume" => await ConsumeAsync(args[1..]),
+                "keys" => await KeysAsync(args[1..]),
                 "rest" => await RestAsync(args[1..]),
                 "cast" => await CastAsync(args[1..]),
                 "relay" => await RelayAsync(args[1..]),
@@ -302,6 +303,7 @@ internal static partial class KolibriCli
         w.WriteLine("  inventory --role main|mallbot [--refresh]");
         w.WriteLine("  mafia-script FILE [--role main|mallbot]    runs supported KoLmafia read commands");
         w.WriteLine("  shop --role mallbot [--refresh]");
+        PrintKeysHelp(w);
         w.WriteLine("  consume --role R --kind food|drink|spleen --item ID [--qty N] [--execute]   eat/drink/spleen (preview without --execute)");
         w.WriteLine("  rest --role R [--times N] [--execute]            rest at the campground (free rests are free; other rests can cost adventures)");
         w.WriteLine("  mall --role mallbot --item ITEM_ID [--refresh]");
