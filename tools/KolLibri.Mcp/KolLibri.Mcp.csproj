@@ -23,7 +23,6 @@
     <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="KoLibri.Core.Tests" />
     <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
 </Project>

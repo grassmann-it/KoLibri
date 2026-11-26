@@ -1,5 +1,4 @@
 using System.Net;
-using KolLibri.Mcp;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
 using LibKolibri;
@@ -156,46 +155,5 @@ public sealed class AccountIdentityAndPwdTests
         var silent = new FakeKol((_, _) => Status());
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => AccountIdentityVerifier.VerifyRoleAsync(accounts, AccountRole.Main, innerHandler: silent));
-    }
-
-    [Fact]
-    public async Task Mcp_runtime_binds_an_empty_role_after_login_and_rebuilds_on_a_player_change()
-    {
-        var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-        await accounts.InitializeAsync();
-        var created = new List<(string Cookie, HttpClient Http)>();
-        using var binder = new McpRuntimeBinder(accounts, createHttp: (session, endpoint) =>
-        {
-            var http = KoLLoginClient.CreateAuthenticatedClient(session.Credentials, endpoint, innerHandler: new FakeKol((_, _) => "{}"));
-            created.Add((session.Credentials.CookieHeader!, http));
-            return http;
-        });
-        var rebound = new List<(AccountRole, bool)>();
-        binder.RoleRebound += (role, has) => rebound.Add((role, has));
-
-        await binder.RefreshAsync();
-        Assert.False(binder.Runtime.TryGet<IAccountReadClient>(AccountRole.Main, out _));   // empty at start
-
-        await accounts.SetProfileAsync(new AccountProfile { Id = "main", DisplayName = "Alice", Role = AccountRole.Main, PlayerId = "100" });
-        await accounts.SetCredentialsAsync(AccountRole.Main, Creds("charpwd=alice"));
-        await binder.RefreshAsync();
-        Assert.True(binder.Runtime.TryGet<IAccountReadClient>(AccountRole.Main, out var first));
-        await binder.RefreshAsync();                                                       // unchanged: no rebuild
-        Assert.Single(created);
-
-        await accounts.ApplyVerifiedLoginAsync(AccountRole.Main, new KoLPlayerIdentity("200", "Bob"),
-            Creds("charpwd=bob"), allowAccountChange: true);
-        await binder.RefreshAsync();
-        Assert.True(binder.Runtime.TryGet<IAccountReadClient>(AccountRole.Main, out var second));
-        Assert.NotSame(first, second);
-        Assert.Equal(2, created.Count);
-        Assert.Equal("charpwd=bob", created[1].Cookie);
-        // The old client (Alice's cookie) was disposed and can no longer be used.
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => created[0].Http.GetAsync("https://www.kingdomofloathing.com/main.php"));
-
-        await accounts.ClearCredentialsAsync(AccountRole.Main);
-        await binder.RefreshAsync();
-        Assert.False(binder.Runtime.TryGet<IAccountReadClient>(AccountRole.Main, out _));
-        Assert.Equal([(AccountRole.Main, true), (AccountRole.Main, true), (AccountRole.Main, false)], rebound);
     }
 }

@@ -1,10 +1,10 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
+using AccountRole = KolLibri.Mcp.AccountRole;
 using KolLibri.Mcp;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests;
 
 public sealed class McpWriteToolsTests : IDisposable
 {
@@ -65,7 +65,7 @@ public sealed class McpWriteToolsTests : IDisposable
         _grants = new GrantStore(Path.Combine(_dir, "g.json"));
         _ledger = new UsageLedger(Path.Combine(_dir, "u.jsonl"));
         _gate = new AccessGate(_grants, _ledger);
-        _server = new KolibriMcpServer(options: new KolibriMcpServerOptions { ExperimentalTools = true });
+        _server = new KolibriMcpServer(McpTest.Accounts(), options: new KolibriMcpServerOptions { ExperimentalTools = true });
         _server.EnableWriteTools(_gate, _actions);
         _server.Authorizer = McpAccessPolicy.ForToken(_gate, () => McpRequestContext.Token, "Main");
     }
@@ -467,10 +467,10 @@ public sealed class McpWriteToolsTests : IDisposable
     [Fact]
     public void Spending_points_needs_enough_points_and_an_unblocked_buyer()
     {
-        var db = new KoLibri.Core.Markt.BuyerCrmDatabase { Buyers = [new KoLibri.Core.Markt.BuyerCrmProfile { BuyerKey = "k", CharacterName = "n", LoyaltyPoints = 5 }] };
-        Assert.Equal(2, KoLibri.Core.Markt.BuyerCrmService.SpendPoints(db, "k", 3).Buyers[0].LoyaltyPoints);
-        Assert.Throws<InvalidOperationException>(() => KoLibri.Core.Markt.BuyerCrmService.SpendPoints(db, "k", 6));
-        var blocked = KoLibri.Core.Markt.BuyerCrmService.SetBlocked(db, "k", true);
-        Assert.Throws<InvalidOperationException>(() => KoLibri.Core.Markt.BuyerCrmService.SpendPoints(blocked, "k", 1));
+        var db = new KoLibri.Extras.BuyerCrmDatabase { Buyers = [new KoLibri.Extras.BuyerCrmProfile { BuyerKey = "k", CharacterName = "n", LoyaltyPoints = 5 }] };
+        Assert.Equal(2, KoLibri.Extras.BuyerCrmService.SpendPoints(db, "k", 3).Buyers[0].LoyaltyPoints);
+        Assert.Throws<InvalidOperationException>(() => KoLibri.Extras.BuyerCrmService.SpendPoints(db, "k", 6));
+        var blocked = KoLibri.Extras.BuyerCrmService.SetBlocked(db, "k", true);
+        Assert.Throws<InvalidOperationException>(() => KoLibri.Extras.BuyerCrmService.SpendPoints(blocked, "k", 1));
     }
 }
