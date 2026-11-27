@@ -78,6 +78,29 @@ public sealed class RelayFakeKolTests : IDisposable
     private readonly string _log = Path.Combine(Path.GetTempPath(), "kolibri-fakekol-" + Guid.NewGuid().ToString("N") + ".jsonl");
     public void Dispose() { foreach (var h in _hosts) h.Dispose(); _kol.Dispose(); try { File.Delete(_log); } catch { } }
 
+    /// <summary>
+    /// Reads the relay log while the relay may still be appending to it. File.ReadAllText opens with FileShare.Read,
+    /// which Windows refuses while the writer has the file open ("being used by another process"); sharing
+    /// ReadWrite lets the read run next to the append. A line that is half written is just not matched yet.
+    /// </summary>
+    private string ReadLog()
+    {
+        if (!File.Exists(_log)) return "";
+        using var stream = new FileStream(_log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>Waits until the log mentions <paramref name="needle"/> (the relay writes after answering) and returns it.</summary>
+    private async Task<string> WaitForLog(string needle)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        string text;
+        while (!(text = ReadLog()).Contains(needle) && DateTime.UtcNow < deadline) await Task.Delay(50);
+        Assert.True(text.Contains(needle), $"log never mentioned {needle}: {text}");
+        return text;
+    }
+
     private static AccountSession Session() => new(
         new AccountProfile { Id = "main", DisplayName = "Fixture", Role = AccountRole.Main },
         new AccountCredentials { Username = "Fixture", CookieHeader = "PHPSESSID=SECRETKOL", ExpiresAt = DateTimeOffset.UtcNow.AddHours(2) });
@@ -136,15 +159,13 @@ public sealed class RelayFakeKolTests : IDisposable
         r.Content = new StringContent("pwd=SECRETPWD1234&whichchoice=7&option=2", Encoding.UTF8, "application/x-www-form-urlencoded");
         var body = await (await c.SendAsync(r)).Content.ReadAsStringAsync();
         Assert.Contains("posted:pwd=SECRETPWD1234&whichchoice=7&option=2", body);
-        for (var i = 0; i < 40 && (!File.Exists(_log) || !File.ReadAllText(_log).Contains("choice.php")); i++) await Task.Delay(50);
-        var log = File.ReadAllText(_log);
+        var log = await WaitForLog("choice.php");
         Assert.Contains("whichchoice", log);
         Assert.DoesNotContain("SECRETPWD1234", log);
         Assert.DoesNotContain("SECRETKOL", log);
         // pwd in a GET query is redacted as well
         await c.SendAsync(Req(h, HttpMethod.Get, "/fight.php?action=attack&pwd=QUERYPWD99"));
-        for (var i = 0; i < 40 && !File.ReadAllText(_log).Contains("fight.php"); i++) await Task.Delay(50);
-        Assert.DoesNotContain("QUERYPWD99", File.ReadAllText(_log));
+        Assert.DoesNotContain("QUERYPWD99", await WaitForLog("fight.php"));
     }
 
     [Theory]
