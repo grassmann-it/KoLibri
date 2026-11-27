@@ -71,6 +71,21 @@ async Task RunAsync()
             SeedFixtures(window);
             if (set("settings-signin")) Shot(window, P("settings-signin"));
             await Section(window, "NavAdventure"); Shot(window, P("adventures"));
+            if (set("picker") && Priv<LocationPickerViewModel?>(window, "_locationPicker") is { } picker)
+            {
+                // Location picker: closed zones, the search "skel", then favorites and recently used on top.
+                var search = window.FindControl<TextBox>("EncounterFilterBox")!;
+                Shot(window, P("picker-empty"));
+                search.Text = "skel"; await Pump(400); Shot(window, P("picker-skel"));
+                search.Text = "";
+                foreach (var id in new[] { "adventure=439:The Skeleton Store", "adventure=264:The Defiled Nook" })
+                    picker.ToggleFavorite(id);
+                foreach (var id in new[] { "adventure=15:The Spooky Forest", "adventure=439:The Skeleton Store" })
+                    picker.MarkUsed(id);
+                picker.Select("adventure=439:The Skeleton Store");
+                picker.SetAccess(264, false, "The Cyrpt is not open yet.");
+                await Pump(400); Shot(window, P("picker-favorites"));
+            }
             if (w == 1280 && !dark)
             {
                 window.ShowDecisionForQa(new NeedsDecisionInfo

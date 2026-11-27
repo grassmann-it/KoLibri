@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
 
 
 namespace KoLibri.Desktop;
@@ -32,34 +33,27 @@ public partial class MainWindow
             return;
         }
 
-        if (_encounterLocationsGrid is not null && _encounterBrowser.Browser is not null)
+        if (_encounterLocationsGrid is not null && _encounterBrowser.Browser is { } catalogBrowser)
         {
-            _encounterLocationsGrid.ItemsSource = _encounterBrowser.Browser.Locations;
-            _encounterMonstersGrid!.ItemsSource = _encounterBrowser.Browser.Monsters;
-            _encounterActionsGrid!.ItemsSource = _encounterBrowser.Browser.Actions;
-            _adventuresView?.SetZones(_encounterBrowser.Browser.ZoneGroups);
-        }
-
-        if (_encounterFilterBox is not null)
-        {
-            _encounterFilterBox.TextChanged += (_, _) =>
+            _encounterMonstersGrid!.ItemsSource = catalogBrowser.Monsters;
+            _encounterActionsGrid!.ItemsSource = catalogBrowser.Actions;
+            // The picker holds every catalog location (the browser's own filter stays empty).
+            _locationPicker = new LocationPickerViewModel(catalogBrowser.Locations.ToList(),
+                _settings.FavoriteLocations, _settings.RecentLocations);
+            _locationPicker.ListsChanged += (_, _) => SaveLocationPickerLists();
+            _locationPicker.PropertyChanged += (_, e) =>
             {
-                if (_encounterBrowser?.Browser is { } browser)
-                    browser.FilterText = _encounterFilterBox.Text ?? string.Empty;
-            };
-        }
-
-        if (_encounterLocationsGrid is not null)
-        {
-            _encounterLocationsGrid.SelectionChanged += (_, _) =>
-            {
-                if (_encounterBrowser?.Browser is { } browser
-                    && _encounterLocationsGrid.SelectedItem is EncounterBrowserLocationRow row)
+                if (e.PropertyName != nameof(LocationPickerViewModel.SelectedLocation)) return;
+                if (_locationPicker.SelectedLocation is { } row && !ReferenceEquals(catalogBrowser.SelectedLocation, row))
                 {
-                    browser.SelectedLocation = row;
+                    catalogBrowser.SelectedLocation = row;
                     RefreshEncounterStepLog();
                 }
             };
+            _adventuresView?.AttachLocationPicker(_locationPicker);
+            if (_adventuresView is not null)
+                // Enter in the picker: the location is set; go on to the run buttons.
+                _adventuresView.LocationChosen = _ => this.FindControl<Button>("EncounterBatchStart")?.Focus();
         }
 
         if (_encounterMonstersGrid is not null)
@@ -77,7 +71,7 @@ public partial class MainWindow
         if (_encounterStartButton is not null)
             _encounterStartButton.Click += async (_, _) =>
             {
-                if (_encounterLocationsGrid?.SelectedItem is EncounterBrowserLocationRow row)
+                if (_locationPicker?.SelectedLocation is { } row)
                     await StartLocationAsync(row, 1);
                 else
                     UpdateEncounterStatus("Select a location in the list first.");
@@ -87,14 +81,12 @@ public partial class MainWindow
         if (this.FindControl<Button>("EncounterBatchStart") is { } runTurns)
             runTurns.Click += async (_, _) =>
             {
-                if (_encounterLocationsGrid?.SelectedItem is not EncounterBrowserLocationRow row)
+                if (_locationPicker?.SelectedLocation is not { } row)
                 {
                     UpdateEncounterStatus("Select a location in the list first.");
                     return;
                 }
-                if (ReadAdventureJob() is not { } job) return;
-                _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
-                await _encounterBrowser.RunJobAsync(row, job);
+                await StartLocationAsync(row, int.MaxValue);
                 RefreshEncounterStepLog();
             };
 
@@ -164,28 +156,54 @@ public partial class MainWindow
     private async Task StartLocationAsync(EncounterBrowserLocationRow row, int turns)
     {
         if (_encounterBrowser is null) { UpdateEncounterStatus("The adventure catalog is not loaded."); return; }
-        if (turns <= 1) 
+        if (_encounterBrowser.Session is { } session) session.AccessObserved = ObserveLocationAccess;
+        if (turns <= 1)
         {
+            _locationPicker?.MarkUsed(row.LocationId);
             _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
             await _encounterBrowser.StartAdventureAsync(row);
             return;
         }
         if (ReadAdventureJob() is not { } job) return;
+        _locationPicker?.MarkUsed(row.LocationId);
         _encounterBrowser.ApplyApprovalToken(Guid.NewGuid().ToString("N"));
         await _encounterBrowser.RunJobAsync(row, job);
     }
 
     private async Task AdventureAtAsync(ContextMenus.LocationMenuTarget target, int turns)
     {
-        var row = _encounterBrowser?.Browser?.Locations.FirstOrDefault(r => r.LocationId == target.LocationId);
+        var row = _locationPicker?.Find(target.LocationId);
         if (row is null)
         {
-            UpdateEncounterStatus($"{target.Name} is hidden by the filter or not in the catalog; clear the filter and try again.");
+            UpdateEncounterStatus($"{target.Name} is not in the location catalog.");
             return;
         }
-        if (_encounterLocationsGrid is not null) _encounterLocationsGrid.SelectedItem = row;
+        _locationPicker!.Select(row.LocationId);
         await StartLocationAsync(row, turns);
         RefreshEncounterStepLog();
+    }
+
+    /// <summary>An access result a start already read: the picker grays the location out when it is locked.</summary>
+    private void ObserveLocationAccess(int snarfblat, bool accessible, string? reason)
+        => Dispatcher.UIThread.Post(() => _locationPicker?.SetAccess(snarfblat, accessible, reason));
+
+    /// <summary>Saves the picker's favorites and recent list into the desktop settings (fresh load, so other edits survive).</summary>
+    private void SaveLocationPickerLists()
+    {
+        if (_locationPicker is null) return;
+        try
+        {
+            var fresh = _settingsStore.Load();
+            fresh.FavoriteLocations = _locationPicker.Favorites.ToList();
+            fresh.RecentLocations = _locationPicker.Recent.ToList();
+            _settingsStore.Save(fresh);
+            _settings.FavoriteLocations = fresh.FavoriteLocations;
+            _settings.RecentLocations = fresh.RecentLocations;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            UpdateEncounterStatus($"Favorites could not be saved: {e.Message}");
+        }
     }
 
     /// <summary>Screenshot QA only: shows a choice in the decision panel without any request.</summary>

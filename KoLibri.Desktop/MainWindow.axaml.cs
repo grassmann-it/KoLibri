@@ -86,6 +86,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private ListBox? _encounterMonstersGrid;
     private ListBox? _encounterActionsGrid;
     private TextBox? _encounterFilterBox;
+    private LocationPickerViewModel? _locationPicker;
     private Button? _encounterStartButton;
     private Button? _encounterSubmitButton;
     private Button? _encounterEndButton;
@@ -611,6 +612,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (role != _selectedRole) return;
         if (_encounterBrowser?.ObserveAscension(role, session.Account.Id.Value, status.Ascensions) == true)
         {
+            _locationPicker?.ClearAccess();
             UpdateEncounterStatus("New ascension detected. The previous adventure was closed.");
             RefreshEncounterStepLog();
         }
@@ -829,6 +831,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private void ResetAccountViews()
     {
         _encounterBrowser?.SelectAccount(_selectedRole);
+        _locationPicker?.ClearAccess();
         _chatCursor = 0;
         _chatMessages.Clear();
         if (this.FindControl<ComboBox>("KoLChatContacts") is { } chatContacts) chatContacts.ItemsSource = null;
