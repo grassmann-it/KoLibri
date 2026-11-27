@@ -65,17 +65,17 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
     private readonly DesktopLiveDataProvider _provider;
     private readonly AccountRole _role;
     private readonly Func<string, Task<long?>> _medianLookup;
-    private readonly KoLibri.Core.Spiel.KoLmafiaCatalog? _catalog;
+    private readonly KoLmafiaCatalog? _catalog;
     private ObservableCollection<string> _watchList = new(DefaultWatchList);
 
     public LiveArbitrageViewModel(
-        AccountRole role = AccountRole.Main,
-        DesktopLiveDataProvider? provider = null,
+        AccountRole role,
+        DesktopLiveDataProvider provider,
         Func<string, Task<long?>>? medianLookup = null,
-        KoLibri.Core.Spiel.KoLmafiaCatalog? catalog = null)
+        KoLmafiaCatalog? catalog = null)
     {
         _role = role;
-        _provider = provider ?? new DesktopLiveDataProvider();
+        _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _catalog = catalog;
         _medianLookup = medianLookup ?? DefaultMedianLookup;
     }
@@ -137,7 +137,7 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
     public void LoadRules()
     {
         Rules.Clear();
-        foreach (var rule in KoLibri.Core.Spiel.BuyPlanner.DefaultRules)
+        foreach (var rule in BuyPlanner.DefaultRules)
         {
             Rules.Add(new BuyRuleRow
             {
@@ -168,12 +168,12 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                 var cheapest = search.Cheapest;
                 if (cheapest is null) continue;
                 var median = await _medianLookup(search.ItemName);
-                var spread = median is { } m ? m - cheapest.Price : 0;
+                var spread = median is { } m ? m - cheapest.UnitPrice : 0;
                 var margin = median is { } mm && mm > 0 ? spread / (decimal)mm : 0m;
                 Rows.Add(new LiveArbitrageRow
                 {
                     ItemName = search.ItemName,
-                    CheapestPrice = cheapest.Price,
+                    CheapestPrice = cheapest.UnitPrice,
                     MedianPrice = median ?? 0,
                     ListingCount = search.Listings.Count,
                     SpreadText = median is null ? "—" : $"{spread:N0} Meat",
@@ -211,19 +211,22 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
         CancellationToken cancellationToken)
     {
         if (Rules.Count == 0) LoadRules();
-        var status = await _provider.LoadStatusAsync(_role, cancellationToken: cancellationToken);
+        // A status that cannot be read fresh leaves the rules at zero, as a stale one did in 0.4; the table stays.
+        Status? status;
+        try { status = await _provider.LoadStatusAsync(_role, cancellationToken: cancellationToken); }
+        catch (KolibriException) { status = null; }
         var meat = status?.Meat ?? 0;
         foreach (var index in Enumerable.Range(0, Rules.Count).ToArray())
         {
             var row = Rules[index];
             var search = searches.FirstOrDefault(x =>
                 string.Equals(x.ItemName, row.ItemName, StringComparison.OrdinalIgnoreCase));
-            if (search is null || search.IsStale || status is null || status.IsStale)
+            if (search is null || search.IsStale || status is null)
             {
                 Rules[index] = row with { CandidateCount = 0, PlannedCost = 0, PlannedProfit = 0 };
                 continue;
             }
-            var rule = new KoLibri.Core.Spiel.BuyRule
+            var rule = new BuyRule
             {
                 ItemId = row.ItemId,
                 ItemName = row.ItemName,
@@ -231,17 +234,17 @@ public sealed class LiveArbitrageViewModel : DesktopViewModel
                 ResalePrice = row.ResalePrice
             };
             var listings = search.Listings
-                .Select(x => new KoLibri.Core.Spiel.MallListingRow
+                .Select(x => new MallListingRow
                 {
-                    StoreId = int.TryParse(x.StoreId, out var store) ? store : 0,
+                    StoreId = x.StoreId,
                     ItemId = row.ItemId,
                     StoreName = x.StoreName ?? string.Empty,
                     Stock = x.Quantity,
-                    UnitPrice = (int)x.Price,
-                    DailyLimit = x.PurchaseLimit ?? 0
+                    UnitPrice = (int)Math.Min(x.UnitPrice, int.MaxValue),
+                    DailyLimit = x.LimitPerDay ?? 0
                 })
                 .ToArray();
-            var plan = new KoLibri.Core.Spiel.BuyPlanner().Plan(rule, listings, meat);
+            var plan = new BuyPlanner().Plan(rule, listings, meat);
             Rules[index] = row with
             {
                 CandidateCount = plan.Candidates.Count,
