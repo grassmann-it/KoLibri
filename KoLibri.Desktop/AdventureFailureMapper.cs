@@ -22,7 +22,7 @@ public sealed record AdventureFailureInfo(AdventureFailureKind Kind, string Mess
 }
 
 /// <summary>
-/// Turns transport exceptions and gateway abort messages into readable text. Never shows a bare
+/// Turns KoLibri exceptions and run/stop messages into readable text. Never shows a bare
 /// "302"; unknown failures keep their original message so nothing is hidden.
 /// </summary>
 public static class AdventureFailureMapper
@@ -32,12 +32,16 @@ public static class AdventureFailureMapper
         ArgumentNullException.ThrowIfNull(exception);
         if (exception is OperationCanceledException)
             return new(AdventureFailureKind.Canceled, "The adventure request was canceled.", "Nothing more was sent.");
-        if (exception is OpenChoiceException open)
-            return open.Kind == OpenChoiceKind.Fight
-                ? new(AdventureFailureKind.OpenFight, "A fight is open on this account.",
-                    "Fight it (Fight encounter) or recheck, then start the adventure again.")
-                : new(AdventureFailureKind.OpenChoice, "A choice adventure is open on this account.",
-                    "Pick an option in the choice panel, or apply your choice policy.");
+        if (exception is SessionExpiredException)
+            return new(AdventureFailureKind.NotLoggedIn, "The session is not logged in any more.",
+                "Log in again in Settings, then retry.");
+        if (exception is ActionDeniedException denied)
+            return new(AdventureFailureKind.Unknown, $"The safety guard refused the action: {denied.Reason}", "Nothing was sent.");
+        if (exception is UnexpectedPageException { Page.Kind: PageKind.Maintenance })
+            return new(AdventureFailureKind.Unknown, "KoL is in maintenance.", "Try again later.");
+        if (exception is UnexpectedPageException { Page.Kind: PageKind.LoginRequired })
+            return new(AdventureFailureKind.NotLoggedIn, "The session is not logged in any more.",
+                "Log in again in Settings, then retry.");
         return Describe(exception.Message);
     }
 
@@ -52,14 +56,14 @@ public static class AdventureFailureMapper
         if (Has("fight.php"))
             return new(AdventureFailureKind.OpenFight, "A fight is open on this account.",
                 "Fight it (Fight encounter) or recheck, then start the adventure again.");
-        if (Has("recognised interstitial") || Has("main.php did not answer") || Has("to 'main.php"))
+        if (Has("interstitial") || Has("main.php did not answer") || Has("to 'main.php"))
             return new(AdventureFailureKind.Interstitial,
                 "KoL showed its one-time page after login (Daily Reminders / New Events) instead of the adventure.",
                 "Open the character pane or press Refresh once, then try again.");
         if (Has("notloggedin") || Has("not logged in") || Has("login.php") || Has("session expired") || Has("sign in"))
             return new(AdventureFailureKind.NotLoggedIn, "The session is not logged in any more.",
                 "Log in again in Settings, then retry.");
-        if (Has("out of adventures") || Has("no adventures") || Has("not enough adventures") || Has("too tired"))
+        if (Has("out of adventures") || Has("no adventures") || Has("NoAdventures") || Has("not enough adventures") || Has("too tired"))
             return new(AdventureFailureKind.NoAdventures, "No adventures left.",
                 "Rest, eat, drink or wait for tomorrow's rollover.");
         if (Has("special route") || Has("friars") || Has("not available") || Has("unavailable")
