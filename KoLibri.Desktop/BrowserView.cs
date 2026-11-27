@@ -8,13 +8,13 @@ namespace KoLibri.Desktop;
 
 /// <summary>
 /// KoLmafia-style relay browser inside the window: starts the library relay (<see cref="KolibriSession.StartRelayAsync"/>) in-process (127.0.0.1, free port, secret
-/// token, redacted log) and shows it in a native web view (WebView2 / WKWebView / WebKitGTK through WebView.Avalonia).
+/// token, redacted log) and shows it in a native web view (<see cref="EmbeddedBrowserBackend"/>: own WebKitGTK host on Linux,
+/// WebView2 / WKWebView through WebView.Avalonia on Windows / macOS).
 /// The web view keeps its own cookie jar, so the per-run relay cookie never reaches other browsers. Without a usable
 /// web view runtime the page explains that and offers the relay URL in the system browser instead.
 /// </summary>
 public sealed class BrowserView : UserControl, IDisposable
 {
-    private static readonly TimeSpan EngineWait = TimeSpan.FromSeconds(8);
 
     private DesktopAccounts? _accounts;
     private Func<AccountRole> _role = () => AccountRole.Main;
@@ -26,7 +26,7 @@ public sealed class BrowserView : UserControl, IDisposable
     private string _hostOrigin = "";
     private AccountRole? _hostRole;
     private KolibriSession? _hostBinding;
-    private Control? _web;
+    private IEmbeddedBrowser? _web;
     private bool _engineSeen;
     private bool _navigated;
     private bool _disposed;
@@ -57,9 +57,9 @@ public sealed class BrowserView : UserControl, IDisposable
             if (BrowserNavigationPolicy.ResolveTyped(_hostOrigin, _address.Text) is { } path) NavigateToPath(path);
             else _status("The address bar only opens pages of the relay, for example /main.php.");
         };
-        _back.Click += (_, _) => { if (_web is AvaloniaWebView.WebView w) w.GoBack(); };
-        _forward.Click += (_, _) => { if (_web is AvaloniaWebView.WebView w) w.GoForward(); };
-        _reload.Click += (_, _) => { if (_web is AvaloniaWebView.WebView w) w.Reload(); };
+        _back.Click += (_, _) => _web?.GoBack();
+        _forward.Click += (_, _) => _web?.GoForward();
+        _reload.Click += (_, _) => _web?.Reload();
         _adventure.Click += (_, _) => NavigateToPath("/adventure.php");
         _main.Click += (_, _) => NavigateToPath("/main.php");
         _external.Click += (_, _) => OpenInSystemBrowser();
@@ -171,8 +171,7 @@ public sealed class BrowserView : UserControl, IDisposable
         }
         if (BrowserModePolicy.Current() == BrowserMode.SystemBrowser)
         {
-            ShowMessage("The browser opens in your system browser on Linux, because the embedded WebKitGTK view can hang the app. " +
-                "Use “Open in system browser” below. Set KOLIBRI_EMBED_WEBVIEW=1 to try the embedded view anyway. " +
+            ShowMessage(SystemBrowserText + " " +
                 "Note that browsers share cookies between local ports, so do not browse other local servers with that profile while the relay runs.", systemBrowser: true);
             return;
         }
@@ -187,9 +186,14 @@ public sealed class BrowserView : UserControl, IDisposable
         {
             case "opening": ShowMessage("Starting the relay for Main…"); break;
             case "error": ShowTimeout("Checking or renewing the session"); break;
-            case "system": ShowMessage("The browser opens in your system browser on Linux, because the embedded WebKitGTK view can hang the app. Use “Open in system browser” below. Set KOLIBRI_EMBED_WEBVIEW=1 to try the embedded view anyway.", systemBrowser: true); break;
+            case "system": ShowMessage(SystemBrowserText, systemBrowser: true); break;
+            case "unavailable": ShowMessage(EngineMissingText("libwebkit2gtk-4.1.so.0 not found"), retry: true, systemBrowser: true); break;
         }
     }
+
+    private const string SystemBrowserText =
+        "The embedded browser is switched off (KOLIBRI_NO_WEBVIEW=1 or KOLIBRI_EMBED_WEBVIEW=0), so the relay opens in your system browser. " +
+        "Use “Open in system browser” below.";
 
     private void ShowTimeout(string what) =>
         ShowMessage($"{what} took longer than {BrowserTimeouts.Gate.TotalSeconds:0} s, so the browser was not opened. KoL may be slow or unreachable.",
@@ -198,49 +202,59 @@ public sealed class BrowserView : UserControl, IDisposable
     private void ShowWebView()
     {
         _engineSeen = false;
+        _log(EmbeddedBrowserBackend.Report);
         try
         {
-            var web = new AvaloniaWebView.WebView();
-            web.WebViewCreated += (_, _) => Dispatcher.UIThread.Post(() => { _engineSeen = true; });
-            web.NavigationStarting += (_, e) =>
+            var web = EmbeddedBrowserBackend.Create();
+            var generation = _generation;
+            web.Created += () => Dispatcher.UIThread.Post(() => { _engineSeen = true; });
+            // Asked for every navigation, on the engine's thread: pure policy check, never blocks.
+            var origin = _hostOrigin;
+            web.AllowNavigation = url =>
             {
-                var origin = (_host is null ? null : _hostOrigin);
-                if (origin is null) { e.Cancel = true; return; }
-                var url = e.Url?.ToString();
                 switch (BrowserNavigationPolicy.Decide(origin, url))
                 {
                     case BrowserNavigationDecision.Allow:
-                        var shown = BrowserNavigationPolicy.DisplayPath(origin, url);
-                        Dispatcher.UIThread.Post(() => { _engineSeen = true; _address.Text = shown; UpdateNavButtons(); });
-                        break;
+                        Dispatcher.UIThread.Post(() => { if (generation == _generation) _engineSeen = true; });
+                        return true;
                     case BrowserNavigationDecision.AskExternal:
-                        e.Cancel = true;
-                        if (url is not null) Dispatcher.UIThread.Post(async () => await AskOpenExternalAsync(url));
-                        break;
+                        Dispatcher.UIThread.Post(async () => { if (generation == _generation) await AskOpenExternalAsync(url); });
+                        return false;
                     default:
-                        e.Cancel = true;
-                        break;
+                        return false;
                 }
             };
-            web.NavigationCompleted += (_, _) => Dispatcher.UIThread.Post(() => { _engineSeen = true; _navigated = true; UpdateNavButtons(); });
-            web.WebViewNewWindowRequested += (_, e) =>
+            // The address bar follows the top-level page (KoL's frames load through the policy above, too).
+            web.NavigationCompleted += url => Dispatcher.UIThread.Post(() =>
             {
-                // A new window is never opened here; same-origin targets load in this view, others ask first.
-                e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.CancelLoad;
-                var origin = (_host is null ? null : _hostOrigin); var url = e.Url?.ToString();
-                if (origin is null || url is null) return;
+                if (generation != _generation) return;
+                _engineSeen = true; _navigated = true; UpdateNavButtons();
+                var shown = BrowserNavigationPolicy.DisplayPath(origin, url);
+                if (shown.Length > 0) _address.Text = shown;
+            });
+            // A new window is never opened here; same-origin targets load in this view, others ask first.
+            web.NewWindowRequested += url => Dispatcher.UIThread.Post(async () =>
+            {
+                if (generation != _generation) return;
                 switch (BrowserNavigationPolicy.Decide(origin, url))
                 {
                     case BrowserNavigationDecision.Allow:
-                        Dispatcher.UIThread.Post(() => { if (BrowserNavigationPolicy.ResolveTyped(origin, url) is { } p) NavigateToPath(p); });
+                        if (BrowserNavigationPolicy.ResolveTyped(origin, url) is { } p) NavigateToPath(p);
                         break;
                     case BrowserNavigationDecision.AskExternal:
-                        Dispatcher.UIThread.Post(async () => await AskOpenExternalAsync(url));
+                        await AskOpenExternalAsync(url);
                         break;
                 }
-            };
+            });
+            web.Failed += reason => Dispatcher.UIThread.Post(() =>
+            {
+                if (generation != _generation) return;
+                _log($"Embedded browser failed: {reason}");
+                _web = null;
+                ShowMessage(EngineMissingText(reason), retry: true, systemBrowser: true);
+            });
             _web = web;
-            _body.Content = web;
+            _body.Content = web.View;
             SetControlsEnabled(true);
             _back.IsEnabled = false; _forward.IsEnabled = false; // nothing to go back to before the first page
             _ = WatchEngineAsync(_generation);
@@ -249,7 +263,8 @@ public sealed class BrowserView : UserControl, IDisposable
         catch (Exception exception)
         {
             _web = null;
-            ShowMessage(EngineMissingText($"the web view could not be created ({exception.GetType().Name})"), retry: true);
+            _log($"Embedded browser could not be created: {exception.GetType().Name}: {exception.Message}");
+            ShowMessage(EngineMissingText($"the web view could not be created ({exception.GetType().Name})"), retry: true, systemBrowser: true);
         }
     }
 
@@ -269,27 +284,27 @@ public sealed class BrowserView : UserControl, IDisposable
 
     private static string EngineMissingText(string reason) =>
         $"The in-app browser is not available here: {reason}. " +
-        "It needs WebView2 (Windows), WKWebView (macOS) or WebKitGTK 4.1 / GTK 3 (Linux). " +
+        "It needs WebView2 (Windows), WKWebView (macOS) or WebKitGTK 4.1 (or 4.0) with GTK 3 on X11/XWayland (Linux, package webkit2gtk-4.1). " +
         "You can still use the relay: “Open in system browser” opens it in your default browser. " +
         "Note that browsers share cookies between local ports, so do not browse other local servers with that profile while the relay runs.";
 
     private void NavigateToPath(string path)
     {
         if (_host is null) return;
-        if (_web is AvaloniaWebView.WebView web)
+        if (_web is { } web)
         {
             // The first load goes through the secret enter URL; after that the cookie is in the view's own jar.
-            web.Url = _host.EntryUri(path);
+            web.Navigate(_host.EntryUri(path));
             _status($"Browser: {path}");
         }
     }
 
     private void UpdateNavButtons()
     {
-        if (_web is AvaloniaWebView.WebView w)
+        if (_web is { } w)
         {
-            _back.IsEnabled = w.IsCanGoBack;
-            _forward.IsEnabled = w.IsCanGoForward;
+            _back.IsEnabled = w.CanGoBack;
+            _forward.IsEnabled = w.CanGoForward;
         }
     }
 

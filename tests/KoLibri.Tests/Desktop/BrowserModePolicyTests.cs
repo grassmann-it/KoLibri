@@ -6,7 +6,8 @@ namespace KoLibri.Tests.Desktop;
 public sealed class BrowserModePolicyTests
 {
     [Theory]
-    [InlineData(true, null, null, BrowserMode.SystemBrowser)]
+    [InlineData(true, null, null, BrowserMode.Embedded)]
+    [InlineData(true, "0", null, BrowserMode.SystemBrowser)]
     [InlineData(true, "1", null, BrowserMode.Embedded)]
     [InlineData(true, "1", "1", BrowserMode.SystemBrowser)]
     [InlineData(false, null, null, BrowserMode.Embedded)]
