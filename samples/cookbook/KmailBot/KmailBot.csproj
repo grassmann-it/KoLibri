@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Cookbook.KmailBot</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="KoLibri" Version="$(KoLibriPackageVersion)" />
+  </ItemGroup>
+</Project>
