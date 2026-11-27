@@ -146,13 +146,13 @@ public sealed class DesktopManualAdventureHttpTests
         {
             var kol = AdventureKit.ChoiceKol();
             kol.On("POST adventure.php", (_, _) => { kol.StatusAdventures--; return FakeKol.Html(AdventureKit.ChoiceDone); });
-            kol.On("GET api.php?what=inventory", "{}").On("GET api.php?what=inventory", "{}")
-               .On("GET api.php?what=inventory", """{"123":"1"}""");
+            // 0.5: one inventory read per run (starting stock); the goal counts the run's loot (ChoiceDone drops a knucklebone).
+            kol.On("GET api.php?what=inventory", "{}");
             var session = AdventureKit.Session(kol, root.FullName, out var accounts);
             await using var _ = accounts;
             var browser = AdventureKit.Browser();
 
-            await session.RunTurnsAsync(browser, AdventureKit.Garden, 10, "123");
+            await session.RunTurnsAsync(browser, AdventureKit.Garden, 10, "12051");
             Assert.True(session.IsSessionActive, session.LastMessage);
             Assert.Contains("10 left", session.LastMessage); // the open choice has not cost a turn yet
             Assert.Equal("/adventure.php", Assert.Single(kol.Posts()).Path);
