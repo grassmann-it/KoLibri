@@ -61,13 +61,21 @@ public sealed class MallBuyQueueTests
     public async Task Several_buys_are_queued_sent_and_verified_with_one_inventory_read()
     {
         var (queue, ledger, log) = Make();
+        // The batch wait (1.5 s in the app) is what collects the buys into one verification. Hold it until all three
+        // are waiting for verification, instead of racing a zero wait against the sends.
+        var batchReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        queue.BatchWaitForTests = ct => batchReady.Task.WaitAsync(ct);
         var engine = new Engine();
         engine.OnSend = o => engine.Items["789"] += o.Quantity;
         var tickets = new[] { queue.Enqueue(Order(), engine, Options), queue.Enqueue(Order(2), engine, Options), queue.Enqueue(Order(), engine, Options) };
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!tickets.All(t => t.State == MallBuyState.Verifying) && DateTime.UtcNow < deadline) await Task.Delay(10);
+        Assert.All(tickets, t => Assert.Equal(MallBuyState.Verifying, t.State));
+        batchReady.SetResult();
         await queue.WhenIdleAsync();
         Assert.All(tickets, t => Assert.Equal(MallBuyState.Settled, t.State));
         Assert.Equal(3, engine.Sends);
-        Assert.Equal(2, engine.Reads);            // one baseline read + one verification for the whole batch (or two at most)
+        Assert.Equal(2, engine.Reads);            // one baseline read + one verification for the whole batch
         Assert.Equal(400, ledger.SpentToday("Mallbot"));
         Assert.Equal(0, ledger.UnclearToday("Mallbot"));
         Assert.Equal(3, log.Entries.Count(e => e.Message.Contains(" Settled: ")));
