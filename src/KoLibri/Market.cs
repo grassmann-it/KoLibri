@@ -43,7 +43,10 @@ namespace KoLibri
             return Plan(order, offers, status.Meat);
         }
 
-        /// <summary>Kauft laut Quote. Liest Preise neu, kauft nie über MaxUnitPrice, prüft danach Inventar und Meat.</summary>
+        /// <summary>
+        /// Kauft laut Quote. Liest Preise neu, kauft nie über MaxUnitPrice und nie über den Preis der Quote (den der Guard
+        /// freigegeben hat): ist ein Angebot teurer geworden, wird diese Zeile nicht gekauft (PriceChanged). Prüft danach Inventar und Meat.
+        /// </summary>
         public Task<PurchaseResult> BuyAsync(PurchaseQuote quote, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(quote);
@@ -54,6 +57,7 @@ namespace KoLibri
                 Item = quote.Order.Item,
                 Quantity = quote.PlannedQuantity,
                 Meat = quote.TotalCost,
+                MaxUnitPrice = quote.Plan.Count == 0 ? null : quote.Plan.Max(l => l.UnitPrice),
                 Path = "mallstore.php"
             };
             return _session.GuardAsync(action, () => BuyCoreAsync(quote, cancellationToken),
@@ -167,6 +171,14 @@ namespace KoLibri
                     priceMoved = true;
                     lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, planned.Quantity, 0,
                         $"The price rose to {current.UnitPrice}, above the limit of {order.MaxUnitPrice}."));
+                    continue;
+                }
+                if (current.UnitPrice > planned.UnitPrice)
+                {
+                    // The guard approved the quote's prices and total; a dearer line needs a new quote.
+                    priceMoved = true;
+                    lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, planned.Quantity, 0,
+                        $"The price rose from {planned.UnitPrice} to {current.UnitPrice} since the quote; nothing above the approved price is bought. Quote again."));
                     continue;
                 }
                 var quantity = Math.Min(Math.Min(planned.Quantity, current.Quantity), order.Quantity - bought);
@@ -321,9 +333,14 @@ namespace KoLibri
                     var listing = current.FirstOrDefault(l => l.Item == change.Item);
                     if (listing is null)
                         return new ActionResult(ActionStatus.Rejected, 0, $"Item {change.Item.Id} is not in the store. Nothing was changed.", null);
+                    if (change.ExpectedPrice is { } expected && expected != listing.Price)
+                        return new ActionResult(ActionStatus.Rejected, 0,
+                            $"{change.Item.Id}: Conflict (the shop shows {listing.Price}, expected {expected}). Nothing was changed.", null);
                     if (change.LimitPerDay is { } limit && limit != listing.LimitPerDay)
                         return new ActionResult(ActionStatus.Rejected, 0, "Changing the daily limit is not supported yet. Nothing was changed.", null);
-                    updates.Add(new CoreMarkt.ShopPriceUpdate(change.Item.Id.ToString(CultureInfo.InvariantCulture), listing.Price, change.Price,
+                    // The caller's expected price, when given, is what the core checks against its own fresh read:
+                    // a price that moved in between is a Conflict and nothing is written.
+                    updates.Add(new CoreMarkt.ShopPriceUpdate(change.Item.Id.ToString(CultureInfo.InvariantCulture), change.ExpectedPrice ?? listing.Price, change.Price,
                         listing.LimitPerDay > 0 ? listing.LimitPerDay : null));
                 }
                 var result = await _session.ActAsync(() => new CoreMarkt.KoLShopMutationClient(_session.Http, _session.Client.Options.BaseUri)
@@ -355,7 +372,11 @@ namespace KoLibri
     }
 
     public sealed record ShopListing(ItemRef Item, string Name, int Quantity, long Price, int LimitPerDay);
-    public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null);
+    public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null)
+    {
+        /// <summary>Preis, den der Aufrufer im Shop erwartet. Weicht der Live-Preis ab, ändert KoLibri nichts (Conflict). Null: der aktuelle Preis gilt.</summary>
+        public long? ExpectedPrice { get; init; }
+    }
     public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat)
     {
         /// <summary>Item name as the sales log shows it (the id is looked up from it and may be 0).</summary>

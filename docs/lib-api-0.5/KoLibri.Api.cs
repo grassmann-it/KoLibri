@@ -554,6 +554,8 @@ namespace KoLibri
         public IRecoveryPolicy Recovery { get; init; } = RecoveryPolicies.None;
         /// <summary>Obergrenze der Erholungsschritte vor einem Zug.</summary>
         public int MaxRecoveryStepsPerTurn { get; init; } = 5;
+        /// <summary>Adventures, die Erholung (bezahlte Rasten) höchstens kosten darf; 0 = keine bezahlten Rasten. Ergänzt im Review 0.5.</summary>
+        public int MaxRecoveryAdventures { get; init; }
     }
 
     public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost, MonsterSeen, EncounterTitle, TurtleEncounter }
@@ -585,6 +587,8 @@ namespace KoLibri
         public long MeatGained { get; init; }
         /// <summary>Die Erholungs- und Upkeep-Schritte, die der Lauf ausgeführt hat.</summary>
         public IReadOnlyList<RecoveryStep> RecoverySteps { get; init; } = Array.Empty<RecoveryStep>();
+        /// <summary>Adventures, die die Erholung gekostet hat (nicht in TurnsSpent enthalten). Ergänzt im Review 0.5.</summary>
+        public int RecoveryAdventuresSpent { get; init; }
     }
 
     public enum RecoveryStepKind { None, Rest, UseItem, Cast, Stop, NeedInventory }
@@ -682,7 +686,11 @@ namespace KoLibri
     }
 
     public sealed record ShopListing(ItemRef Item, string Name, int Quantity, long Price, int LimitPerDay);
-    public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null);
+    public sealed record ShopPriceChange(ItemRef Item, long Price, int? LimitPerDay = null)
+    {
+        /// <summary>Preis, den der Aufrufer im Shop erwartet; weicht der Live-Preis ab, wird nichts geändert. Ergänzt im Review 0.5.</summary>
+        public long? ExpectedPrice { get; init; }
+    }
     public sealed record ShopSale(DateTimeOffset At, string Buyer, ItemRef Item, int Quantity, long Meat)
     {
         /// <summary>Itemname aus dem Verkaufslog. Ergänzt in Schritt 3 (CLI crm).</summary>
@@ -836,6 +844,8 @@ namespace KoLibri
         public ItemRef? Item { get; init; }
         public int Quantity { get; init; }
         public long Meat { get; init; }
+        /// <summary>Höchster Stückpreis einer Zeile der Aktion (MallBuy); null, wenn unbekannt. Ergänzt im Review 0.5.</summary>
+        public long? MaxUnitPrice { get; init; }
         public string? Path { get; init; }
     }
 

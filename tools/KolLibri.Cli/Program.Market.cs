@@ -199,7 +199,11 @@ internal static partial class KolibriCli
         var committed = false;
         if (HasFlag(args, "--commit") && ready.Length > 0 && !results.Any(r => r.Status is "Missing" or "Conflict"))
         {
-            var outcome = await session.Shop.RepriceAsync(ready.Select(r => new ShopPriceChange(int.Parse(r.ItemId, CultureInfo.InvariantCulture), r.NewPrice)).ToArray());
+            var outcome = await session.Shop.RepriceAsync(ready.Select(r => new ShopPriceChange(int.Parse(r.ItemId, CultureInfo.InvariantCulture), r.NewPrice)
+            {
+                // The user's EXPECTED, not a second read: a price that moved since then is a conflict, not overwritten.
+                ExpectedPrice = r.ExpectedCurrentPrice
+            }).ToArray());
             committed = outcome.Status != ActionStatus.Rejected;
             var after = await session.Shop.GetListingsAsync(refresh: true);
             results = results.Select(r =>
@@ -207,6 +211,12 @@ internal static partial class KolibriCli
                 if (r.Status != "Ready") return r;
                 var now = after.FirstOrDefault(l => l.Item.Id.ToString(CultureInfo.InvariantCulture) == r.ItemId);
                 if (now is null) return r with { ObservedCurrentPrice = null, Status = "VerificationFailed", Message = "Item disappeared after the update." };
+                if (now.Price != r.NewPrice && now.Price != r.ExpectedCurrentPrice)
+                    return r with
+                    {
+                        ObservedCurrentPrice = now.Price, ObservedPurchaseLimit = now.LimitPerDay, Status = "Conflict",
+                        Message = $"The shop price is {now.Price}, not the expected {r.ExpectedCurrentPrice}; nothing was changed for this item."
+                    };
                 return r with
                 {
                     ObservedCurrentPrice = now.Price,

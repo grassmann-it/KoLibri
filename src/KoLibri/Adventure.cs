@@ -90,6 +90,7 @@ namespace KoLibri
         {
             ArgumentNullException.ThrowIfNull(request);
             ArgumentOutOfRangeException.ThrowIfLessThan(request.MaxTurns, 1);
+            ArgumentOutOfRangeException.ThrowIfNegative(request.MaxRecoveryAdventures);
             var encounters = new List<Encounter>();
             var items = new List<InventoryItem>();
             long meat = 0;
@@ -97,16 +98,18 @@ namespace KoLibri
             Status? last = null;
             var recoverySteps = new List<RecoveryStep>();
             var recoveryAdventures = 0;
+            var restsArePaid = false;
             Inventory? baseline = null;
 
             RunResult Finish(RunStopReason reason, string? detail, Encounter? open = null)
             {
-                // Costly rests spend adventures that are not turns of the run.
+                // Costly rests spend adventures that are not turns of the run; they are reported on their own.
                 var spent = start is not null && last is not null ? Math.Max(0, start.Adventures - last.Adventures - recoveryAdventures) : 0;
                 return new RunResult(reason, spent, encounters.ToArray(), detail)
                 {
                     Open = open,
                     RecoverySteps = recoverySteps.ToArray(),
+                    RecoveryAdventuresSpent = recoveryAdventures,
                     Items = Merge(items),
                     MeatGained = meat
                 };
@@ -135,9 +138,11 @@ namespace KoLibri
                         if (turnsStarted >= request.MaxTurns)
                             return Finish(RunStopReason.TurnsDone, null);
                         // Recovery and upkeep run between turns only, never in the middle of a fight/choice chain.
-                        var recovered = await RecoverAsync(request.Recovery, request.MaxRecoveryStepsPerTurn, last, recoverySteps, cancellationToken).ConfigureAwait(false);
+                        var recovered = await RecoverAsync(request.Recovery, request.MaxRecoveryStepsPerTurn, last, recoverySteps,
+                            request.MaxRecoveryAdventures - recoveryAdventures, restsArePaid, cancellationToken).ConfigureAwait(false);
                         last = recovered.Status;
                         recoveryAdventures += recovered.AdventuresSpent;
+                        restsArePaid = recovered.RestsArePaid;
                         if (recovered.StopDetail is { } recoveryStop)
                             return Finish(RunStopReason.Recovery, recoveryStop);
                         if (StopCondition(request.StopWhen, last, baseline, items) is { } why)
@@ -173,7 +178,8 @@ namespace KoLibri
                         }
                     }
 
-                    // Resolve the encounter chain (fight → choice → …) of this turn.
+                    // Resolve the encounter chain (fight → choice → …) of this turn, with a bound on the choices.
+                    var choicesThisTurn = 0;
                     while (true)
                     {
                         encounters.Add(encounter);
@@ -223,6 +229,12 @@ namespace KoLibri
                             {
                                 last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
                                 return Finish(RunStopReason.NeedsChoice, decision.Reason, choice);
+                            }
+                            if (++choicesThisTurn > MaxChoicesPerTurn)
+                            {
+                                last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                                return Finish(RunStopReason.Error,
+                                    $"More than {MaxChoicesPerTurn} choices in one turn (last: choice {choice.ChoiceId}); stopping instead of looping. The choice is still open.", choice);
                             }
                             encounter = await ChooseAsync(choice.ChoiceId, option, cancellationToken).ConfigureAwait(false);
                             if (encounter is NonCombatEncounter reward)
@@ -770,17 +782,24 @@ namespace KoLibri
 
         private const int BeatenUpEffectId = 7;
 
-        private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail);
+        /// <summary>Choice transitions allowed within one turn before the run stops (a resolver loop, or KoL chaining choices).</summary>
+        internal const int MaxChoicesPerTurn = 10;
+
+        private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail, bool RestsArePaid);
 
         /// <summary>
         /// Asks the policy for steps before a new turn, runs each through <see cref="CharacterActions"/>, re-reads the status
         /// and repeats until the policy says None or the limit is reached. A step without progress ends the run: no guessing, no endless loop.
+        /// Steps that cost adventures (a rest once the free rests are used up) are bounded by <paramref name="adventureBudget"/>:
+        /// KoL only shows that a rest was paid in its answer, so the first paid rest is seen afterwards; from then on every
+        /// further rest is known to cost one and is refused before it is sent when the budget is used up.
         /// </summary>
-        private async Task<RecoveryOutcome> RecoverAsync(IRecoveryPolicy policy, int limit, Status status, List<RecoveryStep> log, CancellationToken cancellationToken)
+        private async Task<RecoveryOutcome> RecoverAsync(IRecoveryPolicy policy, int limit, Status status, List<RecoveryStep> log,
+            int adventureBudget, bool restsArePaid, CancellationToken cancellationToken)
         {
-            if (ReferenceEquals(policy, RecoveryPolicies.None) || limit <= 0) return new(status, 0, null);
+            if (ReferenceEquals(policy, RecoveryPolicies.None) || limit <= 0) return new(status, 0, null, restsArePaid);
             if (status.Effects.Any(e => e.Id == BeatenUpEffectId || e.Name.Equals("Beaten Up", StringComparison.OrdinalIgnoreCase)))
-                return new(status, 0, "You are Beaten Up; KoLibri does not guess a way to heal that. Heal by hand and start again.");
+                return new(status, 0, "You are Beaten Up; KoLibri does not guess a way to heal that. Heal by hand and start again.", restsArePaid);
             var done = new List<RecoveryStep>();
             Inventory? inventory = null;
             var spent = 0;
@@ -795,7 +814,9 @@ namespace KoLibri
                 }
                 if (step.Kind == RecoveryStepKind.None) break;
                 if (step.Kind == RecoveryStepKind.Stop)
-                    return new(status, spent, step.Reason ?? "The recovery policy asked to stop.");
+                    return new(status, spent, step.Reason ?? "The recovery policy asked to stop.", restsArePaid);
+                if (step.Kind == RecoveryStepKind.Rest && restsArePaid && spent + 1 > adventureBudget)
+                    return new(status, spent, PaidRestStop(adventureBudget, spent), restsArePaid);
                 var result = step.Kind switch
                 {
                     RecoveryStepKind.Rest => await _session.Character.RestAsync(1, cancellationToken).ConfigureAwait(false),
@@ -807,15 +828,24 @@ namespace KoLibri
                 log.Add(step);
                 if (step.Kind == RecoveryStepKind.UseItem) inventory = null;
                 var after = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
-                spent += Math.Max(0, status.Adventures - after.Adventures);
+                var cost = Math.Max(0, status.Adventures - after.Adventures);
+                spent += cost;
+                if (cost > 0 && step.Kind == RecoveryStepKind.Rest) restsArePaid = true;
                 if (result.Status is ActionStatus.Rejected or ActionStatus.Unclear || result.Completed < 1)
-                    return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}");
+                    return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}", restsArePaid);
                 if (!MadeProgress(status, after))
-                    return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.");
+                    return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.", restsArePaid);
+                if (spent > adventureBudget)
+                    return new(after, spent, PaidRestStop(adventureBudget, spent), restsArePaid);
                 status = after;
             }
-            return new(status, spent, null);
+            return new(status, spent, null, restsArePaid);
         }
+
+        private static string PaidRestStop(int budget, int spent)
+            => spent > budget
+                ? "A rest cost an adventure (the free rests are used up), more than MaxRecoveryAdventures allows; no further paid rest is sent."
+                : "Rests are no longer free and the MaxRecoveryAdventures budget is used up; stopping before a paid rest.";
 
         private static bool MadeProgress(Status before, Status after)
         {
@@ -1009,6 +1039,12 @@ namespace KoLibri
         public IRecoveryPolicy Recovery { get; init; } = RecoveryPolicies.None;
         /// <summary>Obergrenze der Erholungsschritte vor einem Zug.</summary>
         public int MaxRecoveryStepsPerTurn { get; init; } = 5;
+        /// <summary>
+        /// Adventures, die die Erholung über den ganzen Lauf höchstens kosten darf (bezahlte Rasten, sobald die freien
+        /// verbraucht sind); sie zählen nicht zu MaxTurns. Standard 0: keine bezahlten Rasten. KoL zeigt erst an der
+        /// Antwort, dass eine Rast bezahlt war; diese eine wird gemeldet (RecoveryAdventuresSpent), danach stoppt der Lauf.
+        /// </summary>
+        public int MaxRecoveryAdventures { get; init; }
     }
 
     public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost, MonsterSeen, EncounterTitle, TurtleEncounter }
@@ -1050,5 +1086,7 @@ namespace KoLibri
         public long MeatGained { get; init; }
         /// <summary>Die Erholungs- und Upkeep-Schritte, die der Lauf ausgeführt hat.</summary>
         public IReadOnlyList<RecoveryStep> RecoverySteps { get; init; } = Array.Empty<RecoveryStep>();
+        /// <summary>Adventures, die die Erholung gekostet hat (bezahlte Rasten). Nicht in <see cref="TurnsSpent"/> enthalten.</summary>
+        public int RecoveryAdventuresSpent { get; init; }
     }
 }

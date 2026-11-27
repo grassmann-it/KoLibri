@@ -45,7 +45,7 @@ public sealed class McpDailyToolsTests : IDisposable
         var ids = StepIds(payload);
         Assert.Contains("choice-day-shortner", ids);   // 230 leaves: Day Shortener; no 1-leaf burn since #81
         Assert.DoesNotContain("choice-campfire", ids);
-        Assert.Contains("worthless-item", ids);
+        Assert.DoesNotContain("worthless-item", ids);  // no hermitClovers asked for: no Hermit trade (0.5 review)
         Assert.DoesNotContain(_kol.Requests, r => r.Method == "POST");
     }
 

@@ -284,8 +284,10 @@ namespace KoLibri.Safety
             var turns = UsageLedger.Turns(action);
             if (budget.TurnsPerDay is { } limit && turns > 0 && _ledger.TurnsSpentToday(action.Account) + turns > limit)
                 return ValueTask.FromResult(GuardDecision.Deny($"Budget: {limit} turns per day for '{action.Account}' are used up."));
+            // Per line, not the average: one dear store must not hide behind cheap ones. Without line prices the
+            // average is the only check left.
             if (budget.MaxUnitPrice is { } max && action.Kind == GuardedActionKind.MallBuy && action.Quantity > 0
-                && action.Meat > (long)action.Quantity * max)
+                && (action.MaxUnitPrice is { } highest ? highest > max : action.Meat > (long)action.Quantity * max))
                 return ValueTask.FromResult(GuardDecision.Deny($"Budget: at most {max} Meat per unit."));
             return ValueTask.FromResult(GuardDecision.Allow);
         }

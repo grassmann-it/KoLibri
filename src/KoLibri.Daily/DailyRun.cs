@@ -30,7 +30,10 @@ public sealed record DailyRunOptions
     /// <summary>"campfire", "hermit", "internet-shop".</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     public int CampfireReserve { get; init; } = 3;
-    /// <summary>0.4 DailyRoutineSnapshot values for the "sell clovers" branch (all 0 = branch off, as in the CLI).</summary>
+    /// <summary>
+    /// 0.4 DailyRoutineSnapshot values for the "sell clovers" branch. Since the 0.5 review the plan trades with the Hermit
+    /// only for <see cref="HermitCloversWanted"/> clovers, so these values no longer add Hermit steps on their own.
+    /// </summary>
     public long AdventureReserveValue { get; init; }
     public long CloverFloorValue { get; init; }
     public long ExpectedCloverSaleValue { get; init; }
@@ -145,27 +148,21 @@ public static class DailyRun
         if (!(skipCampfire || live.DayShortenerDoneToday) && leaves >= DayShortenerLeafCost + options.CampfireReserve)
             steps.Add(new DailyStep("choice", "choice-day-shortner", DayShortenerLeafCost.ToString(CultureInfo.InvariantCulture)));
 
-        // 2. Hermit: clovers for worthless items, capped by the daily stock of 3.
-        var wanted = skipHermit ? 0 : options.HermitCloversWanted;
-        if (live.HermitDoneToday)
+        // 2. Hermit: clovers for worthless items, only when asked for (--hermit-clovers N, not skipped) and capped by the
+        //    request and the daily stock of 3. Every branch below honours both.
+        var wanted = skipHermit ? 0 : Math.Min(Math.Max(0, options.HermitCloversWanted), HermitDailyStock);
+        if (live.HermitDoneToday || wanted <= 0)
         {
-            // The Hermit's daily clover stock was already bought today.
+            // Already bought today, skipped, or no clovers requested: no Hermit step.
         }
-        else if (wanted > 0 && live.Permits > 0)
+        else if (live.Permits > 0)
         {
-            for (var i = 0; i < Math.Min(wanted, HermitDailyStock); i++)
+            for (var i = 0; i < wanted; i++)
                 steps.Add(new DailyStep("choice", "choice-clover", "1"));
         }
-        else if (!skipHermit && live.Permits > 0 && live.Clovers > 0
-                 && options.ExpectedCloverSaleValue > options.CloverFloorValue
-                 && options.ExpectedCloverSaleValue > options.AdventureReserveValue)
+        else if (live.Clovers > 0 && live.WorthlessItems >= 1)
         {
-            for (var i = 0; i < Math.Min(Math.Min(live.Clovers, live.Permits), HermitDailyStock); i++)
-                steps.Add(new DailyStep("choice", "choice-clover", "1"));
-        }
-        else if (live.Permits == 0 && live.Clovers > 0 && live.WorthlessItems >= 1)
-        {
-            var tradeRuns = Math.Min(Math.Min(live.Clovers, live.WorthlessItems), HermitDailyStock);
+            var tradeRuns = Math.Min(Math.Min(live.Clovers, live.WorthlessItems), wanted);
             for (var i = 0; i < tradeRuns; i++)
                 steps.Add(new DailyStep("item", "worthless-item", "1"));
             for (var i = 0; i < tradeRuns; i++)
@@ -286,14 +283,20 @@ public static class DailyRun
                 var result = step.Id is "choice-campfire" or "choice-day-shortner"
                     ? await pulls.BurnLeavesAsync(option, cancellationToken).ConfigureAwait(false)
                     : await pulls.PullAsync(whichChoice, option, cancellationToken).ConfigureAwait(false);
-                if (result.Accepted)
+                if (!result.Accepted)
+                    failed.Add($"{step.Id}:{step.Option} (http-{result.StatusCode})");
+                else if (!Confirmed(step.Id, result.BodySnippet))
+                {
+                    // HTTP success alone is not the reward: without it on the page no daily marker is set.
+                    failed.Add($"{step.Id}:{step.Option} (unklar: KoL's answer does not show the result; no daily marker set)");
+                }
+                else
                 {
                     executed++;
                     if (step.Id == "choice-day-shortner") session.Daily.MarkDone(Markers.DayShortener);
                     if (step.Id == "choice-campfire") session.Daily.MarkDone(Markers.CampfireLeaf);
                     if (step.Id == "choice-clover") session.Daily.MarkDone(Markers.HermitClovers);
                 }
-                else failed.Add($"{step.Id}:{step.Option} (http-{result.StatusCode})");
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception exception)
@@ -302,6 +305,16 @@ public static class DailyRun
             }
         }
         return new DailyRunResult(executed > 0, executed + failed.Count, executed, failed);
+    }
+
+    /// <summary>
+    /// Whether KoL's answer shows the step's result: the Hermit trade gives "You acquire" an 11-leaf clover, the leaf
+    /// burn gives "You acquire" (Day Shortener, campfire reward). Anything else is unclear, not a success.
+    /// </summary>
+    internal static bool Confirmed(string stepId, string body)
+    {
+        if (string.IsNullOrEmpty(body) || body.IndexOf("You acquire", StringComparison.OrdinalIgnoreCase) < 0) return false;
+        return stepId is not ("choice-clover" or "choice-hermit-wish") || body.Contains("clover", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>One meme shop step (0.4: AutoCombatDailyBridge.ExecuteMemeStepDetailedAsync).</summary>

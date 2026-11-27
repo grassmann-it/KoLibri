@@ -166,7 +166,10 @@ public sealed partial class KolibriClientActions : IAccountActions
         }).ToArray();
         var ready = lines.Where(l => l.Status == "Ready").ToArray();
         if (!commit || ready.Length == 0 || lines.Any(l => l.Status is "Missing" or "Conflict")) return lines;
-        var outcome = await session.Shop.RepriceAsync(ready.Select(l => new ShopPriceChange(int.Parse(l.ItemId, System.Globalization.CultureInfo.InvariantCulture), l.NewPrice)).ToArray(), ct)
+        var outcome = await session.Shop.RepriceAsync(ready.Select(l => new ShopPriceChange(int.Parse(l.ItemId, System.Globalization.CultureInfo.InvariantCulture), l.NewPrice)
+            {
+                ExpectedPrice = l.ExpectedPrice
+            }).ToArray(), ct)
             .ConfigureAwait(false);
         var after = await session.Shop.GetListingsAsync(refresh: true, ct).ConfigureAwait(false);
         return lines.Select(l =>
@@ -174,6 +177,8 @@ public sealed partial class KolibriClientActions : IAccountActions
             if (l.Status != "Ready") return l;
             var now = after.FirstOrDefault(x => x.Item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) == l.ItemId);
             if (now is null) return l with { ObservedPrice = null, Status = "VerificationFailed", Message = "Item disappeared after the update." };
+            if (now.Price != l.NewPrice && now.Price != l.ExpectedPrice)
+                return l with { ObservedPrice = now.Price, Status = "Conflict", Message = $"The shop price is {now.Price}, not the expected {l.ExpectedPrice}; nothing was changed for this item." };
             return now.Price == l.NewPrice
                 ? l with { ObservedPrice = now.Price, Status = "Updated", Message = null }
                 : l with { ObservedPrice = now.Price, Status = "VerificationFailed", Message = outcome.Rejection ?? "Fresh shop read did not show the requested price." };

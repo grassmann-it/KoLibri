@@ -104,6 +104,8 @@ namespace KoLibri
         public ItemRef? Item { get; init; }
         public int Quantity { get; init; }
         public long Meat { get; init; }
+        /// <summary>Höchster Stückpreis einer Zeile der Aktion (MallBuy); null, wenn unbekannt.</summary>
+        public long? MaxUnitPrice { get; init; }
         public string? Path { get; init; }
     }
 
