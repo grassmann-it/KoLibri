@@ -79,7 +79,13 @@ public sealed class RelayHostTests : IDisposable
         var token = url.Split("t=")[1].Split('&')[0];
         await c.GetAsync(url);
         for (var i = 0; i < 40 && !File.Exists(_log); i++) await Task.Delay(50);
-        var text = File.Exists(_log) ? File.ReadAllText(_log) : "";
+        // Share ReadWrite: the relay may still be appending, and Windows refuses a FileShare.Read open next to a writer.
+        var text = "";
+        if (File.Exists(_log))
+        {
+            using var stream = new FileStream(_log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            text = new StreamReader(stream).ReadToEnd();
+        }
         Assert.DoesNotContain(token, text);
         Assert.DoesNotContain("SECRETKOL", text);
     }
