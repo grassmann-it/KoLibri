@@ -9,8 +9,10 @@ public sealed record OrganState(int? Fullness, int? Inebriety, int? Spleen,
 {
     public static readonly OrganState Unknown = new(null, null, null);
 
-    public static OrganState From(KoLibri.Core.Spiel.KoLStatusSnapshot s) => new(
-        s.Fullness, s.Inebriety, s.Spleen, Positive(s.FullnessLimit), Positive(s.InebrietyLimit), Positive(s.SpleenLimit));
+    /// <summary>From the library status: the current fill is always read; a limit is null when the charsheet did not report it.</summary>
+    public static OrganState From(Status s) => new(
+        s.Fullness.Current, s.Inebriety.Current, s.Spleen.Current,
+        Positive(s.Fullness.Limit), Positive(s.Inebriety.Limit), Positive(s.Spleen.Limit));
 
     private static int? Positive(int? v) => v is > 0 ? v : null;
 
@@ -44,29 +46,52 @@ public static class InventoryActionPlanner
         _ => ItemUseKind.None
     };
 
-    public static CharacterConsumableKind? ConsumableKindOf(ItemOrgan organ) => organ switch
+    public static ConsumeKind? ConsumableKindOf(ItemOrgan organ) => organ switch
     {
-        ItemOrgan.Food => CharacterConsumableKind.Food,
-        ItemOrgan.Drink => CharacterConsumableKind.Drink,
-        ItemOrgan.Spleen => CharacterConsumableKind.Spleen,
+        ItemOrgan.Food => ConsumeKind.Eat,
+        ItemOrgan.Drink => ConsumeKind.Drink,
+        ItemOrgan.Spleen => ConsumeKind.Chew,
         _ => null
     };
 
     /// <summary>Slot names offered in the menu. Familiar equipment is the pseudo-slot "Familiar".</summary>
     public static IReadOnlyList<string> EquipSlotsOf(ItemClassification c) => c.Slot switch
     {
-        ItemEquipSlot.Hat => new[] { nameof(CharacterEquipmentSlot.Hat) },
-        ItemEquipSlot.Shirt => new[] { nameof(CharacterEquipmentSlot.Shirt) },
-        ItemEquipSlot.Pants => new[] { nameof(CharacterEquipmentSlot.Pants) },
+        ItemEquipSlot.Hat => new[] { "Hat" },
+        ItemEquipSlot.Shirt => new[] { "Shirt" },
+        ItemEquipSlot.Pants => new[] { "Pants" },
         ItemEquipSlot.Weapon when c.IsOneHandedWeapon
-            => new[] { nameof(CharacterEquipmentSlot.Weapon), DualWieldSlot },
-        ItemEquipSlot.Weapon => new[] { nameof(CharacterEquipmentSlot.Weapon) },
-        ItemEquipSlot.Offhand => new[] { nameof(CharacterEquipmentSlot.Offhand) },
-        ItemEquipSlot.Container => new[] { nameof(CharacterEquipmentSlot.Container) },
-        ItemEquipSlot.Accessory => new[] { nameof(CharacterEquipmentSlot.Accessory1),
-            nameof(CharacterEquipmentSlot.Accessory2), nameof(CharacterEquipmentSlot.Accessory3) },
+            => new[] { "Weapon", DualWieldSlot },
+        ItemEquipSlot.Weapon => new[] { "Weapon" },
+        ItemEquipSlot.Offhand => new[] { "Offhand" },
+        ItemEquipSlot.Container => new[] { "Container" },
+        ItemEquipSlot.Accessory => new[] { "Accessory1", "Accessory2", "Accessory3" },
         ItemEquipSlot.Familiar => new[] { FamiliarSlot },
         _ => Array.Empty<string>()
+    };
+
+    /// <summary>The library slot of a menu slot name (the names stay as 0.4 showed them: Offhand, Container).</summary>
+    public static EquipSlot? EquipSlotOf(string slotName) => slotName switch
+    {
+        "Hat" => EquipSlot.Hat,
+        "Weapon" => EquipSlot.Weapon,
+        "Offhand" or DualWieldSlot => EquipSlot.OffHand,
+        "Container" => EquipSlot.Back,
+        "Shirt" => EquipSlot.Shirt,
+        "Pants" => EquipSlot.Pants,
+        "Accessory1" => EquipSlot.Accessory1,
+        "Accessory2" => EquipSlot.Accessory2,
+        "Accessory3" => EquipSlot.Accessory3,
+        FamiliarSlot => EquipSlot.Familiar,
+        _ => null
+    };
+
+    /// <summary>The slot name the Gear page and the menus show for a library slot.</summary>
+    public static string SlotLabel(EquipSlot slot) => slot switch
+    {
+        EquipSlot.OffHand => "Offhand",
+        EquipSlot.Back => "Container",
+        _ => slot.ToString()
     };
 
     public const string FamiliarSlot = "Familiar";

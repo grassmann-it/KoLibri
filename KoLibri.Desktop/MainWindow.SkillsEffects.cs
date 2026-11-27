@@ -16,13 +16,14 @@ public partial class MainWindow
             () => RefreshSidebarAsync(forceRefresh: true));
     }
 
-    /// <summary>One explicit, user-confirmed cast through the existing character action client.</summary>
-    private async Task<CharacterCastOutcome> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken)
+    /// <summary>One explicit, user-confirmed cast through the library session.</summary>
+    private async Task<ActionResult> CastSkillAsync(int skillId, int times, CancellationToken cancellationToken)
     {
         // Re-check at execution: the confirmation was made for a specific role.
         if (_skillsEffectsModel is { } model && model.Role != _selectedRole.ToString())
             throw new InvalidOperationException("The selected account changed; the cast was not sent.");
-        using var session = await CharacterSession.OpenAsync(_selectedRole, _accounts, cancellationToken);
-        return await session.CastAsync(skillId, times, cancellationToken);
+        var session = await _live.RequireSessionAsync(_selectedRole, "cast a skill", cancellationToken);
+        // One cast per request inside the library, so the confirmed count is real.
+        return await session.Character.CastAsync(skillId, times, cancellationToken);
     }
 }

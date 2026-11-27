@@ -13,7 +13,7 @@ public sealed partial class MainWindow
 {
     private int _sidebarVersion;
 
-    private void ShowCharpane(CharpaneState state, KoLStatusSnapshot? status = null)
+    private void ShowCharpane(CharpaneState state, Status? status = null)
     {
         _charpaneView?.Show(state);
         _skillsEffectsModel?.ApplyStatus(status);

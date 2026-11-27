@@ -14,7 +14,8 @@ namespace KoLibri.Desktop;
 /// </summary>
 public sealed class InventoryViewModel : DesktopViewModel
 {
-    private readonly DesktopLiveDataProvider _provider;
+    /// <summary>Null in tests and at design time: loading then shows the signed-out state.</summary>
+    private readonly DesktopLiveDataProvider? _provider;
     private readonly AccountRole _role;
     private readonly KoLmafiaCatalog? _catalog;
 
@@ -35,7 +36,7 @@ public sealed class InventoryViewModel : DesktopViewModel
         ItemClassifier? classifier = null)
     {
         _role = role;
-        _provider = provider ?? new DesktopLiveDataProvider();
+        _provider = provider;
         _catalog = catalog;
         _classifier = classifier ?? (catalog is null ? null : new ItemClassifier(catalog));
         var categories = BuildCategories(this);
@@ -213,8 +214,9 @@ public sealed class InventoryViewModel : DesktopViewModel
         LoadState = DesktopLoadState.Loading;
         try
         {
-            var snapshot = await _provider
-                .LoadInventoryAsync(_role, forceRefresh, _catalog, cancellationToken)
+            var snapshot = _provider is null
+                ? new DesktopInventorySnapshot { Role = _role, Items = Array.Empty<DesktopInventoryItem>(), HasSession = false, ObservedAt = DateTimeOffset.UtcNow }
+                : await _provider.LoadInventoryAsync(_role, forceRefresh, _catalog, cancellationToken)
                 ;
             ApplyLiveSnapshot(snapshot);
         }

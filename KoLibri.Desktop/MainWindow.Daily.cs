@@ -4,7 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-
+using KoLibri.Daily;
 
 namespace KoLibri.Desktop;
 
@@ -90,12 +90,35 @@ public partial class MainWindow
     }
 
     private async Task<string> RunDailyActionsAsync(
-        AccountRole role, DailyStepRow row, IReadOnlyList<CharacterAction> actions, CancellationToken token)
+        AccountRole role, DailyStepRow row, IReadOnlyList<CharacterCommand> actions, CancellationToken token)
     {
-        using var session = await OpenCharacterSessionAsync(role, token);
+        var session = await OpenCharacterSessionAsync(role, token);
         var classifier = _catalog is null ? null : new ItemClassifier(_catalog);
+
+        async Task<DailyStepState> ReadAsync(CancellationToken ct)
+            => new(await session.Character.GetStatusAsync(refresh: true, ct), await session.Inventory.GetAsync(refresh: true, ct));
+
+        async Task<DailyStepState> ExecuteAsync(CharacterCommand action, CancellationToken ct)
+        {
+            var result = action switch
+            {
+                ConsumeCharacterItem consume => await session.Character.ConsumeAsync(consume.ItemId, consume.Kind, consume.Quantity, ct),
+                RestAtCampground => await session.Character.RestAsync(1, ct),
+                _ => throw new ArgumentException($"A daily step cannot send {action.GetType().Name}.", nameof(action))
+            };
+            var inventory = await session.Inventory.GetAsync(refresh: true, ct);
+            var status = result.After ?? await session.Character.GetStatusAsync(refresh: true, ct);
+            return new DailyStepState(status, inventory)
+            {
+                // A partial consume is judged by the runner from the stock change; only a refusal stops it here.
+                RejectionReason = result.Status == ActionStatus.Rejected ? result.Rejection ?? "KoL did not confirm it." : null,
+                Unclear = result.Status == ActionStatus.Unclear,
+                Confirmed = result.Status == ActionStatus.Done
+            };
+        }
+
         var result = await DailyStepRunner.RunAsync(row.Kind, actions,
-            session.ReadAsync, session.ExecuteAsync, classifier,
+            ReadAsync, ExecuteAsync, classifier,
             // The runner continues on a pool thread after the async status reads; dialogs must open on the UI thread.
             (title, body) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
                 () => OverfillConfirmDialog.AskAsync(this, title, body, "Send anyway")), token);
@@ -136,14 +159,11 @@ public partial class MainWindow
 
     public async void DailyRunClick(object? sender, RoutedEventArgs e)
     {
-        var token = Guid.NewGuid().ToString("N");
         var role = _selectedRole;
         await RunBusyOperationAsync("Daily routine", async cancellationToken =>
         {
-            var account = await _accounts
-                .GetSessionAsync(role, cancellationToken: cancellationToken)
-                ;
-            if (account is null)
+            var session = await _live.SessionAsync(role, cancellationToken);
+            if (session is null)
             {
                 if (_dailyStatusText is not null)
                     _dailyStatusText.Text = "No session for the selected account.";
@@ -153,39 +173,36 @@ public partial class MainWindow
             var topUp = this.FindControl<CheckBox>("DailyBaconTopUp")?.IsChecked == true;
             var maxBaconPrice = (long)(this.FindControl<NumericUpDown>("DailyBaconMaxPrice")?.Value ?? 1500);
             _dailyNote = string.Empty;
-            var result = await RunDailyRoutineAsync(account, token, cancellationToken,
+            var result = await RunDailyRoutineAsync(session, role, cancellationToken,
                 hermitClovers, topUp, maxBaconPrice);
             var text = DailyRunReport.Describe(result);
             if (_dailyStatusText is not null) _dailyStatusText.Text = text + _dailyNote;
-            ReportDailyStep(text + _dailyNote, error: result is null || result.Completeness is KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeCompleteness.Failed);
+            ReportDailyStep(text + _dailyNote, error: result is null || result.Completeness is DailyRunCompleteness.Failed);
         });
     }
 
-    /// <summary>Runs the daily routine for the selected account through the
-    /// same bridge the CLI uses.</summary>
     private string _dailyNote = string.Empty;
 
-    private async Task<KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeExecutionResult?> RunDailyRoutineAsync(
-        AccountSession account, string approvalToken, CancellationToken cancellationToken,
+    /// <summary>
+    /// Runs the daily routine for the selected account with the same planning as the CLI's <c>daily run</c>
+    /// (<see cref="DailyRun"/>): campfire leaf / Day Shortener, Hermit clovers, Internet Meme Shop. The once-per-day
+    /// markers are the session's (<see cref="KolibriSession.Daily"/>, keyed by the player id KoL reports).
+    /// The desktop button authorizes this run.
+    /// </summary>
+    private async Task<global::KoLibri.Daily.DailyRunResult?> RunDailyRoutineAsync(
+        KolibriSession session, AccountRole role, CancellationToken cancellationToken,
         int hermitClovers = 0, bool topUpBacon = false, long maxBaconPrice = 1500)
     {
-        using var http = KoLLoginClient.CreateAuthenticatedClient(
-            account.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var readClient = new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true };
-        var doneStore = new KoLibri.Core.Spiel.DailyDoneStore();
-        var live = await new LiveDailySnapshotBuilder(readClient, doneStore)
-            .BuildAsync(new KoLibri.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
-                role: account.Profile.Role);
+        var live = await DailyRun.ReadAsync(session, cancellationToken);
         if (topUpBacon)
         {
             var needed = DailyInternetShopPlanner.BaconShortfall(
-                live.Snapshot.AlreadyPulledItemIds, live.Snapshot.Bacon,
-                live.Snapshot.BaconMachineOwned, live.Snapshot.BaconMachineUsedToday);
+                live.MemeItemsDoneToday, live.Bacon, live.BaconMachines > 0, live.BaconMachineUsedToday);
             if (needed > 0)
             {
-                var reserve = account.Profile.Role == AccountRole.Mallbot ? 1_000_000L : 200_000L;
+                var reserve = role == AccountRole.Mallbot ? 1_000_000L : 200_000L;
                 // Same limits as the Buy button: meat per day (shared ledger), per purchase and units per purchase.
-                var ledgerAccount = account.Profile.Role.ToString();
+                var ledgerAccount = role.ToString();
                 var budget = DailyBaconBudget.Reserve(_settings, _spendLedger, ledgerAccount,
                     needed, maxBaconPrice, live.Meat, reserve);
                 if (!budget.Allowed)
@@ -198,17 +215,15 @@ public partial class MainWindow
                     var unclear = true;
                     try
                     {
-                        var outcome = await new BaconArbitrageExecutor(
-                                new MallBuyClient(http, MallBuyClient.DefaultBaseUri), new KoLMallReadClient(http))
-                            .TopUpBaconAsync(account.Credentials, budget.Units, budget.MeatToOffer, budget.MaxUnitPrice,
-                                reserve, cancellationToken: cancellationToken);
-                        spent = outcome.Spent;
-                        unclear = outcome.Unclear;
-                        _dailyNote += $" BACON top-up: bought {outcome.Quantity} of {budget.Units} for {outcome.Spent} meat.";
-                        if (outcome.Quantity > 0)
-                            live = await new LiveDailySnapshotBuilder(readClient, doneStore)
-                                .BuildAsync(new KoLibri.Core.Spiel.DailyRoutineSnapshot(), cancellationToken,
-                                    role: account.Profile.Role);
+                        var units = DailyBaconBudget.AffordableUnits(budget);
+                        var outcome = await session.Mall.QuoteAndBuyAsync(
+                            new PurchaseOrder(DailyRun.Ids.Bacon, units, budget.MaxUnitPrice) { MeatReserve = reserve },
+                            cancellationToken);
+                        spent = outcome.MeatSpent;
+                        unclear = outcome.Status == PurchaseStatus.Unclear;
+                        _dailyNote += $" BACON top-up: bought {outcome.QuantityBought} of {budget.Units} for {outcome.MeatSpent} meat.";
+                        if (outcome.QuantityBought > 0)
+                            live = await DailyRun.ReadAsync(session, cancellationToken);
                     }
                     finally
                     {
@@ -218,35 +233,11 @@ public partial class MainWindow
                 }
             }
         }
-        var snapshot = live.Snapshot with { HermitCloversWanted = hermitClovers };
-        var bridge = new KoLibri.Core.Spiel.AutoCombatDailyBridge();
-        var plan = bridge.Plan(live.State, snapshot);
-        // The desktop button authorizes this run. The token correlates its requests.
-        var approval = new DelegateAdventureApprovalHook((_, _) =>
-            ValueTask.FromResult(AdventureApprovalDecision.Allow(approvalToken)));
-        var verification = new DelegateAdventureVerificationHook((context, _) =>
-            ValueTask.FromResult(context.Response.Accepted != false
-                ? AdventureVerificationResult.Success()
-                : AdventureVerificationResult.Failed("The live response was rejected by KoL.")));
-        await using var session = KoLAdventureSessionFactory.Create(account,
-            KoLLoginClient.CreateAuthenticatedClient(account.Credentials, new Uri("https://www.kingdomofloathing.com/")),
-            approval, verification, unknownPageDirectory: UnknownPageArchive.DefaultDirectory);
-        var dispatcher = new KoLibri.Core.Spiel.FreePullDispatcher(
-            http, KoLibri.Core.Spiel.FreePullDispatcher.DefaultBaseUri);
-        using var audit = new KoLibri.Core.Spiel.BridgeAuditLog(
-            KoLibri.Core.Spiel.BridgeAuditLog.DefaultPath());
-        return await bridge.ExecuteAsync(
-            plan.Steps, session.Gateway,
-            freePullDispatcher: dispatcher,
-            freePullCredentials: account.Credentials,
-            audit: audit,
-            accountId: account.Profile.Id,
-            cancellationToken: cancellationToken,
-            doneStore: doneStore,
-            doneAccountKey: live.DoneAccountKey);
+        var steps = DailyRun.Plan(live, new DailyRunOptions { HermitCloversWanted = hermitClovers });
+        return await DailyRun.ExecuteAsync(session, steps, cancellationToken);
     }
 
-    private static KoLibri.Core.Spiel.KoLmafiaCatalog? TryLoadCatalog()
+    private static KoLmafiaCatalog? TryLoadCatalog()
     {
         var candidates = new[]
         {
@@ -258,7 +249,7 @@ public partial class MainWindow
             if (!Directory.Exists(candidate)) continue;
             try
             {
-                return new KoLibri.Core.Spiel.MafiaDataLoader().Load(candidate);
+                return new MafiaDataLoader().Load(candidate);
             }
             catch
             {
