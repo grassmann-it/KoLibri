@@ -142,14 +142,6 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
-    public async Task Reprice_stays_not_yet_until_it_is_ported()
-    {
-        var (code, _, _) = await Cli("--experimental", "reprice");
-        Assert.Equal(3, code);
-        Assert.Empty(_kol.Requests);
-    }
-
-    [Fact]
     public void Help_lists_replacements_not_follow_up()
     {
         var writer = new StringWriter();
