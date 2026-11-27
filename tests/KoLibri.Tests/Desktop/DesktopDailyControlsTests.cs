@@ -4,9 +4,8 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using KoLibri.Desktop;
 using Xunit;
-using KoLibri.Core.Basis;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 public sealed class DesktopDailyControlsTests
 {
@@ -42,8 +41,9 @@ public sealed class DesktopDailyControlsTests
         var root = Directory.CreateTempSubdirectory("kolibri-daily-controls-");
         try
         {
-            var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-            var window = new MainWindow(null, root.FullName, accounts);
+            var accounts = DesktopKit.Accounts(new FakeKol());
+            var window = new MainWindow(null, root.FullName, accounts,
+                new DesktopSettingsStore(Path.Combine(root.FullName, "s.json")));
             window.Show();
             try
             {

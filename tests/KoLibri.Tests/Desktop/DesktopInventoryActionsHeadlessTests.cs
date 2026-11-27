@@ -5,13 +5,11 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using KoLibri.Core.Basis;
 using KoLibri.Desktop;
-using KoLibri.Core.Spiel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 /// <summary>Drives the real Inventory tab (button + selection) under a private Xvfb; no network, no stored session.</summary>
 public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper output)
@@ -64,31 +62,20 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
 
     private async Task SignedInAsync()
     {
-        Environment.SetEnvironmentVariable("KOLIBRI_MIN_REQUEST_INTERVAL_MS", "1000");
         var root = Directory.CreateTempSubdirectory("kolibri-inv-signed-");
         try
         {
-            var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-            await accounts.InitializeAsync();
-            var kol = new FakeKol();
             // Every network path (live reads, sidebar refresh, character actions) goes to the fake; nothing reaches KoL.
+            var kol = new EggKol();
+            var accounts = DesktopKit.Accounts(kol.Kol, DesktopKit.Store(AccountRole.Main));
             var window = new MainWindow(null, root.FullName, accounts,
-                session => KoLLoginClient.CreateAuthenticatedClient(session.Credentials,
-                    new Uri("https://www.kingdomofloathing.com/"), innerHandler: kol),
-                new DesktopSettingsStore(Path.Combine(root.FullName, "s.json")), applySettingsToLimiters: false)
-            { Width = 1280, Height = 900, CharacterTransportOverride = kol };
+                new DesktopSettingsStore(Path.Combine(root.FullName, "s.json")))
+            { Width = 1280, Height = 900 };
             window.Show();
             _current = window;
             try
             {
                 await Task.Delay(1500);
-                var role = Priv<AccountRole>(window, "_selectedRole");
-                await accounts.SetProfileAsync(new AccountProfile { Id = "qa", DisplayName = "QA", Role = role });
-                await accounts.SetCredentialsAsync(role, new AccountCredentials
-                {
-                    AccessToken = "pwdhash", CookieHeader = "PHPSESSID=x", Username = "QA",
-                    ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
-                });
                 window.FindControl<Button>("NavInventory")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Task.Delay(500);
                 var inv = Priv<InventoryViewModel>(window, "_inventory");
@@ -122,7 +109,7 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
                 await WaitIdle(window);
 
                 // 3. Overfill: the prompt appears; Cancel sends nothing.
-                kol.Fullness = 15;
+                kol.Kol.Fullness = 15;
                 list.SelectedItem = inv.Items[0];
                 await Task.Delay(300);
                 result.Text = "";
@@ -133,11 +120,13 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
                 Assert.Equal(2, kol.EatPosts);
                 await WaitIdle(window);
 
-                // 4. Overfill confirmed: sends the request and reports.
+                // 4. Overfill confirmed: the library checks the known limit again and refuses without sending (0.5).
                 panel.Children.OfType<Button>().Single(b => b.Content is "Eat").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 dialog = await WaitForDialog(window);
                 dialog.FindDescendantButton("Eat anyway").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await WaitFor(() => kol.EatPosts == 3 && !string.IsNullOrEmpty(result.Text) && !result.Text.StartsWith("Cancelled"), "confirmed eat");
+                await WaitFor(() => !string.IsNullOrEmpty(result.Text) && !result.Text.StartsWith("Cancelled"), "confirmed eat");
+                Assert.Equal(2, kol.EatPosts);
+                Assert.Contains("Not enough room", result.Text);
                 output.WriteLine("overfill confirmed: " + result.Text);
             }
             finally { window.Close(); }
@@ -166,27 +155,23 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
         return found!;
     }
 
-    private sealed class FakeKol : HttpMessageHandler
+    /// <summary>The shared fake KoL with an egg in the inventory; each eat POST uses one and fills the stomach.</summary>
+    private sealed class EggKol
     {
+        public FakeKol Kol { get; } = new();
         public int Quantity = 3;
-        public int Fullness;
         public int EatPosts;
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+
+        public EggKol()
         {
-            string body;
-            if (request.Method == HttpMethod.Post)
+            Kol.On("GET api.php?what=inventory", (_, _) => FakeKol.Html("{\"995\":" + Quantity + "}"));
+            Kol.On("POST inv_eat.php", (_, form) =>
             {
-                var form = await request.Content!.ReadAsStringAsync(token);
                 Assert.Contains("whichitem=995", form);
-                Assert.Contains("pwd=0123456789abcdef", form);   // the real hash, not the login token
-                EatPosts++; Quantity--; Fullness++;
-                body = "You eat the egg.";
-            }
-            else if (request.RequestUri!.Query.Contains("what=inventory"))
-                body = "{\"995\":" + Quantity + "}";
-            else
-                body = "{\"pwd\":\"0123456789abcdef\",\"full\":\"" + Fullness + "\",\"drunk\":0,\"spleen\":0,\"familiar\":\"0\",\"equipment\":{}}";
-            return new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request, Content = new StringContent(body) };
+                Assert.Contains("pwd=0123456789abcdef", form);   // the real hash from api.php
+                EatPosts++; Quantity--; Kol.Fullness++;
+                return FakeKol.Html("You eat the egg.");
+            });
         }
     }
 
@@ -195,9 +180,9 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
         var root = Directory.CreateTempSubdirectory("kolibri-inv-actions-");
         try
         {
-            var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-            var window = new MainWindow(null, root.FullName, accounts, null,
-                new DesktopSettingsStore(Path.Combine(root.FullName, "s.json")), applySettingsToLimiters: false)
+            var accounts = DesktopKit.Accounts(new FakeKol());
+            var window = new MainWindow(null, root.FullName, accounts,
+                new DesktopSettingsStore(Path.Combine(root.FullName, "s.json")))
             { Width = 1280, Height = 900 };
             window.Show();
             try
@@ -248,25 +233,6 @@ public sealed class DesktopInventoryActionsHeadlessTests(ITestOutputHelper outpu
             finally { window.Close(); }
         }
         finally { try { root.Delete(true); } catch { } }
-    }
-
-    private sealed class InMemoryAccountStore : IAccountStore
-    {
-        private AccountConfiguration _config = new() { Accounts = new() };
-        public Task<AccountConfiguration> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(_config);
-        public Task SaveAsync(AccountConfiguration configuration, CancellationToken cancellationToken = default)
-        { _config = configuration; return Task.CompletedTask; }
-    }
-
-    private sealed class InMemorySecretStore : ISecretStore
-    {
-        private readonly Dictionary<string, AccountCredentials> _secrets = new(StringComparer.OrdinalIgnoreCase);
-        public Task<AccountCredentials?> GetAsync(string accountId, CancellationToken cancellationToken = default)
-            => Task.FromResult(_secrets.TryGetValue(accountId, out var c) ? c : null);
-        public Task SetAsync(string accountId, AccountCredentials credentials, CancellationToken cancellationToken = default)
-        { _secrets[accountId] = credentials; return Task.CompletedTask; }
-        public Task RemoveAsync(string accountId, CancellationToken cancellationToken = default)
-        { _secrets.Remove(accountId); return Task.CompletedTask; }
     }
 }
 

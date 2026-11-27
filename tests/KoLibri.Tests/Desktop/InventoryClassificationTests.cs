@@ -1,9 +1,12 @@
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop;
+using KoLibri.Extras;
 using KoLibri.Desktop.ContextMenus;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
+
+// The desktop record, not KoLibri.OrganState (this namespace lives inside KoLibri).
+using OrganState = KoLibri.Desktop.OrganState;
 
 internal static class InventoryTestCatalog
 {
@@ -170,4 +173,15 @@ public sealed class InventoryOverfillTests
     [Fact]
     public void Organ_summary_shows_remaining_limits()
         => Assert.Equal("Fullness 3/15 · Inebriety ?/14 · Spleen 0/15", new OrganState(3, null, 0, 15, 14, 15).Summary);
+}
+
+public sealed class InventoryUnknownItemTests
+{
+    [Fact]
+    public void Unknown_catalog_item_is_not_treated_as_cost_free()
+    {
+        var check = InventoryActionPlanner.CheckOverfill(new ItemClassification { ItemId = "999999" }, 1, new OrganState(0, 0, 0, 15, 14, 15));
+        Assert.False(check.Known);
+        Assert.True(InventoryActionPlanner.NeedsConfirmation(check));
+    }
 }
