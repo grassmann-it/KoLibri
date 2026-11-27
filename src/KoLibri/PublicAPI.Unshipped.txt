@@ -342,6 +342,8 @@ KoLibri.InventoryReader.GetAsync(bool refresh = false, System.Threading.Cancella
 KoLibri.InventoryReader.GetClosetAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Inventory!>!
 KoLibri.InventoryReader.GetEquipmentAsync(bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Equipment!>!
 KoLibri.InventoryReader.GetStorageAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Inventory!>!
+KoLibri.IRecoveryPolicy
+KoLibri.IRecoveryPolicy.Next(KoLibri.RecoveryContext! context) -> KoLibri.RecoveryStep!
 KoLibri.ItemAcquiredEventArgs
 KoLibri.ItemAcquiredEventArgs.Item.get -> KoLibri.InventoryItem!
 KoLibri.ItemAcquiredEventArgs.ItemAcquiredEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.InventoryItem! item, KoLibri.ItemSource source) -> void
@@ -722,6 +724,32 @@ KoLibri.PurchaseStatus.Partial = 1 -> KoLibri.PurchaseStatus
 KoLibri.PurchaseStatus.PriceChanged = 3 -> KoLibri.PurchaseStatus
 KoLibri.PurchaseStatus.Refused = 4 -> KoLibri.PurchaseStatus
 KoLibri.PurchaseStatus.Unclear = 5 -> KoLibri.PurchaseStatus
+KoLibri.RecoveryContext
+KoLibri.RecoveryContext.DoneThisTurn.get -> System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>!
+KoLibri.RecoveryContext.DoneThisTurn.init -> void
+KoLibri.RecoveryContext.Inventory.get -> KoLibri.Inventory?
+KoLibri.RecoveryContext.Inventory.init -> void
+KoLibri.RecoveryContext.RecoveryContext(KoLibri.Status! Status, KoLibri.Inventory? Inventory, System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>! DoneThisTurn) -> void
+KoLibri.RecoveryContext.Status.get -> KoLibri.Status!
+KoLibri.RecoveryContext.Status.init -> void
+KoLibri.RecoveryPolicies
+KoLibri.RecoveryStep
+KoLibri.RecoveryStep.Id.get -> int
+KoLibri.RecoveryStep.Id.init -> void
+KoLibri.RecoveryStep.Kind.get -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStep.Kind.init -> void
+KoLibri.RecoveryStep.Reason.get -> string?
+KoLibri.RecoveryStep.Reason.init -> void
+KoLibri.RecoveryStep.RecoveryStep(KoLibri.RecoveryStepKind Kind, int Id = 0, int Times = 1, string? Reason = null) -> void
+KoLibri.RecoveryStep.Times.get -> int
+KoLibri.RecoveryStep.Times.init -> void
+KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.Cast = 3 -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.NeedInventory = 5 -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.None = 0 -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.Rest = 1 -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.Stop = 4 -> KoLibri.RecoveryStepKind
+KoLibri.RecoveryStepKind.UseItem = 2 -> KoLibri.RecoveryStepKind
 KoLibri.RelayOptions
 KoLibri.RelayOptions.LogPath.get -> string?
 KoLibri.RelayOptions.LogPath.init -> void
@@ -757,10 +785,14 @@ KoLibri.RunRequest.Combat.get -> KoLibri.ICombatStrategy!
 KoLibri.RunRequest.Combat.init -> void
 KoLibri.RunRequest.Location.get -> KoLibri.Location
 KoLibri.RunRequest.Location.init -> void
+KoLibri.RunRequest.MaxRecoveryStepsPerTurn.get -> int
+KoLibri.RunRequest.MaxRecoveryStepsPerTurn.init -> void
 KoLibri.RunRequest.MaxRoundsPerFight.get -> int
 KoLibri.RunRequest.MaxRoundsPerFight.init -> void
 KoLibri.RunRequest.MaxTurns.get -> int
 KoLibri.RunRequest.MaxTurns.init -> void
+KoLibri.RunRequest.Recovery.get -> KoLibri.IRecoveryPolicy!
+KoLibri.RunRequest.Recovery.init -> void
 KoLibri.RunRequest.RunRequest(KoLibri.Location Location, int MaxTurns) -> void
 KoLibri.RunRequest.StopWhen.get -> System.Collections.Generic.IReadOnlyList<KoLibri.StopCondition!>!
 KoLibri.RunRequest.StopWhen.init -> void
@@ -775,6 +807,8 @@ KoLibri.RunResult.MeatGained.get -> long
 KoLibri.RunResult.MeatGained.init -> void
 KoLibri.RunResult.Open.get -> KoLibri.Encounter?
 KoLibri.RunResult.Open.init -> void
+KoLibri.RunResult.RecoverySteps.get -> System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>!
+KoLibri.RunResult.RecoverySteps.init -> void
 KoLibri.RunResult.RunResult(KoLibri.RunStopReason StopReason, int TurnsSpent, System.Collections.Generic.IReadOnlyList<KoLibri.Encounter!>! Encounters, string? Detail) -> void
 KoLibri.RunResult.StopReason.get -> KoLibri.RunStopReason
 KoLibri.RunResult.StopReason.init -> void
@@ -788,6 +822,7 @@ KoLibri.RunStopReason.Defeat = 4 -> KoLibri.RunStopReason
 KoLibri.RunStopReason.Error = 7 -> KoLibri.RunStopReason
 KoLibri.RunStopReason.NeedsChoice = 2 -> KoLibri.RunStopReason
 KoLibri.RunStopReason.NeedsCombat = 3 -> KoLibri.RunStopReason
+KoLibri.RunStopReason.Recovery = 8 -> KoLibri.RunStopReason
 KoLibri.RunStopReason.TurnsDone = 0 -> KoLibri.RunStopReason
 KoLibri.SessionExpiredException
 KoLibri.SessionExpiredException.Account.get -> KoLibri.AccountId
@@ -890,16 +925,21 @@ KoLibri.StopCondition.Id.get -> int?
 KoLibri.StopCondition.Id.init -> void
 KoLibri.StopCondition.Kind.get -> KoLibri.StopConditionKind
 KoLibri.StopCondition.Kind.init -> void
+KoLibri.StopCondition.Pattern.get -> string?
+KoLibri.StopCondition.Pattern.init -> void
 KoLibri.StopCondition.StopCondition(KoLibri.StopConditionKind Kind, int Value, int? Id = null) -> void
 KoLibri.StopCondition.Value.get -> int
 KoLibri.StopCondition.Value.init -> void
 KoLibri.StopConditionKind
 KoLibri.StopConditionKind.AdventuresAtMost = 2 -> KoLibri.StopConditionKind
 KoLibri.StopConditionKind.EffectMissing = 4 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.EncounterTitle = 7 -> KoLibri.StopConditionKind
 KoLibri.StopConditionKind.HpBelowPercent = 0 -> KoLibri.StopConditionKind
 KoLibri.StopConditionKind.ItemCountAtLeast = 3 -> KoLibri.StopConditionKind
 KoLibri.StopConditionKind.MeatAtMost = 5 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.MonsterSeen = 6 -> KoLibri.StopConditionKind
 KoLibri.StopConditionKind.MpBelowPercent = 1 -> KoLibri.StopConditionKind
+KoLibri.StopConditionKind.TurtleEncounter = 8 -> KoLibri.StopConditionKind
 KoLibri.UnexpectedPageException
 KoLibri.UnexpectedPageException.Page.get -> KoLibri.Page!
 KoLibri.UnexpectedPageException.UnexpectedPageException(KoLibri.Page! page, string! message) -> void
@@ -923,12 +963,25 @@ static KoLibri.GuardDecision.Deny(string! reason) -> KoLibri.GuardDecision!
 static KoLibri.ItemRef.implicit operator KoLibri.ItemRef(int id) -> KoLibri.ItemRef
 static KoLibri.KolibriClient.Create(KoLibri.KolibriOptions? options = null) -> KoLibri.KolibriClient!
 static KoLibri.Location.implicit operator KoLibri.Location(int snarfblat) -> KoLibri.Location
+static KoLibri.RecoveryPolicies.Combine(params KoLibri.IRecoveryPolicy![]! policies) -> KoLibri.IRecoveryPolicy!
+static KoLibri.RecoveryPolicies.None.get -> KoLibri.IRecoveryPolicy!
+static KoLibri.RecoveryPolicies.Simple(int hpBelowPercent, int mpBelowPercent, System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>! hpSteps, System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>! mpSteps) -> KoLibri.IRecoveryPolicy!
+static KoLibri.RecoveryPolicies.Upkeep(int effectId, int minTurns, KoLibri.RecoveryStep! how) -> KoLibri.IRecoveryPolicy!
+static KoLibri.RecoveryStep.Cast(KoLibri.SkillRef skill, int times = 1) -> KoLibri.RecoveryStep!
+static KoLibri.RecoveryStep.NeedsInventory.get -> KoLibri.RecoveryStep!
+static KoLibri.RecoveryStep.None.get -> KoLibri.RecoveryStep!
+static KoLibri.RecoveryStep.Rest.get -> KoLibri.RecoveryStep!
+static KoLibri.RecoveryStep.Stop(string! reason) -> KoLibri.RecoveryStep!
+static KoLibri.RecoveryStep.UseItem(KoLibri.ItemRef item) -> KoLibri.RecoveryStep!
 static KoLibri.SkillRef.implicit operator KoLibri.SkillRef(int id) -> KoLibri.SkillRef
 static KoLibri.StopCondition.AdventuresAtMost(int adventures) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.EffectMissing(int effectId) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.EncounterTitle(string! regex) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.HpBelowPercent(int percent) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.ItemCountAtLeast(KoLibri.ItemRef item, int count) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.MonsterSeen(string! name) -> KoLibri.StopCondition!
 static KoLibri.StopCondition.MpBelowPercent(int percent) -> KoLibri.StopCondition!
+static KoLibri.StopCondition.TurtleEncounter() -> KoLibri.StopCondition!
 KoLibri.IdentityMismatchException
 KoLibri.IdentityMismatchException.Account.get -> KoLibri.AccountId
 KoLibri.IdentityMismatchException.IdentityMismatchException(KoLibri.AccountId account, string! storedPlayer, string! loginPlayer) -> void
