@@ -18,7 +18,10 @@ public sealed record BoundedRunReport(
         {
             BoundedAdventureRunStopReason.Complete when turnsLeft <= 0 => ("the turn budget is used up", false),
             BoundedAdventureRunStopReason.Complete => ("the run ended early", false),
-            BoundedAdventureRunStopReason.ConditionsSatisfied => ("the stop condition (item owned) was reached", false),
+            BoundedAdventureRunStopReason.ConditionsSatisfied => (failure is { Length: > 0 }
+                ? $"the stop condition was reached ({failure.TrimEnd('.')})" : "the stop condition (item owned) was reached", false),
+            BoundedAdventureRunStopReason.RecoveryStopped => (failure is { Length: > 0 }
+                ? $"healing or buff upkeep could not continue ({failure.TrimEnd('.')})" : "healing or buff upkeep could not continue", true),
             BoundedAdventureRunStopReason.ConditionsBlocked => ("a stop condition could not be checked", true),
             BoundedAdventureRunStopReason.AwaitingManualChoice => ("a choice adventure is open and needs your decision", true),
             BoundedAdventureRunStopReason.NeedsDecision => ("a choice adventure is open and the choice policy has no answer", true),

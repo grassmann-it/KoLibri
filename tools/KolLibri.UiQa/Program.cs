@@ -114,6 +114,12 @@ async Task RunAsync()
             window.ShowShortcutHelpForQa(); await Pump(300); Shot(window, P("help"));
             window.FindControl<Border>("ShortcutHelpOverlay")!.IsVisible = false;
             await SeedSettingsDaily(window); Shot(window, P("settings-daily"));
+            if (set("settings-combat"))
+            {
+                await SeedSettingsCombat(window, "CombatSection"); Shot(window, P("settings-combat"));
+                await SeedSettingsCombat(window, "CombatFarmCard"); Shot(window, P("settings-combat-farm"));
+                window.FindControl<Expander>("CombatExpander")!.IsExpanded = false;
+            }
             window.FindControl<Expander>("SessionLogExpander")!.IsExpanded = true;
             await Section(window, "NavMall");
             Shot(window, P("mall-session-log"));
@@ -229,6 +235,28 @@ static void SeedDaily(MainWindow w, bool stale)
             new DailyStepRow(DailyStepKind.CloverCheck, "Clover check", "No 11-leaf clovers in the inventory", "open", "Check", true),
         }) daily.Steps.Add(r);
     typeof(DailyBriefingViewModel).GetProperty(nameof(DailyBriefingViewModel.SessionStale))!.SetValue(daily, stale);
+}
+
+/// <summary>Opens "Combat rules and auto-combat" with a sample farm setup and scrolls <paramref name="anchor"/> to the top.</summary>
+async Task SeedSettingsCombat(MainWindow w, string anchor)
+{
+    w.FindControl<Expander>("SessionLogExpander")!.IsExpanded = false;
+    w.FindControl<Expander>("CombatExpander")!.IsExpanded = true;
+    var combat = Priv<AutoCombatViewModel>(w, "_autoCombat");
+    // Sample values through reflection, so the same QA code also shoots builds without the farm settings.
+    foreach (var (name, value) in new (string, object)[]
+    {
+        ("HealBelowHpPercent", 50), ("HealStepsText", "rest, item:Doc Galaktik's Pungent Unguent"),
+        ("UpkeepEffectText", "Polka of Plenty"), ("UpkeepMinTurns", 3), ("UpkeepStepText", "skill:The Polka of Plenty"),
+        ("ChoiceOverridesText", "1060:2")
+    })
+        combat.GetType().GetProperty(name)?.SetValue(combat, value);
+    await Pump(400);
+    // Builds without the farm card: show the end of the section (abort rules and preview) instead.
+    var target = w.FindControl<Control>(anchor) ?? w.FindControl<Control>("CombatAbortHp");
+    if (target?.FindAncestorOfType<ScrollViewer>() is { } scroll && target.TranslatePoint(new Avalonia.Point(0, 0), (Visual)scroll.Content!) is { } at)
+        scroll.Offset = new Avalonia.Vector(0, Math.Max(0, at.Y - 8));
+    await Pump(500);
 }
 
 async Task SeedSettingsDaily(MainWindow w)

@@ -56,7 +56,9 @@ public enum BoundedAdventureRunStopReason
     NeedsDecision,
     FightRoundLimitReached,
     HpBelowMinimum,
-    CombatPolicyStopped
+    CombatPolicyStopped,
+    /// <summary>Healing or upkeep between turns had no usable step (or made no progress).</summary>
+    RecoveryStopped
 }
 
 /// <summary>One manual action in the adventure tab: a fight action or a choice option.</summary>

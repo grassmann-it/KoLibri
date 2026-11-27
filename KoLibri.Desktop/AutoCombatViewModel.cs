@@ -37,6 +37,16 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     private CombatOption? _selectedItem;
     private int _abortHpPercent = 30;
     private int _maxRounds = 20;
+    private int _healBelowHpPercent;
+    private string _healStepsText = "rest";
+    private string _upkeepEffectText = string.Empty;
+    private int _upkeepMinTurns = 5;
+    private string _upkeepStepText = string.Empty;
+    private bool _stopOnMonster;
+    private string _stopMonsterName = string.Empty;
+    private bool _stopOnTurtle;
+    private bool _useChoiceDefaults = true;
+    private string _choiceOverridesText = string.Empty;
 
     public AutoCombatViewModel(KoLmafiaCatalog? catalog = null)
     {
@@ -65,6 +75,8 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         {
             if (!SetProperty(ref _selectedTarget, value)) return;
             OnPropertyChanged(nameof(PreviewText));
+            OnPropertyChanged(nameof(FarmSummary));
+            OnPropertyChanged(nameof(FarmError));
             OnPropertyChanged(nameof(HasConfiguration));
         }
     }
@@ -117,6 +129,171 @@ public sealed class AutoCombatViewModel : DesktopViewModel
         }
     }
 
+    // ------------------------------------------------------------ farming between turns
+
+    /// <summary>Heal before a new turn when HP is below this percentage; 0 = off.</summary>
+    public int HealBelowHpPercent
+    {
+        get => _healBelowHpPercent;
+        set => SetFarm(ref _healBelowHpPercent, Math.Clamp(value, 0, 100));
+    }
+
+    /// <summary>Heal steps in priority order: <c>rest, item:ID|NAME, skill:ID|NAME</c>.</summary>
+    public string HealStepsText
+    {
+        get => _healStepsText;
+        set => SetFarm(ref _healStepsText, value ?? string.Empty);
+    }
+
+    /// <summary>The effect to keep up (id or name); blank = no upkeep.</summary>
+    public string UpkeepEffectText
+    {
+        get => _upkeepEffectText;
+        set => SetFarm(ref _upkeepEffectText, value ?? string.Empty);
+    }
+
+    public int UpkeepMinTurns
+    {
+        get => _upkeepMinTurns;
+        set => SetFarm(ref _upkeepMinTurns, Math.Clamp(value, 1, 1000));
+    }
+
+    /// <summary>How to renew the effect: one step (<c>item:…</c>, <c>skill:…</c> or <c>rest</c>).</summary>
+    public string UpkeepStepText
+    {
+        get => _upkeepStepText;
+        set => SetFarm(ref _upkeepStepText, value ?? string.Empty);
+    }
+
+    /// <summary>Opt-in: stop after the turn that showed <see cref="StopMonsterName"/> (or the target, when blank).</summary>
+    public bool StopOnMonster
+    {
+        get => _stopOnMonster;
+        set => SetFarm(ref _stopOnMonster, value);
+    }
+
+    public string StopMonsterName
+    {
+        get => _stopMonsterName;
+        set => SetFarm(ref _stopMonsterName, value ?? string.Empty);
+    }
+
+    /// <summary>Opt-in: stop on Turtle Tamer encounters. Off by default: turtles are clicked through.</summary>
+    public bool StopOnTurtle
+    {
+        get => _stopOnTurtle;
+        set => SetFarm(ref _stopOnTurtle, value);
+    }
+
+    /// <summary>Answer choices from KoLibri's curated defaults (on by default).</summary>
+    public bool UseChoiceDefaults
+    {
+        get => _useChoiceDefaults;
+        set => SetFarm(ref _useChoiceDefaults, value);
+    }
+
+    /// <summary>Overrides for the choice defaults: <c>CHOICE:OPTION</c>, comma separated.</summary>
+    public string ChoiceOverridesText
+    {
+        get => _choiceOverridesText;
+        set => SetFarm(ref _choiceOverridesText, value ?? string.Empty);
+    }
+
+    /// <summary>Why the farm settings cannot be used (null when they are valid).</summary>
+    public string? FarmError => TryBuildFarmOptions(out _, out var error) ? null : error;
+
+    /// <summary>One line: what the batch does between turns.</summary>
+    public string FarmSummary => TryBuildFarmOptions(out var options, out var error) ? options!.Summary : error!;
+
+    private void SetFarm<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+    {
+        if (!SetProperty(ref field, value, propertyName)) return;
+        OnPropertyChanged(nameof(FarmSummary));
+        OnPropertyChanged(nameof(FarmError));
+        OnPropertyChanged(nameof(PreviewText));
+    }
+
+    /// <summary>
+    /// The farm settings as <see cref="FarmOptions"/>; false with a readable error for bad input
+    /// (unknown name, bad step, bad override). Names resolve through the KoLmafia catalog.
+    /// </summary>
+    public bool TryBuildFarmOptions(out FarmOptions? options, out string? error)
+    {
+        options = null;
+        if (!FarmStepText.TryParseSteps(HealStepsText, ItemIdByName, SkillIdByName, out var heal, out error))
+        {
+            error = "Heal steps: " + error;
+            return false;
+        }
+        if (HealBelowHpPercent > 0 && heal.Count == 0)
+        {
+            error = "Heal steps: name at least one step (rest, item:…, skill:…) or set the HP percentage to 0.";
+            return false;
+        }
+        UpkeepRule? upkeep = null;
+        if (!string.IsNullOrWhiteSpace(UpkeepEffectText))
+        {
+            var effect = EffectByText(UpkeepEffectText);
+            if (effect is null)
+            {
+                error = $"Upkeep: unknown effect '{UpkeepEffectText.Trim()}'.";
+                return false;
+            }
+            if (!FarmStepText.TryParseStep(UpkeepStepText, ItemIdByName, SkillIdByName, out var step, out error))
+            {
+                error = "Upkeep step: " + error;
+                return false;
+            }
+            upkeep = new UpkeepRule(effect.Value.Id, effect.Value.Name, UpkeepMinTurns, step!);
+        }
+        if (!FarmStepText.TryParseOverrides(ChoiceOverridesText, out var overrides, out error))
+        {
+            error = "Choice overrides: " + error;
+            return false;
+        }
+        string? monster = null;
+        if (StopOnMonster)
+        {
+            monster = string.IsNullOrWhiteSpace(StopMonsterName) ? SelectedTarget?.Name : StopMonsterName.Trim();
+            if (string.IsNullOrWhiteSpace(monster))
+            {
+                error = "Stop on monster: enter a monster name or pick a target.";
+                return false;
+            }
+        }
+        options = new FarmOptions
+        {
+            HealBelowHpPercent = HealBelowHpPercent,
+            HealSteps = heal,
+            Upkeep = upkeep,
+            StopOnMonster = monster,
+            StopOnTurtle = StopOnTurtle,
+            UseChoiceDefaults = UseChoiceDefaults,
+            ChoiceOverrides = overrides
+        };
+        return true;
+    }
+
+    private int? ItemIdByName(string name)
+        => _catalog?.Items.FirstOrDefault(i => string.Equals(i.Name, name, StringComparison.OrdinalIgnoreCase)) is { } item
+           && int.TryParse(item.Id, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? id : null;
+
+    private int? SkillIdByName(string name)
+        => _catalog?.Skills.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
+
+    private (int Id, string Name)? EffectByText(string text)
+    {
+        var trimmed = text.Trim();
+        if (int.TryParse(trimmed, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && id > 0)
+        {
+            var known = _catalog?.Effects.FirstOrDefault(e => e.Id == id);
+            return (id, known?.Name ?? $"effect {id}");
+        }
+        return _catalog?.Effects.FirstOrDefault(e => string.Equals(e.Name, trimmed, StringComparison.OrdinalIgnoreCase)) is { } effect
+            ? (effect.Id, effect.Name) : null;
+    }
+
     public bool HasConfiguration => SelectedTarget is not null && SelectedSkills.Count > 0;
 
     /// <summary>What the engine would do with the current configuration.
@@ -140,7 +317,7 @@ public sealed class AutoCombatViewModel : DesktopViewModel
             }
             return $"{SelectedTarget.Name} ({SelectedTarget.Detail}) · "
                 + $"{MaxRounds} rounds max · abort below {AbortHpPercent} % HP · "
-                + $"skills: {skills} · items: {items}";
+                + $"skills: {skills} · items: {items} · between turns: {FarmSummary}";
         }
     }
 

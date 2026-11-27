@@ -512,6 +512,75 @@
             </StackPanel>
           </Border>
 
+          <!-- Between turns of an adventure batch: healing, buff upkeep, stops, choice defaults (KoLibri 0.5 building blocks). -->
+          <Border x:Name="CombatFarmCard" Classes="card" x:DataType="local:AutoCombatViewModel">
+            <StackPanel Spacing="10">
+              <StackPanel Spacing="3">
+                <TextBlock Text="Farming between turns" Classes="h3" />
+                <TextBlock Text="Used by Run turns on the Adventure page. Healing and upkeep run before each new turn; Turtle Tamer encounters are clicked through unless you stop on them."
+                           Classes="muted" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Heal below % HP (0 = off)" Classes="muted" FontSize="11" />
+                  <NumericUpDown x:Name="CombatHealBelowHp"
+                                 Width="120" Minimum="0" Maximum="100" Increment="5" FormatString="0"
+                                 Value="{Binding HealBelowHpPercent}"
+                                 AutomationProperties.Name="Heal below this hit point percentage" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="Heal steps, in order" Classes="muted" FontSize="11" />
+                  <TextBox x:Name="CombatHealSteps" Text="{Binding HealStepsText}"
+                           Watermark="rest, item:Doc Galaktik's Pungent Unguent, skill:Tongue of the Walrus"
+                           AutomationProperties.Name="Heal steps" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="18">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Keep effect up (optional)" Classes="muted" FontSize="11" />
+                  <TextBox x:Name="CombatUpkeepEffect" Text="{Binding UpkeepEffectText}" Watermark="Effect name or ID"
+                           AutomationProperties.Name="Upkeep effect" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <TextBlock Text="Min turns" Classes="muted" FontSize="11" />
+                  <NumericUpDown x:Name="CombatUpkeepMinTurns"
+                                 Width="120" Minimum="1" Maximum="1000" Increment="1" FormatString="0"
+                                 Value="{Binding UpkeepMinTurns}"
+                                 AutomationProperties.Name="Minimum effect turns" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="4">
+                  <TextBlock Text="Renew with" Classes="muted" FontSize="11" />
+                  <TextBox x:Name="CombatUpkeepStep" Text="{Binding UpkeepStepText}" Watermark="skill:NAME or item:NAME"
+                           AutomationProperties.Name="Upkeep step" />
+                </StackPanel>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18" RowDefinitions="Auto,Auto" >
+                <CheckBox x:Name="CombatStopOnMonster" IsChecked="{Binding StopOnMonster}"
+                          Content="Stop when this monster appears" VerticalAlignment="Center"
+                          ToolTip.Tip="The batch ends after the turn that showed this monster (the fight itself is still fought by the plan)." />
+                <TextBox Grid.Column="1" x:Name="CombatStopMonsterName" Text="{Binding StopMonsterName}"
+                         Watermark="Monster name (blank = the target above)"
+                         IsEnabled="{Binding StopOnMonster}"
+                         AutomationProperties.Name="Stop monster name" />
+                <CheckBox Grid.Row="1" x:Name="CombatStopOnTurtle" IsChecked="{Binding StopOnTurtle}" Margin="0,6,0,0"
+                          Content="Stop on Turtle Tamer encounters"
+                          ToolTip.Tip="Off: turtle choices are clicked through and turtle fights are fought like any other." />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+                <CheckBox x:Name="CombatUseChoiceDefaults" IsChecked="{Binding UseChoiceDefaults}"
+                          Content="Use choice defaults" VerticalAlignment="Center"
+                          ToolTip.Tip="KoLibri's curated table (e.g. Skeleton Store 1060 → 2). Your choice policy answers win over it." />
+                <TextBox Grid.Column="1" x:Name="CombatChoiceOverrides" Text="{Binding ChoiceOverridesText}"
+                         Watermark="Overrides CHOICE:OPTION, e.g. 1060:2"
+                         IsEnabled="{Binding UseChoiceDefaults}"
+                         AutomationProperties.Name="Choice overrides" />
+              </Grid>
+              <Border Classes="panel-subtle" Padding="10">
+                <TextBlock x:Name="CombatFarmSummary" Text="{Binding FarmSummary}" Classes="body" TextWrapping="Wrap" />
+              </Border>
+            </StackPanel>
+          </Border>
+
         </StackPanel>
             </Expander>
           </Border>

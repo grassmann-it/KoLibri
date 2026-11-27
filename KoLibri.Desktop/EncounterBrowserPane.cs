@@ -104,19 +104,19 @@ public sealed class EncounterBrowserPane : IDisposable
     public ValueTask RunTurnsAsync(
         EncounterBrowserLocationRow? row, int maxTurns = 0, string? itemId = null,
         CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0,
-        string? combatRules = null)
+        string? combatRules = null, FarmOptions? farm = null)
         => RunAsync((session, browser, token) =>
         {
             var location = row is null ? null : new AdventureLocation(row.LocationId, row.DisplayName,
                 row.Zone, row.Snarfblat, row.TurnCost);
             return session.RunTurnsAsync(browser, location, maxTurns, itemId, token, maxFightRounds, minimumHpPercent,
-                combatRules);
+                combatRules, farm);
         }, cancellationToken);
 
     /// <summary>Runs (or, with a null row, continues) the batch described by <paramref name="job"/>.</summary>
     public ValueTask RunJobAsync(EncounterBrowserLocationRow? row, AdventureJob job, CancellationToken cancellationToken = default)
         => RunTurnsAsync(row, job.Turns, job.ItemId, cancellationToken, job.MaxFightRounds, job.MinimumHpPercent,
-            job.CombatRules);
+            job.CombatRules, job.Farm);
 
     /// <summary>Fights the open fight with the plan (<paramref name="rules"/>: AutoCombatPolicy rule text).</summary>
     public ValueTask FightCurrentAsync(CombatTarget target, string rules, int maxRounds, int minimumHpPercent)
