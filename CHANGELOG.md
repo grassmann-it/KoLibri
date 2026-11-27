@@ -14,6 +14,9 @@ auto-combat loop, and write your own tools with `using KoLibri;`. Usable, not st
   `GetPageAsync`/`PostAsync` through allowlist and rate limiter, one `IActionGuard` hook.
 - Optional `KoLibri.Safety`: grants, budgets, approval tokens, audit journal.
 - Not in the library on purpose: diet planning, arbitrage, shop CRM. Build them with it.
+- Combat macros (`CombatStrategies.Macro`) are experimental (`KOLIBRI0001`): sent as `fight.php` `action=macro` only
+  with `KolibriOptions.EnableExperimentalMacros = true`, otherwise refused. Not live-tested yet
+  ([docs/macro-live-check.md](docs/macro-live-check.md), test app `samples/macro-live-check`).
 
 ### Packages and cookbook
 - `scripts/pack-lib.sh` packs `KoLibri` and `KoLibri.Safety` and checks the contents. `KoLibri.Core` is bundled inside

@@ -269,6 +269,8 @@ KoLibri.FightRound.Hp.get -> int
 KoLibri.FightRound.Hp.init -> void
 KoLibri.FightRound.Items.get -> System.Collections.Generic.IReadOnlyList<KoLibri.InventoryItem!>!
 KoLibri.FightRound.Items.init -> void
+KoLibri.FightRound.MacroError.get -> string?
+KoLibri.FightRound.MacroError.init -> void
 KoLibri.FightRound.Meat.get -> long
 KoLibri.FightRound.Meat.init -> void
 KoLibri.FightRound.Mp.get -> int
@@ -279,6 +281,8 @@ KoLibri.FightRound.Page.get -> KoLibri.Page!
 KoLibri.FightRound.Page.init -> void
 KoLibri.FightRound.Round.get -> int
 KoLibri.FightRound.Round.init -> void
+KoLibri.FightRound.RoundsInResponse.get -> int
+KoLibri.FightRound.RoundsInResponse.init -> void
 KoLibri.GameData
 KoLibri.GameData.FindItem(string! name) -> KoLibri.ItemInfo?
 KoLibri.GameData.FindLocation(string! name) -> KoLibri.LocationInfo?
@@ -434,6 +438,8 @@ KoLibri.KolibriOptions.BaseUri.get -> System.Uri!
 KoLibri.KolibriOptions.BaseUri.init -> void
 KoLibri.KolibriOptions.DataDirectory.get -> string?
 KoLibri.KolibriOptions.DataDirectory.init -> void
+KoLibri.KolibriOptions.EnableExperimentalMacros.get -> bool
+KoLibri.KolibriOptions.EnableExperimentalMacros.init -> void
 KoLibri.KolibriOptions.HttpHandler.get -> System.Net.Http.HttpMessageHandler?
 KoLibri.KolibriOptions.HttpHandler.init -> void
 KoLibri.KolibriOptions.KolibriOptions() -> void

@@ -57,6 +57,9 @@ namespace KoLibri
         public IActionGuard? ActionGuard { get; init; }
         /// <summary>Darf die Lib mit gespeichertem Passwort selbst neu anmelden? Vor jedem automatischen Reconnect gefragt; null = ja. Ergänzt in Schritt 3 (Desktop).</summary>
         public Func<bool>? AutoReconnect { get; init; }
+        /// <summary>Schaltet KoL-Combat-Makros frei (Standard aus: NotSupportedException, KOLIBRI0001). Experimentell bis zum Live-Test.</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
+        public bool EnableExperimentalMacros { get; init; }
     }
 
     public sealed class LimiterOptions
@@ -412,6 +415,12 @@ namespace KoLibri
         public int DamageTaken { get; init; }
         public IReadOnlyList<InventoryItem> Items { get; init; } = Array.Empty<InventoryItem>();
         public long Meat { get; init; }
+        /// <summary>Runden in dieser Antwort (Makro: Zahl der Makro-Aktionen, sonst 1).</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
+        public int RoundsInResponse { get; init; } = 1;
+        /// <summary>Makro abgebrochen (Ongoing) oder ungültig (Unknown); sonst null.</summary>
+        [Experimental(KolibriDiagnostics.CombatMacros)]
+        public string? MacroError { get; init; }
     }
 
     public sealed record FightResult(FightOutcome Outcome, string MonsterName, IReadOnlyList<FightRound> Rounds)

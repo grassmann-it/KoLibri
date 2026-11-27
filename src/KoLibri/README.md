@@ -74,7 +74,7 @@ MCP server) is a larger example of an app built on this package.
   reconnect with the stored password; on an action it ends the call with `SessionExpiredException`.
 - Unclear outcomes stay unclear: `ActionStatus.Unclear`, `PurchaseStatus.Unclear`, `MailSendStatus.Unclear`.
 - Optional: `KoLibri.Safety` adds grants, daily budgets and an audit journal on top of `IActionGuard`. Plug it in when an AI or a script other than you drives the library.
-- Combat macros exist only as an `[Experimental("KOLIBRI0001")]` type and are refused in 0.5.
+- Combat macros are `[Experimental("KOLIBRI0001")]` and refused in 0.5 unless you set `KolibriOptions.EnableExperimentalMacros = true` (not live-tested yet, see `docs/macro-live-check.md`).
 
 ## Offline tests
 
