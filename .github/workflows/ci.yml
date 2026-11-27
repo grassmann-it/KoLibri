@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
 
 jobs:
@@ -24,8 +24,43 @@ jobs:
             10.0.x
       - name: Build
         run: dotnet build KoLibri.slnx -c Release
-      - name: Test
-        run: dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj -c Release --no-build
+      - name: Test (library, CLI, MCP, desktop)
+        run: dotnet test tests/KoLibri.Tests/KoLibri.Tests.csproj -c Release --no-build
+      - name: Test (Core)
+        shell: bash
+        run: |
+          if [ -f tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj ]; then
+            dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj -c Release --no-build
+          else
+            echo "tests/KoLibri.Core.Tests does not exist (any more), skipped"
+          fi
+      - name: Public API guard (check only, nothing is regenerated)
+        if: matrix.os == 'ubuntu-latest'
+        run: bash docs/lib-api-0.5/check-api.sh
+
+  # Packs KoLibri and KoLibri.Safety (pack-lib.sh checks the package layout), then builds a third-party consumer and
+  # all cookbook apps against those packages and runs the consumer offline. See scripts/consumer-smoke.sh.
+  consumer-smoke:
+    name: pack + consumer smoke
+    needs: build-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Pack, build the consumer and the cookbook against the packages, run the consumer
+        run: scripts/consumer-smoke.sh "$RUNNER_TEMP/consumer-smoke"
+      - name: Keep the packages when the smoke test failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consumer-smoke-feed
+          path: ${{ runner.temp }}/consumer-smoke/feed/*.nupkg
+          if-no-files-found: ignore
 
   package-smoke:
     name: package ${{ matrix.rid }}
@@ -59,6 +94,14 @@ jobs:
           ls "$d" | grep -q '^kolibri-desktop' 
           "$d/kolibri" --help < /dev/null | head -3
           # Detach the server from the step's output, otherwise Windows and macOS runners wait for it forever.
+          # stdio: initialize + tools/list. The server ends when its input ends. Stdio offers the read-only tools (10 of the 19).
+          n=$(printf '%s\n%s\n%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | "$d/kolibri-mcp" --stdio | grep '"id":2' | jq '[.result.tools[] | select(.name | startswith("kol_"))] | length')
+          echo "stdio tools: $n"
+          test "$n" -ge 10
           "$d/kolibri-mcp" --port 8799 > mcp.log 2>&1 < /dev/null &
           pid=$!
           sleep 5

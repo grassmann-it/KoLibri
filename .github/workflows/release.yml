@@ -1,6 +1,7 @@
 name: Release
 
-# Push a tag like v0.4.0 to build the programs for every platform and attach them to a GitHub release.
+# Push a tag like v0.5.0 to build the programs for every platform and the NuGet packages, and attach them to a draft
+# GitHub release. The tag is the go: nothing here runs without it, and nothing is pushed to nuget.org.
 on:
   push:
     tags: ['v*']
@@ -56,23 +57,60 @@ jobs:
             dist/*.tar.gz
           if-no-files-found: error
 
-  release:
-    needs: package
+  nuget:
+    name: nupkgs
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Pack KoLibri and KoLibri.Safety (pack-lib.sh checks the package contents)
+        run: scripts/pack-lib.sh dist/nuget "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: dist/nuget/*.nupkg
+          if-no-files-found: error
+
+  release:
+    needs: [package, nuget]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: '{linux-x64,win-x64,osx-arm64,osx-x64}'
           merge-multiple: true
-      - name: Check the archives (four platforms, one version, one commit)
+      - uses: actions/download-artifact@v4
+        with:
+          name: nupkgs
+          path: nupkgs
+      - name: Check the archives (four platforms, one version, one commit) and the packages
         run: |
-          ls -l artifacts
+          ls -l artifacts nupkgs
           test "$(ls artifacts | wc -l)" -eq 4
           v="${GITHUB_REF_NAME#v}"
           for rid in linux-x64 win-x64 osx-arm64 osx-x64; do ls artifacts | grep -q "^KoLibri-$v-$rid\." || { echo "missing archive for $rid $v"; exit 1; }; done
+          test "$(ls nupkgs/*.nupkg | wc -l)" -eq 2
+          ls nupkgs | grep -q "^KoLibri\.$v\.nupkg$" || { echo "missing KoLibri.$v.nupkg"; exit 1; }
+          ls nupkgs | grep -q "^KoLibri\.Safety\.$v\.nupkg$" || { echo "missing KoLibri.Safety.$v.nupkg"; exit 1; }
+      - name: Cut the release notes out of CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          # From the heading "## <version>" up to (not including) the next "## " heading.
+          awk -v v="$v" '/^## /{ if (on) exit; if ($2 == v) on = 1 } on' CHANGELOG.md > notes.md
+          echo "--- notes.md ($(wc -l < notes.md) lines)"; cat notes.md
+          # The heading alone is not enough: there must be text below it.
+          test "$(grep -c '[^[:space:]]' notes.md)" -gt 1 || { echo "CHANGELOG.md has no (or an empty) section '## $v'"; exit 1; }
       - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" artifacts/* --repo "${{ github.repository }}" \
-            --title "KoLibri ${{ github.ref_name }} (early alpha)" --generate-notes --draft --prerelease
+          # Draft + prerelease: the user publishes it. The nupkgs are attached only; nothing is pushed to nuget.org.
+          gh release create "${{ github.ref_name }}" artifacts/* nupkgs/*.nupkg --repo "${{ github.repository }}" \
+            --title "KoLibri ${{ github.ref_name }} (early alpha)" --notes-file notes.md --generate-notes --draft --prerelease
