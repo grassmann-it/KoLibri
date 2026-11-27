@@ -1,7 +1,7 @@
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 /// <summary>
 /// The item manager is the screen a KoL player lives in, so the live path

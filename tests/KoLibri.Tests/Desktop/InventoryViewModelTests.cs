@@ -1,7 +1,7 @@
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 /// <summary>
 /// Tests for the inventory browser. The search, the category filter and

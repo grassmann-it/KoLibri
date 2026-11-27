@@ -1,9 +1,8 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
+using KoLibri.Daily;
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 public sealed class DailyStepBoardTests : IDisposable
 {
@@ -12,24 +11,18 @@ public sealed class DailyStepBoardTests : IDisposable
 
     public void Dispose() { try { Directory.Delete(_dir, true); } catch (IOException) { } }
 
-    private static LiveDailySnapshot Live(int bones = 1621, int eggs = 3, int clovers = 0, int adventures = 40, bool stale = false)
+    private static DesktopDailySnapshot Live(int bones = 1621, int eggs = 3, int clovers = 0, int adventures = 40)
     {
-        var items = new List<KoLInventoryItem>
+        var items = new List<InventoryItem>
         {
-            new("12051", "knucklebone", bones), new("995", "Lucky Surprise Egg", eggs),
+            new(12051, "knucklebone", bones), new(995, "Lucky Surprise Egg", eggs),
         };
-        return new LiveDailySnapshot
+        return new DesktopDailySnapshot
         {
-            Snapshot = new DailyRoutineSnapshot(),
-            State = new AccountDailyState
-            {
-                Role = AccountRole.Main,
-                Status = new KoLStatusSnapshot("Fixture", adventures, 1000, 13, DateTimeOffset.UtcNow, stale),
-                Inventory = new KoLInventorySnapshot(items, DateTimeOffset.UtcNow, stale),
-                ObservedAt = DateTimeOffset.UtcNow
-            },
-            Leaves = 0, Clovers = clovers, Permits = 0, WorthlessItems = 0, Bacon = 0, BaconMachines = 0,
-            Meat = 1000, Adventures = adventures, Level = 13, ClassId = "1"
+            Role = AccountRole.Main,
+            Status = new Status("Fixture", 13, 1000, adventures, DateTimeOffset.UtcNow),
+            Inventory = new Inventory(items, DateTimeOffset.UtcNow),
+            Run = new DailyRunLive { Clovers = clovers, Meat = 1000 }
         };
     }
 
@@ -75,7 +68,7 @@ public sealed class DailyStepBoardTests : IDisposable
         var booze = DailyStepBoard.Build(Live(), settings, Today).First(r => r.Kind == DailyStepKind.Booze);
         Assert.True(booze.CanRun);
         var action = Assert.IsType<ConsumeCharacterItem>(Assert.Single(DailyStepBoard.ActionsFor(booze, settings, 0)));
-        Assert.Equal((1234, CharacterConsumableKind.Drink, 2), (action.ItemId, action.Kind, action.Quantity));
+        Assert.Equal((1234, ConsumeKind.Drink, 2), (action.ItemId, action.Kind, action.Quantity));
     }
 
     [Fact]
@@ -85,7 +78,7 @@ public sealed class DailyStepBoardTests : IDisposable
         var row = DailyStepBoard.Build(Live(eggs: 3), settings, Today).First(r => r.Kind == DailyStepKind.LuckyEgg);
         var action = Assert.IsType<ConsumeCharacterItem>(Assert.Single(DailyStepBoard.ActionsFor(row, settings, 3)));
         Assert.Equal(995, action.ItemId);
-        Assert.Equal(CharacterConsumableKind.Food, action.Kind);
+        Assert.Equal(ConsumeKind.Eat, action.Kind);
         Assert.Equal(3, action.Quantity);
         Assert.False(DailyStepBoard.Build(Live(eggs: 0), settings, Today).First(r => r.Kind == DailyStepKind.LuckyEgg).CanRun);
     }
@@ -163,36 +156,70 @@ public sealed class DailyStepBoardTests : IDisposable
         var text = DailyStepBoard.ReadableError("Booze", new HttpRequestException("boom"));
         Assert.StartsWith("Booze: the request to Kingdom of Loathing failed", text);
         Assert.Contains("session expired", DailyStepBoard.ReadableError("Booze",
-            new KoLHtmlResponseException(KoLHtmlResponseKind.LoginPage, "login page")));
+            new SessionExpiredException(new AccountId("main"))));
+        Assert.Contains("refused by the guard", DailyStepBoard.ReadableError("Booze",
+            new ActionDeniedException(new GuardedAction(new AccountId("main"), GuardedActionKind.Consume, "drink"), "budget")));
     }
 
     [Fact]
     public async Task Expired_session_with_relogin_off_shows_the_stale_banner_and_no_steps()
     {
-        var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-        await accounts.SetProfileAsync(new AccountProfile { Id = "main", DisplayName = "Fixture", Role = AccountRole.Main });
-        await accounts.SetCredentialsAsync(AccountRole.Main, new AccountCredentials
-        {
-            Username = "Fixture", Password = "saved-password", CookieHeader = "old=1",
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1)
-        });
-        using var provider = new DesktopLiveDataProvider(accounts, reloginAutomatically: () => false);
+        var kol = new FakeKol().WithLogin();
+        var store = DesktopKit.Store(AccountRole.Main, expired: true, password: "saved-password", cookie: "old=1");
+        await using var accounts = DesktopKit.Accounts(kol, store, autoReconnect: () => false);
+        using var provider = new DesktopLiveDataProvider(accounts);
         Assert.True(await provider.HasExpiredSessionAsync(AccountRole.Main));
         var model = new DailyBriefingViewModel(AccountRole.Main, provider);
         await model.LoadAsync();
         Assert.True(model.SessionStale);
         Assert.Contains("expired", model.SessionBannerText);
         Assert.Empty(model.Steps);
-        Assert.Equal("old=1", (await accounts.GetSessionAsync(AccountRole.Main, includeExpired: true))!.Credentials.CookieHeader);
+        Assert.Empty(kol.Requests);
+        Assert.Equal("old=1", store.Records["main"].CookieHeader);
     }
 
     [Fact]
     public async Task No_stored_session_is_not_reported_as_expired()
     {
-        using var provider = new DesktopLiveDataProvider(new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore()));
+        var kol = new FakeKol();
+        await using var accounts = DesktopKit.Accounts(kol);
+        using var provider = new DesktopLiveDataProvider(accounts);
         Assert.False(await provider.HasExpiredSessionAsync(AccountRole.Main));
         var model = new DailyBriefingViewModel(AccountRole.Main, provider);
         await model.LoadAsync();
         Assert.False(model.SessionStale);
+        Assert.Empty(model.Steps);
+    }
+
+    [Fact]
+    public async Task Signed_in_briefing_reads_the_account_and_builds_the_steps()
+    {
+        var kol = new FakeKol { StatusAdventures = 30 }
+            .On("GET api.php?what=inventory", """{"12051":40,"995":2,"10881":1}""");
+        await using var accounts = DesktopKit.Accounts(kol, DesktopKit.Store(AccountRole.Main));
+        using var provider = new DesktopLiveDataProvider(accounts);
+        var model = new DailyBriefingViewModel(AccountRole.Main, provider, () => new DesktopSettings(), () => Today);
+        await model.LoadAsync();
+        Assert.False(model.SessionStale);
+        Assert.Equal(2, model.EggsOwned);
+        Assert.Contains("30 adventures", model.SnapshotText);
+        Assert.Contains("1 Clovers", model.SnapshotText);
+        var adventure = model.Steps.First(r => r.Kind == DailyStepKind.Adventures);
+        Assert.Equal("open", adventure.Status);
+        Assert.Contains("40 / 100", adventure.Detail);
+        Assert.Equal("done", model.Steps.First(r => r.Kind == DailyStepKind.CloverCheck).Status);
+        Assert.Equal(0, kol.Count("POST", "inv_eat.php"));
+    }
+
+    [Fact]
+    public void Adventure_planner_copy_plans_eggs_then_turns_and_reports_the_target()
+    {
+        var plan = new DailyAdventurePlanner().Plan(new AdventureState { Knucklebones = 40, AdventureTurnsRemaining = 200, LuckySurpriseEggs = 2 },
+            Today, DailyStepBoard.PlannerOptions(new DesktopSettings()));
+        Assert.Equal(DailyAdventurePlanStatus.Ready, plan.Status);
+        Assert.Equal(2, plan.Steps.Count);
+        Assert.Equal(120, plan.Steps[1].Quantity);   // (100 - 40) / 0.5
+        Assert.Equal(DailyAdventurePlanStatus.BlockedStaleSnapshot,
+            new DailyAdventurePlanner().Plan(new AdventureState { IsStale = true }).Status);
     }
 }
