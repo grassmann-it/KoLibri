@@ -931,3 +931,49 @@ Die Hüllen (`command`, `role`, `executed`, `previewOnly`, `approvalRequired`, Z
 - In `tests/KoLibri.Core.Tests` angepasst bzw. umgezogen: `ReplSessionTests` entfernt (REPL folgt), LoginClear-,
   REPL-Parser-, Session-Probe- und Status-Row-Tests nach `CliTests` verschoben; die übrigen CLI-Tests nutzen die
   CLI-Typen (`KoLibri.Cli.AccountRole`, `ApprovalTokenStore`, `ChoiceResolutionConfig`).
+
+---
+
+## 13. Umsetzungsstand Schritt 3, Teil 3: Desktop auf der neuen Lib
+
+Stand 2026-11-27. `KoLibri.Desktop` referenziert nur noch `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` und `KoLibri.Extras`
+(alle mit `PrivateAssets="all"` wie die CLI), kein `KoLibri.Core`, kein `LibKolibri`.
+
+### 13.1 Aufbau
+
+| Baustein | Inhalt |
+|---|---|
+| `DesktopAccounts` | ein `KolibriClient` für das Fenster, je Rolle (`main`/`mallbot`) eine gecachte `KolibriSession`; `TryOpenAsync` liefert `null` statt Ausnahme, automatische Neuanmeldung nur, solange der Schalter "Log in again automatically" sie erlaubt (`KolibriOptions.AutoReconnect`) |
+| `DesktopLiveDataProvider` | Status, Inventar, Ausrüstung, Mall, Pricegun, eigener Shop, KMail über die Facetten der Sitzung |
+| `DesktopCommunity` | Clan, Lounge, Stash, Chat über `GetPageAsync`/`PostAsync`, Parser aus Core kopiert |
+| `DesktopCharacterActions` | Closet, Storage, Combine, Friars, Familiar-Ausrüstung, Dual Wield über rohe Seiten (Request-Formen wie 0.4) |
+| Abenteuer | Encounter-Ansicht, manuelle Schritte, Choice-Entscheidungen und Batch auf `session.Adventure` (`AdventureAsync`, `FightAsync`, `ChooseAsync`, `RunAsync`); Kampfplan als Regeltext für `CombatStrategies.FromRules`; Desktop-Kopien von Approval-Token-Store, Choice-Policy und Unknown-Page-Archiv (gleiche Dateien) |
+| Daily | Tagesplan und Daily-Button auf `KoLibri.Daily.DailyRun`, Marker über `session.Daily` (0.4-Schlüssel mit Spieler-Id) |
+| Mall | Kauf je Ticket über `Mall.BuyAsync` (frischer Preis, nie über dem gezeigten, Inventar/Meat danach geprüft), parallele Queue je Item, Spend-Ledger aus Extras |
+| `KoLibri.Extras/KoLmafiaData` | Kopie des KoLmafia-Katalogs (Bilder, Access-Flags, Organe, Outfits, `ItemClassifier`) |
+| `KoLibri.Safety/Access` | die MCP-Freigaben (`GrantStore`, `UsageLedger`) für die Agents-Seite, identisch mit dem MCP-Zweig |
+
+### 13.2 API-Ergänzungen (additiv, in `PublicAPI.Unshipped.txt` und im Stub)
+
+| Ergänzung | Wofür |
+|---|---|
+| `Status.PlayerId`, `FamiliarName`, `FamiliarWeight`, `PathId`, `Ascensions`, `Hardcore` | Charpane und Abenteuer-Kopfzeile, Aszensions-Erkennung |
+| `KolibriOptions.AutoReconnect` (`Func<bool>?`) | Desktop-Schalter "Log in again automatically" gilt vor jedem automatischen Reconnect |
+| `LimiterOptions.MaxPerSecond` | Desktop-Einstellung "Requests pro Sekunde" |
+| `RelayOptions.SessionCheck` | Browser-Tab: Relay lehnt ab, sobald die Rolle neu angemeldet wurde |
+
+### 13.3 Abweichungen im Verhalten
+
+| Stelle | Abweichung |
+|---|---|
+| alte Daten | Die Lib liefert keine veralteten Kopien; "stale"-Hinweise in Charpane, Mall und Daily entfallen, ein Lesefehler wird als Fehler gezeigt |
+| Limiter | Einstellungen und Umgebungsvariablen wirken beim Start (der Client wird einmal erzeugt); Pricegun-Intervall nur noch über `KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`; Mall-Cache-Dauer und Ergebnislimit der Einstellungen wirken nicht mehr |
+| Mall-Suche | keine Gesamtzahl der Angebote ("Showing the cheapest 4 of 40" entfällt), kein Verkäufername (Kopieren nutzt den Shopnamen) |
+| Mall-Kauf | rund 5 Requests je Kauf (Lib liest Angebot, Status und Inventar selbst) statt 1 plus gemeinsamem Nachlesen; jede Ausnahme außer Guard-Ablehnung zählt als unklar |
+| KMail | PvP-Ordner nicht unterstützt, Anhänge werden nicht gelesen |
+| Kampf | Aktionsliste aus den Auswahllisten der Kampfseite; Monster-HP nicht mehr in der Zusammenfassung; Kampfplan höchstens 30 Runden (fest in `FightToEndAsync`) |
+| Batch | ein `RunAsync` je Batch; bei normalem Ende zählt das ganze Budget als verbraucht |
+| Konsum | ist das Organ-Limit bekannt, lehnt die Lib "trotzdem essen" ohne Request ab; der Overfill-Dialog wirkt nur noch bei unbekanntem Limit |
+| Gear-Seite | Slotnamen der Lib (`OffHand`, `Back`) statt Offhand/Container |
+| Daily-Button | kein Bridge-Audit-Log und kein Approval-Token mehr |
+| BACON | Nachkauf über `QuoteAndBuyAsync` mit Meat-Reserve, Menge so begrenzt, dass Menge × Höchstpreis im Tagesbudget bleibt |
