@@ -47,7 +47,7 @@ internal static partial class KolibriCli
                 "token" => await TokenDispatchAsync(args[1..]),
                 "status" => await StatusAsync(args[1..]),
                 "inventory" => await InventoryAsync(args[1..]),
-                "mafia-script" => NotYet(args[0]),
+                "mafia-script" => Removed(args[0], "status / inventory (JSON output)"),
                 "shop" => await ShopAsync(args[1..]),
                 "crm" => await CrmAsync(args[1..]),
                 "consume" => await ConsumeAsync(args[1..]),
@@ -60,24 +60,22 @@ internal static partial class KolibriCli
                 "mall-reconcile" => await MallReconcileAsync(args[1..]),
                 "arbitrage" => await ArbitrageAsync(args[1..]),
                 "pricegun" => await PricegunAsync(args[1..]),
-                "compare" or "history" => NotYet(args[0]),
-                "bribe-rank" => NotYet(args[0]),
-                "bribe-plan" => NotYet(args[0]),
-                "workflow-plan" => NotYet(args[0]),
-                "adventure-plan" => NotYet(args[0]),
+                "compare" => await RepriceCommandAsync(args[1..], compareMode: true),
+                "history" => await PricegunAsync(args[1..]),
+                "bribe-rank" or "bribe-plan" or "workflow-plan" => Removed(args[0], "no replacement (the foreign-bribe workflow is gone)"),
+                "adventure-plan" => Removed(args[0], "'adventure run --max-turns N' (preview without --execute)"),
                 "adventure" => await AdventureCommandAsync(args[1..]),
                 "choice" => await ChoiceCommandAsync(args[1..]),
                 "daily" => await DailyCommandAsync(args[1..]),
-                "market-scan" or "market" => NotYet(args[0]),
-                "daily-audit" => NotYet(args[0]),
-                "combat" => NotYet(args[0]),
-                "autocombat" or "auto-combat" => NotYet(args[0]),
-                "categorize" => NotYet(args[0]),
-                "reprice" => NotYet(args[0]),
-                "batch" => NotYet(args[0]),
-                "snatch-plan" => NotYet(args[0]),
-                "watchlist" or "scheduler" => NotYet(args[0]),
-                "repl" => NotYet(args[0]),
+                "market-scan" or "market" => Removed(args[0], "'arbitrage plan|buy' or 'keys ...'"),
+                "daily-audit" => await DailyCommandAsync(["audit", .. args[1..]]),
+                "combat" => Removed(args[0], "'adventure inspect' or 'adventure run --fight-action ... --max-turns 1'"),
+                "autocombat" or "auto-combat" => Removed(args[0], "'adventure run --fight-action ...'"),
+                "categorize" => Removed(args[0], "'reprice' (its report carries an advice text per line)"),
+                "reprice" or "batch" => await RepriceCommandAsync(args[1..], compareMode: false),
+                "snatch-plan" => Removed(args[0], "'arbitrage plan'"),
+                "watchlist" or "scheduler" => Removed(args[0], "cron / Task Scheduler running 'daily run'"),
+                "repl" => Removed(args[0], "the one-shot CLI or MCP"),
                 "apply-prices" => await ApplyPricesAsync(args[1..]),
                 _ => Fail($"Unknown command: {args[0]}")
             };
@@ -98,6 +96,13 @@ internal static partial class KolibriCli
 
     /// <summary>Commands that stay out of 0.5-dev until they move onto the new library (follow-up PR). Nothing is sent.</summary>
     internal const int NotYetExitCode = 3;
+    internal const int RemovedExitCode = 2;
+
+    internal static int Removed(string command, string replacement)
+    {
+        Console.Error.WriteLine($"'{command}' was removed in KoLibri 0.5: use {replacement}. Nothing was sent.");
+        return RemovedExitCode;
+    }
 
     internal static int NotYet(string command)
     {
@@ -306,6 +311,7 @@ internal static partial class KolibriCli
             w.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
             w.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
             w.WriteLine("  pricegun --item ITEM_ID [--refresh]");
+            w.WriteLine("  reprice --role mallbot [--item ID ...]   price report; compare = reprice for given items");
             w.WriteLine("  apply-prices --role mallbot --set ITEM_ID:EXPECTED:NEW [--set ...] [--commit]");
             PrintArbitrageHelp(w);
             w.WriteLine("  apply-prices is preview-only by default; only --commit sends the price change.");
@@ -316,11 +322,13 @@ internal static partial class KolibriCli
             w.WriteLine("Experimental market and shop commands are hidden; add --experimental to list them.");
         }
         w.WriteLine();
-        w.WriteLine("Not in 0.5-dev yet (they move onto the new library in a follow-up PR; nothing is sent):");
-        w.WriteLine("  mafia-script, repl, adventure-plan, adventure start|step|inspect|stop|locations|choice-chain, combat, autocombat,");
-        w.WriteLine("  daily campfire|hermit|internet-shop|routine|go|bridge|breakfast, daily-audit");
+        w.WriteLine("Removed in 0.5 (exit 2, nothing is sent):");
+        w.WriteLine("  mafia-script, repl            -> status / inventory (JSON), one-shot CLI or MCP");
+        w.WriteLine("  adventure-plan                -> adventure run --max-turns N");
+        w.WriteLine("  combat, autocombat            -> adventure inspect, adventure run --fight-action ...");
+        w.WriteLine("  daily-audit                   -> daily audit");
         if (experimental)
-            w.WriteLine("  experimental: compare, bribe-rank, bribe-plan, workflow-plan, categorize, reprice, snatch-plan, watchlist, market-scan");
+            w.WriteLine("  experimental: categorize -> reprice; snatch-plan, market-scan -> arbitrage plan|buy; history -> pricegun; watchlist/scheduler -> cron + daily run; bribe-rank, bribe-plan, workflow-plan (gone)");
         w.WriteLine();
         w.WriteLine("There are no transfer commands. Adventure, consume and daily commands only send requests with --execute.");
     }
