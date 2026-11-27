@@ -1,8 +1,7 @@
-using KoLibri.Core.Basis;
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 public sealed class DesktopSettingsStoreTests : IDisposable
 {
@@ -55,28 +54,28 @@ public sealed class DesktopSettingsStoreTests : IDisposable
     public void LimiterOptionsFollowPresetThenSettingsThenEnvironment()
     {
         var s = new DesktopSettings();
-        Assert.Equal(KoLLimiterOptions.Conservative.ReadConcurrency, s.ToLimiterOptions(_ => null).ReadConcurrency);
+        Assert.Equal(2, s.ToLimiterOptions(_ => null).ReadConcurrency);
         s.LimiterPreset = "browser-like";
-        Assert.Equal(KoLLimiterOptions.BrowserLike.ReadConcurrency, s.ToLimiterOptions(_ => null).ReadConcurrency);
+        Assert.Equal(3, s.ToLimiterOptions(_ => null).ReadConcurrency);
         s.Set("kolReadConcurrency", 1);
         Assert.Equal(1, s.ToLimiterOptions(_ => null).ReadConcurrency);
         Assert.Equal(4, s.ToLimiterOptions(k => k == "KOLIBRI_READ_CONCURRENCY" ? "4" : null).ReadConcurrency);
-        Assert.Equal(KoLLimiterOptions.Conservative.MaxPerSecond, s.ToLimiterOptions(k => k == "KOLIBRI_LIMITER_PRESET" ? "conservative" : null).MaxPerSecond);
+        Assert.Equal(2, s.ToLimiterOptions(k => k == "KOLIBRI_LIMITER_PRESET" ? "conservative" : null).MaxPerSecond);
     }
 
     [Fact]
-    public async Task LimiterPicksUpConfiguredIntervalAndKeepsFloor()
+    public void LimiterOptionsCarryIntervalsAndPerSecondCapIntoTheLibrary()
     {
-        var limiter = new KoLRateLimiter(TimeSpan.FromSeconds(30));
-        Assert.Equal(TimeSpan.FromSeconds(1), limiter.ApplyConfigured(TimeSpan.FromMilliseconds(5), null));
-        Assert.Equal(TimeSpan.FromSeconds(3), limiter.ApplyConfigured(TimeSpan.FromSeconds(3), "garbage"));
-        Assert.Equal(TimeSpan.FromSeconds(4), limiter.ApplyConfigured(TimeSpan.FromSeconds(3), "4000"));
-        // Small interval via an explicit floor-free instance still spaces requests.
-        var fast = new KoLRateLimiter(TimeSpan.FromMilliseconds(60));
-        await fast.WaitAsync();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        await fast.WaitAsync();
-        Assert.True(sw.ElapsedMilliseconds >= 40);
+        var s = new DesktopSettings();
+        s.Set("kolIntervalSeconds", 3);
+        var o = s.ToLimiterOptions(_ => null);
+        Assert.Equal(TimeSpan.FromSeconds(3), o.ActionInterval);
+        Assert.Equal(TimeSpan.FromSeconds(1), o.ReadInterval);
+        Assert.Equal(2, o.MaxPerSecond);
+        Assert.Equal(TimeSpan.FromSeconds(4), s.ToLimiterOptions(k => k == "KOLIBRI_MIN_REQUEST_INTERVAL_MS" ? "4000" : null).ActionInterval);
+        Assert.Equal(TimeSpan.FromSeconds(1), s.ToLimiterOptions(k => k == "KOLIBRI_MIN_REQUEST_INTERVAL_MS" ? "5" : null).ActionInterval);
+        Assert.Equal(TimeSpan.FromMilliseconds(200), s.ToLimiterOptions(k => k == "KOLIBRI_READ_INTERVAL_MS" ? "10" : null).ReadInterval);
+        Assert.Equal(1, s.ToLimiterOptions(k => k == "KOLIBRI_MAX_REQUESTS_PER_SECOND" ? "0" : null).MaxPerSecond);
     }
 
     public void Dispose() { try { Directory.Delete(_dir, true); } catch { } }

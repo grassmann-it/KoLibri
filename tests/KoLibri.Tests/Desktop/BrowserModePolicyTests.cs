@@ -1,7 +1,7 @@
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 public sealed class BrowserModePolicyTests
 {

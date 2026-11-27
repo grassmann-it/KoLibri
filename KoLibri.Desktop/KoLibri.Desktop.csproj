@@ -25,6 +25,7 @@
          KoLibri.* types never shadow KoLibri.Core types in the Core test suite.
          KoLibri.Extras carries the KoLmafia catalog and the market extras that are not part of the library promise. -->
     <Using Include="KoLibri.Extras" />
+    <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- The KoLmafia catalog travels with the app so the inventory browser

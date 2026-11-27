@@ -1,11 +1,8 @@
 using Avalonia.Input;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 /// <summary>Package W-F: startup role, shortcut catalog, settings presentation, mall sort/filter, session log, charpane labels.</summary>
 public sealed class DesktopUxPackageTests : IDisposable
