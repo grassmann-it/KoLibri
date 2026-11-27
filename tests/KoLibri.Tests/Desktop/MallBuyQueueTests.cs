@@ -40,9 +40,19 @@ public sealed class MallBuyQueueTests
 
     private static MallBuyOrder Order(int qty = 1, long price = 100) => new("789", "Thing", "42", "Shop", price, qty);
 
+    /// <summary>
+    /// Stands in for the window's Dispatcher post (MainWindow): log writes from the parallel buy lanes run one at a
+    /// time, as on the UI thread. Without it two lanes append to the ObservableCollection at once and it throws.
+    /// </summary>
+    internal static Action<Action> SerialPost()
+    {
+        var gate = new object();
+        return action => { lock (gate) action(); };
+    }
+
     private static (MallBuyQueue Queue, MallSpendLedger Ledger, SessionLogViewModel Log) Make()
     {
-        var log = new SessionLogViewModel(now: () => Now);
+        var log = new SessionLogViewModel(now: () => Now, post: SerialPost());
         var ledger = new MallSpendLedger(new Fixed());
         return (new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero), ledger, log);
     }

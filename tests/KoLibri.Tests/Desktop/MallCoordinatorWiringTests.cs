@@ -81,7 +81,7 @@ public sealed class MallCoordinatorWiringTests
         Build(Prompt prompt, bool signedIn = true, FakeMall? mall = null, MallSpendLedger? ledger = null)
     {
         mall ??= FakeMall.Delivering();
-        var log = new SessionLogViewModel(now: () => Now);
+        var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost()); // log writes serialized like the UI thread
         ledger ??= new MallSpendLedger(new FixedTime());
         var service = new DesktopMallPurchaseService(mall.BuyAsync, new FakeReads(10_000, 0));
         var queue = new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero);
