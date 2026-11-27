@@ -107,11 +107,20 @@ internal static class DesktopChoicePolicy
     /// <summary>Strict default: per-choice defaults from the policy file; mode ask unless auto-safe is configured.</summary>
     public static IChoiceResolver Load() => CreateResolver(new ChoiceResolutionConfigStore().Load());
 
-    public static IChoiceResolver CreateResolver(ChoiceResolutionConfig config)
+    /// <summary>The per-choice answers of the policy file (choice id → option).</summary>
+    public static IReadOnlyDictionary<int, int> LoadTable() => TableOf(new ChoiceResolutionConfigStore().Load());
+
+    public static Dictionary<int, int> TableOf(ChoiceResolutionConfig config)
     {
         var table = new Dictionary<int, int>();
         foreach (var (id, entry) in config.Choices)
             if (int.TryParse(id, out var choiceId)) table[choiceId] = entry.Option;
+        return table;
+    }
+
+    public static IChoiceResolver CreateResolver(ChoiceResolutionConfig config)
+    {
+        var table = TableOf(config);
         return config.Mode == ChoiceResolutionMode.AutoSafe ? ChoiceResolvers.Safe(table) : ChoiceResolvers.FromTable(table);
     }
 }

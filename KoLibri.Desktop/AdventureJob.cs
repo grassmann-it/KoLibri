@@ -12,6 +12,9 @@ public sealed record AdventureJob(int Turns, string? ItemId, int MaxFightRounds,
     /// </summary>
     public string? CombatRules { get; init; }
 
+    /// <summary>Healing, upkeep, monster/turtle stops and choice defaults of the batch; null = the plain batch.</summary>
+    public FarmOptions? Farm { get; init; }
+
     /// <summary>The one default turn budget (matches the "turnBudget" setting default).</summary>
     public const int DefaultTurns = 100;
 

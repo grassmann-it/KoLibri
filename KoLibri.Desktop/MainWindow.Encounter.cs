@@ -148,7 +148,13 @@ public partial class MainWindow
             this.FindControl<TextBox>("EncounterBatchItem")?.Text,
             _autoCombat.MaxRounds, _autoCombat.AbortHpPercent, out var error);
         if (job is null) UpdateEncounterStatus(error ?? "The adventure settings are not valid.");
-        return job is null ? null : job with { CombatRules = _autoCombat.BuildBatchPolicy() };
+        if (job is null) return null;
+        if (!_autoCombat.TryBuildFarmOptions(out var farm, out var farmError))
+        {
+            UpdateEncounterStatus($"Auto-combat farm settings (Settings → Combat): {farmError}");
+            return null;
+        }
+        return job with { CombatRules = _autoCombat.BuildBatchPolicy(), Farm = farm };
     }
 
     /// <summary>

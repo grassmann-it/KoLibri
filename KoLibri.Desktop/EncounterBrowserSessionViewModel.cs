@@ -19,6 +19,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     private AdventureLocation? _batchLocation;
     private IReadOnlyList<StopCondition> _batchConditions = Array.Empty<StopCondition>();
     private string? _batchRules;
+    private FarmOptions? _batchFarm;
     private int _batchRemaining;
     private bool _requiresRecheck;
     private string? _lastMessage;
@@ -295,12 +296,13 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     /// Runs (or, with a null location, continues) a batch of turns through KoLibri's RunAsync. In fights
     /// the plan (<paramref name="combatRules"/>, AutoCombatPolicy rule text) picks each action; without one
     /// the batch attacks. A choice without a saved answer, a defeat, the HP threshold, an error or an
-    /// unclear page stops the batch and shows the encounter.
+    /// unclear page stops the batch and shows the encounter. <paramref name="farm"/> adds healing, buff upkeep,
+    /// the monster/turtle stops and the curated choice defaults; null keeps the plain batch (policy file only).
     /// </summary>
     public async ValueTask<AdventureStepOutcome?> RunTurnsAsync(
         EncounterBrowserViewModel browser, AdventureLocation? location, int maxTurns, string? itemId,
         CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0,
-        string? combatRules = null)
+        string? combatRules = null, FarmOptions? farm = null)
     {
         _browser = browser;
         if (RunId is not null)
@@ -333,6 +335,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
                 ? Array.Empty<StopCondition>()
                 : new[] { StopCondition.ItemCountAtLeast(int.Parse(itemId, CultureInfo.InvariantCulture), 1) };
             _batchRules = combatRules;
+            _batchFarm = farm;
         }
         if (_batchLocation is not { } batchLocation || _batchRemaining <= 0 || string.IsNullOrWhiteSpace(ApprovalToken))
         {
@@ -348,12 +351,15 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
             return null;
         }
         var generation = _generation;
-        var strategy = new DesktopCombatStrategy(DesktopCombatStrategy.FromRules(_batchRules), minimumHpPercent);
+        var farmOptions = _batchFarm;
+        var plan = DesktopCombatStrategy.FromRules(_batchRules);
+        var strategy = new DesktopCombatStrategy(farmOptions?.WrapCombat(plan) ?? plan, minimumHpPercent);
         var result = await session.Adventure.RunAsync(new RunRequest(batchLocation.Snarfblat, _batchRemaining)
         {
             Combat = strategy,
-            Choices = ChoiceResolverFactory(),
-            StopWhen = _batchConditions,
+            Choices = farmOptions?.BuildChoiceResolver(ChoiceTableFactory(), ChoiceResolverFactory) ?? ChoiceResolverFactory(),
+            StopWhen = farmOptions is null ? _batchConditions : _batchConditions.Concat(farmOptions.BuildStops()).ToArray(),
+            Recovery = farmOptions?.BuildRecovery() ?? RecoveryPolicies.None,
             MaxRoundsPerFight = maxFightRounds > 0 ? maxFightRounds : 30
         }, cancellationToken);
         // "End run" while the batch was in flight: do not resurrect the ended session.
@@ -440,6 +446,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         _generation++;
         _batchLocation = null;
         _batchRules = null;
+        _batchFarm = null;
         _batchRemaining = 0;
         _requiresRecheck = false;
         _currentEncounter = null;
@@ -450,6 +457,9 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
     /// <summary>Loads the user's choice policy; replaced in tests.</summary>
     public Func<IChoiceResolver> ChoiceResolverFactory { get; set; } = DesktopChoicePolicy.Load;
+
+    /// <summary>The per-choice answers of the user's choice policy file (overrides for the curated defaults); replaced in tests.</summary>
+    public Func<IReadOnlyDictionary<int, int>> ChoiceTableFactory { get; set; } = DesktopChoicePolicy.LoadTable;
 
     // ------------------------------------------------------------------ steps
 
@@ -559,6 +569,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         RunStopReason.NeedsChoice => BoundedAdventureRunStopReason.NeedsDecision,
         RunStopReason.NeedsCombat => strategy.StopReason ?? BoundedAdventureRunStopReason.FightRoundLimitReached,
         RunStopReason.Cancelled => BoundedAdventureRunStopReason.DeadlineReached,
+        RunStopReason.Recovery => BoundedAdventureRunStopReason.RecoveryStopped,
         _ => BoundedAdventureRunStopReason.GatewayStopped
     };
 

@@ -246,6 +246,12 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (_accountRoleSelector is not null)
             _accountRoleSelector.SelectedIndex = _selectedRole == AccountRole.Main ? 0 : 1;
         _autoCombat = new AutoCombatViewModel(_catalog);
+        if (this.FindControl<Border>("CombatFarmCard") is { } farmCard) farmCard.DataContext = _autoCombat;
+        _autoCombat.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AutoCombatViewModel.PreviewText) && _combatPreviewText is not null)
+                _combatPreviewText.Text = _autoCombat.PreviewText;
+        };
         InitializeShell();
         ResetAccountViews();
         WireEncounterBrowser(createEncounterPane, tokenDirectory);
