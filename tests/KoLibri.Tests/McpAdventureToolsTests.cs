@@ -80,7 +80,9 @@ public sealed class McpAdventureToolsTests : IDisposable
     [Fact]
     public async Task Daily_plan_execution_is_a_placeholder_that_sends_nothing()
     {
-        var text = ErrorText(await Call("kol_plan_daily_adventures_execute", """{"role":"Main","execute":true,"approvalToken":"t"}"""));
+        var experimental = new KolibriMcpServer(_accounts, new KolibriMcpServerOptions { ExperimentalTools = true }, executionBridge: _bridge);
+        var text = ErrorText(await McpReadToolsTests.CallAsync(experimental, "kol_plan_daily_adventures_execute",
+            """{"role":"Main","execute":true,"approvalToken":"t"}"""));
 
         Assert.Contains(KolibriMcpServer.NotYetMessage, text);
         Assert.Empty(_kol.Requests);
