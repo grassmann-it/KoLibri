@@ -27,12 +27,13 @@ public sealed class DailyItemsTests
     }
 
     [Fact]
-    public void Defaults_plan_toaster_and_three_klaw_pulls_but_no_pocket_and_no_chess()
+    public void Defaults_plan_toaster_three_klaw_pulls_and_the_pocket_by_value_but_no_chess()
     {
         var ids = Ids(DailyRun.Plan(Owned));
-        Assert.Equal(new[] { "toaster:1", "vip-klaw:1", "vip-klaw:2", "vip-klaw:3" }, ids);
+        Assert.Equal(new[] { "toaster:1", "vip-klaw:1", "vip-klaw:2", "vip-klaw:3", "cargo-pocket:auto" }, ids);
         var notes = DailyItems.Notes(Owned);
-        Assert.Contains(notes, n => n.Step == "cargo" && n.Text.Contains("keine Tasche konfiguriert") && n.Text.Contains("621 (917 Meat)"));
+        Assert.Contains(notes, n => n.Step == "cargo" && n.Text.Contains("nach Wert"));
+        Assert.DoesNotContain(Ids(DailyRun.Plan(Owned, new DailyRunOptions { CargoMode = CargoPocketMode.Off })), i => i.StartsWith("cargo", StringComparison.Ordinal));
         Assert.Contains(notes, n => n.Step == "chess" && n.Text.Contains("--chess") && n.Text.Contains("10 Abenteuer"));
     }
 
@@ -45,8 +46,9 @@ public sealed class DailyItemsTests
         Assert.Contains("fancy-chess:1", ids);
         Assert.Contains(DailyItems.Notes(Owned, options), n => n.Text.Contains("565 (Kampf: mountain man)"));
 
+        // A list of only fight pockets is no list: the default (by value) applies; it never sends 565.
         var onlyFight = Ids(DailyRun.Plan(Owned, new DailyRunOptions { CargoPockets = new[] { 565 } }));
-        Assert.DoesNotContain(onlyFight, i => i.StartsWith("cargo-pocket", StringComparison.Ordinal));
+        Assert.Contains("cargo-pocket:auto", onlyFight);
     }
 
     [Fact]
@@ -211,7 +213,10 @@ public sealed class DailyItemsTests
 
         var result = await DailyRun.ExecuteAsync(session, new[] { new DailyStep("daily", DailyItems.StepIds.CargoPocket, "484,504") });
         Assert.Contains(result.FailedSteps, f => f.Contains("already emptied", StringComparison.Ordinal));
-        Assert.DoesNotContain(kol.Requests, r => r.Method == "POST");
+        // No pick; only the choice is closed again (option 2).
+        var leave = Assert.Single(kol.Requests, r => r.Method == "POST");
+        Assert.Contains("option=2", leave.Form);
+        Assert.DoesNotContain("pocket=", leave.Form);
         Assert.False(session.Daily.IsDone(DailyItems.Markers.CargoPocket));
     }
 
@@ -238,7 +243,7 @@ public sealed class DailyItemsTests
     [Fact]
     public void Desktop_briefing_rows_show_owned_items_with_the_saved_settings()
     {
-        var settings = new DesktopSettings { DailyCargoPockets = "621,54", DailyPlayChess = false };
+        var settings = new DesktopSettings { DailyCargoPockets = "621,54", DailyCargoMode = "list", DailyPlayChess = false };
         var rows = DailyBriefingViewModel.ItemRows(Owned with { ToasterDoneToday = true }, settings).ToArray();
         Assert.Equal(new[] { "Toaster", "VIP Lounge", "Cargo Shorts", "Chess set" }, rows.Select(r => r.Surface));
         Assert.Equal("done", rows[0].State);
@@ -338,7 +343,7 @@ public sealed class CliDailyItemsTests : IDisposable
         Assert.Contains("daily run --only toaster", err);
         Assert.Equal(new[] { "toaster:1" }, Ids(j2));
 
-        var (c3, j3, _) = await Run("run", "--skip", "vip", "--skip", "toaster");
+        var (c3, j3, _) = await Run("run", "--skip", "vip", "--skip", "toaster", "--cargo-pocket", "none");
         Assert.Equal(0, c3);
         Assert.DoesNotContain(Ids(j3), i => i.StartsWith("vip", StringComparison.Ordinal) || i.StartsWith("toaster", StringComparison.Ordinal));
     }

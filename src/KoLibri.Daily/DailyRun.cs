@@ -56,6 +56,15 @@ public sealed record DailyRunOptions
     public IReadOnlyList<int> CargoPockets { get; init; } = Array.Empty<int>();
     /// <summary>Opt-in: play the fancy chess set (a lost game costs 10 adventures).</summary>
     public bool PlayChess { get; init; }
+    /// <summary>
+    /// Auto (default): the most valuable full pocket without a fight; Off: no pocket. A non-empty <see cref="CargoPockets"/> list
+    /// always wins over Auto (see <see cref="DailyItems.CargoModeOf"/>).
+    /// </summary>
+    public CargoPocketMode CargoMode { get; init; } = CargoPocketMode.Auto;
+    /// <summary>Pricegun lookups per run for the Cargo ranking; cached prices of the KoL day are free.</summary>
+    public int CargoPriceLookups { get; init; } = CargoPocketValue.DefaultPriceLookups;
+    /// <summary>Folder for the Cargo price cache and the last read pocket page (the client's StateDirectory; null = default KoLibri folder).</summary>
+    public string? StateDirectory { get; init; }
 }
 
 public enum DailyRunCompleteness { None, Complete, Partial, Failed }
@@ -69,8 +78,14 @@ public sealed record MemeShopRun(string Verdict, IReadOnlyList<MemeShopStep> Ste
     public PurchaseStatus? BaconStatus { get; init; }
 }
 
+/// <summary>What one sent step did: state (done, already, failed), KoL's message and what was gained (items, Meat, effects).</summary>
+public sealed record DailyStepReport(string Step, string? Option, string State, string Message, IReadOnlyList<string> Gains);
+
 public sealed record DailyRunResult(bool Executed, int AttemptedSteps, int SubmittedSteps, IReadOnlyList<string> FailedSteps)
 {
+    /// <summary>One report per sent daily-item step (toaster, Klaw, Cargo pocket, chess), with the gains from the page.</summary>
+    public IReadOnlyList<DailyStepReport> Steps { get; init; } = Array.Empty<DailyStepReport>();
+
     public DailyRunCompleteness Completeness
         => AttemptedSteps == 0 ? DailyRunCompleteness.None
          : FailedSteps.Count == 0 ? DailyRunCompleteness.Complete
@@ -272,7 +287,12 @@ public static class DailyRun
     }
 
     /// <summary>Sends the planned steps. Each step is one request (two for the leaves: visit, then burn).</summary>
-    public static async Task<DailyRunResult> ExecuteAsync(KolibriSession session, IReadOnlyList<DailyStep> steps, CancellationToken cancellationToken = default)
+    public static Task<DailyRunResult> ExecuteAsync(KolibriSession session, IReadOnlyList<DailyStep> steps, CancellationToken cancellationToken = default)
+        => ExecuteAsync(session, steps, null, cancellationToken);
+
+    /// <summary>Sends the planned steps; <paramref name="options"/> gives the Cargo price lookups for an "auto" pocket.</summary>
+    public static async Task<DailyRunResult> ExecuteAsync(KolibriSession session, IReadOnlyList<DailyStep> steps, DailyRunOptions? options,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(steps);
@@ -339,6 +359,7 @@ public static class DailyRun
                 failed.Add($"{step.Id}:{step.Option} ({exception.Message})");
             }
         }
+        var reports = new List<DailyStepReport>();
         var klawUsedUp = false;
         foreach (var step in itemSteps)
         {
@@ -346,7 +367,9 @@ public static class DailyRun
             if (klawUsedUp && step.Id == DailyItems.StepIds.VipKlaw) continue;
             try
             {
-                var outcome = await DailyItems.ExecuteAsync(session, step, cancellationToken).ConfigureAwait(false);
+                var outcome = await DailyItems.ExecuteAsync(session, step, cancellationToken, options).ConfigureAwait(false);
+                reports.Add(new DailyStepReport(step.Id, step.Option, outcome.Confirmed ? "done" : outcome.Already ? "already" : "failed",
+                    outcome.Message, outcome.Gains));
                 if (outcome.Confirmed) executed++;
                 else if (!outcome.Already) failed.Add($"{step.Id}:{step.Option} ({outcome.Message})");
                 // Already done today (KoL said so, marker set): neither submitted nor failed; the other Klaw pulls are not sent.
@@ -356,9 +379,10 @@ public static class DailyRun
             catch (Exception exception)
             {
                 failed.Add($"{step.Id}:{step.Option} ({exception.Message})");
+                reports.Add(new DailyStepReport(step.Id, step.Option, "failed", exception.Message, Array.Empty<string>()));
             }
         }
-        return new DailyRunResult(executed > 0, executed + failed.Count, executed, failed);
+        return new DailyRunResult(executed > 0, executed + failed.Count, executed, failed) { Steps = reports };
     }
 
     /// <summary>

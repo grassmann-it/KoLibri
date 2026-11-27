@@ -56,10 +56,12 @@ public partial class DailyView : UserControl
     private void RenderItemSettings(DesktopSettings settings)
     {
         if (this.FindControl<TextBox>("DailyCargoPockets") is { } pockets) pockets.Text = settings.DailyCargoPockets;
+        if (this.FindControl<ComboBox>("DailyCargoMode") is { } mode)
+            mode.SelectedIndex = settings.DailyCargoMode switch { "list" => 1, "off" => 2, _ => 0 };
         if (this.FindControl<CheckBox>("DailyPlayChess") is { } chess) chess.IsChecked = settings.DailyPlayChess;
         if (this.FindControl<TextBlock>("DailyCargoHint") is { } hint)
-            hint.Text = "Empty: no pocket is picked. Each pocket works once per ascension; pockets that start a fight are refused. "
-                + "No fight, no turn: " + global::KoLibri.Daily.CargoPockets.SuggestionText() + ".";
+            hint.Text = "Nach Wert: the most valuable full pocket without a fight (items × market price, Meat; ties go to Meat). "
+                + "Liste: the first full pocket of the list. Each pocket works once per ascension; fight pockets are refused.";
     }
 
     /// <summary>The entries for a step row. Building runs nothing.</summary>

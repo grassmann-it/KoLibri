@@ -75,6 +75,8 @@ public sealed class DesktopSettings
     public Dictionary<string, string> SkippedSteps { get; set; } = new();
     /// <summary>Cargo Cultist Shorts pockets for the daily run, by preference ("621,484"). Empty: no pocket is picked.</summary>
     public string DailyCargoPockets { get; set; } = "";
+    /// <summary>How the daily run picks the Cargo pocket: "auto" (by value, default), "list" (<see cref="DailyCargoPockets"/>) or "off".</summary>
+    public string DailyCargoMode { get; set; } = "auto";
     /// <summary>Opt-in: the daily run plays the fancy chess set (a lost game costs 10 adventures).</summary>
     public bool DailyPlayChess { get; set; }
 
@@ -252,6 +254,10 @@ public sealed class DesktopSettingsStore
             settings.SpleenItems = Consumables(root, "spleenItems");
             settings.DailyCargoPockets = Str(root, "dailyCargoPockets") ?? "";
             settings.DailyPlayChess = Bool(root, "dailyPlayChess", false);
+            // Settings from before the mode existed: a saved list means "list", otherwise the new default "auto".
+            settings.DailyCargoMode = Str(root, "dailyCargoMode") is "auto" or "list" or "off"
+                ? Str(root, "dailyCargoMode")!
+                : string.IsNullOrWhiteSpace(settings.DailyCargoPockets) ? "auto" : "list";
             if (root["skippedSteps"] is JsonObject skips)
                 foreach (var (k, v) in skips)
                     if (v is JsonValue sv && sv.TryGetValue<string>(out var day) && !string.IsNullOrWhiteSpace(day))
@@ -289,6 +295,7 @@ public sealed class DesktopSettingsStore
             skippedSteps = settings.SkippedSteps,
             dailyCargoPockets = settings.DailyCargoPockets,
             dailyPlayChess = settings.DailyPlayChess,
+            dailyCargoMode = settings.DailyCargoMode,
             numbers,
             favoriteLocations = settings.FavoriteLocations,
             recentLocations = settings.RecentLocations,

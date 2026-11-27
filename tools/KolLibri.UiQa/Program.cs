@@ -256,6 +256,8 @@ static void SeedDaily(MainWindow w, bool stale)
             ("Toaster", "Use the cheap toaster", "cheap toaster benutzen: 1x am Tag, gibt toast, kostet nichts", "open"),
             ("VIP Lounge", "Deluxe Mr. Klaw (3x)", "Deluxe Mr. Klaw im VIP-Raum: noch 3 von 3 Zügen, kostenlos.", "open"),
             ("Cargo Shorts", "Empty one pocket", "Tasche in dieser Reihenfolge (erste noch volle): 621 (917 Meat), 484 (872 Meat)", "open"),
+            ("Cargo #1", "Tasche 4: onyx knight", "1 × 25,000 = 25,000 Meat (Pricegun)", "chosen"),
+            ("Cargo #2", "Tasche 621: 917 Meat", "917 Stück = 917 Meat (Meat (fest))", "candidate"),
             ("Chess set", "Play one game (opt-in)", "nur auf Wunsch (--chess): eine Niederlage kostet 10 Abenteuer; kein Kampf", "skipped"),
         }) daily.Rows.Add(new DailyBriefingRow { Surface = surface, Description = action, Detail = detail, State = state });
     typeof(DailyBriefingViewModel).GetProperty(nameof(DailyBriefingViewModel.SessionStale))!.SetValue(daily, stale);

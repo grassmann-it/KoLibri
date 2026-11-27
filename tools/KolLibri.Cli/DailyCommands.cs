@@ -54,7 +54,7 @@ internal static partial class KolibriCli
     }
 
     private static readonly string[] DailyKnownSteps = { "campfire", "hermit", "internet-shop", "toaster", "vip", "cargo", "chess" };
-    private static readonly string[] DailyValueFlags = { "--role", "--hermit-clovers", "--skip", "--only", "--approval-token", "--cargo-pocket" };
+    private static readonly string[] DailyValueFlags = { "--role", "--hermit-clovers", "--skip", "--only", "--approval-token", "--cargo-pocket", "--cargo-price-lookups" };
 
     /// <summary>The first flag `daily run` does not know (0.4 snapshot flags like --leaves/--meat), or null.</summary>
     private static string? UnknownDailyRunFlag(string[] args)
@@ -112,8 +112,14 @@ internal static partial class KolibriCli
         if (badSkip is not null)
             return Fail($"--skip takes {string.Join(", ", DailyKnownSteps)} (got '{badSkip}').");
         IReadOnlyList<int> cargoPockets;
-        try { cargoPockets = GetOptions(args, "--cargo-pocket").SelectMany(CargoPockets.Parse).ToArray(); }
-        catch (FormatException exception) { return Fail("--cargo-pocket: " + exception.Message); }
+        var cargoValues = GetOptions(args, "--cargo-pocket").Select(v => v.Trim()).ToArray();
+        var cargoMode = CargoPocketMode.Auto;
+        if (cargoValues.Any(v => v.Equals("none", StringComparison.OrdinalIgnoreCase) || v.Equals("off", StringComparison.OrdinalIgnoreCase)))
+            cargoMode = CargoPocketMode.Off;
+        var cargoList = cargoValues.Where(v => !v.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            && !v.Equals("none", StringComparison.OrdinalIgnoreCase) && !v.Equals("off", StringComparison.OrdinalIgnoreCase));
+        try { cargoPockets = cargoList.SelectMany(CargoPockets.Parse).ToArray(); }
+        catch (FormatException exception) { return Fail("--cargo-pocket takes auto, none or pocket numbers: " + exception.Message); }
         var fightPocket = cargoPockets.FirstOrDefault(CargoPockets.StartsFight);
         if (fightPocket != 0)
             return Fail($"--cargo-pocket {CargoPockets.Describe(fightPocket)} starts a fight; daily run only picks pockets without a fight.");
@@ -127,6 +133,8 @@ internal static partial class KolibriCli
             HermitCloversWanted = Math.Max(0, ReadInt(args, "--hermit-clovers", 0)),
             Skip = skipSet,
             CargoPockets = cargoPockets,
+            CargoMode = cargoMode,
+            CargoPriceLookups = Math.Max(0, ReadInt(args, "--cargo-price-lookups", CargoPocketValue.DefaultPriceLookups)),
             PlayChess = HasFlag(args, "--chess")
         };
 
@@ -149,6 +157,31 @@ internal static partial class KolibriCli
         return worst;
     }
 
+    /// <summary>The value ranking of the Cargo pockets for the preview (top 5 and the chosen one), when the "auto" step is planned.</summary>
+    private static async Task<object?> CargoPreviewAsync(KolibriSession session, DailyRunLive live, DailyRunOptions options, IReadOnlyList<DailyStep> steps)
+    {
+        if (!live.HasCargoShorts) return null;
+        var mode = DailyItems.CargoModeOf(options);
+        if (!steps.Any(s => s.Id == DailyItems.StepIds.CargoPocket && s.Option == DailyItems.CargoAuto))
+            return new { mode = mode.ToString().ToLowerInvariant(), planned = steps.Any(s => s.Id == DailyItems.StepIds.CargoPocket) };
+        var ranking = await DailyItems.RankCargoAsync(session, options);
+        return new
+        {
+            mode = "auto",
+            planned = true,
+            pocketsKnown = ranking.PocketsKnown,
+            priceLookups = ranking.PriceLookups,
+            chosen = ranking.Chosen is { } c ? CandidateDocument(c) : null,
+            top = ranking.Top.Select(CandidateDocument).ToArray(),
+            note = ranking.Note
+        };
+    }
+
+    private static object CandidateDocument(CargoCandidate c) => new
+    {
+        pocket = c.Pocket, content = c.Content, quantity = c.Quantity, unitPrice = c.UnitPrice, value = c.Value, source = c.Source
+    };
+
     private static int ExitRank(int code) => code switch { 0 => 0, 4 => 1, 3 => 2, _ => 3 };
 
     private static async Task<(object Document, int Code)> DailyRunRoleAsync(AccountRole role, DailyRunOptions options, bool execute)
@@ -156,6 +189,7 @@ internal static partial class KolibriCli
         var (client, session) = await OpenAsync(role);
         await using var _ = client;
         await using var __ = session;
+        options = options with { StateDirectory = client.Options.StateDirectory };
         var live = await DailyRun.ReadAsync(session);
         var steps = DailyRun.Plan(live, options);
         object Step(DailyStep s) => new { kind = s.Kind, id = s.Id, option = s.Option };
@@ -168,17 +202,19 @@ internal static partial class KolibriCli
                 steps = steps.Select(Step).ToArray(),
                 campfireSkipped = DailyRun.CampfireSkipReason(live, options),
                 itemNotes = DailyItems.Notes(live, options).Select(n => new { step = n.Step, note = n.Text }).ToArray(),
+                cargo = await CargoPreviewAsync(session, live, options, steps),
                 note = "Preview: only status and inventory were read. Add --execute --approval-token to send these steps."
             }, 0);
         }
 
-        var result = await DailyRun.ExecuteAsync(session, steps);
+        var result = await DailyRun.ExecuteAsync(session, steps, options);
         var after = await DailyRun.ReadAsync(session);
         return (new
         {
             command = "daily run", readOnly = false, executed = result.Executed, role = role.ToString(),
             completeness = result.Completeness.ToString(),
             attempted = result.AttemptedSteps, submitted = result.SubmittedSteps, failed = result.FailedSteps,
+            results = result.Steps.Select(r => new { step = r.Step, option = r.Option, state = r.State, message = r.Message, gains = r.Gains }).ToArray(),
             steps = steps.Select(Step).ToArray(),
             before = liveDoc,
             after = new
@@ -248,9 +284,10 @@ internal static partial class KolibriCli
     {
         Console.WriteLine("  daily run [--role main|mallbot|all] [--hermit-clovers N] [--skip STEP]... | [--only STEP]...");
         Console.WriteLine("            (STEP = campfire|hermit|internet-shop|toaster|vip|cargo|chess)");
-        Console.WriteLine("            [--cargo-pocket N[,M...]] [--chess] [--execute --approval-token TOKEN]");
+        Console.WriteLine("            [--cargo-pocket auto|none|N[,M...]] [--cargo-price-lookups N] [--chess] [--execute --approval-token TOKEN]");
         Console.WriteLine("            Day Shortener, Hermit clovers, Internet Meme Shop, cheap toaster, VIP Klaw (3x), owned items only;");
-        Console.WriteLine("            --cargo-pocket: Cargo Cultist Shorts pockets by preference (none = no pick; fight pockets are refused);");
+        Console.WriteLine("            --cargo-pocket: auto (default) = most valuable full pocket without a fight (items x market price, Meat);");
+        Console.WriteLine("                            N,M = pockets by preference; none = no pick; fight pockets are always refused;");
         Console.WriteLine("            --chess: play the fancy chess set (opt-in: a lost game costs 10 adventures);");
         Console.WriteLine("            preview reads status and inventory only; each step runs at most once per KoL day; --role all = main, then mallbot");
         Console.WriteLine("  daily audit [--tail N] [--verify] [--role main|mallbot|all] [--account A]   read-only bridge audit log (fixed location)");

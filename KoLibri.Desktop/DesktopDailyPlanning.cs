@@ -307,6 +307,14 @@ public static class DesktopDailyItems
         IReadOnlyList<int> pockets;
         try { pockets = CargoPockets.Parse(settings.DailyCargoPockets); }
         catch (FormatException) { pockets = Array.Empty<int>(); }
-        return new DailyRunOptions { HermitCloversWanted = hermitClovers, CargoPockets = pockets, PlayChess = settings.DailyPlayChess };
+        var mode = settings.DailyCargoMode switch { "off" => CargoPocketMode.Off, "list" => CargoPocketMode.List, _ => CargoPocketMode.Auto };
+        return new DailyRunOptions
+        {
+            HermitCloversWanted = hermitClovers,
+            // "Nach Wert" ignores a saved list; "Liste" uses it (empty = nothing picked).
+            CargoPockets = mode == CargoPocketMode.List ? pockets : Array.Empty<int>(),
+            CargoMode = mode,
+            PlayChess = settings.DailyPlayChess
+        };
     }
 }

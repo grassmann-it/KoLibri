@@ -62,6 +62,21 @@ public static class DailyItems
         return done;
     }
 
+    /// <summary>Option of the Cargo step in "auto" mode: the executor values the pockets still full and picks the best.</summary>
+    public const string CargoAuto = "auto";
+
+    /// <summary>
+    /// The effective Cargo mode: Off when switched off; List when pockets are configured (an explicit list wins); Auto otherwise
+    /// (the default: the most valuable pocket without a fight).
+    /// </summary>
+    public static CargoPocketMode CargoModeOf(DailyRunOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.CargoMode == CargoPocketMode.Off) return CargoPocketMode.Off;
+        if (CargoPockets.Usable(options.CargoPockets).Count > 0) return CargoPocketMode.List;
+        return options.CargoMode == CargoPocketMode.List ? CargoPocketMode.Off : CargoPocketMode.Auto;
+    }
+
     /// <summary>The planned item steps, in order: toaster, Klaw, Cargo pocket, chess. Pure.</summary>
     internal static IEnumerable<DailyStep> Plan(DailyRunLive live, DailyRunOptions options)
     {
@@ -73,9 +88,11 @@ public static class DailyItems
                 if (!live.KlawPullsDoneToday.Contains(pull))
                     yield return new DailyStep("daily", StepIds.VipKlaw, pull.ToString(CultureInfo.InvariantCulture));
 
-        var pockets = CargoPockets.Usable(options.CargoPockets);
-        if (!options.Skip.Contains(StepNames.Cargo) && live.HasCargoShorts && !live.CargoPocketDoneToday && pockets.Count > 0)
-            yield return new DailyStep("daily", StepIds.CargoPocket, string.Join(",", pockets.Select(p => p.ToString(CultureInfo.InvariantCulture))));
+        var mode = CargoModeOf(options);
+        if (!options.Skip.Contains(StepNames.Cargo) && live.HasCargoShorts && !live.CargoPocketDoneToday && mode != CargoPocketMode.Off)
+            yield return new DailyStep("daily", StepIds.CargoPocket, mode == CargoPocketMode.Auto
+                ? CargoAuto
+                : string.Join(",", CargoPockets.Usable(options.CargoPockets).Select(p => p.ToString(CultureInfo.InvariantCulture))));
 
         if (!options.Skip.Contains(StepNames.Chess) && options.PlayChess && live.HasFancyChessSet && !live.FancyChessDoneToday
             && live.Adventures >= ChessAdventuresNeeded)
@@ -110,9 +127,11 @@ public static class DailyItems
             var refused = configured.Where(CargoPockets.StartsFight).ToArray();
             if (options.Skip.Contains(StepNames.Cargo)) Add(StepNames.Cargo, "übersprungen (--skip cargo)");
             else if (live.CargoPocketDoneToday) Add(StepNames.Cargo, "heute schon eine Tasche geleert");
-            else if (CargoPockets.Usable(configured).Count == 0)
-                Add(StepNames.Cargo, "keine Tasche konfiguriert, es wird nichts gewählt (--cargo-pocket N[,M…]). Jede Tasche geht nur einmal pro Aszension. "
-                    + "Ohne Kampf und ohne Zug: " + CargoPockets.SuggestionText());
+            else if (CargoModeOf(options) == CargoPocketMode.Off)
+                Add(StepNames.Cargo, "aus (--cargo-pocket none): es wird keine Tasche gewählt");
+            else if (CargoModeOf(options) == CargoPocketMode.Auto)
+                Add(StepNames.Cargo, "nach Wert (--cargo-pocket auto): die wertvollste volle Tasche ohne Kampf und ohne Zug "
+                    + "(Items: Stück × Marktpreis, Meat: Betrag; Effekt-/Werte-Taschen zählen 0; bei Gleichstand gewinnt Meat). Jede Tasche geht nur einmal pro Aszension.");
             else Add(StepNames.Cargo, "Tasche in dieser Reihenfolge (erste noch volle): "
                 + string.Join(", ", CargoPockets.Usable(configured).Select(CargoPockets.Describe)));
             if (refused.Length > 0)
@@ -132,12 +151,15 @@ public static class DailyItems
     }
 
     /// <summary>Runs one "daily" step. Returns whether KoL confirmed it and a short message.</summary>
-    internal static async Task<DailyItemOutcome> ExecuteAsync(KolibriSession session, DailyStep step, CancellationToken ct)
+    internal static async Task<DailyItemOutcome> ExecuteAsync(KolibriSession session, DailyStep step, CancellationToken ct,
+        DailyRunOptions? options = null)
         => step.Id switch
         {
             StepIds.Toaster => await UseToasterAsync(session, ct).ConfigureAwait(false),
             StepIds.VipKlaw => await PullKlawAsync(session, int.TryParse(step.Option, out var pull) ? pull : 1, ct).ConfigureAwait(false),
-            StepIds.CargoPocket => await PickPocketAsync(session, CargoPockets.Parse(step.Option), ct).ConfigureAwait(false),
+            StepIds.CargoPocket => string.Equals(step.Option, CargoAuto, StringComparison.OrdinalIgnoreCase)
+                ? await PickPocketAsync(session, null, ct, options).ConfigureAwait(false)
+                : await PickPocketAsync(session, CargoPockets.Parse(step.Option), ct).ConfigureAwait(false),
             StepIds.FancyChess => await PlayChessAsync(session, ct).ConfigureAwait(false),
             _ => DailyItemOutcome.Fail($"{step.Id}: unknown step")
         };
@@ -176,7 +198,7 @@ public static class DailyItems
         if (answer.IsSuccess && Has(body, "You acquire") && Has(body, "toast"))
         {
             session.Daily.MarkDone(Markers.Toaster);
-            return DailyItemOutcome.Done("toaster: toast erhalten");
+            return DailyItemOutcome.Done("toaster: toast erhalten") with { Gains = DailyGains.Parse(body) };
         }
         return DailyItemOutcome.Fail($"toaster (unklar: KoL's answer shows no toast; no daily marker set) {Short(body)}");
     }
@@ -192,7 +214,8 @@ public static class DailyItems
         if (answer.IsSuccess && Has(body, "claw slowly descends"))
         {
             session.Daily.MarkDone(Markers.VipKlaw(pull));
-            return DailyItemOutcome.Done(Has(body, "You acquire") ? $"vip-klaw {pull}: Preis gegriffen" : $"vip-klaw {pull}: Klaue abgerutscht (Zug zählt)");
+            return DailyItemOutcome.Done(Has(body, "You acquire") ? $"vip-klaw {pull}: Preis gegriffen" : $"vip-klaw {pull}: Klaue abgerutscht (Zug zählt)")
+                with { Gains = DailyGains.Parse(body) };
         }
         if (answer.IsSuccess && Has(body, "you wouldn't want to look greedy"))
         {
@@ -215,7 +238,7 @@ public static class DailyItems
             session.Daily.MarkDone(Markers.FancyChess);
             return DailyItemOutcome.Done(Has(body, "Yeg's Glory")
                 ? "fancy-chess: gewonnen (Yeg's Glory)"
-                : "fancy-chess: gespielt, kein Yeg's Glory auf der Seite (Niederlage kostet 10 Abenteuer)");
+                : "fancy-chess: gespielt, kein Yeg's Glory auf der Seite (Niederlage kostet 10 Abenteuer)") with { Gains = DailyGains.Parse(body) };
         }
         if (answer.IsSuccess && Has(body, "Your poor heart can't handle"))
         {
@@ -232,10 +255,22 @@ public static class DailyItems
     /// this ascension; POST choice.php (whichchoice=1420, option=1, pocket=N) empties one. Pockets that start a fight are
     /// never sent. A pick that leaves the choice open is closed with option=2.
     /// </summary>
-    internal static async Task<DailyItemOutcome> PickPocketAsync(KolibriSession session, IReadOnlyList<int> wanted, CancellationToken ct)
+    internal static async Task<DailyItemOutcome> PickPocketAsync(KolibriSession session, IReadOnlyList<int>? wanted, CancellationToken ct,
+        DailyRunOptions? options = null)
     {
+        var stateDirectory = options?.StateDirectory;
+        var auto = wanted is null;
         var usable = CargoPockets.Usable(wanted);
-        if (usable.Count == 0) return DailyItemOutcome.Fail("cargo-pocket: no pocket configured (fight pockets are never picked)");
+        if (!auto && usable.Count == 0) return DailyItemOutcome.Fail("cargo-pocket: no pocket configured (fight pockets are never picked)");
+        CargoPriceBook? book = null;
+        if (auto)
+        {
+            // All price requests (Pricegun, mall) happen before the pocket page opens the choice; afterwards only the cache counts.
+            book = PriceBook(session, stateDirectory, options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups);
+            var known = CargoPocketState.Load(StateFile(stateDirectory, PocketStateFile), session.Account.Id.Value);
+            await CargoPocketValue.RankAsync(known, book, ct).ConfigureAwait(false);
+            book.Offline = true;
+        }
         var html = (await GetAsync(session, "inventory.php?action=pocket", ct).ConfigureAwait(false)).Body;
         if (Has(html, CargoPockets.ExhaustedText))
         {
@@ -245,10 +280,30 @@ public static class DailyItems
         var available = CargoPockets.AvailablePockets(html);
         if (available is null)
             return DailyItemOutcome.Fail($"cargo-pocket (unklar: the pocket page did not open; nothing picked) {Short(html)}");
-        var pocket = usable.FirstOrDefault(available.Contains);
-        if (pocket == 0)
-            return DailyItemOutcome.Fail("cargo-pocket: all configured pockets are already emptied this ascension ("
-                + string.Join(",", usable) + "); configure more (--cargo-pocket)");
+        CargoPocketState.Save(StateFile(stateDirectory, PocketStateFile), session.Account.Id.Value, available);
+        int pocket;
+        string why = "";
+        if (auto)
+        {
+            var ranking = await CargoPocketValue.RankAsync(available, book!, ct).ConfigureAwait(false);
+            if (ranking.Chosen is not { } best)
+            {
+                await LeavePocketsAsync(session, ct).ConfigureAwait(false);
+                return DailyItemOutcome.Fail("cargo-pocket auto: no full pocket with a value (Meat or items) left; nothing picked");
+            }
+            pocket = best.Pocket;
+            why = $" (Wert {best.Value:N0} Meat, {best.Source})";
+        }
+        else
+        {
+            pocket = usable.FirstOrDefault(available.Contains);
+            if (pocket == 0)
+            {
+                await LeavePocketsAsync(session, ct).ConfigureAwait(false);
+                return DailyItemOutcome.Fail("cargo-pocket: all configured pockets are already emptied this ascension ("
+                    + string.Join(",", usable) + "); configure more (--cargo-pocket)");
+            }
+        }
 
         var form = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -277,21 +332,65 @@ public static class DailyItems
         else if (answer.IsSuccess && (Has(body, "You acquire") || Has(body, "You gain")))
         {
             session.Daily.MarkDone(Markers.CargoPocket);
-            outcome = DailyItemOutcome.Done($"cargo-pocket: {CargoPockets.Describe(pocket)} geleert");
+            outcome = DailyItemOutcome.Done($"cargo-pocket: {CargoPockets.Describe(pocket)} geleert{why}") with { Gains = DailyGains.Parse(body) };
         }
         else
             outcome = DailyItemOutcome.Fail($"cargo-pocket {pocket} (unklar: KoL's answer shows no result; no daily marker set) {Short(body)}");
 
-        if (CargoPockets.StillInChoice(body))
-        {
-            var leave = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["whichchoice"] = CargoPockets.ChoiceId.ToString(CultureInfo.InvariantCulture),
-                ["option"] = "2"
-            };
-            await PostAsync(session, "choice.php", leave, ct).ConfigureAwait(false);
-        }
+        if (CargoPockets.StillInChoice(body)) await LeavePocketsAsync(session, ct).ConfigureAwait(false);
         return outcome;
+    }
+
+    /// <summary>Closes the pocket choice (option 2, "leave your pockets alone").</summary>
+    private static async Task LeavePocketsAsync(KolibriSession session, CancellationToken ct)
+    {
+        var leave = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["whichchoice"] = CargoPockets.ChoiceId.ToString(CultureInfo.InvariantCulture),
+            ["option"] = "2"
+        };
+        await PostAsync(session, "choice.php", leave, ct).ConfigureAwait(false);
+    }
+
+    internal const string PocketStateFile = "cargo-pockets.json";
+    internal const string PriceCacheFile = "cargo-prices.json";
+
+    /// <summary>A file next to the daily markers (the client's state directory, or the default KoLibri data folder).</summary>
+    internal static string StateFile(string? stateDirectory, string name)
+    {
+        var root = stateDirectory;
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            if (string.IsNullOrWhiteSpace(data)) data = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            root = Path.Combine(data, "KoLibri");
+        }
+        return Path.Combine(root, name);
+    }
+
+    /// <summary>Prices from Pricegun (no KoL request), then the mall's cheapest offer for the top candidates; cached per KoL day.</summary>
+    internal static CargoPriceBook PriceBook(KolibriSession session, string? stateDirectory, int priceLookups)
+        => new(StateFile(stateDirectory, PriceCacheFile), session.Daily.GameDay,
+            async (id, ct) => (await session.Mall.GetPriceHistoryAsync(id, ct).ConfigureAwait(false))?.Value,
+            async (id, ct) =>
+            {
+                var offers = await session.Mall.GetOffersAsync(id, cancellationToken: ct).ConfigureAwait(false);
+                return offers.Listings.Count == 0 ? null : offers.Listings.Min(l => l.UnitPrice);
+            },
+            priceLookups);
+
+    /// <summary>
+    /// The value ranking for the preview: the pockets last read from the pocket page (no KoL page is opened; unknown before the
+    /// first run), prices from the cache, Pricegun (up to <paramref name="priceLookups"/>) and the mall for the top candidates.
+    /// </summary>
+    public static Task<CargoRanking> RankCargoAsync(KolibriSession session, DailyRunOptions? options = null, int? priceLookups = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        var dir = options?.StateDirectory;
+        var available = CargoPocketState.Load(StateFile(dir, PocketStateFile), session.Account.Id.Value);
+        return CargoPocketValue.RankAsync(available,
+            PriceBook(session, dir, priceLookups ?? options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups), cancellationToken);
     }
 
     private static bool Has(string? body, string text) => body?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
@@ -310,6 +409,8 @@ public sealed record DailyItemNote(string Step, string Text);
 
 internal sealed record DailyItemOutcome(bool Confirmed, bool Already, string Message)
 {
+    public IReadOnlyList<string> Gains { get; init; } = Array.Empty<string>();
+
     public static DailyItemOutcome Done(string message) => new(true, false, message);
     public static DailyItemOutcome AlreadyDone(string message) => new(false, true, message);
     public static DailyItemOutcome Fail(string message) => new(false, false, message);
@@ -360,7 +461,8 @@ public static class CargoPockets
     {
         var p = pocket.ToString(CultureInfo.InvariantCulture);
         if (FightPockets.TryGetValue(pocket, out var monster)) return $"{p} (Kampf: {monster})";
-        return Known.TryGetValue(pocket, out var spoiler) ? $"{p} ({spoiler})" : $"{p} (Inhalt siehe Wiki)";
+        if (Known.TryGetValue(pocket, out var spoiler)) return $"{p} ({spoiler})";
+        return CargoPocketValue.Pocket(pocket) is { } data ? $"{p} ({data.Content})" : $"{p} (Inhalt siehe Wiki)";
     }
 
     public static string SuggestionText(int count = 6)
@@ -403,4 +505,24 @@ public static class CargoPockets
     internal static bool StillInChoice(string? html)
         => !string.IsNullOrEmpty(html)
            && Regex.IsMatch(html, "name=[\"']?whichchoice[\"']?\\s+value=[\"']?1420\\b", RegexOptions.IgnoreCase);
+}
+
+/// <summary>What a KoL answer page says was gained: items ("You acquire"), Meat ("You gain N Meat") and effects.</summary>
+public static class DailyGains
+{
+    private static readonly Regex OneItem = new(@"You acquire an item:\s*<b>([^<]+)</b>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ManyItems = new(@"You acquire\s*<b>([0-9][0-9,]*)\s+([^<]+)</b>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Effect = new(@"You acquire an effect:\s*<b>([^<]+)</b>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Meat = new(@"You gain\s+([0-9][0-9,]*)\s+Meat", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public static IReadOnlyList<string> Parse(string? html)
+    {
+        if (string.IsNullOrEmpty(html)) return Array.Empty<string>();
+        var gains = new List<string>();
+        foreach (Match m in OneItem.Matches(html)) gains.Add(System.Net.WebUtility.HtmlDecode(m.Groups[1].Value.Trim()));
+        foreach (Match m in ManyItems.Matches(html)) gains.Add($"{m.Groups[1].Value.Replace(",", "")}× {System.Net.WebUtility.HtmlDecode(m.Groups[2].Value.Trim())}");
+        foreach (Match m in Effect.Matches(html)) gains.Add("Effekt: " + System.Net.WebUtility.HtmlDecode(m.Groups[1].Value.Trim()));
+        foreach (Match m in Meat.Matches(html)) gains.Add($"{m.Groups[1].Value.Replace(",", "")} Meat");
+        return gains;
+    }
 }

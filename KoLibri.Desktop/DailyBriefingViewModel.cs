@@ -127,6 +127,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
                 "3 free pulls (egg, internet bacon, BACON machine)",
                 "open"));
             foreach (var row in ItemRows(live.Run, _settings())) Rows.Add(row);
+            foreach (var row in await CargoTopRowsAsync(session!, live.Run, cancellationToken)) Rows.Add(row);
             if (ExperimentalFeatures.IsEnabled(_settings()))
                 Rows.Add(BuildRow("Arbitrage", "Restock clovers",
                     "buy 11-leaf clovers below the price ceiling",
@@ -194,6 +195,40 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         if (run.HasFancyChessSet)
             yield return BuildRow("Chess set", "Play one game (opt-in)", Note("chess"),
                 State(run.FancyChessDoneToday, global::KoLibri.Daily.DailyItems.StepIds.FancyChess));
+    }
+
+    /// <summary>Pricegun lookups while loading the tab (the run itself may do more); cached prices of the KoL day are free.</summary>
+    internal const int BriefingPriceLookups = 10;
+
+    private async Task<IReadOnlyList<DailyBriefingRow>> CargoTopRowsAsync(KolibriSession session, global::KoLibri.Daily.DailyRunLive run, CancellationToken ct)
+    {
+        var options = DesktopDailyItems.Options(_settings());
+        if (!run.HasCargoShorts || run.CargoPocketDoneToday || global::KoLibri.Daily.DailyItems.CargoModeOf(options) != global::KoLibri.Daily.CargoPocketMode.Auto)
+            return Array.Empty<DailyBriefingRow>();
+        try
+        {
+            var ranking = await global::KoLibri.Daily.DailyItems.RankCargoAsync(session, options, BriefingPriceLookups, ct);
+            return CargoRows(ranking).ToArray();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new[] { BuildRow("Cargo (Wert)", "Ranking not available", exception.Message, "skipped") };
+        }
+    }
+
+    /// <summary>The top pockets by value (same list as the CLI preview); the chosen one is marked.</summary>
+    internal static IEnumerable<DailyBriefingRow> CargoRows(global::KoLibri.Daily.CargoRanking ranking)
+    {
+        var rank = 0;
+        foreach (var c in ranking.Top)
+        {
+            rank++;
+            var unit = c.UnitPrice is { } u ? $"{c.Quantity} × {u:N0}" : $"{c.Quantity} Stück";
+            yield return BuildRow($"Cargo #{rank}", $"Tasche {c.Pocket}: {c.Content}", $"{unit} = {c.Value:N0} Meat ({c.Source})",
+                ranking.Chosen?.Pocket == c.Pocket ? "chosen" : "candidate");
+        }
+        if (ranking.Note is { } note)
+            yield return BuildRow("Cargo (Wert)", "Hinweis", note, "open");
     }
 
     private static DailyBriefingRow BuildRow(string surface, string description, string detail, string state)
