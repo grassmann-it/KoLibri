@@ -4,6 +4,8 @@ using Xunit;
 
 namespace KoLibri.Tests.Desktop;
 
+using CombatOption = KoLibri.Desktop.CombatOption;
+
 /// <summary>
 /// The auto-combat configurator is the screen that replaces KoLmafia's dozen clicks with one panel. The tests pin the
 /// configuration contract (a target, at least one skill, the abort rules) and the plan it hands to KoLibri.

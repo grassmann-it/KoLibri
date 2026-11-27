@@ -28,16 +28,16 @@ internal static partial class KolibriCli
             case "routine" or "go" or "daily-go" or "bridge" or "daily-bridge" or "breakfast":
                 return await DailyAliasAsync(sub, null, rest);
             case "bribes-sample":
-                return Removed(sub, "The foreign-bribe path is gone in 0.5.");
+                return DailyRemoved(sub, "The foreign-bribe path is gone in 0.5.");
             case "send-items":
-                return Removed(sub, "There are no transfer commands in the 0.5 CLI.");
+                return DailyRemoved(sub, "There are no transfer commands in the 0.5 CLI.");
             case "item-arbitrage":
-                return Removed(sub, "Use 'arbitrage plan' instead.");
+                return DailyRemoved(sub, "Use 'arbitrage plan' instead.");
             default: return Fail($"Unknown daily command: {args[0]}");
         }
     }
 
-    private static int Removed(string sub, string hint)
+    private static int DailyRemoved(string sub, string hint)
     {
         Console.Error.WriteLine($"'daily {sub}' was removed in 0.5. {hint} Nothing was sent.");
         return 2;
