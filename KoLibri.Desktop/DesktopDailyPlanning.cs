@@ -126,7 +126,7 @@ public sealed record AdventurePlannerOptions
         };
 }
 
-public sealed record AdventureStep(
+public sealed record DailyAdventureStep(
     int Sequence,
     AdventureActionKind Action,
     int Quantity,
@@ -142,7 +142,7 @@ public sealed record DailyAdventurePlan
     public required int TargetKnucklebones { get; init; }
     public required int StartingKnucklebones { get; init; }
     public required decimal ProjectedKnucklebones { get; init; }
-    public required IReadOnlyList<AdventureStep> Steps { get; init; }
+    public required IReadOnlyList<DailyAdventureStep> Steps { get; init; }
     public required IReadOnlyList<string> Advisories { get; init; }
 
     public decimal RemainingToTarget => Math.Max(0m, TargetKnucklebones - ProjectedKnucklebones);
@@ -171,14 +171,14 @@ public sealed class DailyAdventurePlanner
                 TargetKnucklebones = settings.DailyKnucklebonesTarget,
                 StartingKnucklebones = state.Knucklebones,
                 ProjectedKnucklebones = state.Knucklebones,
-                Steps = Array.Empty<AdventureStep>(),
+                Steps = Array.Empty<DailyAdventureStep>(),
                 Advisories = new[] { "Account status or inventory is stale; refresh before planning or running adventures." }
             };
         }
         var target = settings.DailyKnucklebonesTarget;
         var projected = (decimal)state.Knucklebones;
         var availableTurns = state.AdventureTurnsRemaining;
-        var steps = new List<AdventureStep>();
+        var steps = new List<DailyAdventureStep>();
         var advisories = new List<string>();
         var eggQuantity = Math.Min(state.LuckySurpriseEggs, settings.MaxLuckySurpriseEggsPerPlan);
 
@@ -189,7 +189,7 @@ public sealed class DailyAdventurePlanner
         if (shouldConsumeEggs)
         {
             var eggDelta = SafeProduct(eggQuantity, settings.ExpectedKnucklebonesPerLuckySurpriseEgg);
-            steps.Add(new AdventureStep(
+            steps.Add(new DailyAdventureStep(
                 Sequence: steps.Count + 1,
                 Action: AdventureActionKind.ConsumeLuckySurpriseEggs,
                 Quantity: eggQuantity,
@@ -222,7 +222,7 @@ public sealed class DailyAdventurePlanner
                 var reason = state.SkeletonOfCrimbosPastAvailable
                     ? "Use Skeleton of Crimbos Past while it is available to pursue the daily target."
                     : "Run the configured adventure until the daily target or turn budget is reached.";
-                steps.Add(new AdventureStep(
+                steps.Add(new DailyAdventureStep(
                     Sequence: steps.Count + 1,
                     Action: action,
                     Quantity: runs,

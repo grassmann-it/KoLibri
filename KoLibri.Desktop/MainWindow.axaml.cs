@@ -182,7 +182,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         _inventoryCategoryStrip = this.FindControl<StackPanel>("InventoryCategoryStrip");
         _inventoryDetailPanel = this.FindControl<StackPanel>("InventoryDetailPanel");
         if (this.FindControl<ComboBox>("CharacterSlotPicker") is { } slotPicker)
-            slotPicker.ItemsSource = Enum.GetValues<CharacterEquipmentSlot>();
+            slotPicker.ItemsSource = CharacterSlotChoices;
         _navInventory = this.FindControl<Button>("NavInventory");
         _navDaily = this.FindControl<Button>("NavDaily");
         _navMall = this.FindControl<Button>("NavMall");
@@ -620,14 +620,14 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             .Sum(item => item.Quantity);
         _adventureTurnsLabel.Text = status.Adventures.ToString("N0");
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / {(int)_settings.Get("dailyKnucklebonesTarget"):N0}";
-        var state = new KoLibri.Core.Spiel.AdventureState
+        var state = new AdventureState
         {
             IsStale = inventory.IsStale,
             Knucklebones = Math.Max(0, knucklebones),
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
         };
-        var plan = new KoLibri.Core.Spiel.DailyAdventurePlanner().Plan(
+        var plan = new DailyAdventurePlanner().Plan(
             state, DailyStepBoard.KolToday(), DailyStepBoard.PlannerOptions(_settings));
         _adventurePlanSummary.Text = $"{plan.Status}: {plan.Steps.Count} step(s), projected {plan.ProjectedKnucklebones:N1} knucklebones.";
         _adventurePlanAdvisories.Text = plan.Advisories.Count == 0
