@@ -240,6 +240,8 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
     {
         if (string.IsNullOrEmpty(html)) return null;
         const RegexOptions o = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline;
+        // Script/style/comment bodies are not page content (KoL puts <script> blocks before the title).
+        html = Regex.Replace(html, @"<script\b.*?</script\s*>|<style\b.*?</style\s*>|<!--.*?-->", " ", o);
         var m = Regex.Match(html, @"<td[^>]*bgcolor=['""]?blue['""]?[^>]*>.*?<b>(.*?)</b>", o);
         if (!m.Success) m = Regex.Match(html, @"<b>(.*?)</b>", o);
         if (!m.Success) return null;
