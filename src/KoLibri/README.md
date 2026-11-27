@@ -2,9 +2,10 @@
 
 **Kingdom of Loathing client library for .NET 8** — one package, one namespace: `using KoLibri;`.
 
-> **0.5.0-dev.** The API is the one agreed in [docs/lib-api-0.5.md](../../docs/lib-api-0.5.md) and is locked by
-> `PublicAPI.Unshipped.txt` (PublicApiAnalyzers). Not on NuGet yet. During the transition the game logic still
-> lives in `KoLibri.Core`; it is a private dependency, so only the types below are visible to you.
+> **0.5.0 (early alpha).** The API is the one agreed in [docs/lib-api-0.5.md](../../docs/lib-api-0.5.md) and is locked by
+> `PublicAPI.Unshipped.txt` (PublicApiAnalyzers); expect changes before 1.0. `KoLibri` is a slim library: it talks to
+> the game and nothing else. Arbitrage, CRM, daily routines and the like are not part of it; you write those yourself
+> (see "Write your own tool").
 
 ## Minimal example
 
@@ -56,12 +57,23 @@ from the API.
 | `KolibriEvents` | `Request` (redacted path), `Encounter`, `FightEnded`, `ItemAcquired`, `StatusChanged`, `HandlerFailed` |
 | `IActionGuard` | the only policy hook; grants, budgets, approval tokens and audit are in the optional package `KoLibri.Safety` |
 
+`session.Daily` is only the once-per-day marker store ("did I already do X today?"). The routines themselves (campfire,
+hermit, meme shop, ...) are not in this package; you build them from the facets above.
+
+## Write your own tool
+
+Everything the typed facets do not cover goes through `session.GetPageAsync`, `PostAsync` and `GetApiAsync`. They use
+the same host allowlist, limiter, redaction and guard as the facets, so a custom tool is as safe as the built-in ones.
+Combine them with `KolibriEvents` to log or react to encounters and item gains. The repository's `tools/` folder (CLI,
+MCP server) is a larger example of an app built on this package.
+
 ## Safety defaults
 
 - Every request goes through the KoL host allowlist and the limiter (actions serial, at least 1 s apart; default 2 s).
 - Requests that change the account are never repeated automatically. A login page on a read triggers one
   reconnect with the stored password; on an action it ends the call with `SessionExpiredException`.
 - Unclear outcomes stay unclear: `ActionStatus.Unclear`, `PurchaseStatus.Unclear`, `MailSendStatus.Unclear`.
+- Optional: `KoLibri.Safety` adds grants, daily budgets and an audit journal on top of `IActionGuard`. Plug it in when an AI or a script other than you drives the library.
 - Combat macros exist only as an `[Experimental("KOLIBRI0001")]` type and are refused in 0.5.
 
 ## Offline tests

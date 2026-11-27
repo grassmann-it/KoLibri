@@ -4,7 +4,7 @@
 
 - **You** (CLI, Desktop) act directly. No tokens, no budgets.
 - **An AI client** (MCP) gets only what you approve in the browser, with limits.
-- One enforcement point (`LibKolibri.Access.AccessGate`) checks every tool call. Tools without an
+- One enforcement point (`AccessGate` in the `KoLibri.Safety` package, internal) checks every tool call. Tools without an
   assigned right are closed over HTTP.
 
 ## Tool surface (core by default)
@@ -18,7 +18,7 @@ A default `kolibri-mcp` registers only the core tools for playing by hand. Pinne
 | Use / eat / drink, rest | `kol_use_item`, `kol_consume`, `kol_rest` | `item.use` (`kol_rest` also `adventure`) |
 | Mall search and buy | `kol_price_summary`, `kol_mall_buy` | `market.read`, `mall.buy` |
 | KMail | `kol_send_message` | `message.send` |
-| Daily audit / run | `kol_daily_audit`, `kol_run_daily_bridge` (preview), `kol_meme_shop` | `account.read`, `daily.run` (+ `mall.buy` for a BACON top-up) |
+| Daily audit / run | `kol_daily_audit`, `kol_run_daily_bridge` (preview), `kol_meme_shop` | `account.read`; `kol_meme_shop`: `daily.run` (+ `mall.buy` for a BACON top-up) |
 
 **Experimental** tools are registered only with `kolibri-mcp --experimental` or `KOLIBRI_EXPERIMENTAL=1`:
 arbitrage (`kol_arbitrage_plan`, `kol_underprice_preview`, `kol_price_recommendation`), bribes and daily planners
@@ -34,6 +34,8 @@ consent page offers only rights that a registered tool uses. By default `shop.re
 `transfer.meat` and `transfer.items` are therefore not shown, and the server drops them from a submitted form.
 The flag only adds tools: grants, limits, the usage ledger and the two-step plan/execute flow apply to experimental
 tools exactly as to core tools.
+
+`kolibri-mcp --stdio` serves read tools only and refuses every write; grants and limits apply to the HTTP server.
 
 ## Connecting
 
@@ -92,7 +94,7 @@ sends a KMail (optionally with an item and spending points) to a key from the le
 Only with `--experimental` / `KOLIBRI_EXPERIMENTAL=1`. `kol_arbitrage_plan` (right `market.read`, read-only) plans buying an item below its resale price from live Mall
 offers: per shop quantity and total, the daily limit of each shop, budget, meat reserve and the reason for every
 skipped offer. It reads only market data and the granted account's own shop price; it does not read the account's
-meat (that needs `account.status`), so pass `availableMeat` if the reserve should limit the plan.
+meat (that needs `account.read`), so pass `availableMeat` if the reserve should limit the plan.
 
 There is no separate buy tool. An AI runs the plan step by step with `kol_mall_buy` (right `mall.buy`, with its
 grant, price limit and budget): for each step of `plan.steps` call `kol_mall_buy` with `itemId`, `itemName`,
@@ -114,7 +116,6 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
   `~/.local/share/KoLibri`.
 - The confirmation code and `/dev/tty` prompt stop AIs that only have a command channel or a browser tool. An
   AI that controls your terminal could also see the code.
-- Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
 - Write tools over MCP (core): `kol_mall_buy` (`mall.buy`), `kol_meme_shop` (`daily.run`),
   `kol_send_message` (`message.send`, any KoL player, text shown in the preview), `kol_use_item` (`item.use`),
   `kol_consume` (`item.use`, eat/drink/spleen), `kol_rest` (`item.use`, plus the `adventure` right because a rest that is not free costs adventures; both are reserved for the worst case),
@@ -127,10 +128,9 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - `cast` and `relay` are CLI commands only; there is no MCP tool for them.
 - BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
-  Since 0.5 every tool call opens a fresh session from the stored account (same store as the CLI), so a login,
+  Every tool call opens a fresh session from the stored account (same store as the CLI), so a login,
   logout or renewal done in the CLI is used at once; no restart of `kolibri-mcp` is needed.
-- `kol_plan_daily_adventures_execute` is not offered over HTTP. In 0.5-dev it (and a few experimental preview tools)
-  answers "not available in 0.5-dev, moves in a follow-up PR, nothing was sent"; see docs/lib-api-0.5.md §13.
+- Some experimental planners (for example `kol_plan_daily_adventures`, `kol_autocombat_preview`, `kol_recovery_plan`) are registered but answer with a tool error saying they are not available yet; nothing is sent. `kol_plan_daily_adventures_execute`, `kol_login_clear` and `kol_login_refresh` are never offered over HTTP.
 - Verified against a real KoL session on 21 Nov 2026: reading status, `kol_mall_buy` (1 BACON, 145 meat) and
   `kol_transfer` (Mallbot to Main), each booked in the usage ledger after KoL confirmed it. The other write tools
   are covered by tests with a fake account and fixture transport only.
@@ -138,7 +138,7 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 ## Open choice adventures
 
 While a choice adventure is open KoL redirects every page to `choice.php`, so a run that stops on a choice must
-never leave it unreported. `kol_choice_pending` (read only, needs `account.status` on the role) says whether a
+never leave it unreported. `kol_choice_pending` (read only, needs `account.read` on the role) says whether a
 choice or fight is open and returns the choice id, title and visible options. `kol_adventure_run_execute` and
 `kol_choice_chain_execute` return `needsDecision` (run id, choice id, title, options, reason) with stop reason
 `NeedsDecision` when no default answers the choice. **AI clients must show these options to the user and ask which

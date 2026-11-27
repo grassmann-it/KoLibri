@@ -7,7 +7,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>kolibri</ToolCommandName>
     <PackageId>KoLibri.Cli</PackageId>
-    <Description>Command line for Kingdom of Loathing: login, account reads, mall, daily routine, adventures. Preview by default; writes need --execute.</Description>
+    <Description>Command line for Kingdom of Loathing: login, account reads, mall, daily routine, adventures, choices, consume, cast and rest. Preview by default; writes need --execute.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>

@@ -1,58 +1,63 @@
-# MCP interface (read-only by default)
+# MCP interface
 
-KoLibri can be exposed through a small MCP server without giving a model direct access to credentials or arbitrary HTTP. The server should construct the existing `IAccountReadClient` and `PricingEngine` behind a fixed tool allowlist.
+`kolibri-mcp` lets an AI client use a Kingdom of Loathing account through a fixed tool allowlist, without ever seeing
+credentials or being able to send arbitrary HTTP. It is built on the `KoLibri` library: every tool call opens a fresh
+session from the stored account (the same account store as the CLI), so a login, logout or renewal done in the CLI is
+used at once. Access control lives in `KoLibri.Safety`; see [mcp-access.md](mcp-access.md) for rights, grants, limits
+and the consent flow.
+
+Two ways to run it:
+
+- `kolibri-mcp` (HTTP, `127.0.0.1:8765/mcp`): OAuth consent in your browser, grants with daily limits. Read and write tools.
+- `kolibri-mcp --stdio`: **read-only**. Tools that would change the account are refused over stdio.
 
 ## Tools
 
-All tools return JSON objects and include `fetchedAt` and `isStale` where the underlying model exposes them. Errors are returned as MCP tool errors; do not include cookies, passwords, session tokens, or raw HTTP responses.
+All tools return JSON objects. Errors are returned as MCP tool errors; they never include cookies, passwords, session
+tokens or raw HTTP responses. Reads fail with a tool error when the game cannot be reached (there is no stale copy).
 
-The default server registers only the core (status, inventory, adventure/fight/choice, item use, eat/drink,
-rest, mall search and buy, KMail, daily audit/run). The full list, the rights per tool and the experimental set are
-in [mcp-access.md](mcp-access.md#tool-surface-core-by-default); `McpToolSurfaceTests` pins the default list.
-Arbitrage, bribes, CRM, reprice and analytics are registered only with `kolibri-mcp --experimental` or
-`KOLIBRI_EXPERIMENTAL=1`; unregistered tools are absent from `tools/list` and their rights from the consent page.
+The default server registers 19 core tools for playing by hand (status, inventory, adventure/fight/choice, item use,
+eat/drink, rest, mall search and buy, KMail, daily audit/run). The full list with the right each tool needs is in
+[mcp-access.md](mcp-access.md#tool-surface-core-by-default); `McpToolSurfaceTests` pins it. Arbitrage, CRM, reprice,
+transfers and the planners are registered only with `kolibri-mcp --experimental` or `KOLIBRI_EXPERIMENTAL=1`;
+unregistered tools are absent from `tools/list`, cannot be called, and their rights are not offered on the consent page.
 
-| Tool | Input | Purpose | Side effects |
+| Tool | Main input | Purpose | Side effects |
 | --- | --- | --- | --- |
-| `kol_status` | `{ "forceRefresh": false, "role": "Main" }` | Fetch the current KoL status (`name`, adventures, meat, level). | Read-only HTTPS request; cached and rate-limited. |
-| `kol_inventory` | `{ "forceRefresh": false, "role": "Main" }` | Fetch inventory item IDs, names and quantities. | Read-only HTTPS request; cached and rate-limited. |
-| `kol_price_summary` | `{ "itemId": "...", "forceRefresh": false, "role": "Mallbot" }` | Mall search: lowest buy/sell and weighted median prices. | Read-only provider request; cached. |
-| `kol_mall_buy` | `{ "itemId": 1, "itemName": "...", "quantity": 1, "maxPricePerUnit": 100 }` | Buy under a price ceiling. | Two-step: preview with `planId`, then execute once. |
-| `kol_adventure_run_execute` | `{ "locationId": "...", "execute": true }` | Start or continue a bounded adventure run (fight actions via `fightActions`). | Two-step; books `adventure`. |
-| `kol_choice_pending` / `kol_choice_chain_execute` | `{ "role": "Main" }` | Show an open choice / submit an allowlisted option. | Read / two-step. |
-| `kol_arbitrage_plan` (experimental) | `{ "itemId": 10881, "budget": 2000000, "marginPercent": 10 }` | Plan buying an item below its resale price from live Mall offers (read-only). | Buys nothing; run the steps with `kol_mall_buy`. |
+| `kol_status`, `kol_inventory` | `role`, `forceRefresh` | Status (name, adventures, meat, level, organs) and inventory. | Read-only, rate-limited. |
+| `kol_login_status` | | Stored accounts the grant covers. | Read-only. |
+| `kol_price_summary` | `itemId`, `forceRefresh`, `role` | Mall search: lowest sell price and weighted median. | Read-only. |
+| `kol_mall_buy` | `itemId`, `itemName`, `quantity`, `maxPricePerUnit`, `planId` | Buy under a price ceiling. | Two-step: preview with `planId`, then execute once. Books `mall.buy`. |
+| `kol_adventure_locations`, `kol_combat_inspect`, `kol_combat_decision`, `kol_choice_pending`, `kol_choice_options` | `role`, `locationId` | Look at locations, the open fight or choice and its legal options. | Read-only. |
+| `kol_adventure_run_execute` | `locationId`, `execute`, `planId`, `maxTurns`, `maxGatewaySteps`, `maxDurationSeconds`, `fightActions`, `choiceActions`, `conditions`, `snarfblat`, `role` | Run a bounded adventure (one location, fights by `fightActions`, choices by `choiceActions`). | Two-step. Books `adventure` by the largest of `maxTurns` / `maxGatewaySteps`. |
+| `kol_choice_chain_execute` | `runId`, `choiceActions`, `maxChoices`, `execute`, `planId`, `role` | Answer the open choice(s) with an allowlisted option. | Two-step. Books `adventure`. |
+| `kol_use_item`, `kol_consume`, `kol_rest` | item / kind / times, `execute`, `planId` | Use an item; eat, drink or chew; rest. | Two-step. Book `item.use` (`kol_rest` also `adventure`). |
+| `kol_send_message` | recipient, text, `planId` | KMail to any KoL player; the text is shown in the preview. | Two-step. Books `message.send`. |
+| `kol_daily_audit`, `kol_run_daily_bridge` | `role` | Read the daily audit log; preview the daily bridge. | Read-only (`kol_run_daily_bridge` refuses `execute=true`). |
+| `kol_meme_shop` | `planId` | Meme-shop step of the daily routine (BACON top-up needs `mall.buy`). | Two-step. Books `daily.run`. |
 
-`role` is optional on read tools and selects the configured `Main` or
-`Mallbot` runtime scope. The MCP request never contains a cookie, password or
-session token; the host loads encrypted credentials from the account store and
-binds them to each role's read clients before serving requests.
+`role` is optional and selects the stored `Main` or `Mallbot` account; a grant for one account does not cover the other.
+The request never contains a cookie, password or session token.
 
-## Approval protocol for future mutations
+## Two-step writes
 
-A mutating tool (for example, `kol_purchase`, `kol_sell`, or `kol_transfer`) must not be implemented as a direct wrapper around an HTTP route. It should use a two-step protocol:
+Every tool that changes the account follows the same flow, enforced server-side by the access gate:
 
-1. `kol_preview_*` validates the request against a fresh status snapshot and `AutomationPolicy`, then returns a review object:
+1. The AI calls the tool with the arguments it wants and `execute=true` (or the tool's own confirm flag). With a grant
+   that allows it, the server checks the right, the account, the limits and the daily budget, sends nothing, and returns
+   a preview plus a single-use `planId`.
+2. The AI shows the preview to you. If you agree it calls again with **the same arguments plus `planId`**. The server
+   re-checks everything against the live state and runs the action once.
+3. The usage (adventures, meat, count) is held while the action runs and booked in the usage ledger only when KoL
+   confirmed it. An unclear result keeps the budget held; it is never repeated automatically.
 
-```json
-{
-  "actionId": "uuid",
-  "kind": "purchase",
-  "account": "Mallbot",
-  "itemId": "1234",
-  "quantity": 2,
-  "unitPrice": 1000,
-  "estimatedMeat": 2000,
-  "dryRun": true,
-  "requiresApproval": true,
-  "expiresAt": "2026-11-16T12:00:00Z",
-  "warnings": []
-}
-```
-
-2. The caller presents that object to a human. A future `kol_commit_action` accepts only the opaque `actionId` plus a short-lived `approvalToken` issued by the host. The server re-fetches status/prices, revalidates all limits, and rejects stale or changed previews. `AutomationPolicy.DryRun` and the per-action approval flags remain enforced server-side; a model cannot override them through tool arguments.
-
-The commit response should include an audit record (`actionId`, actor, account, item, quantity, price, committedAt, policy snapshot, and result) and must never include credentials. If any check fails, return a structured refusal with the failed policy names and leave the account untouched.
+A changed argument, an expired or used `planId`, a missing right, an exhausted budget or a revoked grant ends in a
+structured refusal with a stable code (`PlanInvalid`, `RightNotGranted`, `BudgetExhausted`, `PriceAboveLimit`,
+`BelowMeatReserve`, `Expired`, `Revoked`, ...) and leaves the account untouched. Over stdio, writes are refused.
+`approvalToken` is only needed for a host without an access gate. Details and the full list of rights and limits:
+[mcp-access.md](mcp-access.md).
 
 ## Transport and host boundary
 
-Use MCP stdio or a loopback transport. Keep the process in the same trust boundary as the encrypted account store, pass account selection by profile name, and load secrets through `FileSecretStore`/`AccountSessionManager`. Never accept a cookie, password, arbitrary URL, or route name from tool input. The host should set request and execution timeouts and redact exception messages before returning them to the model.
+HTTP binds to loopback only. Keep the process in the same trust boundary as the encrypted account store. Never accept a
+cookie, password, arbitrary URL or route name from tool input. Exception messages are redacted before they reach the model.
