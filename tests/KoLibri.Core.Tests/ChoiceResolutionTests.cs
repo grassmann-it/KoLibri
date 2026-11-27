@@ -5,6 +5,7 @@ using KoLibri.Core.Spiel;
 
 namespace KoLibri.Core.Tests;
 
+[Collection(ConsoleCollection.Name)] // runs the CLI, which writes to Console.Out
 public sealed class ChoiceResolutionTests
 {
     // KoLmafia's bundled data (external/kolmafia-data) has no choice-adventure table, so the Turtle

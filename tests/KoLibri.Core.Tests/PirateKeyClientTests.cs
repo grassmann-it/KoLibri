@@ -7,6 +7,7 @@ using KoLibri.Core.Spiel;
 
 namespace KoLibri.Core.Tests;
 
+[Collection(ConsoleCollection.Name)] // runs the CLI, which writes to Console.Out
 public sealed class PirateKeyClientTests
 {
     private static readonly string FixtureDir = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Html", "PirateKeys");

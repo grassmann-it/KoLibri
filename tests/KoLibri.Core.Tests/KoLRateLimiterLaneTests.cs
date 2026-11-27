@@ -41,6 +41,10 @@ public sealed class KoLRateLimiterLaneTests
             ReadConcurrency = concurrency, MaxPerSecond = perSecond,
         }, clock);
 
+    /// <summary>Upper bound for something that must complete without the clock moving. Checking IsCompleted after
+    /// <see cref="Settle"/> alone fails on a loaded CI machine where the continuation has not run yet.</summary>
+    private static readonly TimeSpan Due = TimeSpan.FromSeconds(10);
+
     private static async Task Settle() { for (var i = 0; i < 20; i++) await Task.Yield(); await Task.Delay(20); }
 
     [Theory]
@@ -72,11 +76,9 @@ public sealed class KoLRateLimiterLaneTests
         await Settle();
         Assert.False(second.IsCompleted);
         var read = limiter.AcquireAsync(KoLRequestLane.Read);                   // t=0, free
-        await Settle();
-        Assert.True(read.IsCompletedSuccessfully);
+        await read.WaitAsync(Due);
         clock.Advance(TimeSpan.FromSeconds(2));
-        await Settle();
-        Assert.True(second.IsCompletedSuccessfully);
+        await second.WaitAsync(Due);
     }
 
     [Fact]
@@ -90,8 +92,7 @@ public sealed class KoLRateLimiterLaneTests
         await Settle();
         Assert.False(next.IsCompleted);            // still in flight, lane held
         running.Dispose();
-        await Settle();
-        Assert.True(next.IsCompletedSuccessfully);
+        await next.WaitAsync(Due);
     }
 
     [Fact]
@@ -105,13 +106,11 @@ public sealed class KoLRateLimiterLaneTests
         await Settle();
         Assert.False(b.IsCompleted);
         clock.Advance(TimeSpan.FromSeconds(1));
-        await Settle();
-        Assert.True(b.IsCompletedSuccessfully);
+        await b.WaitAsync(Due);
         Assert.False(c.IsCompleted);
         a.Dispose();
         clock.Advance(TimeSpan.FromSeconds(1));
-        await Settle();
-        Assert.True(c.IsCompletedSuccessfully);
+        await c.WaitAsync(Due);
     }
 
     [Fact]
@@ -182,8 +181,7 @@ public sealed class KoLRateLimiterLaneTests
         var adventure = http.GetAsync("https://kol.test/adventure.php");
         await Settle();
         var charpane = http.GetAsync("https://kol.test/charpane.php");
-        await Settle();
-        Assert.True(charpane.IsCompletedSuccessfully);
+        await charpane.WaitAsync(Due);
         Assert.False(adventure.IsCompleted);
         release.SetResult();
         await adventure.WaitAsync(TimeSpan.FromSeconds(5));
