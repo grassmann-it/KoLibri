@@ -138,7 +138,7 @@ public sealed class ChoiceDefaultTable
             var spoilers = Spoilers(entry);
             return Ask(context, spoilers.Length == 0
                 ? reason
-                : $"{reason} Optionen{NamePart(entry)} laut {entry.Source}: {spoilers}"
+                : $"{reason} Optionen{NamePart(entry)} laut {entry.Source}: {spoilers}."
                     + (IsTurtle(context) ? "" : $" Festlegen mit --choice-action {id}:<N>."));
         }
 
