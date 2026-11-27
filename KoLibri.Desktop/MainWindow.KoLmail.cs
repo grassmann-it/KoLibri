@@ -11,13 +11,13 @@ namespace KoLibri.Desktop;
 public partial class MainWindow
 {
     private async void ReadKoLmailInboxClick(object? sender, RoutedEventArgs e)
-        => await ReadKoLmailPageAsync(KoLMailFolder.Inbox, 1);
+        => await ReadKoLmailPageAsync(MailFolder.Inbox, 1);
 
     private async void ReadKoLmailSavedClick(object? sender, RoutedEventArgs e)
-        => await ReadKoLmailPageAsync(KoLMailFolder.Saved, 1);
+        => await ReadKoLmailPageAsync(MailFolder.Saved, 1);
 
     private async void ReadKoLmailOutboxClick(object? sender, RoutedEventArgs e)
-        => await ReadKoLmailPageAsync(KoLMailFolder.Outbox, 1);
+        => await ReadKoLmailPageAsync(MailFolder.Outbox, 1);
 
     private async void PreviousKoLmailPageClick(object? sender, RoutedEventArgs e)
         => await ReadKoLmailPageAsync(_koLmailFolder, _koLmailPage - 1);
@@ -25,7 +25,7 @@ public partial class MainWindow
     private async void NextKoLmailPageClick(object? sender, RoutedEventArgs e)
         => await ReadKoLmailPageAsync(_koLmailFolder, _koLmailPage + 1);
 
-    private async Task ReadKoLmailPageAsync(KoLMailFolder folder, int page)
+    private async Task ReadKoLmailPageAsync(MailFolder folder, int page)
     {
         var role = _selectedRole;
         var current = _accountToken;
@@ -43,26 +43,26 @@ public partial class MainWindow
         });
     }
 
-    private void ShowKoLmailPage(KoLMailFolder folder, KoLMailboxSnapshot inbox)
+    private void ShowKoLmailPage(MailFolder folder, MailPage inbox)
     {
         _koLmailFolder = folder;
         SetKoLmailDeleteConfirmation(false);
-        SetKoLmailNavigation(inbox.Page, inbox.Recognized && inbox.HasNextPage);
+        SetKoLmailNavigation(inbox.Page, inbox.PageCount > inbox.Page);
+        var entries = inbox.Entries.Select(entry => KoLMailEntry.From(entry, folder)).ToArray();
         if (this.FindControl<ListBox>("KoLmailInboxRows") is { } rows)
         {
-            rows.ItemsSource = inbox.Entries;
+            rows.ItemsSource = entries;
             rows.SelectedIndex = -1;
         }
         if (this.FindControl<TextBlock>("KoLmailInboxStatus") is { } status)
-            status.Text = !inbox.Recognized ? "KoLmail response could not be read."
-                : inbox.Entries.Count == 0 ? $"{folder} is empty."
-                : $"{(folder == KoLMailFolder.Inbox ? "" : $"{folder} · ")}Page {inbox.Page} · {inbox.Entries.Count} messages.";
+            status.Text = entries.Length == 0 ? $"{folder} is empty."
+                : $"{(folder == MailFolder.Inbox ? "" : $"{folder} · ")}Page {inbox.Page} · {entries.Length} messages.";
     }
 
     private async void SaveKoLmailClick(object? sender, RoutedEventArgs e)
     {
         var status = this.FindControl<TextBlock>("KoLmailInboxStatus")!;
-        if (_koLmailFolder != KoLMailFolder.Inbox
+        if (_koLmailFolder != MailFolder.Inbox
             || this.FindControl<ListBox>("KoLmailInboxRows")?.SelectedItem is not KoLMailEntry message)
         {
             status.Text = "Select a message from the inbox to save it.";
@@ -74,10 +74,10 @@ public partial class MainWindow
         await RunBusyOperationAsync("Saving KoLmail", async token =>
         {
             await _live.SaveInboxMessageAsync(role, message.Id, token);
-            var saved = await _live.ReadMailboxPageAsync(role, KoLMailFolder.Saved, 1, token);
+            var saved = await _live.ReadMailboxPageAsync(role, MailFolder.Saved, 1, token);
             if (role != _selectedRole || !ReferenceEquals(current, _accountToken)) return;
-            if (saved is not null && saved.Recognized && saved.Entries.Any(entry => entry.Id == message.Id))
-                ShowKoLmailPage(KoLMailFolder.Saved, saved);
+            if (saved is not null && saved.Entries.Any(entry => entry.Id == message.Id))
+                ShowKoLmailPage(MailFolder.Saved, saved);
             else
                 status.Text = "Save was unconfirmed. Check Saved mail.";
         });
@@ -128,7 +128,7 @@ public partial class MainWindow
         var message = messageBox.Text ?? string.Empty;
         var attachmentBox = this.FindControl<TextBox>("KoLmailAttachments")!;
         var meatBox = this.FindControl<TextBox>("KoLmailMeat")!;
-        var attachments = new List<KoLMailAttachment>();
+        var attachments = new List<InventoryItem>();
         var itemIds = new HashSet<int>();
         foreach (var line in (attachmentBox.Text ?? "").Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
@@ -139,7 +139,7 @@ public partial class MainWindow
                 status.Text = "Enter up to 11 distinct item IDs and positive quantities, one pair per line.";
                 return;
             }
-            attachments.Add(new KoLMailAttachment(id, quantity));
+            attachments.Add(new InventoryItem(id, id.ToString(System.Globalization.CultureInfo.InvariantCulture), quantity));
         }
 
         long meat = 0;
@@ -184,4 +184,31 @@ public partial class MainWindow
         if (this.FindControl<Button>("KoLmailPrevious") is { } previous) previous.IsEnabled = page > 1;
         if (this.FindControl<Button>("KoLmailNext") is { } next) next.IsEnabled = hasNextPage;
     }
+}
+
+/// <summary>
+/// One KoLmail row as the list shows it (the bindings of the 0.4 Core record are kept). Built from the library's
+/// <see cref="MailEntry"/>. Known 0.5 gaps: the library parses KoL's date into <see cref="MailEntry.At"/> (shown
+/// empty when KoL's format is not understood) and does not read item attachments yet; the PvP folder is not supported.
+/// </summary>
+public sealed record KoLMailEntry(string Id, string Sender, string Date, string Text)
+{
+    public string? Recipient { get; init; }
+    public long AttachedMeat { get; init; }
+    public IReadOnlyList<InventoryItem> AttachedItems { get; init; } = Array.Empty<InventoryItem>();
+    public bool HasAttachedMeat => AttachedMeat > 0;
+    public string AttachedMeatLabel => $"{AttachedMeat:N0} Meat";
+    public string Correspondent => Recipient is null ? Sender : $"To {Recipient}";
+
+    /// <summary>In the outbox the library's <see cref="MailEntry.From"/> is the recipient.</summary>
+    public static KoLMailEntry From(MailEntry entry, MailFolder folder) => new(
+        entry.Id,
+        folder == MailFolder.Outbox ? string.Empty : entry.From,
+        entry.At?.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture) ?? string.Empty,
+        entry.Text)
+    {
+        Recipient = folder == MailFolder.Outbox ? entry.From : null,
+        AttachedMeat = entry.Meat,
+        AttachedItems = entry.Items
+    };
 }

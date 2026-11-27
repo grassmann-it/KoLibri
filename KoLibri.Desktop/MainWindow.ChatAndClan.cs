@@ -527,5 +527,5 @@ public partial class MainWindow
     }
 
     private int _koLmailPage = 1;
-    private KoLMailFolder _koLmailFolder;
+    private MailFolder _koLmailFolder;
 }

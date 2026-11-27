@@ -18,138 +18,20 @@ public sealed class MallSpendLedger(TimeProvider? clock = null, string? path = n
             System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(store.Path))!, "mall-spend-ledger.json");
 }
 
-/// <summary>The three reads a purchase needs; the live implementation goes through <see cref="DesktopLiveDataProvider"/>.</summary>
+/// <summary>The reads a purchase needs around the buy; the live implementation goes through <see cref="DesktopLiveDataProvider"/>.</summary>
 public interface IMallPurchaseReads
 {
-    Task<MallSearchPage> SearchAsync(string term, CancellationToken cancellationToken);
-    Task<KoLStatusSnapshot?> StatusAsync(CancellationToken cancellationToken);
+    /// <summary>Fresh status, null when signed out. The library throws instead of returning old data.</summary>
+    Task<Status?> StatusAsync(CancellationToken cancellationToken);
     Task<DesktopInventorySnapshot> InventoryAsync(CancellationToken cancellationToken);
 }
 
 public sealed class LiveMallPurchaseReads(DesktopLiveDataProvider provider, AccountRole role) : IMallPurchaseReads
 {
-    public Task<MallSearchPage> SearchAsync(string term, CancellationToken ct)
-        => provider.SearchMallItemsAsync(role, term, forceRefresh: true, ct);
-    public Task<KoLStatusSnapshot?> StatusAsync(CancellationToken ct)
+    public Task<Status?> StatusAsync(CancellationToken ct)
         => provider.LoadStatusAsync(role, forceRefresh: true, ct);
     public Task<DesktopInventorySnapshot> InventoryAsync(CancellationToken ct)
         => provider.LoadInventoryAsync(role, forceRefresh: true, null, ct);
-}
-
-/// <summary>
-/// Builds the fresh observation (offer plus account) the purchase gateway checks before and
-/// after a purchase. Always forces fresh reads. The daily budget is the configured meat per day
-/// minus what this window already spent.
-/// </summary>
-public sealed class MallPurchaseObserver
-{
-    private readonly IMallPurchaseReads _reads;
-    private readonly string _account;
-    private readonly Func<long> _dailyLimit;
-    private readonly MallSpendLedger _ledger;
-    private readonly TimeProvider _clock;
-    private readonly Dictionary<string, string> _names = new();
-
-    public MallPurchaseObserver(IMallPurchaseReads reads, string account, Func<long> dailyLimit,
-        MallSpendLedger ledger, TimeProvider? clock = null)
-    {
-        _reads = reads;
-        _account = account;
-        _dailyLimit = dailyLimit;
-        _ledger = ledger;
-        _clock = clock ?? TimeProvider.System;
-    }
-
-    private MallPurchaseAccountState? _cachedAccount;
-    private long _spentSinceCache;
-
-    /// <summary>
-    /// Reads status and inventory once (forced fresh) and keeps them as the account state for the following
-    /// before-reads of a queued batch, so each queued buy only needs the Mall search (one request).
-    /// </summary>
-    public async Task<MallAccountReading> ReadAccountAsync(CancellationToken ct)
-    {
-        var status = await _reads.StatusAsync(ct).ConfigureAwait(false);
-        var inventory = await _reads.InventoryAsync(ct).ConfigureAwait(false);
-        var items = inventory.Items.GroupBy(i => i.ItemId)
-            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity), StringComparer.Ordinal);
-        var fresh = status is not null && inventory.HasSession && !status.IsStale && !inventory.IsStale;
-        var meat = status?.Meat ?? 0;
-        var now = _clock.GetUtcNow();
-        lock (_names)
-        {
-            _spentSinceCache = 0;
-            _cachedAccount = fresh
-                ? new MallPurchaseAccountState(_account, meat, 0, _dailyLimit(), items, now, sessionValid: true, isStale: false)
-                : null;
-        }
-        return new MallAccountReading(meat, items, fresh);
-    }
-
-    /// <summary>A queued buy was sent: later cached before-reads must show less Meat.</summary>
-    public void NoteSent(long meat) { lock (_names) _spentSinceCache += meat; }
-
-    public void ClearAccountCache() { lock (_names) _cachedAccount = null; }
-
-    /// <summary>The mall search works on names; the purchase only knows the item id.</summary>
-    public void Remember(string itemId, string itemName) => _names[itemId] = itemName;
-
-    public Task<MallPurchaseObservation> BeforeAsync(MallPurchaseRequest request, CancellationToken ct)
-        => ReadAsync(request, null, ct);
-
-    public Task<MallPurchaseObservation> AfterAsync(MallPurchaseTransportCommit commit, CancellationToken ct)
-        => ReadAsync(commit.Preview.Request, commit.Before, ct);
-
-    private async Task<MallPurchaseObservation> ReadAsync(
-        MallPurchaseRequest request, MallPurchaseObservation? before, CancellationToken ct)
-    {
-        if (!_names.TryGetValue(request.ItemId, out var name))
-            throw new InvalidOperationException("The item name is unknown; search for the item again.");
-        // After the POST the offer is not needed (inventory is the proof): skip the Mall search, saving a request.
-        var page = before is null ? await _reads.SearchAsync($"\"{name}\"", ct).ConfigureAwait(false) : null;
-        MallPurchaseAccountState? cached;
-        long spentSince;
-        lock (_names) { cached = _cachedAccount; spentSince = _spentSinceCache; }
-        var status = cached is null ? await _reads.StatusAsync(ct).ConfigureAwait(false) : null;
-        var inventory = cached is null ? await _reads.InventoryAsync(ct).ConfigureAwait(false) : null;
-        var now = _clock.GetUtcNow();
-        // A cached page must never be re-dated as fresh: before the POST it blocks the purchase.
-        if (page is not null && before is null && page.IsStale)
-            throw new InvalidOperationException("The mall offer is stale; search again for a fresh offer.");
-        var observedAt = page is null ? now : page.FetchedAt < now ? page.FetchedAt : now;
-
-        var listing = page?.Items.FirstOrDefault(i => i.ItemId == request.ItemId)?.Listings
-            .FirstOrDefault(l => l.StoreId == request.StoreId);
-        var offer = page is null ? before!.Offer : listing is null
-            ? new MallPurchaseOffer(request.SellerId, request.StoreId, request.ItemId,
-                request.ExpectedUnitPrice, 0, observedAt)
-            : new MallPurchaseOffer(listing.SellerId ?? request.SellerId, listing.StoreId, listing.ItemId,
-                listing.Price, listing.QuantityKnown ? listing.Quantity : 0, observedAt,
-                listing.LimitKind == MallLimitKind.Limited ? listing.PurchaseLimit : null,
-                listing.SellerName, listing.StoreName);
-
-        MallPurchaseAccountState account;
-        if (cached is not null)
-        {
-            // Queued batch: account state from the batch's single read, Meat reduced by what was sent since.
-            account = new MallPurchaseAccountState(_account, Math.Max(0, cached.Meat - spentSince),
-                _ledger.SpentToday(_account), _dailyLimit(), cached.Inventory, now, sessionValid: true,
-                isStale: page?.IsStale ?? false);
-        }
-        else
-        {
-            var meat = status?.Meat ?? 0;
-            var spent = before is null
-                ? _ledger.SpentToday(_account)
-                : before.Account.DailySpent + Math.Max(0, before.Account.Meat - meat);
-            var items = inventory!.Items.GroupBy(i => i.ItemId)
-                .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity), StringComparer.Ordinal);
-            account = new MallPurchaseAccountState(_account, meat, spent, _dailyLimit(), items, now,
-                sessionValid: status is not null && inventory.HasSession,
-                isStale: (status?.IsStale ?? true) || inventory.IsStale || (page?.IsStale ?? false));
-        }
-        return new MallPurchaseObservation(offer, account, observedAt);
-    }
 }
 
 /// <summary>Maps the settings numbers onto the purchase budget.</summary>
@@ -205,12 +87,12 @@ public sealed record MallPurchasePromptContext(
     string Account, MallOfferRow Offer, int MaxQuantity, long RemainingDailyBudget = -1);
 
 /// <summary>
-/// Connects the Buy button of the search view to the purchase service: build a preview for the
-/// offer, ask the user, then send at most one confirmed purchase. Every step is written to the log.
+/// Connects the Buy button of the search view to the purchase service: ask the user (compact confirmation),
+/// then queue the buy; the queue sends at most one purchase per ticket. Every step is written to the log.
 /// </summary>
 public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
 {
-    private readonly Func<CancellationToken, Task<(DesktopMallPurchaseService Service, MallPurchaseObserver Observer)?>> _open;
+    private readonly Func<CancellationToken, Task<DesktopMallPurchaseService?>> _open;
     private readonly string _account;
     private readonly IMallPurchasePrompt _prompt;
     private readonly SessionLogViewModel _log;
@@ -222,7 +104,7 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
 
     public MallPurchaseCoordinator(
         string account,
-        Func<CancellationToken, Task<(DesktopMallPurchaseService, MallPurchaseObserver)?>> open,
+        Func<CancellationToken, Task<DesktopMallPurchaseService?>> open,
         IMallPurchasePrompt prompt,
         SessionLogViewModel log,
         MallSpendLedger ledger,
@@ -311,17 +193,17 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
     public bool CanRequest(MallOfferRow offer)
         => !IsBusy && !offer.IsStale && offer.UnitPrice > 0 && offer.Stock != 0 && long.TryParse(offer.ShopId, out _);
 
-    private (DesktopMallPurchaseService Service, MallPurchaseObserver Observer, DateTimeOffset At)? _session;
+    private (DesktopMallPurchaseService Service, DateTimeOffset At)? _session;
 
-    private async Task<(DesktopMallPurchaseService Service, MallPurchaseObserver Observer)?> SessionAsync(CancellationToken ct)
+    private async Task<DesktopMallPurchaseService?> SessionAsync(CancellationToken ct)
     {
-        // The signed-in session (and its password hash) is reused for a few minutes: opening it costs a request.
+        // The service (and its settings) is reused for a few minutes; the library session behind it is looked up per buy.
         if (_session is { } cached && DateTimeOffset.UtcNow - cached.At < TimeSpan.FromMinutes(5))
-            return (cached.Service, cached.Observer);
+            return cached.Service;
         var opened = await _open(ct).ConfigureAwait(true);
-        if (opened is not { } fresh) { _session = null; return null; }
-        _session = (fresh.Service, fresh.Observer, DateTimeOffset.UtcNow);
-        return (fresh.Service, fresh.Observer);
+        if (opened is null) { _session = null; return null; }
+        _session = (opened, DateTimeOffset.UtcNow);
+        return opened;
     }
 
     /// <summary>
@@ -344,13 +226,12 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             }
             var what = string.Create(CultureInfo.InvariantCulture,
                 $"{offer.ItemName} from {offer.ShopName} at {offer.UnitPrice:N0}");
-            if (await SessionAsync(cancellationToken).ConfigureAwait(true) is not { } session)
+            if (await SessionAsync(cancellationToken).ConfigureAwait(true) is not { } service)
             {
                 Say(SessionLogKind.Error, $"Cannot buy {what}: {_account} is not signed in.");
                 return;
             }
-            session.Observer.Remember(offer.ItemId, offer.ItemName);
-            var options = session.Service.Options;
+            var options = service.Options;
             int? chosen = quantity;
             if (chosen is null)
             {
@@ -375,7 +256,7 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             }
             Queue.Enqueue(
                 new MallBuyOrder(offer.ItemId, offer.ItemName, offer.ShopId, offer.ShopName, offer.UnitPrice, count),
-                new ServiceMallBuyEngine(_account, session.Service, session.Observer), options);
+                new ServiceMallBuyEngine(_account, service), options);
         }
         catch (OperationCanceledException)
         {
