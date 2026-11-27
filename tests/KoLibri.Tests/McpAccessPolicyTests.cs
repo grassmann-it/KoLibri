@@ -1,9 +1,9 @@
 using System.Text.Json;
 using KolLibri.Mcp;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests;
 
 public sealed class McpAccessPolicyTests : IDisposable
 {

@@ -3,7 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Web;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 
@@ -11,7 +11,7 @@ namespace KolLibri.Mcp;
 /// Streamable-HTTP MCP endpoint plus its OAuth endpoints, bound to 127.0.0.1 only.
 /// Every /mcp call needs a bearer token that a human approved on the consent page.
 /// </summary>
-public sealed class McpHttpHost : IDisposable
+internal sealed class McpHttpHost : IDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly KolibriMcpServer _server;

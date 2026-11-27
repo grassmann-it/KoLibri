@@ -6,10 +6,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using KolLibri.Mcp;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests;
 
 public sealed class McpHttpOAuthTests : IAsyncLifetime
 {
@@ -29,7 +29,7 @@ public sealed class McpHttpOAuthTests : IAsyncLifetime
         _grants = new GrantStore(Path.Combine(_dir, "g.json"));
         var gate = new AccessGate(_grants, new UsageLedger(Path.Combine(_dir, "u.jsonl")));
         var oauth = new McpOAuthServer(_grants, Path.Combine(_dir, "c.json"));
-        _server = new KolibriMcpServer();
+        _server = new KolibriMcpServer(McpTest.Accounts());
         _host = new McpHttpHost(_server, _grants, gate, oauth, port, requireCode: true, log: _log);
         _host.Start();
         _ = _host.RunAsync(_cts.Token);

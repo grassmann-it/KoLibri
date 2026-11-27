@@ -1,13 +1,10 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
+using KoLibri.Extras;
 
 namespace KolLibri.Mcp;
 
 public partial class KolibriMcpServer
 {
-    private static readonly HttpClient ArbitragePricegunHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
-    private PricegunReadClient? _arbitragePricegun;
 
     private void RegisterArbitrageTool()
         => Register("kol_arbitrage_plan",
@@ -32,8 +29,6 @@ public partial class KolibriMcpServer
         var itemId = IntProperty(arguments, "itemId");
         if (itemId < 1) throw new McpInvalidParamsException("itemId is required.");
         var role = RoleFor(arguments, _options.DefaultRole);
-        if (!_roleRuntime.TryGet<IMallReadClient>(role, out var mall) || mall is null)
-            throw new InvalidOperationException("No Mall read client is registered for this role.");
 
         var settings = new ItemArbitrageSettings
         {
@@ -50,10 +45,10 @@ public partial class KolibriMcpServer
 
         // Only market data is read. The account's meat is private account data (right account.status), so
         // it is not read here: the caller may pass availableMeat, and kol_mall_buy checks the real meat.
+        await using var session = await _accounts.OpenAsync(role, cancellationToken).ConfigureAwait(false);
         var plan = await ItemArbitrageService.PlanAsync(
-            mall, _arbitragePricegun ??= new PricegunReadClient(ArbitragePricegunHttp), itemId, settings,
-            NullableLongProperty(arguments, "availableMeat"), forceRefresh: BoolProperty(arguments, "forceRefresh"),
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            session, itemId, settings, NullableLongProperty(arguments, "availableMeat"),
+            refresh: BoolProperty(arguments, "forceRefresh"), cancellationToken: cancellationToken).ConfigureAwait(false);
         return new
         {
             readOnly = true,

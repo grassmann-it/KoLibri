@@ -453,7 +453,7 @@ public sealed class CliTests : IDisposable
         Assert.True(session.Daily.IsDone(DailyRun.Markers.CampfireLeaf));
     }
 
-    private const string MallSearchPage = """
+    internal const string MallSearchPage = """
         <center><b>Search Results:</b> <b>(Items 1-2 of 2)</b></center>
         <div id='searchresults'>
         <a name="searchresults"></a>

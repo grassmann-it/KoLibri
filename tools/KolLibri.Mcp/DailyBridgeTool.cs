@@ -1,6 +1,5 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
+using KoLibri.Daily;
 
 namespace KolLibri.Mcp;
 
@@ -34,33 +33,29 @@ public partial class KolibriMcpServer
             throw new McpInvalidParamsException("kol_run_daily_bridge only previews over MCP; execute=true is not available.");
         var execute = false;
         var approvalToken = OptionalString(arguments, "approvalToken");
-        var baseline = BuildBaseline(arguments);
-
+        var options = BuildOptions(arguments);
         var perRole = new List<object>();
         foreach (var role in roles)
         {
-            if (!_roleRuntime.TryGet<IAccountReadClient>(role, out var client) || client is null)
+            if (!await _accounts.HasSessionAsync(role, cancellationToken).ConfigureAwait(false))
             {
-                perRole.Add(new
-                {
-                    role = role.ToString(),
-                    error = $"No valid session for {role}. Run kol_login_refresh first."
-                });
+                perRole.Add(new { role = role.ToString(), error = $"No valid session for {role}. Run kol_login_refresh first." });
                 continue;
             }
-            var builder = new LiveDailySnapshotBuilder(client, new DailyDoneStore());
-            var live = await builder.BuildAsync(baseline, cancellationToken).ConfigureAwait(false);
-            var bridge = new AutoCombatDailyBridge();
-            var plan = bridge.Plan(live.State, live.Snapshot);
+            // The live path of `kolibri daily run`: status, inventory and today's markers (two reads, nothing sent).
+            await using var session = await _accounts.OpenAsync(role, cancellationToken).ConfigureAwait(false);
+            var live = await DailyRun.ReadAsync(session, cancellationToken).ConfigureAwait(false);
+            var status = await session.Character.GetStatusAsync(false, cancellationToken).ConfigureAwait(false);
+            var steps = DailyRun.Plan(live, options);
             perRole.Add(new
             {
                 role = role.ToString(),
                 live = new
                 {
                     live.Meat,
-                    live.Adventures,
-                    live.Level,
-                    live.ClassId,
+                    status.Adventures,
+                    status.Level,
+                    ClassId = (string?)null,
                     live.Leaves,
                     live.Clovers,
                     live.Permits,
@@ -68,15 +63,15 @@ public partial class KolibriMcpServer
                     live.Bacon,
                     live.BaconMachines
                 },
-                steps = plan.Steps.Select(s => new
+                steps = steps.Select(s => new
                 {
-                    kind = s.GetType().Name,
-                    choiceId = s is ChoiceStepSpec cs ? cs.ChoiceId : null,
-                    optionId = s is ChoiceStepSpec cs2 ? cs2.OptionId : null,
-                    itemId = s is ItemStepSpec is2 ? is2.ItemId : null,
-                    quantity = s is ItemStepSpec is3 ? is3.Quantity : (int?)null
+                    kind = s.Kind == "choice" ? "ChoiceStepSpec" : "ItemStepSpec",
+                    choiceId = s.Kind == "choice" ? s.Id : null,
+                    optionId = s.Kind == "choice" ? s.Option : null,
+                    itemId = s.Kind == "item" ? s.Id : null,
+                    quantity = s.Kind == "item" && int.TryParse(s.Option, out var q) ? q : (int?)null
                 }),
-                allowlist = plan.AllowlistedChoiceIds
+                allowlist = steps.Where(s => s.Kind == "choice").Select(s => s.Id + ":" + s.Option).ToArray()
             });
         }
         return new
@@ -89,24 +84,15 @@ public partial class KolibriMcpServer
         };
     }
 
-    private static DailyRoutineSnapshot BuildBaseline(JsonElement arguments)
+    /// <summary>The 0.4 arguments that are not live numbers (leaves, meat, permits … always come from the account).</summary>
+    internal static DailyRunOptions BuildOptions(JsonElement arguments) => new()
     {
-        return new DailyRoutineSnapshot
-        {
-            CampfireLeaves = OptionalInt(arguments, "leaves") ?? 0,
-            CampfireReserve = OptionalInt(arguments, "campfireReserve") ?? 3,
-            MainMeat = OptionalLong(arguments, "meat") ?? 0,
-            MallbotMeat = OptionalLong(arguments, "mallbotMeat") ?? 0,
-            HermitPermits = OptionalInt(arguments, "permits") ?? 0,
-            HermitCloversWanted = OptionalInt(arguments, "hermitClovers") ?? 0,
-            Clovers = OptionalInt(arguments, "clovers") ?? 0,
-            UselessItems = OptionalInt(arguments, "uselessItems") ?? 0,
-            AdventureReserveValue = OptionalLong(arguments, "adventureValue") ?? 0,
-            CloverFloorValue = OptionalLong(arguments, "cloverFloor") ?? 0,
-            ExpectedCloverSaleValue = OptionalLong(arguments, "cloverSale") ?? 0,
-            MallbotMeatReserve = OptionalLong(arguments, "mallbotReserve") ?? 1_000_000
-        };
-    }
+        CampfireReserve = OptionalInt(arguments, "campfireReserve") ?? 3,
+        HermitCloversWanted = OptionalInt(arguments, "hermitClovers") ?? 0,
+        AdventureReserveValue = OptionalLong(arguments, "adventureValue") ?? 0,
+        CloverFloorValue = OptionalLong(arguments, "cloverFloor") ?? 0,
+        ExpectedCloverSaleValue = OptionalLong(arguments, "cloverSale") ?? 0
+    };
 
     private static JsonElement DailyBridgeSchema()
         => Schema("{\"type\":\"object\",\"properties\":{"
