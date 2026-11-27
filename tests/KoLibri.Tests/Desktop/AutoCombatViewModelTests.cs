@@ -1,18 +1,24 @@
 using KoLibri.Desktop;
+using KoLibri.Extras;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 /// <summary>
-/// The auto-combat configurator is the screen that replaces KoLmafia's
-/// dozen clicks with one panel. The tests pin the configuration contract:
-/// a target, at least one skill, and the abort rules.
+/// The auto-combat configurator is the screen that replaces KoLmafia's dozen clicks with one panel. The tests pin the
+/// configuration contract (a target, at least one skill, the abort rules) and the plan it hands to KoLibri.
 /// </summary>
 public sealed class AutoCombatViewModelTests
 {
-    private static AutoCombatViewModel Build()
-        => new(new KoLibri.Core.Spiel.MafiaDataLoader()
-            .Load("external/kolmafia-data"));
+    private static AutoCombatViewModel Build() => new(new MafiaDataLoader().Load(AdventureKit.CatalogDirectory));
+
+    private static readonly FightEncounter Skeleton = AdventureKit.FightEncounter();
+
+    private static CombatContext Round(int round, IReadOnlyList<FightRound> history)
+        => new(Skeleton, round, 80, 100, 40, 50, history);
+
+    private static FightRound Sent(CombatAction action, int round)
+        => new(round, action, FightOutcome.Ongoing, 80, 40, Skeleton.Page);
 
     [Fact]
     public async Task Loading_fills_the_targets_skills_and_items()
@@ -28,15 +34,7 @@ public sealed class AutoCombatViewModelTests
     public void A_target_shows_its_stats()
     {
         var viewModel = Build();
-        var target = new CombatTarget
-        {
-            Id = "1",
-            Name = "skeleton",
-            Zone = "undead",
-            Detail = "100 HP · 10 atk · 5 def"
-        };
-        viewModel.SelectedTarget = target;
-        Assert.True(viewModel.HasConfiguration == false || viewModel.HasConfiguration);
+        viewModel.SelectedTarget = new CombatTarget { Id = "1", Name = "skeleton", Zone = "undead", Detail = "100 HP · 10 atk · 5 def" };
         Assert.Contains("skeleton", viewModel.PreviewText);
         Assert.Contains("100 HP", viewModel.PreviewText);
     }
@@ -67,10 +65,7 @@ public sealed class AutoCombatViewModelTests
     public void The_abort_rules_show_up_in_the_preview()
     {
         var viewModel = Build();
-        viewModel.SelectedTarget = new CombatTarget
-        {
-            Id = "1", Name = "skeleton", Zone = "", Detail = ""
-        };
+        viewModel.SelectedTarget = new CombatTarget { Id = "1", Name = "skeleton", Zone = "", Detail = "" };
         viewModel.AbortHpPercent = 45;
         viewModel.MaxRounds = 12;
         Assert.Contains("45 % HP", viewModel.PreviewText);
@@ -95,24 +90,50 @@ public sealed class AutoCombatViewModelTests
         Assert.Contains("Pick a target", viewModel.PreviewText);
         Assert.False(viewModel.HasConfiguration);
     }
+
+    [Fact]
+    public void The_plan_uses_each_skill_and_item_once_in_order_then_attacks()
+    {
+        var viewModel = Build();
+        viewModel.SelectedSkill = new CombatOption { Id = "1001", Name = "a", Kind = "skill", Detail = "" };
+        viewModel.SelectedSkill = new CombatOption { Id = "1005", Name = "b", Kind = "skill", Detail = "" };
+        viewModel.SelectedItem = new CombatOption { Id = "2002", Name = "c", Kind = "item", Detail = "" };
+        var strategy = CombatStrategies.FromRules(viewModel.BuildPolicy());
+
+        var history = new List<FightRound>();
+        var expected = new[] { CombatAction.Skill(1001), CombatAction.Skill(1005), CombatAction.Item(2002), CombatAction.Attack, CombatAction.Attack };
+        foreach (var want in expected)
+        {
+            var next = strategy.Next(Round(history.Count + 1, history));
+            Assert.Equal(want, next);
+            history.Add(Sent(next, history.Count + 1));
+        }
+    }
+
+    [Fact]
+    public void Without_skills_and_items_the_batch_keeps_attacking()
+    {
+        var viewModel = Build();
+        Assert.Null(viewModel.BuildBatchPolicy());
+        Assert.Equal(CombatAction.Attack, CombatStrategies.FromRules(viewModel.BuildPolicy()).Next(Round(1, Array.Empty<FightRound>())));
+    }
 }
 
 /// <summary>
-/// The mall screen pairs the account's own listings with the cheapest
-/// market offer for the same item — the number that says whether the
-/// asking price still wins.
+/// The mall screen pairs the account's own listings with the cheapest market offer for the same item — the number
+/// that says whether the asking price still wins.
 /// </summary>
 public sealed class LiveMallViewModelTests
 {
     [Fact]
     public async Task Missing_session_yields_no_rows()
     {
-        var viewModel = new LiveMallViewModel(
-            provider: new DesktopLiveDataProvider(
-                new KoLibri.Core.Basis.AccountSessionManager(
-                    new InMemoryAccountStore(), new InMemorySecretStore())));
+        var kol = new FakeKol();
+        await using var accounts = DesktopKit.Accounts(kol);
+        var viewModel = new LiveMallViewModel(AccountRole.Mallbot, new DesktopLiveDataProvider(accounts));
         await viewModel.LoadAsync();
         Assert.Empty(viewModel.Rows);
         Assert.Equal("Sign in as Mallbot under Accounts to see store listings.", viewModel.Summary);
+        Assert.Empty(kol.Requests);
     }
 }
