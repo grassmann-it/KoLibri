@@ -138,7 +138,7 @@ async Task RunAsync()
 static void SeedCharpane(MainWindow w)
 {
     var now = DateTimeOffset.UtcNow;
-    var status = new Status("QA Tester", 87, 2345678, 13, now)
+    var status = new Status("QA Tester", 13, 2345678, 87, now)
     {
         Hp = 120, MaxHp = 200, Mp = 85, MaxMp = 150,
         Fullness = new global::KoLibri.OrganState(5, null), Inebriety = new global::KoLibri.OrganState(3, null), Spleen = new global::KoLibri.OrganState(7, null),
