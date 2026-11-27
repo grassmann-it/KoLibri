@@ -154,6 +154,10 @@ KoLibri.CombatActionKind.RunAway = 3 -> KoLibri.CombatActionKind
 KoLibri.CombatActionKind.Skill = 1 -> KoLibri.CombatActionKind
 KoLibri.CombatActionKind.Stop = 5 -> KoLibri.CombatActionKind
 KoLibri.CombatContext
+KoLibri.CombatContext.AvailableItems.get -> System.Collections.Generic.IReadOnlyList<KoLibri.CombatOption!>!
+KoLibri.CombatContext.AvailableItems.init -> void
+KoLibri.CombatContext.AvailableSkills.get -> System.Collections.Generic.IReadOnlyList<KoLibri.CombatOption!>!
+KoLibri.CombatContext.AvailableSkills.init -> void
 KoLibri.CombatContext.CombatContext(KoLibri.FightEncounter! Fight, int Round, int Hp, int MaxHp, int Mp, int MaxMp, System.Collections.Generic.IReadOnlyList<KoLibri.FightRound!>! History) -> void
 KoLibri.CombatContext.Effects.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ActiveEffect!>!
 KoLibri.CombatContext.Effects.init -> void
@@ -165,14 +169,24 @@ KoLibri.CombatContext.Hp.get -> int
 KoLibri.CombatContext.Hp.init -> void
 KoLibri.CombatContext.Inventory.get -> KoLibri.Inventory?
 KoLibri.CombatContext.Inventory.init -> void
+KoLibri.CombatContext.IsTurtleMonster.get -> bool
 KoLibri.CombatContext.MaxHp.get -> int
 KoLibri.CombatContext.MaxHp.init -> void
 KoLibri.CombatContext.MaxMp.get -> int
 KoLibri.CombatContext.MaxMp.init -> void
+KoLibri.CombatContext.MonsterId.get -> int?
 KoLibri.CombatContext.Mp.get -> int
 KoLibri.CombatContext.Mp.init -> void
 KoLibri.CombatContext.Round.get -> int
 KoLibri.CombatContext.Round.init -> void
+KoLibri.CombatOption
+KoLibri.CombatOption.CombatOption(int Id, string! Name, int? MpCost) -> void
+KoLibri.CombatOption.Id.get -> int
+KoLibri.CombatOption.Id.init -> void
+KoLibri.CombatOption.MpCost.get -> int?
+KoLibri.CombatOption.MpCost.init -> void
+KoLibri.CombatOption.Name.get -> string!
+KoLibri.CombatOption.Name.init -> void
 KoLibri.CombatStrategies
 KoLibri.ConsumeKind
 KoLibri.ConsumeKind.Chew = 2 -> KoLibri.ConsumeKind
@@ -957,7 +971,9 @@ static KoLibri.CombatAction.Stop.get -> KoLibri.CombatAction!
 static KoLibri.CombatStrategies.AttackOnly.get -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.FromDelegate(System.Func<KoLibri.CombatContext!, KoLibri.CombatAction!>! next) -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.FromRules(string! rules) -> KoLibri.ICombatStrategy!
+static KoLibri.CombatStrategies.FromRules(string! rules, KoLibri.GameData! data) -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.Macro(string! macro) -> KoLibri.ICombatStrategy!
+static KoLibri.CombatStrategies.StopOnTurtle(KoLibri.ICombatStrategy! inner) -> KoLibri.ICombatStrategy!
 static KoLibri.GuardDecision.Allow.get -> KoLibri.GuardDecision!
 static KoLibri.GuardDecision.Deny(string! reason) -> KoLibri.GuardDecision!
 static KoLibri.ItemRef.implicit operator KoLibri.ItemRef(int id) -> KoLibri.ItemRef

@@ -382,7 +382,9 @@ namespace KoLibri
                 if (rounds.Count >= maxRounds) { outcome = FightOutcome.Stopped; break; }
                 var context = new CombatContext(fight, fight.Round + rounds.Count, hp, status.MaxHp, mp, status.MaxMp, rounds.ToArray())
                 {
-                    Effects = status.Effects
+                    Effects = status.Effects,
+                    AvailableSkills = CombatOptions(_lastObservation, CoreSpiel.CombatActionKind.Skill),
+                    AvailableItems = CombatOptions(_lastObservation, CoreSpiel.CombatActionKind.Item)
                 };
                 var action = strategy.Next(context);
                 if (action.Kind == CombatActionKind.Stop) { outcome = FightOutcome.Stopped; break; }
@@ -406,6 +408,35 @@ namespace KoLibri
             if (outcome is FightOutcome.Won or FightOutcome.Lost or FightOutcome.RanAway)
                 _session.RaiseFightEnded(result);
             return result;
+        }
+
+        private static readonly Regex MpSuffix = new(@"\s*\((?<mp>\d+)\s*mp\)\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex CountSuffix = new(@"\s*\(\d+\)\s*$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>Skill/item dropdown of the current fight page as options; MP cost from the "(N mp)" label, else from the game data.</summary>
+        private IReadOnlyList<CombatOption> CombatOptions(CoreSpiel.CombatObservation? observation, CoreSpiel.CombatActionKind kind)
+        {
+            if (observation is null) return Array.Empty<CombatOption>();
+            var options = new List<CombatOption>();
+            foreach (var action in observation.AvailableActions)
+            {
+                if (action.Kind != kind || !action.IsEnabled
+                    || !int.TryParse(action.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var id)) continue;
+                var name = action.Name ?? "";
+                int? mp = null;
+                if (kind == CoreSpiel.CombatActionKind.Skill)
+                {
+                    if (MpSuffix.Match(name) is { Success: true } m)
+                    {
+                        mp = int.Parse(m.Groups["mp"].Value, CultureInfo.InvariantCulture);
+                        name = name[..m.Index];
+                    }
+                    mp ??= _session.Client.Data.Skill(new SkillRef(id))?.MpCost;
+                }
+                else name = CountSuffix.Replace(name, "");
+                options.Add(new CombatOption(id, name.Trim(), mp));
+            }
+            return options;
         }
 
         private async Task<Encounter> ChooseCoreAsync(int choiceId, int option, CancellationToken cancellationToken)
