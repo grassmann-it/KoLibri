@@ -102,7 +102,10 @@ if (turtle && !force)
     return 2;
 }
 
-var macroText = template.Replace("{monster}", fight.MonsterName, StringComparison.Ordinal);
+// KoL's fight page names the monster with its article ("an undead elbow macaroni"); the macro predicate `monstername`
+// most likely compares against the bare name: "if monstername an undead elbow macaroni" did not match live (M3, 2026-11-27).
+var monsterForMacro = Regex.Replace(fight.MonsterName.Trim(), @"^(?:a|an|the)\s+", "", RegexOptions.IgnoreCase);
+var macroText = template.Replace("{monster}", monsterForMacro, StringComparison.Ordinal);
 var action = CombatAction.FromMacro(macroText); // normalizes like KoLmafia; throws on empty / too long
 Console.WriteLine($"macrotext to send: {action.Macro}");
 if (!yes)
@@ -116,7 +119,7 @@ for (var i = 1; i <= maxRequests; i++)
 {
     var round = await session.Adventure.FightAsync(action, ct);
     Console.WriteLine($"answer {i}: outcome={round.Outcome} roundsInResponse={round.RoundsInResponse} round={round.Round} "
-        + $"pageHp={round.Hp} damageDealt={round.DamageDealt} meat={round.Meat} items=[{string.Join(", ", round.Items.Select(x => $"{x.Name} x{x.Quantity}"))}]");
+        + $"hp={round.Hp} mp={round.Mp} damageDealt={round.DamageDealt} meat={round.Meat} items=[{string.Join(", ", round.Items.Select(x => $"{x.Name} x{x.Quantity}"))}]");
     if (round.MacroError is { } error) Console.WriteLine($"macro error: {error}");
     if (saveDir is not null)
     {

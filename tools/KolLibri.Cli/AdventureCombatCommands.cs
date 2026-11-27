@@ -189,6 +189,35 @@ internal static partial class KolibriCli
         catch (ArgumentException exception) { throw new ArgumentException($"{exception.Message} Nothing was sent."); }
     }
 
+    /// <summary>The stop conditions the run used (--conditions-file, --stop-item, --stop-monster, --stop-title, --stop-on-turtle).</summary>
+    internal static object[] ConditionsDocument(IEnumerable<StopCondition> conditions, GameData data)
+        => conditions.Select(c => c.Kind switch
+        {
+            StopConditionKind.ItemCountAtLeast => (object)new { kind = c.Kind.ToString(), itemId = c.Id, item = c.Id is { } id ? data.Item(new ItemRef(id))?.Name : null, count = c.Value },
+            StopConditionKind.MonsterSeen => new { kind = c.Kind.ToString(), monster = c.Pattern },
+            StopConditionKind.EncounterTitle => new { kind = c.Kind.ToString(), pattern = c.Pattern },
+            StopConditionKind.EffectMissing => new { kind = c.Kind.ToString(), effectId = c.Id },
+            StopConditionKind.HpBelowPercent or StopConditionKind.MpBelowPercent => new { kind = c.Kind.ToString(), percent = c.Value },
+            StopConditionKind.TurtleEncounter => new { kind = c.Kind.ToString() },
+            _ => new { kind = c.Kind.ToString(), value = c.Value }
+        }).ToArray();
+
+    /// <summary>The recovery policy of the run (--recover-hp, --recover-mp, --upkeep); null when none is set.</summary>
+    internal static object? RecoveryPolicyDocument(string[] args, GameData data)
+    {
+        var hp = GetOption(args, "--recover-hp");
+        var mp = GetOption(args, "--recover-mp");
+        var upkeep = GetOptions(args, "--upkeep").ToArray();
+        if (hp is null && mp is null && upkeep.Length == 0) return null;
+        object? Spec(string? text, string flag)
+        {
+            if (text is null) return null;
+            var (percent, steps) = ParseRecoverSpec(text, data, flag);
+            return new { belowPercent = percent, steps = RecoveryDocument(steps) };
+        }
+        return new { hp = Spec(hp, "--recover-hp"), mp = Spec(mp, "--recover-mp"), upkeep };
+    }
+
     private static object[] RecoveryDocument(IReadOnlyList<RecoveryStep> steps)
         => steps.Select(step => (object)new { kind = step.Kind.ToString(), id = step.Id > 0 ? step.Id : (int?)null, times = step.Times > 1 ? step.Times : (int?)null, reason = step.Reason }).ToArray();
 
@@ -379,7 +408,7 @@ internal static partial class KolibriCli
                 turn,
                 runId = currentRunId,
                 stopReason,
-                monster = result.Encounters.OfType<FightEncounter>().Select(f => f.MonsterName).LastOrDefault(),
+                monster = result.Encounters.Select(MonsterOf).LastOrDefault(m => m is not null),
                 recovery = RecoveryDocument(result.RecoverySteps),
                 adventuresBefore = before.Adventures,
                 adventuresAfter = after.Adventures,
@@ -426,7 +455,8 @@ internal static partial class KolibriCli
             openChoice = leftover,
             openFight = fightOpen,
             autoChoices = resolver.Log,
-            conditions = Array.Empty<object>(),
+            conditions = ConditionsDocument(stopWhen, data),
+            recoveryPolicy = RecoveryPolicyDocument(args, data),
             turns,
             steps = steps.ToArray(),
             detail = result?.Detail,
@@ -463,10 +493,10 @@ internal static partial class KolibriCli
 
     private static object StepDocument(Encounter encounter, string? unknownPagePath)
     {
-        var monster = (encounter as FightEncounter)?.MonsterName;
+        var monster = MonsterOf(encounter);
         var kind = encounter switch
         {
-            FightEncounter => "Fight",
+            FightEncounter or FinishedFightEncounter => "Fight",
             ChoiceEncounter => "Choice",
             NonCombatEncounter => "NonCombat",
             BlockedEncounter b => "Blocked:" + b.Reason,
@@ -480,12 +510,20 @@ internal static partial class KolibriCli
             abortReason = encounter is BlockedEncounter blocked ? blocked.Reason.ToString() : null,
             messages = encounter.Title is { } title ? new[] { title } : Array.Empty<string>(),
             requiresRefresh = false,
-            complete = encounter is NonCombatEncounter,
+            complete = encounter is NonCombatEncounter or FinishedFightEncounter,
             monster,
             turtleMonster = IsTurtleMonster(monster) ? true : (bool?)null,
             unknownPagePath
         };
     }
+
+    /// <summary>Monster of an open fight or of one KoL ended on the same page (auto-attack).</summary>
+    internal static string? MonsterOf(Encounter encounter) => encounter switch
+    {
+        FightEncounter f => f.MonsterName,
+        FinishedFightEncounter d => d.MonsterName,
+        _ => null
+    };
 
     private static readonly Regex TurtleMonster = new(@"\b(turtles?|tortoises?|terrapins?)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 

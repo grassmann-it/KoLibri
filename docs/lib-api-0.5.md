@@ -383,6 +383,7 @@ public abstract record Encounter(Page Page, Location? Location, string? Title);
 public sealed record FightEncounter(…, string MonsterName, int? MonsterId, int Round) : Encounter;
 public sealed record ChoiceEncounter(…, int ChoiceId, IReadOnlyList<ChoiceOption> Options) : Encounter;
 public sealed record NonCombatEncounter(…, IReadOnlyList<InventoryItem> Items, long Meat) : Encounter;
+public sealed record FinishedFightEncounter(…, string MonsterName, int? MonsterId, FightResult Result) : Encounter; // Auto-Attack: Kampf schon beendet
 public sealed record BlockedEncounter(…, BlockReason Reason) : Encounter;   // NoAdventures, LocationLocked, Beaten, UnknownPage
 ```
 
