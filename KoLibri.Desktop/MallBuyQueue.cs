@@ -288,11 +288,12 @@ public sealed class MallBuyQueue : IDisposable
                 {
                     _sentSinceRead += result.UnitPrice * ticket.Order.Quantity;
                     _pending.Add(ticket);
+                    // Before the verifier starts: a verifier that finds no engine stops and leaves the ticket waiting.
+                    _engineForVerify = engine;
                     _verifier ??= Task.Run(VerifyLoopAsync);
                 }
                 Ui(() => { ticket.State = MallBuyState.Verifying; ticket.Message = result.Confirmed ? "KoL confirmed; waiting for the inventory" : "KoL's answer was unclear; waiting for the inventory"; });
                 Notify();
-                lock (_gate) _engineForVerify = engine;
                 break;
             case DesktopMallPurchaseStatus.Unclear:
                 Finish(ticket, MallBuyState.Unclear, result.Message, release: false, unclear: true);
@@ -310,13 +311,17 @@ public sealed class MallBuyQueue : IDisposable
 
     private IMallBuyEngine? _engineForVerify;
 
+    /// <summary>Tests only: replaces the batch wait, so a test decides when the verifier takes its batch.</summary>
+    internal Func<CancellationToken, Task>? BatchWaitForTests { get; set; }
+
     private async Task VerifyLoopAsync()
     {
         try
         {
             while (!_stop.IsCancellationRequested)
             {
-                if (_batchWait > TimeSpan.Zero) await Task.Delay(_batchWait, _stop.Token).ConfigureAwait(false);
+                if (BatchWaitForTests is { } wait) await wait(_stop.Token).ConfigureAwait(false);
+                else if (_batchWait > TimeSpan.Zero) await Task.Delay(_batchWait, _stop.Token).ConfigureAwait(false);
                 List<MallBuyTicket> batch;
                 IMallBuyEngine? engine;
                 lock (_gate)
