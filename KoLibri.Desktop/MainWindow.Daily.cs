@@ -172,20 +172,64 @@ public partial class MainWindow
             var hermitClovers = (int)(this.FindControl<NumericUpDown>("DailyHermitClovers")?.Value ?? 0);
             var topUp = this.FindControl<CheckBox>("DailyBaconTopUp")?.IsChecked == true;
             var maxBaconPrice = (long)(this.FindControl<NumericUpDown>("DailyBaconMaxPrice")?.Value ?? 1500);
+            var pocketText = (this.FindControl<TextBox>("DailyCargoPockets")?.Text ?? "").Trim();
+            var playChess = this.FindControl<CheckBox>("DailyPlayChess")?.IsChecked == true;
+            var itemError = SaveDailyItemSettings(pocketText, playChess);
+            if (itemError is not null)
+            {
+                ReportDailyStep(itemError + " Nothing was sent.", error: true);
+                return;
+            }
             _dailyNote = string.Empty;
             var result = await RunDailyRoutineAsync(session, role, cancellationToken,
                 hermitClovers, topUp, maxBaconPrice);
             var text = DailyRunReport.Describe(result);
             if (_dailyStatusText is not null) _dailyStatusText.Text = text + _dailyNote;
             ReportDailyStep(text + _dailyNote, error: result is null || result.Completeness is DailyRunCompleteness.Failed);
+            // The briefing shows the markers the run just set (toaster, Klaw, Cargo pocket, chess).
+            if (result is not null && result.AttemptedSteps > 0) await _daily.LoadAsync(forceRefresh: true, cancellationToken);
         });
     }
 
     private string _dailyNote = string.Empty;
 
     /// <summary>
+    /// Checks and saves the Cargo pocket list and the chess opt-in (merged into the settings on disk, like the skip list).
+    /// Returns an error text for a list that is not pocket numbers or names a pocket that starts a fight.
+    /// </summary>
+    private string? SaveDailyItemSettings(string pocketText, bool playChess)
+    {
+        try
+        {
+            var pockets = CargoPockets.Parse(pocketText);
+            var fight = pockets.FirstOrDefault(CargoPockets.StartsFight);
+            if (fight != 0) return $"Cargo pocket {CargoPockets.Describe(fight)} starts a fight; the daily routine only picks pockets without a fight.";
+        }
+        catch (FormatException exception) { return "Cargo pockets: " + exception.Message; }
+        if (_settings.DailyCargoPockets == pocketText && _settings.DailyPlayChess == playChess) return null;
+        try
+        {
+            var fresh = _settingsStore.Load();
+            fresh.DailyCargoPockets = pocketText;
+            fresh.DailyPlayChess = playChess;
+            _settingsStore.Save(fresh);
+            _settings.DailyCargoPockets = pocketText;
+            _settings.DailyPlayChess = playChess;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The run still uses the values on screen; only remembering them failed.
+            _settings.DailyCargoPockets = pocketText;
+            _settings.DailyPlayChess = playChess;
+            _log.Error($"Could not save the daily item settings: {exception.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Runs the daily routine for the selected account with the same planning as the CLI's <c>daily run</c>
-    /// (<see cref="DailyRun"/>): campfire leaf / Day Shortener, Hermit clovers, Internet Meme Shop. The once-per-day
+    /// (<see cref="DailyRun"/>): campfire leaf / Day Shortener, Hermit clovers, Internet Meme Shop and the owned daily
+    /// items (toaster, VIP Klaw, Cargo pocket when configured, fancy chess set when opted in). The once-per-day
     /// markers are the session's (<see cref="KolibriSession.Daily"/>, keyed by the player id KoL reports).
     /// The desktop button authorizes this run.
     /// </summary>
@@ -233,7 +277,7 @@ public partial class MainWindow
                 }
             }
         }
-        var steps = DailyRun.Plan(live, new DailyRunOptions { HermitCloversWanted = hermitClovers });
+        var steps = DailyRun.Plan(live, DesktopDailyItems.Options(_settings, hermitClovers));
         return await DailyRun.ExecuteAsync(session, steps, cancellationToken);
     }
 

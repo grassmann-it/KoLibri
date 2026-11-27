@@ -19,6 +19,8 @@ internal static partial class KolibriCli
             case "audit": return DailyAudit(rest);
             case "campfire": return await DailyAliasAsync(sub, "campfire", rest);
             case "hermit": return await DailyAliasAsync(sub, "hermit", rest);
+            case "toaster" or "vip" or "cargo" or "chess":
+                return await DailyAliasAsync(sub, sub, rest);
             case "internet-shop" or "internetshop" or "meme-shop":
                 return await DailyAliasAsync(sub, "internet-shop", rest);
             case "meme-shop-read":
@@ -51,8 +53,8 @@ internal static partial class KolibriCli
         return await DailyRunLiveAsync(forwarded);
     }
 
-    private static readonly string[] DailyKnownSteps = { "campfire", "hermit", "internet-shop" };
-    private static readonly string[] DailyValueFlags = { "--role", "--hermit-clovers", "--skip", "--only", "--approval-token" };
+    private static readonly string[] DailyKnownSteps = { "campfire", "hermit", "internet-shop", "toaster", "vip", "cargo", "chess" };
+    private static readonly string[] DailyValueFlags = { "--role", "--hermit-clovers", "--skip", "--only", "--approval-token", "--cargo-pocket" };
 
     /// <summary>The first flag `daily run` does not know (0.4 snapshot flags like --leaves/--meat), or null.</summary>
     private static string? UnknownDailyRunFlag(string[] args)
@@ -63,6 +65,7 @@ internal static partial class KolibriCli
             if (!a.StartsWith("--")) continue;
             if (DailyValueFlags.Contains(a, StringComparer.OrdinalIgnoreCase)) { i++; continue; }
             if (string.Equals(a, "--execute", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(a, "--chess", StringComparison.OrdinalIgnoreCase)) continue;
             return a;
         }
         return null;
@@ -74,10 +77,21 @@ internal static partial class KolibriCli
         bacon = live.Bacon, baconMachines = live.BaconMachines, meat = live.Meat,
         dayShortenerDoneToday = live.DayShortenerDoneToday,
         baconMachineUsedToday = live.BaconMachineUsedToday,
-        memeItemsDoneToday = live.MemeItemsDoneToday
+        memeItemsDoneToday = live.MemeItemsDoneToday,
+        adventures = live.Adventures,
+        items = ItemsDocument(live)
     };
 
-    /// <summary>daily run [--role main|mallbot|all] [--hermit-clovers N] [--skip|--only campfire|hermit|internet-shop] [--execute --approval-token T]</summary>
+    /// <summary>Owned daily items and what is done today (only items the account owns).</summary>
+    private static object ItemsDocument(DailyRunLive live) => new
+    {
+        toaster = live.HasToaster ? new { doneToday = live.ToasterDoneToday } : null,
+        vipKlaw = live.HasVipKey ? new { pullsDoneToday = live.KlawPullsDoneToday.Count, pullsPerDay = DailyItems.VipKlawDailyPulls } : null,
+        cargoShorts = live.HasCargoShorts ? new { doneToday = live.CargoPocketDoneToday } : null,
+        fancyChessSet = live.HasFancyChessSet ? new { doneToday = live.FancyChessDoneToday } : null
+    };
+
+    /// <summary>daily run [--role main|mallbot|all] [--hermit-clovers N] [--cargo-pocket N[,M…]] [--chess] [--skip|--only STEP] [--execute --approval-token T]</summary>
     private static async Task<int> DailyRunLiveAsync(string[] args)
     {
         var unknown = UnknownDailyRunFlag(args);
@@ -93,7 +107,16 @@ internal static partial class KolibriCli
             return Fail("Use either --only or --skip, not both.");
         var badOnly = only.FirstOrDefault(o => !DailyKnownSteps.Contains(o));
         if (badOnly is not null)
-            return Fail($"--only takes campfire, hermit or internet-shop (got '{badOnly}').");
+            return Fail($"--only takes {string.Join(", ", DailyKnownSteps)} (got '{badOnly}').");
+        var badSkip = skip.FirstOrDefault(o => !DailyKnownSteps.Contains(o));
+        if (badSkip is not null)
+            return Fail($"--skip takes {string.Join(", ", DailyKnownSteps)} (got '{badSkip}').");
+        IReadOnlyList<int> cargoPockets;
+        try { cargoPockets = GetOptions(args, "--cargo-pocket").SelectMany(CargoPockets.Parse).ToArray(); }
+        catch (FormatException exception) { return Fail("--cargo-pocket: " + exception.Message); }
+        var fightPocket = cargoPockets.FirstOrDefault(CargoPockets.StartsFight);
+        if (fightPocket != 0)
+            return Fail($"--cargo-pocket {CargoPockets.Describe(fightPocket)} starts a fight; daily run only picks pockets without a fight.");
         if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
             throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
         var skipSet = only.Count > 0
@@ -102,7 +125,9 @@ internal static partial class KolibriCli
         var options = new DailyRunOptions
         {
             HermitCloversWanted = Math.Max(0, ReadInt(args, "--hermit-clovers", 0)),
-            Skip = skipSet
+            Skip = skipSet,
+            CargoPockets = cargoPockets,
+            PlayChess = HasFlag(args, "--chess")
         };
 
         if (roles.Length == 1)
@@ -142,6 +167,7 @@ internal static partial class KolibriCli
                 command = "daily run", readOnly = true, previewOnly = true, role = role.ToString(), live = liveDoc,
                 steps = steps.Select(Step).ToArray(),
                 campfireSkipped = DailyRun.CampfireSkipReason(live, options),
+                itemNotes = DailyItems.Notes(live, options).Select(n => new { step = n.Step, note = n.Text }).ToArray(),
                 note = "Preview: only status and inventory were read. Add --execute --approval-token to send these steps."
             }, 0);
         }
@@ -161,7 +187,9 @@ internal static partial class KolibriCli
                 bacon = after.Bacon, meat = after.Meat,
                 dayShortenerDoneToday = after.DayShortenerDoneToday,
                 baconMachineUsedToday = after.BaconMachineUsedToday,
-                memeItemsDoneToday = after.MemeItemsDoneToday
+                memeItemsDoneToday = after.MemeItemsDoneToday,
+                adventures = after.Adventures,
+                items = ItemsDocument(after)
             },
             auditPath = (string?)null
         }, result.Completeness is DailyRunCompleteness.Failed ? 3
@@ -218,11 +246,15 @@ internal static partial class KolibriCli
 
     private static void PrintDailyHelp()
     {
-        Console.WriteLine("  daily run [--role main|mallbot|all] [--hermit-clovers N] [--skip STEP]... | [--only STEP]...   (STEP = campfire|hermit|internet-shop)");
-        Console.WriteLine("            [--execute --approval-token TOKEN]   Day Shortener, Hermit clovers, Internet Meme Shop;");
+        Console.WriteLine("  daily run [--role main|mallbot|all] [--hermit-clovers N] [--skip STEP]... | [--only STEP]...");
+        Console.WriteLine("            (STEP = campfire|hermit|internet-shop|toaster|vip|cargo|chess)");
+        Console.WriteLine("            [--cargo-pocket N[,M...]] [--chess] [--execute --approval-token TOKEN]");
+        Console.WriteLine("            Day Shortener, Hermit clovers, Internet Meme Shop, cheap toaster, VIP Klaw (3x), owned items only;");
+        Console.WriteLine("            --cargo-pocket: Cargo Cultist Shorts pockets by preference (none = no pick; fight pockets are refused);");
+        Console.WriteLine("            --chess: play the fancy chess set (opt-in: a lost game costs 10 adventures);");
         Console.WriteLine("            preview reads status and inventory only; each step runs at most once per KoL day; --role all = main, then mallbot");
         Console.WriteLine("  daily audit [--tail N] [--verify] [--role main|mallbot|all] [--account A]   read-only bridge audit log (fixed location)");
-        Console.WriteLine("  Aliases: daily campfire|hermit|internet-shop|meme-shop = daily run --only STEP; daily routine|go|bridge|breakfast = daily run.");
+        Console.WriteLine("  Aliases: daily campfire|hermit|internet-shop|meme-shop|toaster|vip|cargo|chess = daily run --only STEP; daily routine|go|bridge|breakfast = daily run.");
         Console.WriteLine("  Removed: daily bribes-sample, send-items (no transfer commands), item-arbitrage (use 'arbitrage plan').");
     }
 }

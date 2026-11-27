@@ -37,6 +37,7 @@ public partial class DailyView : UserControl
         this.FindControl<ListBox>("DailyStepList")!.ItemsSource = model.Steps;
         model.PropertyChanged += OnModelChanged;
         RenderBanner();
+        RenderItemSettings(model.CurrentSettings);
     }
 
     private void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -49,6 +50,16 @@ public partial class DailyView : UserControl
     {
         this.FindControl<Border>("DailyStaleBanner")!.IsVisible = _model?.SessionStale == true;
         this.FindControl<TextBlock>("DailyStaleBannerText")!.Text = _model?.SessionBannerText ?? "";
+    }
+
+    /// <summary>Fills the Cargo pocket list and the chess opt-in from the saved settings.</summary>
+    private void RenderItemSettings(DesktopSettings settings)
+    {
+        if (this.FindControl<TextBox>("DailyCargoPockets") is { } pockets) pockets.Text = settings.DailyCargoPockets;
+        if (this.FindControl<CheckBox>("DailyPlayChess") is { } chess) chess.IsChecked = settings.DailyPlayChess;
+        if (this.FindControl<TextBlock>("DailyCargoHint") is { } hint)
+            hint.Text = "Empty: no pocket is picked. Each pocket works once per ascension; pockets that start a fight are refused. "
+                + "No fight, no turn: " + global::KoLibri.Daily.CargoPockets.SuggestionText() + ".";
     }
 
     /// <summary>The entries for a step row. Building runs nothing.</summary>

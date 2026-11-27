@@ -307,7 +307,7 @@ internal static partial class KolibriCli
         w.WriteLine("  adventure run --location ID [--role main] [--max-turns N] [--fight-action attack|skill:ID|item:ID|run]");
         w.WriteLine("                [--choice-action CHOICE:OPTION] [--execute --approval-token TOKEN]");
         w.WriteLine("  choice pending|submit|policy ...                 open choices; submit previews unless --execute");
-        w.WriteLine("  daily run [--role main|mallbot] [--hermit-clovers N] [--skip campfire|hermit|internet-shop] [--execute --approval-token TOKEN]");
+        w.WriteLine("  daily run [--role main|mallbot] [--hermit-clovers N] [--cargo-pocket N[,M]] [--chess] [--skip campfire|hermit|internet-shop|toaster|vip|cargo|chess] [--execute --approval-token TOKEN]");
         if (experimental)
         {
             w.WriteLine();

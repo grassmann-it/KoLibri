@@ -73,6 +73,10 @@ public sealed class DesktopSettings
     public List<DailyConsumable> SpleenItems { get; set; } = new();
     /// <summary>Steps skipped for a day, key "Role|step" to ISO date.</summary>
     public Dictionary<string, string> SkippedSteps { get; set; } = new();
+    /// <summary>Cargo Cultist Shorts pockets for the daily run, by preference ("621,484"). Empty: no pocket is picked.</summary>
+    public string DailyCargoPockets { get; set; } = "";
+    /// <summary>Opt-in: the daily run plays the fancy chess set (a lost game costs 10 adventures).</summary>
+    public bool DailyPlayChess { get; set; }
 
     /// <summary>Starred locations of the Adventure tab's location picker (KoLmafia location ids, e.g. "adventure=439:The Skeleton Store").</summary>
     public List<string> FavoriteLocations { get; set; } = new();
@@ -246,6 +250,8 @@ public sealed class DesktopSettingsStore
             if (Str(root, "theme") is "Light" or "Dark" or "System") settings.Theme = Str(root, "theme")!;
             settings.BoozeItems = Consumables(root, "boozeItems");
             settings.SpleenItems = Consumables(root, "spleenItems");
+            settings.DailyCargoPockets = Str(root, "dailyCargoPockets") ?? "";
+            settings.DailyPlayChess = Bool(root, "dailyPlayChess", false);
             if (root["skippedSteps"] is JsonObject skips)
                 foreach (var (k, v) in skips)
                     if (v is JsonValue sv && sv.TryGetValue<string>(out var day) && !string.IsNullOrWhiteSpace(day))
@@ -281,6 +287,8 @@ public sealed class DesktopSettingsStore
             boozeItems = settings.BoozeItems,
             spleenItems = settings.SpleenItems,
             skippedSteps = settings.SkippedSteps,
+            dailyCargoPockets = settings.DailyCargoPockets,
+            dailyPlayChess = settings.DailyPlayChess,
             numbers,
             favoriteLocations = settings.FavoriteLocations,
             recentLocations = settings.RecentLocations,

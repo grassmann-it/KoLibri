@@ -71,6 +71,9 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
 
     public AccountRole Role => _role;
 
+    /// <summary>The saved settings (Cargo pockets, chess opt-in) the daily view shows.</summary>
+    public DesktopSettings CurrentSettings => _settings();
+
     public ObservableCollection<DailyBriefingRow> Rows { get; } = new();
 
     /// <summary>The live numbers the plan was built from.</summary>
@@ -123,6 +126,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
             Rows.Add(BuildRow("Internet-Shop", "Claim the free pulls",
                 "3 free pulls (egg, internet bacon, BACON machine)",
                 "open"));
+            foreach (var row in ItemRows(live.Run, _settings())) Rows.Add(row);
             if (ExperimentalFeatures.IsEnabled(_settings()))
                 Rows.Add(BuildRow("Arbitrage", "Restock clovers",
                     "buy 11-leaf clovers below the price ceiling",
@@ -165,6 +169,32 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
 
     public Task RefreshAsync(CancellationToken cancellationToken = default)
         => LoadAsync(forceRefresh: true, cancellationToken);
+
+    /// <summary>
+    /// Rows for the daily items the account owns (toaster, VIP Klaw, Cargo Cultist Shorts, fancy chess set), with the
+    /// same planning and notes as <c>daily run</c>. Items the account does not own get no row.
+    /// </summary>
+    internal static IEnumerable<DailyBriefingRow> ItemRows(global::KoLibri.Daily.DailyRunLive run, DesktopSettings settings)
+    {
+        var options = DesktopDailyItems.Options(settings);
+        var notes = global::KoLibri.Daily.DailyItems.Notes(run, options);
+        string Note(string step) => string.Join(" ", notes.Where(n => n.Step == step).Select(n => n.Text));
+        var planned = global::KoLibri.Daily.DailyRun.Plan(run, options).Where(s => s.Kind == "daily").ToArray();
+        bool Planned(string id) => planned.Any(s => s.Id == id);
+        string State(bool done, string id) => done ? "done" : Planned(id) ? "open" : "skipped";
+        if (run.HasToaster)
+            yield return BuildRow("Toaster", "Use the cheap toaster", Note("toaster"),
+                State(run.ToasterDoneToday, global::KoLibri.Daily.DailyItems.StepIds.Toaster));
+        if (run.HasVipKey)
+            yield return BuildRow("VIP Lounge", "Deluxe Mr. Klaw (3x)", Note("vip"),
+                State(run.KlawPullsDoneToday.Count >= global::KoLibri.Daily.DailyItems.VipKlawDailyPulls, global::KoLibri.Daily.DailyItems.StepIds.VipKlaw));
+        if (run.HasCargoShorts)
+            yield return BuildRow("Cargo Shorts", "Empty one pocket", Note("cargo"),
+                State(run.CargoPocketDoneToday, global::KoLibri.Daily.DailyItems.StepIds.CargoPocket));
+        if (run.HasFancyChessSet)
+            yield return BuildRow("Chess set", "Play one game (opt-in)", Note("chess"),
+                State(run.FancyChessDoneToday, global::KoLibri.Daily.DailyItems.StepIds.FancyChess));
+    }
 
     private static DailyBriefingRow BuildRow(string surface, string description, string detail, string state)
         => new()
