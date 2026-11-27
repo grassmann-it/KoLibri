@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using KolLibri.Mcp;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
 using LibKolibri;
@@ -332,96 +331,7 @@ public sealed class AdventureChoiceHardeningTests
         Assert.Equal(expected, snarfblat);
     }
 
-    [Fact]
-    public async Task Mcp_run_sends_the_numeric_snarfblat_of_a_catalog_id()
-    {
-        var (server, transport, bridge) = McpServer();
-        using var _ = bridge;
-        transport.EnqueueObservation(AdventureTransportOperation.Adventure,
-            new AdventureKernelObservation { AdventureId = "adventure=543:Your Mushroom Garden", Kind = AdventureEncounterKind.Reward, CanContinue = false, ResponseHash = "r" });
-
-        await Invoke(server, "kol_adventure_run_execute", """
-            {"locationId":"adventure=543:Your Mushroom Garden","runId":"snarf","execute":true,"approvalToken":"t","maxGatewaySteps":3,"snapshot":{"turnsRemaining":1}}
-            """);
-
-        Assert.Equal(543, Assert.Single(transport.Requests).Snarfblat);
-    }
-
-    [Fact]
-    public async Task Mcp_chain_for_an_unknown_run_reports_nothing_executed()
-    {
-        var (server, _, bridge) = McpServer();
-        using var _ = bridge;
-        var payload = await Invoke(server, "kol_choice_chain_execute",
-            """{"runId":"no-such-run","execute":true,"approvalToken":"t"}""");
-        Assert.False(payload.GetProperty("executed").GetBoolean());
-        Assert.Equal("Aborted", payload.GetProperty("stopReason").GetString());
-    }
-
-    [Fact]
-    public async Task Mcp_gated_chain_for_an_unknown_run_books_zero_units()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "kolibri-wb-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            var grants = new GrantStore(Path.Combine(dir, "g.json"));
-            var ledger = new UsageLedger(Path.Combine(dir, "u.jsonl"));
-            var gate = new AccessGate(grants, ledger);
-            var store = new InMemoryAdventureRunCheckpointStore();
-            using var bridge = new AdventureMcpExecutionBridge(
-                new TransportAdventureExecutionGatewayFactory(new AdventureExecutionFixtureTransport(), store, "kolibri-mcp-gated"), store, auditPath: "<memory>");
-            var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge);
-            server.Authorizer = McpAccessPolicy.ForToken(gate, () => McpRequestContext.Token, "Main");
-            var grant = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit>
-            {
-                [Rights.AccountRead] = new(), [Rights.Adventure] = new() { DailyBudget = 50 }
-            }, TimeSpan.FromDays(1));
-            McpRequestContext.Token = grant.Token;
-
-            string Call(string extra) => "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"kol_choice_chain_execute\",\"arguments\":"
-                + "{\"role\":\"Main\",\"runId\":\"ghost\",\"execute\":true," + extra + "\"maxChoices\":20}}}";
-            var preview = (await server.HandleAsync(JsonDocument.Parse(Call("")).RootElement))!.Value.GetProperty("result");
-            var planId = JsonDocument.Parse(preview.GetProperty("content")[0].GetProperty("text").GetString()!).RootElement.GetProperty("planId").GetString();
-            var done = (await server.HandleAsync(JsonDocument.Parse(Call("\"planId\":\"" + planId + "\",")).RootElement))!.Value.GetProperty("result");
-
-            Assert.False(done.GetProperty("isError").GetBoolean(), done.GetRawText());
-            Assert.Equal(0, ledger.UsedToday(grant.Grant.Id, Rights.Adventure));
-        }
-        finally
-        {
-            McpRequestContext.Token = null;
-            try { Directory.Delete(dir, true); } catch (IOException) { }
-        }
-    }
-
-    [Fact]
-    public async Task Mcp_live_run_ignores_a_supplied_stale_snapshot_without_account_access()
-    {
-        var (server, transport, bridge) = McpServer();
-        using var _ = bridge;
-        var payload = await Invoke(server, "kol_adventure_run_execute", """
-            {"locationId":"skeleton","runId":"stale","execute":true,"approvalToken":"t",
-             "conditions":[{"kind":"ItemCount","key":"1","target":1}],"snapshot":{"isStale":true,"items":{"1":0}}}
-            """);
-        Assert.Equal("ConditionsBlocked", payload.GetProperty("stopReason").GetString());
-        Assert.False(payload.GetProperty("executed").GetBoolean());
-        Assert.Equal(0, transport.RequestCount);
-    }
-
-    private static (KolibriMcpServer, AdventureExecutionFixtureTransport, AdventureMcpExecutionBridge) McpServer()
-    {
-        var transport = new AdventureExecutionFixtureTransport();
-        var store = new InMemoryAdventureRunCheckpointStore();
-        var bridge = new AdventureMcpExecutionBridge(new TransportAdventureExecutionGatewayFactory(transport, store, "t"), store, auditPath: "<memory>");
-        return (new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions(), executionBridge: bridge), transport, bridge);
-    }
-
-    private static async Task<JsonElement> Invoke(KolibriMcpServer server, string tool, string argsJson)
-    {
-        var envelope = JsonDocument.Parse("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"" + tool + "\",\"arguments\":" + argsJson + "}}").RootElement;
-        var result = (await server.HandleAsync(envelope, CancellationToken.None))!.Value.GetProperty("result");
-        return result.TryGetProperty("structuredContent", out var structured) ? structured.Clone() : result.Clone();
-    }
+    // The MCP adventure/choice tests moved to KoLibri.Tests/McpAdventureToolsTests (0.5).
 
     // --- CLI resume command (M10) --------------------------------------------------------------
 

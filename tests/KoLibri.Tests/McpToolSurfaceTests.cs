@@ -1,10 +1,9 @@
 using System.Text.Json;
-using KoLibri.Core.Spiel;
 using KolLibri.Mcp;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests;
 
 /// <summary>
 /// Pins the tools a default MCP host offers. Adding a tool to the core is a deliberate
@@ -45,12 +44,9 @@ public sealed class McpToolSurfaceTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kolibri-surface-" + Guid.NewGuid().ToString("N"));
     private readonly AdventureMcpExecutionBridge _bridge;
 
-    public McpToolSurfaceTests()
-    {
-        var transport = new AdventureExecutionFixtureTransport();
-        var store = new KoLibri.Core.Spiel.InMemoryAdventureRunCheckpointStore();
-        _bridge = new AdventureMcpExecutionBridge(new TransportAdventureExecutionGatewayFactory(transport, store), store, auditPath: "<memory>");
-    }
+    private readonly McpAccounts _accounts = McpTest.Accounts();
+
+    public McpToolSurfaceTests() => _bridge = new AdventureMcpExecutionBridge(_accounts);
 
     public void Dispose()
     {
@@ -61,7 +57,7 @@ public sealed class McpToolSurfaceTests : IDisposable
     /// <summary>A server wired like <c>kolibri-mcp</c> over HTTP: execution bridge plus write tools.</summary>
     private KolibriMcpServer FullHost(bool experimental)
     {
-        var server = new KolibriMcpServer(runtime: null, options: new KolibriMcpServerOptions { ExperimentalTools = experimental }, executionBridge: _bridge);
+        var server = new KolibriMcpServer(_accounts, options: new KolibriMcpServerOptions { ExperimentalTools = experimental }, executionBridge: _bridge);
         var gate = new AccessGate(new GrantStore(Path.Combine(_dir, "g.json")), new UsageLedger(Path.Combine(_dir, "u.jsonl")));
         // Registration only stores the actions; no handler runs in these tests.
         server.EnableWriteTools(gate, null!);

@@ -1,0 +1,9 @@
+[
+  {
+    "clientId": "mcp_c_Y2xpZW50LTA0",
+    "clientName": "Claude",
+    "redirectUris": [
+      "https://claude.ai/api/mcp/auth_callback"
+    ]
+  }
+]

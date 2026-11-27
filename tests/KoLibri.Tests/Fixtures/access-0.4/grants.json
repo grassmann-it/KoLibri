@@ -1,0 +1,33 @@
+[
+  {
+    "Id": "E7mXf1X5izW-",
+    "ClientName": "ai-04",
+    "TokenHash": "d7a7af0faaa9e9edd7c41c85566ed125b322cc52a7711fd37d2b4360e39f5df6",
+    "Accounts": [
+      "Main"
+    ],
+    "Rights": {
+      "account.read": {
+        "DailyBudget": null,
+        "MaxUnitPrice": null,
+        "MeatReserve": null,
+        "MaxChangePercent": null
+      },
+      "mall.buy": {
+        "DailyBudget": 100000,
+        "MaxUnitPrice": 50000,
+        "MeatReserve": null,
+        "MaxChangePercent": null
+      },
+      "adventure": {
+        "DailyBudget": 10,
+        "MaxUnitPrice": null,
+        "MeatReserve": null,
+        "MaxChangePercent": null
+      }
+    },
+    "CreatedAt": "2026-11-26T23:46:34.4998604+00:00",
+    "ExpiresAt": "2036-11-23T23:46:34.4998604+00:00",
+    "RevokedAt": null
+  }
+]

@@ -16,6 +16,8 @@
     <ProjectReference Include="../../tools/KolLibri.Cli/KolLibri.Cli.csproj" />
     <!-- The desktop tests (Desktop/) run the view models and windows against the same fake KoL; no KoLibri.Core. -->
     <ProjectReference Include="../../KoLibri.Desktop/KoLibri.Desktop.csproj" />
+    <!-- The MCP server (0.5): its tools run against the same fake KoL; internals via InternalsVisibleTo. -->
+    <ProjectReference Include="../../tools/KolLibri.Mcp/KolLibri.Mcp.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -27,5 +29,6 @@
     <Content Include="$(MSBuildThisFileDirectory)../../external/kolmafia-data/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external/kolmafia-data" />
     <!-- Saved KoL pages the desktop tests replay (shared with the Core suite). -->
     <Content Include="$(MSBuildThisFileDirectory)../KoLibri.Core.Tests/Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="Fixtures" />
+    <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

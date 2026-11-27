@@ -1,5 +1,5 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
+using KoLibri;
 
 namespace KolLibri.Mcp;
 
@@ -33,9 +33,7 @@ public partial class KolibriMcpServer
     private async Task<object?> LoginStatusAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var manager = AccountSessionManager.CreateDefault();
-        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var profiles = await manager.GetAccountsAsync(cancellationToken).ConfigureAwait(false);
+        var accounts = await _accounts.Client.Accounts.ListAsync(cancellationToken).ConfigureAwait(false);
         var rows = new List<object>();
         var wanted = McpArgs.Roles(arguments, _options.DefaultRole);
         var explicitRole = arguments.TryGetProperty("role", out _);
@@ -43,25 +41,23 @@ public partial class KolibriMcpServer
         {
             // Without an explicit role list every account the grant covers; never one it does not.
             if (explicitRole ? !wanted.Contains(role) : !GrantCovers(role)) continue;
-            var profile = profiles.FirstOrDefault(p => p.Role == role);
-            var session = await manager.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            var account = accounts.FirstOrDefault(a => a.Id.Value == McpAccounts.IdOf(role));
+            var expired = account?.SessionExpiresAt is { } at && at <= DateTimeOffset.UtcNow;
             rows.Add(new
             {
                 role = role.ToString(),
-                profileId = profile?.Id,
-                displayName = profile?.DisplayName,
-                enabled = profile?.Enabled ?? false,
-                hasCookie = !string.IsNullOrWhiteSpace(session?.Credentials.CookieHeader),
-                expired = session?.IsExpired() ?? false,
-                expiresAt = session?.Credentials.ExpiresAt,
-                endpoint = session?.Profile.Endpoint?.ToString()
+                profileId = account?.Id.Value,
+                displayName = account?.PlayerName,
+                enabled = account is not null,
+                hasCookie = account is not null && (account.HasSession || expired),
+                expired,
+                expiresAt = account?.SessionExpiresAt,
+                endpoint = (string?)null
             });
         }
         return new { command = "login status", accounts = rows };
     }
 
-    /// <summary>Asks the installed authorizer (if any) whether a read of this role is allowed.</summary>
     private bool GrantCovers(AccountRole role)
     {
         if (Authorizer is null) return true;
@@ -72,26 +68,15 @@ public partial class KolibriMcpServer
     private async Task<object?> LoginClearAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var roleValue = OptionalString(arguments, "role");
-        var roles = ResolveLoginRoles(roleValue);
-        var manager = AccountSessionManager.CreateDefault();
-        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        var roles = ResolveLoginRoles(OptionalString(arguments, "role"));
+        var known = await _accounts.Client.Accounts.ListAsync(cancellationToken).ConfigureAwait(false);
         var cleared = new List<string>();
         foreach (var role in roles)
         {
-            var profile = await manager.GetProfileAsync(role, cancellationToken).ConfigureAwait(false);
-            if (profile is null) continue;
-            try
-            {
-                await manager.SetCredentialsAsync(role, new AccountCredentials
-                {
-                    Password = string.Empty,
-                    CookieHeader = string.Empty,
-                    ExpiresAt = DateTimeOffset.MinValue
-                }, cancellationToken).ConfigureAwait(false);
-                cleared.Add(role.ToString());
-            }
-            catch (AccountConfigurationException) { }
+            var account = known.FirstOrDefault(a => a.Id.Value == McpAccounts.IdOf(role));
+            if (account is null) continue;
+            await _accounts.Client.Accounts.LogoutAsync(account.Id, cancellationToken).ConfigureAwait(false);
+            cleared.Add(role.ToString());
         }
         return new { command = "login clear", cleared };
     }
@@ -104,16 +89,19 @@ public partial class KolibriMcpServer
             throw new McpInvalidParamsException($"role must be 'Main' or 'Mallbot' (got '{roleText}').");
         var username = RequiredString(arguments, "username");
         var password = RequiredString(arguments, "password");
-        var login = await new KoLLoginClient().LoginAsync(username, password, rememberPassword: true, cancellationToken).ConfigureAwait(false);
-        var manager = AccountSessionManager.CreateDefault();
-        await manager.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        await manager.SetCredentialsAsync(role, login.Credentials, cancellationToken).ConfigureAwait(false);
+        // As in 0.4 this tool (re)binds the role to the login it is given; the HTTP host does not offer it.
+        await using var session = await _accounts.Client.LoginAsync(username, password, new LoginOptions
+        {
+            AccountId = McpAccounts.IdOf(role),
+            RememberPassword = true,
+            AllowIdentityChange = true
+        }, cancellationToken).ConfigureAwait(false);
         return new
         {
             command = "login refresh",
             role = role.ToString(),
             username,
-            loggedInAt = login.LoggedInAt
+            loggedInAt = DateTimeOffset.UtcNow
         };
     }
 

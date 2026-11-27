@@ -1,9 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using LibKolibri;
-using LibKolibri.Access;
+using KoLibri;
+using KoLibri.Extras;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 
@@ -55,23 +54,32 @@ public sealed partial class KolibriClientActions
 
     public async Task<ShopSalesReport> ShopSalesAsync(AccountRole role, bool refresh, int topBuyers, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var snapshot = await client.GetShopSalesAsync(_crm, refresh, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenAsync(role, ct).ConfigureAwait(false);
+        var sales = await SalesAsync(session, refresh, ct).ConfigureAwait(false);
         var database = await _crm.LoadAsync(ct).ConfigureAwait(false);
-        var sync = BuyerCrmService.ApplySales(database, snapshot.Sales);
+        var sync = BuyerCrmService.ApplySales(database, sales);
         if (sync.NewSales > 0) await _crm.SaveAsync(sync.Database, ct).ConfigureAwait(false);
-        return BuildSalesReport(snapshot, sync, topBuyers);
+        return BuildSalesReport(DateTimeOffset.UtcNow, false, sales, sync, topBuyers);
     }
 
-    internal static ShopSalesReport BuildSalesReport(ShopSalesSnapshot snapshot, BuyerCrmSyncResult sync, int topBuyers)
+    /// <summary>The store's sales log as CRM records; buyer names become the CRM's stable keys (same keys as 0.4).</summary>
+    private async Task<IReadOnlyList<SaleRecord>> SalesAsync(KolibriSession session, bool refresh, CancellationToken ct)
     {
-        var items = snapshot.Sales.GroupBy(s => s.ItemName, StringComparer.OrdinalIgnoreCase)
+        var hasher = _crm.CreateHasher();
+        var now = DateTimeOffset.UtcNow;
+        return (await session.Shop.GetSalesAsync(refresh, ct).ConfigureAwait(false))
+            .Select(s => new SaleRecord(hasher.Hash(s.Buyer), s.ItemName, s.Quantity, s.Meat, s.Quantity > 0 ? s.Meat / s.Quantity : s.Meat, s.At, now, s.Buyer))
+            .ToArray();
+    }
+
+    internal static ShopSalesReport BuildSalesReport(DateTimeOffset fetchedAt, bool isStale, IReadOnlyList<SaleRecord> sales, BuyerCrmSyncResult sync, int topBuyers)
+    {
+        var items = sales.GroupBy(s => s.ItemName, StringComparer.OrdinalIgnoreCase)
             .Select(g => new ShopItemSales(g.Key, g.Count(), g.Sum(s => s.Quantity), g.Sum(s => s.TotalPrice),
                 g.Sum(s => s.Quantity) == 0 ? 0 : g.Sum(s => s.TotalPrice) / g.Sum(s => (long)s.Quantity), g.Max(s => s.SoldAt)))
             .OrderByDescending(i => i.TotalMeat).Take(50).ToArray();
         var top = sync.Database.Buyers.OrderByDescending(b => b.TotalMeat).Take(Math.Clamp(topBuyers, 0, 50)).Select(Summarize).ToArray();
-        return new ShopSalesReport(snapshot.FetchedAt, snapshot.IsStale, snapshot.Sales.Count, snapshot.Sales.Sum(s => s.TotalPrice),
-            sync.NewSales, items, top);
+        return new ShopSalesReport(fetchedAt, isStale, sales.Count, sales.Sum(s => s.TotalPrice), sync.NewSales, items, top);
     }
 
     public async Task<IReadOnlyList<BuyerSummary>> BuyersAsync(int minPoints, int limit, CancellationToken ct)
@@ -90,27 +98,25 @@ public sealed partial class KolibriClientActions
 
     public async Task<IReadOnlyList<PriceSuggestion>> PriceSuggestionsAsync(AccountRole role, int maxItems, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var shop = await client.GetOwnShopAsync(true, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenAsync(role, ct).ConfigureAwait(false);
+        var shop = await session.Shop.GetListingsAsync(refresh: true, ct).ConfigureAwait(false);
         var sold = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var sales = await client.GetShopSalesAsync(_crm, false, ct).ConfigureAwait(false);
-            foreach (var g in sales.Sales.GroupBy(s => s.ItemName, StringComparer.OrdinalIgnoreCase)) sold[g.Key] = g.Sum(s => s.Quantity);
+            foreach (var g in (await SalesAsync(session, false, ct).ConfigureAwait(false)).GroupBy(s => s.ItemName, StringComparer.OrdinalIgnoreCase))
+                sold[g.Key] = g.Sum(s => s.Quantity);
         }
         catch (Exception e) when (e is not OperationCanceledException) { /* sales are optional evidence */ }
-
         var result = new List<PriceSuggestion>();
         foreach (var listing in shop.OrderByDescending(l => l.Price * l.Quantity).Take(Math.Clamp(maxItems, 1, 40)))
         {
             ct.ThrowIfCancellationRequested();
-            var name = listing.DisplayName ?? listing.ItemId;
-            var market = await client.SearchMallAsync(name, ct).ConfigureAwait(false);
-            long? lowest = market.Listings.Count == 0 ? null : market.Listings.Min(l => l.Price);
+            var market = await session.Mall.GetOffersAsync(listing.Item, refresh: true, ct).ConfigureAwait(false);
+            long? lowest = market.Listings.Count == 0 ? null : market.Listings.Min(l => l.UnitPrice);
             var suggested = ShopAdvice.Suggest(listing.Price, lowest);
-            var recent = sold.GetValueOrDefault(name);
-            result.Add(new PriceSuggestion(listing.ItemId, listing.DisplayName, listing.Price, listing.Quantity, lowest, suggested,
-                ShopAdvice.Describe(listing.Price, lowest, suggested, recent), recent, market.IsStale));
+            var recent = sold.GetValueOrDefault(listing.Name);
+            result.Add(new PriceSuggestion(listing.Item.Id.ToString(CultureInfo.InvariantCulture), listing.Name, listing.Price, listing.Quantity, lowest, suggested,
+                ShopAdvice.Describe(listing.Price, lowest, suggested, recent), recent, false));
         }
         return result;
     }
@@ -125,14 +131,15 @@ public sealed partial class KolibriClientActions
         if (profile.LoyaltyPoints < pointsCost) return (false, $"The buyer has {profile.LoyaltyPoints} points, {pointsCost} needed.");
         if (string.IsNullOrWhiteSpace(profile.CharacterName) || profile.CharacterName == profile.BuyerKey)
             return (false, "The character name for this buyer is not known locally.");
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        IReadOnlyList<KoLibri.Core.Spiel.KoLMailAttachment> items = itemId is { } id
-            ? [new KoLibri.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
-        var outcome = await client.SendKMailOutcomeAsync(profile.CharacterName, text, items, 0, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var items = itemId is { } id
+            ? new[] { new InventoryItem(id, _accounts.Client.Data.Item(id)?.Name ?? id.ToString(CultureInfo.InvariantCulture), quantity) }
+            : Array.Empty<InventoryItem>();
+        var sent = await session.Mail.SendAsync(new MailMessage(profile.CharacterName, text) { Items = items }, ct).ConfigureAwait(false);
         // The mail may have arrived although the reply is lost: keep the budget held as unresolved, spend no points.
-        if (outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Unconfirmed)
+        if (sent.Status == MailSendStatus.Unclear)
             throw new UnreconciledPurchaseException("The reward KMail was sent but KoL's answer is missing; it may have arrived. Check the outbox.");
-        if (outcome != KoLibri.Core.Spiel.KoLMailSendOutcome.Sent) return (false, "KoL did not confirm the message.");
+        if (sent.Status != MailSendStatus.Sent) return (false, "KoL did not confirm the message.");
         if (pointsCost > 0)
             await _crm.SaveAsync(BuyerCrmService.SpendPoints(database, buyerKey, pointsCost), ct).ConfigureAwait(false);
         return (true, null);

@@ -1,6 +1,6 @@
 # KoLibri 0.5: Bestandsaufnahme und API-Entwurf
 
-Status: **Entwurf entschieden (§8), Schritt 3 umgesetzt: Lib (§11) und CLI (§12).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
+Status: **Entwurf entschieden (§8), Schritt 3 umgesetzt: Lib (§11), CLI (§12), MCP (§13) und Desktop (§14).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
 Der Entwurf selbst baute keine App um; den Umsetzungsstand beschreibt §11. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
 [ROADMAP.md](../ROADMAP.md) (Abschnitt 0.5) ab.
 
@@ -932,14 +932,99 @@ Die Hüllen (`command`, `role`, `executed`, `previewOnly`, `approvalRequired`, Z
   REPL-Parser-, Session-Probe- und Status-Row-Tests nach `CliTests` verschoben; die übrigen CLI-Tests nutzen die
   CLI-Typen (`KoLibri.Cli.AccountRole`, `ApprovalTokenStore`, `ChoiceResolutionConfig`).
 
+## 13. Umsetzungsstand Schritt 3, Teil 3: MCP-Server auf der neuen Lib
+
+Stand 2026-11-27. `tools/KolLibri.Mcp` referenziert nur noch `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` und
+`KoLibri.Extras` (alle `PrivateAssets="all"`); kein `KoLibri.Core`, kein `LibKolibri`. Jeder Tool-Aufruf öffnet
+eine frische Session aus dem gespeicherten Konto (`McpAccounts`, Konto-Ids `main`/`mallbot`, derselbe Store wie die
+CLI). Ein Login, Logout oder eine Erneuerung in der CLI gilt sofort; ein Neustart von `kolibri-mcp` ist nicht nötig.
+
+### 13.1 Zugriffsschicht in KoLibri.Safety (internal)
+
+- `src/KoLibri.Safety/Access/` enthält `AccessGate`, `Grant`/`RightLimit`/`Rights`, `GrantStore`, `Operations` und
+  `UsageLedger`/`UsageReservation`/`PlanTicket`. Das sind 1:1-Kopien von `LibKolibri.Access`; geändert haben sich
+  nur der Namespace `KoLibri.Safety.Access`, die Sichtbarkeit `internal` und `KolDay` (jetzt aus `KoLibri.Safety`,
+  gleiche Rechnung).
+- Die Schicht ist eine **Übergangs-API**: Sie ist nicht öffentlich und steht nicht in der PublicAPI.
+  `InternalsVisibleTo` gilt nur für `KolLibri.Mcp` und `KoLibri.Tests`. Die Vereinheitlichung mit den
+  Entwurfs-Guards kommt in einem eigenen PR.
+- Die Dateiformate sind unverändert, die vorhandenen Dateien bleiben gültig: `grants.json`, `usage.jsonl`
+  (Hash-Kette), `usage.jsonl.holds`, `usage.jsonl.lock` (prozessübergreifend, fail-closed) und
+  `mcp-oauth-clients.json`. `McpOldFormatTests` liest echte 0.4-Dateien aus `tests/KoLibri.Tests/Fixtures/access-0.4`:
+  - Grant über Token.
+  - Kette und Budget, inklusive unklarer Ausgaben.
+  - Ein Hold eines beendeten Prozesses wird übernommen.
+  - Lock gegen einen zweiten Schreiber.
+  - OAuth-Clients lesen und im gleichen Format zurückschreiben.
+- `LibKolibri.Access` bleibt für den Desktop bestehen, bis dieser umzieht.
+- Öffentliche API: keine Änderung an `src/KoLibri` oder an der PublicAPI von `KoLibri.Safety`. Ergänzt wurden
+  `KoLibri.Daily` (nicht paketiert) und `KoLibri.Extras` (nicht paketiert):
+  - `DailyRun.RunMemeShopAsync` mit `MemeShopRun`/`MemeShopStep`: Meme-Shop mit BACON-Nachkauf über
+    `Mall.QuoteAsync`/`BuyAsync`.
+  - `DailyRunOptions.AdventureReserveValue`/`CloverFloorValue`/`ExpectedCloverSaleValue`: Hermit-Werte aus 0.4.
+  - `BridgeAuditReader`: liest das 0.4-Bridge-Audit für `kol_daily_audit` und prüft die Hash-Kette.
+
+### 13.2 Tools
+
+**Auf der neuen API.** Gate, Rechte, Consent-Anzeige, Zwei-Schritt-Plan/Execute und Fehlerformate sind unverändert.
+
+- Die 19 Standard-Tools: `kol_status`, `kol_inventory`, `kol_login_status`, `kol_price_summary`, `kol_mall_buy`,
+  `kol_meme_shop`, `kol_send_message`, `kol_use_item`, `kol_consume`, `kol_rest`, `kol_adventure_locations`,
+  `kol_adventure_run_execute`, `kol_choice_chain_execute`, `kol_choice_pending`, `kol_choice_options`,
+  `kol_combat_inspect`, `kol_combat_decision`, `kol_daily_audit`, `kol_run_daily_bridge` (Vorschau).
+- Experimentell: `kol_login_refresh`, `kol_login_clear`, `kol_shop_sales`, `kol_shop_buyers`,
+  `kol_reward_buyer`, `kol_shop_price_suggestions`, `kol_transfer`, `kol_reprice_shop`, `kol_arbitrage_plan`.
+- Experimentell auf dem Live-Pfad: `kol_daily_campfire_plan`, `kol_daily_hermit_plan`, `kol_daily_routine`.
+  Sie nutzen `DailyRun.ReadAsync` mit Status, Inventar und den Tagesmarkern im 0.4-Schlüssel und senden nichts.
+
+**Vorerst nicht in 0.5-dev.** Diese Tools bleiben registriert, mit gleichem Gate und gleicher Consent-Anzeige. Sie
+antworten mit dem Tool-Fehler "not available in 0.5-dev, moves in a follow-up PR, nothing was sent" und senden
+keinen Request:
+
+- `kol_price_recommendation`, `kol_underprice_preview`, `kol_workflow_plan`
+- `kol_plan_daily_adventures`, `kol_plan_daily_adventures_execute`
+- `kol_preview_purchase`, `kol_preview_transfer`
+- `kol_autocombat_preview`, `kol_autocombat_action_preview`, `kol_recovery_plan`
+- `kol_adventure_bounded_preview`, `kol_adventure_daily_schedule`
+
+Der HTTP-Host entfernt wie in 0.4 `kol_plan_daily_adventures_execute`, `kol_login_clear` und `kol_login_refresh`.
+
+### 13.3 Abweichungen in der Ausgabe
+
+| Tool | Abweichung |
+|---|---|
+| `kol_status` | wie `status` in der CLI (§12.4); `playerId` ist die Spieler-Id des gespeicherten Kontos |
+| `kol_price_summary` | Kauf-Seite (`lowestBuyPrice`, `weightedMedianBuyPrice`) ist immer `null` und wird ausgelassen; `isStale` ist `false` |
+| `kol_login_status` | `profileId` ist die Konto-Id; `endpoint` ist `null` |
+| `kol_adventure_run_execute` | Ein Abenteuer pro Aufruf (wie 0.4). `steps` sind Begegnungen wie in der CLI. `auditPath` ist `<memory>`. `snapshot` wird ignoriert: Bedingungen liest der Lauf live, nur `ItemCount AtLeast` und `AdventuresRemaining AtMost` sind erlaubt, andere werden vor dem Senden abgelehnt. Ohne Snarfblat wird vor dem Senden abgebrochen. Der Approval-Token muss nur gesetzt sein, wie bei der Live-Factory in 0.4 |
+| `kol_choice_chain_execute` | Keine Checkpoints mehr: `runId` ist nur noch ein Label, beantwortet wird die gerade offene Choice. Ist nichts offen, gilt `executed=false` und `stopReason` ist `Complete` (0.4 bei unbekanntem Lauf: `Aborted`) |
+| `kol_daily_audit` | liest das 0.4-Bridge-Audit (gleiche Datei, gleiche Kette); 0.5 schreibt dort keine neuen Zeilen |
+| `kol_daily_campfire_plan`/`_hermit_plan`/`_routine` | neue Hülle: `readOnly`, `previewOnly`, `role`, `surface`, `verdict` (`Act`/`AlreadyDoneToday`/`NothingToDo`), `live`, `steps`, `next`; die Werte kommen vom Konto statt aus den Standardwerten der Offline-Planer |
+| `kol_mall_buy` | genau ein Kauf-POST (erste Plan-Zeile von `QuoteAsync`); ein unklares Ergebnis hält das Budget (`UnreconciledPurchaseException`) |
+| `kol_shop_sales` | Käufer werden mit dem CRM-Hasher aus `KoLibri.Extras` gehasht (gleiche Schlüssel wie 0.4) |
+
+### 13.4 Tests
+
+- Die MCP-Tests sind von `tests/KoLibri.Core.Tests` nach `tests/KoLibri.Tests` umgezogen (Fake-KoL,
+  `McpTest.Accounts`). Core.Tests referenziert `KolLibri.Mcp` nicht mehr.
+- Unverändert übernommen: `McpAccessPolicyTests`, `McpHttpOAuthTests`, `McpWriteToolsTests`, `McpToolSurfaceTests`.
+- Neu:
+  - `McpReadToolsTests`: Rollenwahl mit eigenem Cookie, 0.4-Felder, Platzhalter senden nichts.
+  - `McpAdventureToolsTests`: Vorschau, Snarfblat, erste erlaubte Kampfaktion, `needsDecision`, `choice_pending`,
+    Choice-Kette, Live-Bedingungen, Gate mit Budget, `PlanInvalid`, fehlendes Recht, leere Kette kostet nichts.
+  - `McpDailyToolsTests`: Live-Pfad, Marker aus der 0.4-Datei, Daily-Bridge nur als Vorschau.
+  - `McpOldFormatTests`: siehe 13.1.
+- In Core.Tests bleiben nur die reinen Core- und LibKolibri-Tests (`McpLoginToolsTests` testet den
+  `AccountSessionManager`, `McpRoleRuntimeTests` die `LibKolibriRuntime`).
+
 ---
 
-## 13. Umsetzungsstand Schritt 3, Teil 3: Desktop auf der neuen Lib
+## 14. Umsetzungsstand Schritt 3, Teil 4: Desktop auf der neuen Lib
 
 Stand 2026-11-27. `KoLibri.Desktop` referenziert nur noch `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` und `KoLibri.Extras`
 (alle mit `PrivateAssets="all"` wie die CLI), kein `KoLibri.Core`, kein `LibKolibri`.
 
-### 13.1 Aufbau
+### 14.1 Aufbau
 
 | Baustein | Inhalt |
 |---|---|
@@ -953,7 +1038,7 @@ Stand 2026-11-27. `KoLibri.Desktop` referenziert nur noch `KoLibri`, `KoLibri.Sa
 | `KoLibri.Extras/KoLmafiaData` | Kopie des KoLmafia-Katalogs (Bilder, Access-Flags, Organe, Outfits, `ItemClassifier`) |
 | `KoLibri.Safety/Access` | die MCP-Freigaben (`GrantStore`, `UsageLedger`) für die Agents-Seite, identisch mit dem MCP-Zweig |
 
-### 13.2 API-Ergänzungen (additiv, in `PublicAPI.Unshipped.txt` und im Stub)
+### 14.2 API-Ergänzungen (additiv, in `PublicAPI.Unshipped.txt` und im Stub)
 
 | Ergänzung | Wofür |
 |---|---|
@@ -962,7 +1047,7 @@ Stand 2026-11-27. `KoLibri.Desktop` referenziert nur noch `KoLibri`, `KoLibri.Sa
 | `LimiterOptions.MaxPerSecond` | Desktop-Einstellung "Requests pro Sekunde" |
 | `RelayOptions.SessionCheck` | Browser-Tab: Relay lehnt ab, sobald die Rolle neu angemeldet wurde |
 
-### 13.3 Abweichungen im Verhalten
+### 14.3 Abweichungen im Verhalten
 
 | Stelle | Abweichung |
 |---|---|

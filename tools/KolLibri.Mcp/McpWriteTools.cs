@@ -1,7 +1,7 @@
 using System.Text.Json;
-using KoLibri.Core.Basis;
-using LibKolibri;
-using LibKolibri.Access;
+using KoLibri;
+using KoLibri.Daily;
+using KoLibri.Safety.Access;
 
 namespace KolLibri.Mcp;
 
@@ -47,97 +47,137 @@ public interface IAccountActions
     Task<(bool Sent, string? Refusal)> RewardAsync(AccountRole role, string buyerKey, string text, int? itemId, int quantity, int pointsCost, CancellationToken ct);
 }
 
-/// <summary>Runs the actions through <see cref="KolibriClient"/> with the stored sessions.</summary>
+/// <summary>Runs the actions on the KoLibri 0.5 sessions of the stored accounts (one session per call).</summary>
 public sealed partial class KolibriClientActions : IAccountActions
 {
+    private readonly McpAccounts _accounts;
+
+    public KolibriClientActions(McpAccounts accounts) => _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
+
     public async Task<long> MeatAsync(AccountRole role, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        return (await client.GetStatusAsync(true, ct).ConfigureAwait(false)).Meat;
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        return (await session.Character.GetStatusAsync(refresh: true, ct).ConfigureAwait(false)).Meat;
     }
 
     public async Task<(int, long, string)> BuyAsync(AccountRole role, int itemId, string itemName, int quantity, long maxPrice, long reserve, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
         if (maxPrice < 1) throw new ArgumentOutOfRangeException(nameof(maxPrice), "A positive price limit is required.");
-        // One confirmed MCP buy sends at most one purchase POST.
-        var o = await client.BuyCheapAsync(itemId, itemName, quantity, maxPrice, reserve, ct, singlePurchase: true).ConfigureAwait(false);
-        if (o.Unclear) throw new UnreconciledPurchaseException(o.Rationale, [o.Spent], [Math.Max(o.UnclearSpend, 1)]);
-        return (o.Quantity, o.Spent, o.Verdict);
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var quote = await session.Mall.QuoteAsync(new PurchaseOrder(itemId, quantity, maxPrice) { MeatReserve = reserve }, ct).ConfigureAwait(false);
+        if (quote.Plan.Count == 0)
+            return (0, 0, $"NothingBought: {quote.Shortfall ?? "no listing at or below the price ceiling."}");
+        // One confirmed MCP buy sends at most one purchase POST: only the cheapest planned listing.
+        var first = quote.Plan[0];
+        var single = quote with { Plan = new[] { first }, TotalCost = first.UnitPrice * first.Quantity, PlannedQuantity = first.Quantity };
+        var result = await session.Mall.BuyAsync(single, ct).ConfigureAwait(false);
+        var message = string.Join(" ", result.Lines.Select(l => l.Message).Where(m => !string.IsNullOrWhiteSpace(m)));
+        if (result.Status == PurchaseStatus.Unclear)
+            throw new UnreconciledPurchaseException($"The purchase answer is unclear. {message}".Trim(),
+                [result.MeatSpent], [Math.Max(single.TotalCost - result.MeatSpent, 1)]);
+        return (result.QuantityBought, result.MeatSpent, $"{result.Status}{(string.IsNullOrWhiteSpace(message) ? "" : ": " + message)}");
     }
 
     public async Task<(int, int, long, string, IReadOnlyList<string>)> MemeShopAsync(AccountRole role, bool topUp, long maxBaconPrice, long reserve, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var r = await client.RunMemeShopAsync(topUp, maxBaconPrice, reserve, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var r = await DailyRun.RunMemeShopAsync(session, topUp, maxBaconPrice, reserve, ct).ConfigureAwait(false);
         if (r.Unclear)
         {
             // Book what KoL confirmed per step, keep the unknown part reserved until the user reconciles.
-            var steps = r.Steps.Count(s => s.Accepted);
-            var confirmedRun = steps > 0 || (r.BaconTopUp?.Quantity ?? 0) > 0 ? 1L : 0L;
-            var topUpUnclear = r.BaconTopUp?.UnclearSpend ?? 0;
-            var runUnclear = r.Steps.Any(s => s.Unclear) || topUpUnclear > 0 ? 1L : 0L;
-            var note = r.Steps.LastOrDefault(s => s.Unclear)?.Message ?? r.BaconTopUp?.Rationale ?? "The answer to a meme shop request is unknown.";
+            var confirmedRun = r.Steps.Any(s => s.Accepted) || r.BaconBought > 0 ? 1L : 0L;
+            var runUnclear = r.Steps.Any(s => s.Unclear) || r.BaconUnclear > 0 ? 1L : 0L;
+            var note = r.Steps.LastOrDefault(s => s.Unclear)?.Message ?? "The answer to a meme shop request is unknown.";
             throw new UnreconciledPurchaseException(note,
-                topUp ? [confirmedRun, r.BaconTopUp?.Spent ?? 0] : [confirmedRun],
-                topUp ? [runUnclear, topUpUnclear] : [runUnclear]);
+                topUp ? [confirmedRun, r.BaconSpent] : [confirmedRun],
+                topUp ? [runUnclear, r.BaconUnclear] : [runUnclear]);
         }
-        return (r.Steps.Count(s => s.Accepted), r.BaconTopUp?.Quantity ?? 0, r.BaconTopUp?.Spent ?? 0, r.Verdict,
+        return (r.Steps.Count(s => s.Accepted), r.BaconBought, r.BaconSpent, r.Verdict,
             r.Steps.Select(s => $"{s.Description}: {(s.Accepted ? "ok" : "not done")} - {s.Message}").ToArray());
     }
 
     public async Task<bool> TransferAsync(AccountRole from, int? itemId, int quantity, long meat, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(from, cancellationToken: ct).ConfigureAwait(false);
-        var to = await client.OtherAccountNameAsync(ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("The other account is not stored; nothing was sent.");
-        IReadOnlyList<KoLibri.Core.Spiel.KoLMailAttachment> items = itemId is { } id
-            ? [new KoLibri.Core.Spiel.KoLMailAttachment(id, quantity)] : [];
-        var outcome = await client.SendKMailOutcomeAsync(to, "Sent with KoLibri.", items, meat, ct).ConfigureAwait(false);
+        // The recipient is the name KoL itself reports for the other account's live session, never a stored name.
+        var other = from == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
+        string to;
+        await using (var otherSession = await _accounts.OpenForActionAsync(other, ct).ConfigureAwait(false))
+            to = (await otherSession.Character.GetStatusAsync(refresh: true, ct).ConfigureAwait(false)).PlayerName;
+        if (string.IsNullOrWhiteSpace(to)) throw new InvalidOperationException("The other account's player name could not be read; nothing was sent.");
+        await using var session = await _accounts.OpenForActionAsync(from, ct).ConfigureAwait(false);
+        var items = itemId is { } id ? new[] { new InventoryItem(id, _accounts.Client.Data.Item(id)?.Name ?? id.ToString(System.Globalization.CultureInfo.InvariantCulture), quantity) } : Array.Empty<InventoryItem>();
+        var outcome = await session.Mail.SendAsync(new MailMessage(to, "Sent with KoLibri.") { Items = items, Meat = meat }, ct).ConfigureAwait(false);
         // The mail may have arrived although the reply is lost: keep the budget held as unresolved, never release it.
-        if (outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Unconfirmed)
+        if (outcome.Status == MailSendStatus.Unclear)
             throw new UnreconciledPurchaseException("The transfer KMail was sent but KoL's answer is missing; it may have arrived. Check both accounts.");
-        return outcome == KoLibri.Core.Spiel.KoLMailSendOutcome.Sent;
+        return outcome.Status == MailSendStatus.Sent;
     }
 
     public async Task<bool> MessageAsync(AccountRole from, string recipient, string text, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(from, cancellationToken: ct).ConfigureAwait(false);
-        return await client.SendKMailAsync(recipient, text, null, 0, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenForActionAsync(from, ct).ConfigureAwait(false);
+        var outcome = await session.Mail.SendAsync(new MailMessage(recipient, text), ct).ConfigureAwait(false);
+        return outcome.Status == MailSendStatus.Sent;
     }
 
     public async Task<(int, string?)> UseItemAsync(AccountRole role, int itemId, int quantity, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        return await client.UseItemAsync(itemId, quantity, ct).ConfigureAwait(false);
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var result = await session.Character.UseAsync(itemId, quantity, ct).ConfigureAwait(false);
+        if (result.Status == ActionStatus.Unclear)
+            throw new UnreconciledPurchaseException(result.Rejection ?? "The answer to a use request is unknown.", [result.Completed], [1]);
+        return (result.Completed, result.Status == ActionStatus.Done ? null : result.Rejection);
     }
 
     public async Task<(int, string?)> ConsumeAsync(AccountRole role, int itemId, string kind, int quantity, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var k = kind switch { "food" => KoLibri.Core.Spiel.CharacterConsumableKind.Food, "drink" => KoLibri.Core.Spiel.CharacterConsumableKind.Drink,
-            "spleen" => KoLibri.Core.Spiel.CharacterConsumableKind.Spleen, _ => throw new ArgumentException("kind must be food, drink or spleen.") };
-        return await client.ConsumeAsync(itemId, k, quantity, ct).ConfigureAwait(false);
+        var k = kind switch { "food" => ConsumeKind.Eat, "drink" => ConsumeKind.Drink, "spleen" => ConsumeKind.Chew,
+            _ => throw new ArgumentException("kind must be food, drink or spleen.") };
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var result = await session.Character.ConsumeAsync(itemId, k, quantity, ct).ConfigureAwait(false);
+        if (result.Status == ActionStatus.Unclear)
+            throw new UnreconciledPurchaseException(result.Rejection ?? "The answer to a consume request is unknown.", [result.Completed], [1]);
+        return (result.Completed, result.Status == ActionStatus.Done ? null : result.Rejection);
     }
 
     public async Task<(int, int, string?)> RestAsync(AccountRole role, int times, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var o = await client.RestAsync(times, ct).ConfigureAwait(false);
-        if (o.Unclear)
-            throw new UnreconciledPurchaseException(o.Problem ?? "The answer to a rest is unknown.",
-                [o.Rests.Count, o.AdventuresSpent], [1, 1]);
-        return (o.Rests.Count, o.AdventuresSpent, o.Problem);
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var result = await session.Character.RestAsync(times, ct).ConfigureAwait(false);
+        var spent = result.Before is { } b && result.After is { } a ? Math.Max(0, b.Adventures - a.Adventures) : 0;
+        if (result.Status == ActionStatus.Unclear)
+            throw new UnreconciledPurchaseException(result.Rejection ?? "The answer to a rest is unknown.", [result.Completed, spent], [1, 1]);
+        return (result.Completed, spent, result.Status == ActionStatus.Done ? null : result.Rejection);
     }
 
     public async Task<IReadOnlyList<RepriceLine>> RepriceAsync(AccountRole role, IReadOnlyList<PriceChange> changes, bool commit, CancellationToken ct)
     {
-        using var client = await KolibriClient.OpenAsync(role, cancellationToken: ct).ConfigureAwait(false);
-        var result = await client.RepriceShopAsync(
-            changes.Select(c => new KoLibri.Core.Markt.ShopPriceUpdate(c.ItemId, c.ExpectedPrice, c.NewPrice)), commit, ct)
+        await using var session = await _accounts.OpenForActionAsync(role, ct).ConfigureAwait(false);
+        var listings = await session.Shop.GetListingsAsync(refresh: true, ct).ConfigureAwait(false);
+        // The 0.4 store rules: Missing, Conflict (price moved since the plan), Hold (already there), Ready.
+        var lines = changes.Select(c =>
+        {
+            var current = listings.FirstOrDefault(l => l.Item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) == c.ItemId);
+            if (current is null) return new RepriceLine(c.ItemId, c.ExpectedPrice, null, c.NewPrice, "Missing", "Item is not in the own shop.");
+            if (current.Price != c.ExpectedPrice)
+                return new RepriceLine(c.ItemId, c.ExpectedPrice, current.Price, c.NewPrice, "Conflict", "Own-shop price or limit changed since the plan was created.");
+            if (current.Price == c.NewPrice) return new RepriceLine(c.ItemId, c.ExpectedPrice, current.Price, c.NewPrice, "Hold", "Already at requested price.");
+            return new RepriceLine(c.ItemId, c.ExpectedPrice, current.Price, c.NewPrice, "Ready", null);
+        }).ToArray();
+        var ready = lines.Where(l => l.Status == "Ready").ToArray();
+        if (!commit || ready.Length == 0 || lines.Any(l => l.Status is "Missing" or "Conflict")) return lines;
+        var outcome = await session.Shop.RepriceAsync(ready.Select(l => new ShopPriceChange(int.Parse(l.ItemId, System.Globalization.CultureInfo.InvariantCulture), l.NewPrice)).ToArray(), ct)
             .ConfigureAwait(false);
-        return result.Results.Select(r => new RepriceLine(r.ItemId, r.ExpectedCurrentPrice, r.ObservedCurrentPrice, r.NewPrice,
-            r.Status.ToString(), r.Message)).ToArray();
+        var after = await session.Shop.GetListingsAsync(refresh: true, ct).ConfigureAwait(false);
+        return lines.Select(l =>
+        {
+            if (l.Status != "Ready") return l;
+            var now = after.FirstOrDefault(x => x.Item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) == l.ItemId);
+            if (now is null) return l with { ObservedPrice = null, Status = "VerificationFailed", Message = "Item disappeared after the update." };
+            return now.Price == l.NewPrice
+                ? l with { ObservedPrice = now.Price, Status = "Updated", Message = null }
+                : l with { ObservedPrice = now.Price, Status = "VerificationFailed", Message = outcome.Rejection ?? "Fresh shop read did not show the requested price." };
+        }).ToArray();
     }
 }
 
@@ -150,7 +190,7 @@ public partial class KolibriMcpServer
     /// previews and returns a plan id; the call with that id (same arguments) executes, once.
     /// Rights, limits and budgets come from the caller's grant; without a token nothing runs.
     /// </summary>
-    public void EnableWriteTools(AccessGate gate, IAccountActions actions)
+    internal void EnableWriteTools(AccessGate gate, IAccountActions actions)
     {
         Register("kol_mall_buy",
             "Buy an item from the mall under a price ceiling. Call without planId to preview worst-case cost and get a planId, then again with the same arguments plus planId to buy. Needs right 'mall.buy'.",

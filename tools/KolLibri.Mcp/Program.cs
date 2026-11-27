@@ -1,6 +1,5 @@
 using KolLibri.Mcp;
-using KoLibri.Core.Spiel;
-using LibKolibri.Access;
+using KoLibri.Safety.Access;
 
 // kolibri-mcp                       HTTP on 127.0.0.1:8765 (default; AI access needs approval in the browser)
 // kolibri-mcp --port 9000 [--no-code]
@@ -13,8 +12,8 @@ var options = new KolibriMcpServerOptions { ExperimentalTools = McpToolSurface.E
 
 if (args.Contains("--stdio"))
 {
-    var stdioRuntime = await McpRuntimeBootstrap.CreateConfiguredAsync();
-    return await KolibriMcpServer.RunStdioAsync(stdioRuntime, options);
+    await using var stdioAccounts = new McpAccounts();
+    return await KolibriMcpServer.RunStdioAsync(stdioAccounts, options);
 }
 
 var port = 8765;
@@ -25,17 +24,16 @@ if (portIndex >= 0 && (portIndex + 1 >= args.Length || !int.TryParse(args[portIn
     return 2;
 }
 
-using var binder = await McpRuntimeBootstrap.CreateBinderAsync();
-var runtime = binder.Runtime;
+// 0.5: the stored accounts (same files as the CLI and the desktop); every tool call opens a fresh session.
+await using var accounts = new McpAccounts();
 var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
-await using var adventures = new KoLAdventureGatewayFactory();
-using var bridge = new AdventureMcpExecutionBridge(adventures, new InMemoryAdventureRunCheckpointStore());
-var server = new KolibriMcpServer(runtime, options, executionBridge: bridge) { BeforeToolCall = binder.RefreshAsync };
+using var bridge = new AdventureMcpExecutionBridge(accounts);
+var server = new KolibriMcpServer(accounts, options, executionBridge: bridge);
 server.Tools.Remove("kol_plan_daily_adventures_execute");
 server.Tools.Remove("kol_login_clear");     // session management stays with the user
 server.Tools.Remove("kol_login_refresh");   // runs on a mock transport, not live
-server.EnableWriteTools(gate, new KolibriClientActions());
+server.EnableWriteTools(gate, new KolibriClientActions(accounts));
 using var host = new McpHttpHost(server, grants, gate, new McpOAuthServer(grants), port, requireCode: !args.Contains("--no-code"));
 host.Start();
 Console.Error.WriteLine($"KoLibri MCP: {host.BaseUrl}/mcp  (nur lokal erreichbar)");

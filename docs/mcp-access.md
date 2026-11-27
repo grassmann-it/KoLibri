@@ -127,8 +127,10 @@ and send nothing. `kolibri agent-mode allow` (needs a real terminal) lets your o
 - `cast` and `relay` are CLI commands only; there is no MCP tool for them.
 - BACON topped up during a meme-shop run needs `mall.buy` as well and counts against its daily budget.
 - Adventure calls book the requested turn cap when the call ran through, not the exact turns used.
-  The adventure session is created once per account when first used; if KoL ends it, restart `kolibri-mcp`.
-- `kol_plan_daily_adventures_execute` is not offered over HTTP (it runs on a mock transport).
+  Since 0.5 every tool call opens a fresh session from the stored account (same store as the CLI), so a login,
+  logout or renewal done in the CLI is used at once; no restart of `kolibri-mcp` is needed.
+- `kol_plan_daily_adventures_execute` is not offered over HTTP. In 0.5-dev it (and a few experimental preview tools)
+  answers "not available in 0.5-dev, moves in a follow-up PR, nothing was sent"; see docs/lib-api-0.5.md §13.
 - Verified against a real KoL session on 21 Nov 2026: reading status, `kol_mall_buy` (1 BACON, 145 meat) and
   `kol_transfer` (Mallbot to Main), each booked in the usage ledger after KoL confirmed it. The other write tools
   are covered by tests with a fake account and fixture transport only.
