@@ -1,58 +1,71 @@
 # Using KoLibri
 
-> **Early Alpha (0.4.0).** KoLibri is usable but not stable; commands, options and file formats may change before 1.0.
-> - **Included:** `LibKolibri` (library, source checkout; NuGet planned for 0.5), `kolicli` / `kolibri` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early example client, not broadly tested live).
-> - **Unstable:** the desktop UI, MCP tool names and schemas, daily/arbitrage planners, and the Windows and macOS builds (validated manually; CI test failures there are tolerated for this release).
+> **Early Alpha (0.5.0).** KoLibri is usable but not stable; commands, options, file formats and the library API may change before 1.0. (0.4.0 was never released.)
+> - **Included:** the library `KoLibri` (+ optional `KoLibri.Safety`), `kolibri` / `kolicli` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early client, not broadly tested live).
+> - **Unstable:** the desktop UI, MCP tool names and schemas, and the Windows and macOS builds (validated manually; CI test failures there are tolerated).
 > - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
 > - Details: [CHANGELOG.md](../CHANGELOG.md).
 
-
-KoLibri has four ways in. All of them use the same stored game sessions and the same core.
+KoLibri has four ways in. All of them use the same stored game sessions and the same library.
 
 | You are | Use | Command |
 |---|---|---|
 | a player at the keyboard | CLI | `kolibri` (alias `kolicli`) |
 | a player who prefers windows | Desktop app (early alpha) | `kolibri-desktop` |
-| an AI assistant (Claude, Codex, ...) | MCP server | `kolibri-mcp --http`, then add `http://127.0.0.1:8765/mcp` as a connector |
-| a .NET developer | Library | source checkout (`dotnet add reference`); NuGet package planned for 0.5 |
+| an AI assistant (Claude, Codex, ...) | MCP server | `kolibri-mcp`, then add `http://127.0.0.1:8765/mcp` as a connector |
+| a .NET developer | Library `KoLibri` | `PackageReference` from the release `.nupkg` (local feed) or a source checkout (`dotnet add reference`) |
 
 ## Everyday
 
 ```bash
 kolibri login main                  # once per account; password is asked, session stored encrypted
 kolibri status --role main
-kolibri daily go --role all         # preview of the day
-kolibri daily go --role all --execute
-kolibri crm --role mallbot          # own shop: who bought what, loyalty points
-kolibri reprice --role mallbot      # price suggestions against the mall floor
+kolibri adventure run --location 113 --max-turns 5      # preview of a bounded auto-combat run
+kolibri daily run --role main       # preview of the day
+kolibri daily run --role main --execute --approval-token TOKEN
 ```
 
-The CLI never changes the account without `--execute` or `--commit`.
+The CLI never changes the account without `--execute` (and `--approval-token` for adventures, purchases and the daily run).
+`kolibri --help` lists every command; commands removed in 0.5 exit with code 2 and say what replaces them.
 
-### Buying an item below its resale price (arbitrage)
+### Adventures
 
 ```bash
-kolibri mall --role mallbot --item 10881                       # real offers by item id: shop, price, stock, daily limit
-kolibri arbitrage plan --role mallbot --item 10881             # read-only plan
-kolibri arbitrage plan --role mallbot --item 10881 --max-price 27000 --budget 2000000 --margin 10
-kolibri arbitrage buy  --role mallbot --item 10881             # plan plus a preview of every purchase, sends nothing
-kolibri arbitrage buy  --role mallbot --item 10881 --execute --approval-token TOKEN
-kolibri arbitrage buy  ... --execute --approval-token TOKEN --then list --price 32995   # stock it in the own shop
-kolibri arbitrage buy  ... --execute --approval-token TOKEN --then send-to main         # KMail to your other account
+kolibri adventure locations --name pantry     # location catalog, offline
+kolibri adventure run --location 113 --max-turns 5 --execute --approval-token TOKEN
+kolibri adventure inspect                     # open fight or choice, read-only (exit 4 if one is open)
+kolibri adventure step --location 113 --execute --approval-token TOKEN     # exactly one adventure
+kolibri adventure fight --action attack --until-end --execute --approval-token TOKEN
 ```
 
-The plan takes the resale reference as the lower of your own shop price and the Pricegun median (or
-`--reference-price`), and buys only up to `reference x (1 - margin)` (default margin 10 %, 0 to 90; `--tax` takes a
-mall tax off the resale price, default 0). Offers are taken cheapest first. Per shop it never plans more than the
-daily limit (an unreadable limit plans 1 unit; "no limit" is read from the page) and it stays inside `--budget`
-(default 2,000,000, up to 1,000,000,000), keeps `--reserve` meat back (default 0) and stops at `--units` per run
-(default 200). Every skipped offer says why (above the ceiling, own shop, no stock, budget, reserve, ...). The meat
-a shop's daily limit already used up today cannot be read, so run `plan` again after buying.
+`adventure run` fights with `--fight-action` (default `attack`; `run`, `skill:ID`, `item:ID`), bounded by
+`--max-fight-rounds` (30) and `--min-hp-percent` (20), and answers choices from `--choice-action CHOICE:OPTION` and
+the choice policy (below). Turtle Tamer encounters are clicked through by default. Planned, not merged yet:
+`--combat-rules`, `--recover-hp`, `--stop-item` and similar farm flags. <placeholder: update when merged>
 
-`buy --execute` goes through the same single purchase path as the desktop Buy button (`MallPurchaseGateway`): each
-step is previewed first, sends at most one purchase POST, is checked against the meat and inventory change, and its
-meat is written to `arbitrage-ledger.json` (next to the KoLibri settings) before the POST. An unclear step ends the
-run and is never retried. `--then` only runs after verified purchases; `send-to` only goes to your own other account.
+### Daily routine
+
+`daily run` covers the Day Shortener (campfire), Hermit clovers and the Internet Meme Shop, each at most once per KoL
+day. Choose steps with `--only STEP` or `--skip STEP` (`campfire`, `hermit`, `internet-shop`); `--role all` runs main,
+then mallbot. `daily campfire|hermit|internet-shop` are aliases for `daily run --only STEP`, and `daily go|breakfast|routine`
+for `daily run`. `daily audit [--tail N] [--verify]` reads the audit log.
+
+### Experimental (`--experimental`)
+
+Arbitrage, price reports and shop CRM are hidden by default and not part of the library. With `--experimental`
+(or `KOLIBRI_EXPERIMENTAL=1`):
+
+```bash
+kolibri --experimental arbitrage plan --role mallbot --item 10881        # read-only plan against the resale reference
+kolibri --experimental arbitrage buy  --role mallbot --item 10881        # plan plus preview of every purchase, sends nothing
+kolibri --experimental arbitrage buy  --role mallbot --item 10881 --execute --approval-token TOKEN
+kolibri --experimental pricegun --item 10881
+kolibri --experimental crm --role mallbot
+```
+
+`arbitrage buy` buys only up to `reference x (1 - margin)` (default margin 10 %), stays inside `--budget` and
+`--reserve`, sends at most one purchase POST per step and never retries an unclear step. An experimental
+`reprice` (price suggestions against the mall floor) is planned. <placeholder: update when merged>
 
 ### Relay browser (debugging)
 
@@ -73,16 +86,16 @@ Logging in to KoL separately in a browser can end the stored session, so browse 
 ## With an AI assistant
 
 ```bash
-kolibri-mcp --http                  # prints a consent code in this terminal
+kolibri-mcp                  # prints a consent code in this terminal
 ```
 
-The assistant is sent to a consent page, you choose which rights it gets (read, buy, adventure, message, ...)
+The assistant is sent to a consent page, you choose which rights it gets (read, mall buy, adventure, message, item use, ...)
 and the limits (Meat per day, price ceiling, reserve). Everything outside that is refused. See
-[mcp-access.md](mcp-access.md). Shop analytics and customer rewards use the `shop.read` right.
+[mcp-access.md](mcp-access.md). The default surface is the 19 core tools (see the README); market, shop and analytics tools need `KOLIBRI_EXPERIMENTAL=1`.
 
 ## Request rate
 
-Requests go through one limiter per process, shared by all accounts and roles (Main, Mallbot), every manually followed
+Requests go through one limiter per process, shared by all accounts, every manually followed
 redirect and every tool, with two lanes like a browser's main frame and sidebar:
 
 - **Action lane**: anything that changes state or spends turns (adventure, fight, choice, eat/drink/spleen, mall buys,
@@ -111,18 +124,21 @@ applied at startup, so restart after changing them. The game itself ends a fight
 ## As a library
 
 ```csharp
-using var kol = await KolibriClient.OpenAsync(AccountRole.Main);
-var status = await kol.GetStatusAsync();
-var shop = await kol.GetOwnShopAsync();
+using KoLibri;
+
+await using var kol = KolibriClient.Create();
+await using var session = await kol.OpenAsync("main");
+var status = await session.Character.GetStatusAsync(refresh: true);
 ```
 
-`KolibriClient` in package `KoLibri.LibKolibri` is the front door: login, status, inventory, mall search and
-guarded buying, own shop and sales log, KMail, item use, repricing, daily Meme Shop and adventure sessions. See
-`src/LibKolibri/README.md` and the runnable `src/LibKolibri/sample`.
+`KolibriClient` in package `KoLibri` is the front door: login, one `KolibriSession` per account with facets for
+character, inventory, adventures (one runner, `RunAsync`), mall (quote and guarded buy), shop, KMail and daily steps.
+See [src/KoLibri/README.md](../src/KoLibri/README.md), [lib-api-0.5.md](lib-api-0.5.md) and the
+[cookbook](../samples/cookbook/README.md).
 
 ## Choice adventures
 
-If a choice adventure appears during `adventure run` or `adventure choice-chain`, the run answers it only when the
+If a choice adventure appears during `adventure run`, the run answers it only when the
 choice policy has an answer; otherwise it stops with `stopReason: NeedsDecision` and exit code 4 (not an error). The
 JSON `needsDecision` lists the choice id, title, options and the exact commands to resume. A choice left open
 blocks every page of the game, so always resolve it:
