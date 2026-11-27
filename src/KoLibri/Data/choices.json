@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "_turtle": "Turtle-Choices ohne Eintrag werden standardmäßig durchgeklickt (erste sichtbare Option): UNBELEGT, live prüfen. Belegte Optionen hier eintragen: {\"id\":N,\"default\":X,\"turtle\":true}.",
+  "choices": [
+    {
+      "id": 1060,
+      "snarfblat": 439,
+      "default": 2,
+      "options": { "2": {} },
+      "source": "live verifiziert, Hauptaccount 2026-11",
+      "note": "Farm-Zone 439. Nur die Option ist belegt; Titel und Optionstexte bewusst leer, bis live gesehen."
+    }
+  ]
+}

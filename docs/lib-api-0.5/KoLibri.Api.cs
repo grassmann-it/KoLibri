@@ -485,6 +485,35 @@ namespace KoLibri
         public static IChoiceResolver Safe(IReadOnlyDictionary<int, int>? optionByChoiceId = null) => throw new NotImplementedException();
     }
 
+    public sealed record ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe);
+
+    public sealed record ChoiceDefault(int Id, string? Name, int? Snarfblat, int? Default, IReadOnlyDictionary<int, ChoiceDefaultOption> Options, string Source, string? Note, bool Turtle);
+
+    /// <summary>Kuratierte Choice-Tabelle (KoLibri-eigenes choices.json, nicht KoLmafia).</summary>
+    public sealed class ChoiceDefaultTable
+    {
+        private ChoiceDefaultTable() { }
+        public int Version => throw new NotImplementedException();
+        public IReadOnlyList<ChoiceDefault> Entries => throw new NotImplementedException();
+        public bool TryGet(int choiceId, out ChoiceDefault entry) => throw new NotImplementedException();
+        /// <summary>Overrides vor Tabellen-Defaults vor Ask; nicht sichtbare Default-Option ergibt Ask.</summary>
+        public IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) => throw new NotImplementedException();
+    }
+
+    public static class ChoiceDefaults
+    {
+        public static ChoiceDefaultTable Embedded => throw new NotImplementedException();
+        public static IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) => throw new NotImplementedException();
+        /// <summary>Kaputte Datei wirft InvalidDataException mit Grund.</summary>
+        public static ChoiceDefaultTable Load(System.IO.Stream stream) => throw new NotImplementedException();
+    }
+
+    public static class Encounters
+    {
+        public static bool IsTurtleEncounter(Encounter encounter) => throw new NotImplementedException();
+        public static bool IsTurtleMonster(string? monsterName) => throw new NotImplementedException();
+    }
+
     // --- Läufe ----------------------------------------------------------------------------
 
     public sealed record RunRequest(Location Location, int MaxTurns)
