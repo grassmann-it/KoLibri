@@ -8,6 +8,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../KoLibri.Desktop/KoLibri.Desktop.csproj" />
+    <!-- The desktop keeps its KoLibri references private; the screenshot tool builds the offline client itself. -->
+    <ProjectReference Include="../../src/KoLibri/KoLibri.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Extras/KoLibri.Extras.csproj" />
     <PackageReference Include="Avalonia" Version="11.3.11" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />

@@ -1,6 +1,49 @@
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
+
+/// <summary>
+/// Why a desktop Mall purchase was refused or could not be verified. Copied from KoLibri.Core (0.5 step 3) so the
+/// texts below and the result records keep their names; the library itself reports <see cref="PurchaseStatus"/>.
+/// </summary>
+public enum MallPurchaseAbortReason
+{
+    None = 0,
+    InvalidRequest,
+    MissingOffer,
+    SellerChanged,
+    StoreChanged,
+    ItemChanged,
+    PriceChanged,
+    QuantityChanged,
+    SoldOut,
+    PurchaseLimitExceeded,
+    PurchaseLimitChanged,
+    DailyLimitChanged,
+    DailyLimitExceeded,
+    DailyBudgetExceeded = DailyLimitExceeded,
+    InsufficientMeat,
+    PerPurchaseLimitExceeded,
+    QuantityLimitExceeded,
+    StaleOffer,
+    StaleAccount,
+    SessionInvalid,
+    PreviewExpired,
+    ApprovalRequired,
+    DryRun,
+    CommitRejected,
+    TransportFailure,
+    AccountChanged,
+    MeatChanged,
+    InventoryChanged,
+    DailySpendChanged,
+    VerificationFailed,
+    MeatVerificationFailed,
+    InventoryVerificationFailed,
+    ItemNotReceived,
+    UnexpectedQuantity,
+    /// <summary>Fewer units than ordered arrived (a partial purchase).</summary>
+    PartialQuantity
+}
 
 /// <summary>Plain-language texts for every reason a mall purchase is refused or fails.</summary>
 public static class MallPurchaseMessages
@@ -47,6 +90,9 @@ public static class MallPurchaseMessages
         InvalidOperationException e when e.Message.Contains("stale", StringComparison.OrdinalIgnoreCase)
             => "The mall offer is stale; search again for a fresh offer.",
         HttpRequestException => "KoL could not be reached. Nothing was sent unless the log says otherwise.",
+        SessionExpiredException => "The session expired. Sign in again under Accounts.",
+        ActionDeniedException denied => $"The purchase check refused it: {denied.Reason}",
+        UnexpectedPageException page => page.Message,
         _ => exception.Message
     };
 }

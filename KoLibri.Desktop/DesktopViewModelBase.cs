@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using LibKolibri;
 
 namespace KoLibri.Desktop;
 
@@ -258,18 +257,6 @@ public abstract class DesktopViewModel : INotifyPropertyChanged, IDisposable
         LoadState = state;
     }
 
-    protected static DesktopLoadState StateFor(GatewayState state, bool hasData = false)
-        => state switch
-        {
-            GatewayState.Loading => DesktopLoadState.Loading,
-            GatewayState.Empty => DesktopLoadState.Empty,
-            GatewayState.Stale => DesktopLoadState.Stale,
-            GatewayState.Error => DesktopLoadState.Error,
-            GatewayState.Ready or GatewayState.Approved or GatewayState.Committed or GatewayState.Verified
-                => hasData ? DesktopLoadState.Ready : DesktopLoadState.Empty,
-            _ => hasData ? DesktopLoadState.Ready : DesktopLoadState.Empty
-        };
-
     protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
@@ -373,23 +360,4 @@ public abstract class DesktopViewModel : INotifyPropertyChanged, IDisposable
         cancellation?.Dispose();
         GC.SuppressFinalize(this);
     }
-}
-
-/// <summary>Common read metadata shown next to a card, table or event stream.</summary>
-public sealed record DesktopSnapshotInfo(
-    SnapshotFreshness Freshness,
-    DateTimeOffset? ObservedAt,
-    string? Source,
-    string? SourceVersion,
-    string? RequestId,
-    DateTimeOffset? ExpiresAt,
-    string? ErrorCode = null,
-    string? ErrorMessage = null)
-{
-    public bool IsStale => Freshness is SnapshotFreshness.Stale or SnapshotFreshness.Expired;
-    public bool IsFresh => Freshness == SnapshotFreshness.Fresh;
-
-    public static DesktopSnapshotInfo From(SnapshotState snapshot)
-        => new(snapshot.Freshness, snapshot.ObservedAt, snapshot.Source, snapshot.SourceVersion,
-            snapshot.RequestId, snapshot.ExpiresAt, snapshot.ErrorCode, snapshot.ErrorMessage);
 }

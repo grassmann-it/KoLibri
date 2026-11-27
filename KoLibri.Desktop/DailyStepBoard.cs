@@ -1,5 +1,4 @@
 using System.Globalization;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -34,21 +33,20 @@ public static class DailyStepBoard
     public const int KnucklebonesItemId = 12051;
     public const int LuckySurpriseEggItemId = 995;
 
-    /// <summary>The current KoL day (rollover 03:30 US Eastern) as a date; skips and other daily markers share it.</summary>
+    /// <summary>The current KoL day (the library's rollover rule) as a date; skips and other daily markers share it.</summary>
     public static DateOnly KolToday(DateTimeOffset? now = null)
-        => DateOnly.ParseExact(DailyDoneStore.KolDay(now ?? DateTimeOffset.UtcNow), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        => KolDay.Of(now ?? DateTimeOffset.UtcNow);
 
     /// <summary>The one set of planner options for the knucklebone target, used by the Daily and Adventures views.</summary>
     public static AdventurePlannerOptions PlannerOptions(DesktopSettings settings)
         => new() { DailyKnucklebonesTarget = (int)settings.Get("dailyKnucklebonesTarget") };
 
-    public static IReadOnlyList<DailyStepRow> Build(LiveDailySnapshot live, DesktopSettings settings, DateOnly today)
+    public static IReadOnlyList<DailyStepRow> Build(DesktopDailySnapshot live, DesktopSettings settings, DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(live);
         ArgumentNullException.ThrowIfNull(settings);
-        var role = live.State.Role.ToString();
-        var items = live.State.Inventory.Items;
-        int Count(int id) => items.Where(i => i.ItemId == id.ToString(CultureInfo.InvariantCulture)).Sum(i => i.Quantity);
+        var role = live.Role.ToString();
+        int Count(int id) => live.Count(id);
 
         var rows = new List<DailyStepRow>();
 
@@ -57,7 +55,6 @@ public static class DailyStepBoard
         var plan = new DailyAdventurePlanner().Plan(
             new AdventureState
             {
-                IsStale = live.State.Status.IsStale || live.State.Inventory.IsStale,
                 Knucklebones = bones,
                 AdventureTurnsRemaining = live.Adventures,
                 LuckySurpriseEggs = Count(LuckySurpriseEggItemId),
@@ -81,8 +78,8 @@ public static class DailyStepBoard
             ? new(DailyStepKind.FreeRests, "Free rests", $"Up to {rests} rests; stops at the first rest that costs adventures", "open", "Run", true)
             : new(DailyStepKind.FreeRests, "Free rests", "Rests per daily run is 0 (Settings)", "blocked", "Run", false, "Set rests per daily run above 0 in Settings."));
 
-        rows.Add(ConsumableRow(DailyStepKind.Booze, "Booze", settings.BoozeItems, live.State.Status.Inebriety, "inebriety", "booze"));
-        rows.Add(ConsumableRow(DailyStepKind.Spleen, "Spleen", settings.SpleenItems, live.State.Status.Spleen, "spleen", "spleen items"));
+        rows.Add(ConsumableRow(DailyStepKind.Booze, "Booze", settings.BoozeItems, live.Status.Inebriety.Current, "inebriety", "booze"));
+        rows.Add(ConsumableRow(DailyStepKind.Spleen, "Spleen", settings.SpleenItems, live.Status.Spleen.Current, "spleen", "spleen items"));
 
         var clovers = live.Clovers;
         rows.Add(clovers > 0
@@ -107,22 +104,22 @@ public static class DailyStepBoard
     }
 
     /// <summary>The explicit actions a Run on this row would send, in order. Empty when the row cannot run.</summary>
-    public static IReadOnlyList<CharacterAction> ActionsFor(DailyStepRow row, DesktopSettings settings, int eggsOwned)
+    public static IReadOnlyList<CharacterCommand> ActionsFor(DailyStepRow row, DesktopSettings settings, int eggsOwned)
     {
-        if (!row.CanRun) return Array.Empty<CharacterAction>();
+        if (!row.CanRun) return Array.Empty<CharacterCommand>();
         switch (row.Kind)
         {
             case DailyStepKind.LuckyEgg:
-                return [new ConsumeCharacterItem(LuckySurpriseEggItemId, CharacterConsumableKind.Food,
+                return [new ConsumeCharacterItem(LuckySurpriseEggItemId, ConsumeKind.Eat,
                     Math.Clamp(eggsOwned, 1, new AdventurePlannerOptions().MaxLuckySurpriseEggsPerPlan))];
             case DailyStepKind.FreeRests:
-                return Enumerable.Repeat<CharacterAction>(new RestAtCampground(), (int)settings.Get("dailyRests")).ToArray();
+                return Enumerable.Repeat<CharacterCommand>(new RestAtCampground(), (int)settings.Get("dailyRests")).ToArray();
             case DailyStepKind.Booze:
-                return settings.BoozeItems.Select(x => (CharacterAction)new ConsumeCharacterItem(x.ItemId, CharacterConsumableKind.Drink, x.Quantity)).ToArray();
+                return settings.BoozeItems.Select(x => (CharacterCommand)new ConsumeCharacterItem(x.ItemId, ConsumeKind.Drink, x.Quantity)).ToArray();
             case DailyStepKind.Spleen:
-                return settings.SpleenItems.Select(x => (CharacterAction)new ConsumeCharacterItem(x.ItemId, CharacterConsumableKind.Spleen, x.Quantity)).ToArray();
+                return settings.SpleenItems.Select(x => (CharacterCommand)new ConsumeCharacterItem(x.ItemId, ConsumeKind.Chew, x.Quantity)).ToArray();
             default:
-                return Array.Empty<CharacterAction>();
+                return Array.Empty<CharacterCommand>();
         }
     }
 
@@ -131,7 +128,7 @@ public static class DailyStepBoard
     {
         var actions = ActionsFor(row, settings, eggsOwned);
         var lines = actions.OfType<ConsumeCharacterItem>().Select(a =>
-            $"{a.Kind switch { CharacterConsumableKind.Food => "Eat", CharacterConsumableKind.Drink => "Drink", _ => "Take" }} item {a.ItemId} × {a.Quantity}").ToList();
+            $"{a.Kind switch { ConsumeKind.Eat => "Eat", ConsumeKind.Drink => "Drink", _ => "Take" }} item {a.ItemId} × {a.Quantity}").ToList();
         if (actions.OfType<RestAtCampground>().Any())
             lines.Add($"Rest at the campground up to {actions.Count} time(s). Stops at the first rest that costs adventures.");
         return string.Join(Environment.NewLine, lines);
@@ -140,8 +137,9 @@ public static class DailyStepBoard
     /// <summary>Turns an exception or a KoL refusal into one readable sentence.</summary>
     public static string ReadableError(string step, Exception exception) => exception switch
     {
-        KoLibri.Core.Basis.KoLHtmlResponseException { Kind: KoLibri.Core.Basis.KoLHtmlResponseKind.LoginPage }
-            => $"{step}: the session expired. Log in again, then retry.",
+        SessionExpiredException => $"{step}: the session expired. Log in again, then retry.",
+        ActionDeniedException denied => $"{step}: refused by the guard ({denied.Reason}).",
+        UnexpectedPageException page => $"{step}: {page.Message}",
         OperationCanceledException => $"{step}: cancelled.",
         HttpRequestException h => $"{step}: the request to Kingdom of Loathing failed ({h.Message}). If it was already sent the action may have happened: refresh before retrying.",
         InvalidOperationException i => $"{step}: {i.Message}",

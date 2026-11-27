@@ -1,8 +1,5 @@
-using LibKolibri;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 #pragma warning disable CA1822 // mark members static for testability where possible
 
@@ -15,52 +12,35 @@ namespace KoLibri.Desktop;
 /// </summary>
 public sealed class EncounterBrowserPane : IDisposable
 {
-    private readonly AccountRole _role;
-    private readonly Func<AccountRole, AdventureExecutionGateway>? _gatewayFactory;
-    private readonly Func<AccountRole, IAdventureApprovalHook, IAdventureVerificationHook,
-        CancellationToken, Task<ManualAdventureSession>>? _openSession;
+    private readonly Func<AccountRole, CancellationToken, Task<KolibriSession?>> _openSession;
     private AccountRole? _selectedAccount;
     private (string ProfileId, int Count)? _observedAscension;
     private CancellationTokenSource? _operationCancellation;
     private readonly Action<string> _setStatus;
-    private readonly Func<string, IEnumerable<string>> _resolveChoices;
-    private readonly Func<string, IReadOnlyList<MafiaMonsterRecord>> _monstersFor;
     private ApprovalTokenStore? _tokenStore;
     private bool _disposed;
 
-    public EncounterBrowserPane(
-        AccountRole role,
-        Func<AccountRole, AdventureExecutionGateway> gatewayFactory,
-        Action<string> setStatus,
-        Func<string, IEnumerable<string>> resolveChoices,
-        Func<string, IReadOnlyList<MafiaMonsterRecord>> monstersFor)
+    public EncounterBrowserPane(DesktopAccounts accounts, Action<string> setStatus)
+        : this(OpenerOf(accounts), setStatus)
     {
-        _role = role;
-        _gatewayFactory = gatewayFactory ?? throw new ArgumentNullException(nameof(gatewayFactory));
+    }
+
+    /// <param name="openSession">The session of a role, null when it is signed out (see <see cref="DesktopAccounts.TryOpenAsync"/>).</param>
+    public EncounterBrowserPane(Func<AccountRole, CancellationToken, Task<KolibriSession?>> openSession, Action<string> setStatus)
+    {
+        _openSession = openSession ?? throw new ArgumentNullException(nameof(openSession));
         _setStatus = setStatus ?? throw new ArgumentNullException(nameof(setStatus));
-        _resolveChoices = resolveChoices ?? throw new ArgumentNullException(nameof(resolveChoices));
-        _monstersFor = monstersFor ?? throw new ArgumentNullException(nameof(monstersFor));
     }
 
-    public EncounterBrowserPane(AccountSessionManager accounts, Action<string> setStatus)
-        : this((role, approval, verification, token) =>
-            ManualAdventureSession.OpenAsync(role, approval, verification, accounts, token), setStatus)
+    private static Func<AccountRole, CancellationToken, Task<KolibriSession?>> OpenerOf(DesktopAccounts accounts)
     {
-    }
-
-    public EncounterBrowserPane(
-        Func<AccountRole, IAdventureApprovalHook, IAdventureVerificationHook,
-            CancellationToken, Task<ManualAdventureSession>> openSession, Action<string> setStatus)
-    {
-        _openSession = openSession;
-        _setStatus = setStatus;
-        _resolveChoices = _ => Array.Empty<string>();
-        _monstersFor = _ => Array.Empty<MafiaMonsterRecord>();
+        ArgumentNullException.ThrowIfNull(accounts);
+        return accounts.TryOpenAsync;
     }
 
     public void SelectAccount(AccountRole role)
     {
-        if (_openSession is null || _tokenStore is null) return;
+        if (_tokenStore is null) return;
         if (_selectedAccount != role) _observedAscension = null;
         _selectedAccount = role;
         _operationCancellation?.Cancel();
@@ -87,18 +67,7 @@ public sealed class EncounterBrowserPane : IDisposable
         var catalog = new MafiaDataLoader().Load(catalogDirectory);
         Browser = new EncounterBrowserViewModel(catalog);
         _tokenStore = new ApprovalTokenStore(tokenDirectory ?? catalogDirectory, "manual-approval-token.json");
-        if (_gatewayFactory is not null)
-            Session = new EncounterBrowserSessionViewModel(
-                new AdventureManualDriver(_role, _gatewayFactory(_role), TokenPlaceholder),
-                _tokenStore, _role);
     }
-
-    /// <summary>
-    /// Construct a driver that does not yet have a real approval token. The
-    /// session replaces the gateway with the real one once the operator
-    /// submits a token via <see cref="ApplyApprovalToken"/>.
-    /// </summary>
-    private static string TokenPlaceholder => "placeholder-until-real-token";
 
     public async ValueTask LoadStoredTokenAsync(CancellationToken cancellationToken = default)
     {
@@ -112,15 +81,11 @@ public sealed class EncounterBrowserPane : IDisposable
         await Session.PersistTokenAsync(label, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Wires a freshly-supplied approval token into the live driver.</summary>
+    /// <summary>Hands a freshly-supplied approval token to the session (the gate before every start, step and batch).</summary>
     public void ApplyApprovalToken(string token)
     {
         if (Session is null) return;
         Session.ApprovalToken = token;
-        if (_gatewayFactory is null) return;
-        var gateway = _gatewayFactory(_role);
-        var newDriver = new AdventureManualDriver(_role, gateway, token);
-        Session.ReplaceDriver(newDriver);
     }
 
     public ValueTask StartAdventureAsync(EncounterBrowserLocationRow row, CancellationToken cancellationToken = default)
@@ -128,8 +93,7 @@ public sealed class EncounterBrowserPane : IDisposable
         {
             if (row.Snarfblat <= 0)
                 throw new InvalidOperationException("This location requires a special route.");
-            var location = new AdventureLocation(row.LocationId, row.DisplayName, row.Zone,
-                row.Snarfblat, row.TurnCost, Array.Empty<AdventureEncounterMetadata>());
+            var location = new AdventureLocation(row.LocationId, row.DisplayName, row.Zone, row.Snarfblat, row.TurnCost);
             return session.StartAdventureAsync(location, browser, token);
         }, cancellationToken);
 
@@ -140,28 +104,29 @@ public sealed class EncounterBrowserPane : IDisposable
     public ValueTask RunTurnsAsync(
         EncounterBrowserLocationRow? row, int maxTurns = 0, string? itemId = null,
         CancellationToken cancellationToken = default, int maxFightRounds = 0, int minimumHpPercent = 0,
-        AutoCombatPolicy? combatPolicy = null)
+        string? combatRules = null)
         => RunAsync((session, browser, token) =>
         {
             var location = row is null ? null : new AdventureLocation(row.LocationId, row.DisplayName,
-                row.Zone, row.Snarfblat, row.TurnCost, Array.Empty<AdventureEncounterMetadata>());
+                row.Zone, row.Snarfblat, row.TurnCost);
             return session.RunTurnsAsync(browser, location, maxTurns, itemId, token, maxFightRounds, minimumHpPercent,
-                combatPolicy);
+                combatRules);
         }, cancellationToken);
 
     /// <summary>Runs (or, with a null row, continues) the batch described by <paramref name="job"/>.</summary>
     public ValueTask RunJobAsync(EncounterBrowserLocationRow? row, AdventureJob job, CancellationToken cancellationToken = default)
         => RunTurnsAsync(row, job.Turns, job.ItemId, cancellationToken, job.MaxFightRounds, job.MinimumHpPercent,
-            job.CombatPolicy);
+            job.CombatRules);
 
-    public ValueTask FightCurrentAsync(CombatTarget target, AutoCombatPolicy policy, int maxRounds, int minimumHpPercent)
-        => RunAsync((session, browser, token) => session.FightCurrentAsync(browser, target, policy, maxRounds, minimumHpPercent, token));
+    /// <summary>Fights the open fight with the plan (<paramref name="rules"/>: AutoCombatPolicy rule text).</summary>
+    public ValueTask FightCurrentAsync(CombatTarget target, string rules, int maxRounds, int minimumHpPercent)
+        => RunAsync((session, browser, token) => session.FightCurrentAsync(browser, target, rules, maxRounds, minimumHpPercent, token));
 
     public ValueTask RecheckAsync(CancellationToken cancellationToken = default)
         => RunAsync((session, browser, token) => session.RecheckAsync(browser, token), cancellationToken);
 
     private async ValueTask RunAsync(
-        Func<EncounterBrowserSessionViewModel, EncounterBrowserViewModel, CancellationToken, ValueTask<ManualStepOutcome?>> operation,
+        Func<EncounterBrowserSessionViewModel, EncounterBrowserViewModel, CancellationToken, ValueTask<AdventureStepOutcome?>> operation,
         CancellationToken cancellationToken = default)
     {
         if (_disposed || _operationCancellation is not null
@@ -187,8 +152,7 @@ public sealed class EncounterBrowserPane : IDisposable
             {
                 _setStatus(AdventureFailureMapper.Describe(exception).Text);
                 // A redirect to choice.php/fight.php means something is open: show it as buttons.
-                if (exception is OpenChoiceException or AdventureHttpTransportException
-                    && AdventureFailureMapper.Describe(exception).Kind is AdventureFailureKind.OpenChoice or AdventureFailureKind.OpenFight)
+                if (AdventureFailureMapper.Describe(exception).Kind is AdventureFailureKind.OpenChoice or AdventureFailureKind.OpenFight)
                     await session.Decisions.RefreshAsync(CancellationToken.None);
             }
         }

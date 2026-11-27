@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using KoLibri.Core.Basis;
-using KoLibri.Desktop;
 using Xunit;
 
 namespace KoLibri.Core.Tests;
@@ -179,30 +178,5 @@ public sealed class RelayFakeKolTests : IDisposable
         List<DateTime> at; lock (_kol.Requests) at = _kol.Requests.Select(r => r.At).OrderBy(x => x).ToList();
         Assert.Equal(3, at.Count);
         Assert.True((at[2] - at[0]).TotalMilliseconds >= 700);
-    }
-
-    [Fact]
-    public async Task Browser_gate_offers_sign_in_when_nothing_is_stored_and_renews_a_stale_session()
-    {
-        var empty = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-        var none = await BrowserGate.CheckAsync(empty, AccountRole.Main, true);
-        Assert.False(none.CanStart); Assert.True(none.OfferSignIn);
-        Assert.Contains("not signed in", none.Message);
-
-        var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
-        await accounts.SetProfileAsync(new AccountProfile { Id = "main", DisplayName = "Fixture", Role = AccountRole.Main });
-        await accounts.SetCredentialsAsync(AccountRole.Main, new AccountCredentials
-            { Username = "Fixture", Password = "pw", CookieHeader = "old=1", ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1) });
-        var calls = 0;
-        Task<KoLLoginResult> Login(string u, string p, CancellationToken t)
-        {
-            calls++;
-            return Task.FromResult(new KoLLoginResult(u, new AccountCredentials
-                { Username = u, CookieHeader = "new=1", ExpiresAt = DateTimeOffset.UtcNow.AddHours(5) }, DateTimeOffset.UtcNow));
-        }
-        var off = await BrowserGate.CheckAsync(accounts, AccountRole.Main, false, Login);
-        Assert.False(off.CanStart); Assert.True(off.OfferSignIn); Assert.Equal(0, calls);
-        var on = await BrowserGate.CheckAsync(accounts, AccountRole.Main, true, Login);
-        Assert.True(on.CanStart); Assert.Equal(1, calls);
     }
 }

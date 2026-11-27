@@ -31,6 +31,15 @@ namespace KoLibri
         public string? PathName { get; init; }
         public int? RoninTurnsRemaining { get; init; }
         public int? StoragePullsRemaining { get; init; }
+        /// <summary>KoL-Spieler-Id aus api.php. Ergänzt in Schritt 3 (Desktop).</summary>
+        public int? PlayerId { get; init; }
+        /// <summary>Name und Gewicht des aktiven Familiars. Ergänzt in Schritt 3 (Desktop-Charpane).</summary>
+        public string? FamiliarName { get; init; }
+        public int? FamiliarWeight { get; init; }
+        /// <summary>Pfad-Id (0 = kein Pfad), Aszensionen, Hardcore. Ergänzt in Schritt 3 (Desktop).</summary>
+        public int? PathId { get; init; }
+        public int? Ascensions { get; init; }
+        public bool? Hardcore { get; init; }
     }
 
     public readonly record struct OrganState(int Current, int? Limit);
@@ -245,7 +254,13 @@ namespace KoLibri.Internal
                 FamiliarId = int.TryParse(s.FamiliarId, NumberStyles.None, CultureInfo.InvariantCulture, out var fam) ? fam : null,
                 PathName = s.PathName,
                 RoninTurnsRemaining = s.RoninTurnsRemaining,
-                StoragePullsRemaining = s.StoragePullsRemaining
+                StoragePullsRemaining = s.StoragePullsRemaining,
+                PlayerId = int.TryParse(s.PlayerId, NumberStyles.None, CultureInfo.InvariantCulture, out var player) ? player : null,
+                FamiliarName = string.IsNullOrWhiteSpace(s.FamiliarName) ? null : s.FamiliarName.Trim(),
+                FamiliarWeight = s.FamiliarWeight,
+                PathId = s.PathId,
+                Ascensions = s.Ascensions,
+                Hardcore = s.Hardcore
             };
         }
 

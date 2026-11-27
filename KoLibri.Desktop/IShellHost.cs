@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using KoLibri.Core.Basis;
 
 namespace KoLibri.Desktop;
 

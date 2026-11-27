@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -11,7 +9,8 @@ namespace KoLibri.Desktop;
 /// </summary>
 public sealed class ItemManagerViewModel : DesktopViewModel
 {
-    private readonly DesktopLiveDataProvider _provider;
+    /// <summary>Null in tests and at design time: loading then shows the signed-out state.</summary>
+    private readonly DesktopLiveDataProvider? _provider;
     private readonly AccountRole _role;
 
     private ObservableCollection<DesktopInventoryItem> _allItems = new();
@@ -26,7 +25,7 @@ public sealed class ItemManagerViewModel : DesktopViewModel
         KoLmafiaCatalog? catalog = null)
     {
         _role = role;
-        _provider = provider ?? new DesktopLiveDataProvider();
+        _provider = provider;
         _catalog = catalog;
         var categories = BuildCategories();
         Categories = new ObservableCollection<DesktopInventoryCategory>(categories);
@@ -126,8 +125,9 @@ public sealed class ItemManagerViewModel : DesktopViewModel
         LoadState = DesktopLoadState.Loading;
         try
         {
-            var snapshot = await _provider
-                .LoadInventoryAsync(_role, forceRefresh, _catalog, cancellationToken)
+            var snapshot = _provider is null
+                ? new DesktopInventorySnapshot { Role = _role, Items = Array.Empty<DesktopInventoryItem>(), HasSession = false, ObservedAt = DateTimeOffset.UtcNow }
+                : await _provider.LoadInventoryAsync(_role, forceRefresh, _catalog, cancellationToken)
                 .ConfigureAwait(false);
             ApplySnapshot(snapshot.Items, snapshot.ObservedAt);
             LoadState = snapshot.Items.Count == 0

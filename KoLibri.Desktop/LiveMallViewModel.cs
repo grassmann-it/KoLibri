@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
 
 namespace KoLibri.Desktop;
 
@@ -24,10 +23,10 @@ public sealed class LiveMallViewModel : DesktopViewModel
 {
     private readonly DesktopLiveDataProvider _provider;
     private readonly AccountRole _role;
-    public LiveMallViewModel(AccountRole role = AccountRole.Mallbot, DesktopLiveDataProvider? provider = null)
+    public LiveMallViewModel(AccountRole role, DesktopLiveDataProvider provider)
     {
         _role = role;
-        _provider = provider ?? new DesktopLiveDataProvider();
+        _provider = provider ?? throw new ArgumentNullException(nameof(provider));
     }
 
     public ObservableCollection<MallStoreRow> Rows { get; } = new();
@@ -55,19 +54,18 @@ public sealed class LiveMallViewModel : DesktopViewModel
 
             foreach (var listing in listings)
             {
-                var name = string.IsNullOrWhiteSpace(listing.DisplayName)
-                    ? listing.ItemId
-                    : listing.DisplayName!;
+                var id = listing.Item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                int? limit = listing.LimitPerDay > 0 ? listing.LimitPerDay : null;
                 Rows.Add(new MallStoreRow
                 {
-                    ItemId = listing.ItemId,
-                    ItemName = name,
+                    ItemId = id,
+                    ItemName = string.IsNullOrWhiteSpace(listing.Name) ? id : listing.Name,
                     Price = listing.Price,
                     Quantity = listing.Quantity,
-                    PurchaseLimit = listing.PurchaseLimit,
+                    PurchaseLimit = limit,
                     PriceText = $"{listing.Price:N0} Meat",
                     QuantityText = listing.Quantity == 1 ? "1 pc" : $"{listing.Quantity:N0} pcs",
-                    LimitText = listing.PurchaseLimit is > 0 ? $"{listing.PurchaseLimit} / day" : "—"
+                    LimitText = limit is > 0 ? $"{limit} / day" : "—"
                 });
             }
 

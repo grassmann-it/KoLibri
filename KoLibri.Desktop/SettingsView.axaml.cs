@@ -27,7 +27,7 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
 
     public SettingsViewModel(DesktopSettingsStore store, Func<string, string?>? env = null, string? agentRightsNote = null,
         Func<string, IReadOnlyList<(string Id, string Name)>>? itemLookup = null,
-        KoLibri.Core.Spiel.ItemClassifier? classifier = null)
+        ItemClassifier? classifier = null)
     {
         _store = store;
         _env = env ?? Environment.GetEnvironmentVariable;
@@ -35,8 +35,8 @@ public sealed class SettingsViewModel : INotifyPropertyChanged
         AgentRightsNote = agentRightsNote ?? "Agent rights are granted on the consent page of the MCP server and shown there; see docs/mcp-access.md.";
         Save = new RelayCommand(DoSave);
         ResetDefaults = new RelayCommand(DoResetDefaults);
-        Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup, classifier, KoLibri.Core.Spiel.ItemOrgan.Drink);
-        Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup, classifier, KoLibri.Core.Spiel.ItemOrgan.Spleen);
+        Booze = new ConsumableListEditor(Settings.BoozeItems, itemLookup, classifier, ItemOrgan.Drink);
+        Spleen = new ConsumableListEditor(Settings.SpleenItems, itemLookup, classifier, ItemOrgan.Spleen);
     }
 
     public ConsumableListEditor Booze { get; }
@@ -157,11 +157,11 @@ public sealed class ConsumableListEditor : INotifyPropertyChanged
     private string _message = "";
     private DailyConsumable? _selected;
 
-    private readonly KoLibri.Core.Spiel.ItemClassifier? _classifier;
-    private readonly KoLibri.Core.Spiel.ItemOrgan _organ;
+    private readonly ItemClassifier? _classifier;
+    private readonly ItemOrgan _organ;
 
     public ConsumableListEditor(List<DailyConsumable> list, Func<string, IReadOnlyList<(string Id, string Name)>>? lookup = null,
-        KoLibri.Core.Spiel.ItemClassifier? classifier = null, KoLibri.Core.Spiel.ItemOrgan organ = KoLibri.Core.Spiel.ItemOrgan.None)
+        ItemClassifier? classifier = null, ItemOrgan organ = ItemOrgan.None)
     {
         _list = list;
         _lookup = lookup;
@@ -218,8 +218,8 @@ public sealed class ConsumableListEditor : INotifyPropertyChanged
     /// (the Lucky Surprise Egg is food and can never be saved as booze or a spleen item).</summary>
     public string? Validate(int id)
     {
-        if (_organ == KoLibri.Core.Spiel.ItemOrgan.None) return null;
-        var label = _organ == KoLibri.Core.Spiel.ItemOrgan.Drink ? "booze" : "spleen item";
+        if (_organ == ItemOrgan.None) return null;
+        var label = _organ == ItemOrgan.Drink ? "booze" : "spleen item";
         if (id == DailyStepBoard.LuckySurpriseEggItemId)
             return "The Lucky Surprise Egg is food; it is eaten by its own daily step and cannot be saved as " + label + ".";
         if (_classifier is null) return null;

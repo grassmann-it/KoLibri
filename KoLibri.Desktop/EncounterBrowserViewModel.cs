@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -107,28 +106,34 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
         return _catalog.Monsters.Where(m => names.Contains(m.Name)).Select(BuildMonsterRow).ToArray();
     }
 
-    public AdventureStepSpec BuildStepSpec(EncounterBrowserActionRow action)
+    /// <summary>The step a row of the Actions list stands for. Skills and items need the numeric id the fight page shows.</summary>
+    public AdventureStep BuildStepSpec(EncounterBrowserActionRow action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        var monster = _currentEncounter?.Combat?.MonsterId ?? (_currentEncounter is null ? _selectedMonster?.MonsterId : null);
-        var round = _currentEncounter?.FightRound;
         return action.Kind switch
         {
-            "attack" => new AttackStepSpec(),
-            "skill" => new SkillStepSpec(action.Id, MonsterId: monster, Round: round),
-            "item" => new ItemStepSpec(action.Id, MonsterId: monster, Round: round),
-            "run" => new RunStepSpec(),
+            "attack" => new FightStep(CombatAction.Attack),
+            "skill" => new FightStep(CombatAction.Skill(NumericId(action, "skill"))),
+            "item" => new FightStep(CombatAction.Item(NumericId(action, "item"))),
+            "run" => new FightStep(CombatAction.RunAway),
             "choice" => ParseChoiceRow(action.Id),
             _ => throw new ArgumentException("Unknown adventure action.", nameof(action))
         };
 
-        ChoiceStepSpec ParseChoiceRow(string id)
+        ChoiceStep ParseChoiceRow(string id)
         {
             var separator = id.IndexOf(':', StringComparison.Ordinal);
             if (separator <= 0)
                 throw new ArgumentException("The choice option is missing its choice ID.", nameof(action));
-            return new ChoiceStepSpec(id[..separator], id[(separator + 1)..]);
+            if (!int.TryParse(id[..separator], out var choice) || !int.TryParse(id[(separator + 1)..], out var option) || option <= 0)
+                throw new ArgumentException("The choice option is not numeric.", nameof(action));
+            return new ChoiceStep(choice, option);
         }
+
+        static int NumericId(EncounterBrowserActionRow row, string kind)
+            => int.TryParse(row.Id, out var id) && id > 0
+                ? id
+                : throw new ArgumentException($"The {kind} '{row.DisplayName}' has no numeric id; pick it from the open fight's action list.", nameof(action));
     }
 
     private void ApplyFilter()
@@ -160,9 +165,9 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
             Monsters.Add(row);
     }
 
-    private AdventureEncounterState? _currentEncounter;
+    private Encounter? _currentEncounter;
 
-    public void ShowEncounter(AdventureEncounterState? encounter)
+    public void ShowEncounter(Encounter? encounter)
     {
         _currentEncounter = encounter;
         RebuildActions();
@@ -171,33 +176,22 @@ public sealed class EncounterBrowserViewModel : DesktopViewModel
     private void RebuildActions()
     {
         Actions.Clear();
-        if (_currentEncounter is { Kind: AdventureEncounterKind.Choice, ChoiceId: { } choice } encounter)
+        if (_currentEncounter is ChoiceEncounter choice)
         {
-            foreach (var option in encounter.AvailableChoices)
-                Actions.Add(new EncounterBrowserActionRow("choice", $"{choice}:{option}",
-                    encounter.ChoiceLabels.GetValueOrDefault(option, $"Option {option}"), ""));
+            foreach (var option in choice.Options)
+                Actions.Add(new EncounterBrowserActionRow("choice", $"{choice.ChoiceId}:{option.Option}",
+                    string.IsNullOrWhiteSpace(option.Text) ? $"Option {option.Option}" : option.Text, ""));
             return;
         }
-        if (_currentEncounter?.Combat is { } combat)
+        if (_currentEncounter is FightEncounter fight)
         {
-            if (_currentEncounter.Kind != AdventureEncounterKind.Fight) return;
-            var enabledActions = combat.AvailableActions.Where(action => action.IsEnabled)
-                .DistinctBy(action => (action.Kind,
-                    action.Kind is CombatActionKind.Attack or CombatActionKind.Run ? null : action.Id));
-            foreach (var action in enabledActions)
-            {
-                var kind = action.Kind switch
-                {
-                    CombatActionKind.Attack => "attack",
-                    CombatActionKind.Run => "run",
-                    CombatActionKind.Skill => "skill",
-                    CombatActionKind.Item => "item",
-                    _ => null
-                };
-                if (kind is not null)
-                    Actions.Add(new EncounterBrowserActionRow(kind, action.Id ?? kind, action.Name ?? kind,
-                        action.MpCost is { } mp ? $"{mp} MP" : string.Empty));
-            }
+            // The actions the open fight page offers: attack, its skill and item dropdowns, run away.
+            Actions.Add(new EncounterBrowserActionRow("attack", "attack", "Attack", string.Empty));
+            foreach (var action in FightPageActions.Parse(fight.Page.Html))
+                Actions.Add(new EncounterBrowserActionRow(action.Kind == CombatActionKind.Skill ? "skill" : "item",
+                    action.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), action.Name,
+                    action.MpCost is { } mp ? $"{mp} MP" : string.Empty));
+            Actions.Add(new EncounterBrowserActionRow("run", "run", "Run away", string.Empty));
             return;
         }
         if (_selectedMonster is null)

@@ -87,7 +87,7 @@ namespace KoLibri
                 ?? throw new KolibriException($"No stored account '{accountIdOrName}'. Call LoginAsync first.");
             if (string.IsNullOrWhiteSpace(record.CookieHeader))
             {
-                if (string.IsNullOrEmpty(record.Password))
+                if (string.IsNullOrEmpty(record.Password) || !Options.MayAutoReconnect)
                     throw new SessionExpiredException(record.Account.Id);
                 var session = Track(new KolibriSession(this, record, UserAgentFor(record.Account.Id)));
                 await session.ReconnectAsync(cancellationToken).ConfigureAwait(false);
@@ -193,6 +193,14 @@ namespace KoLibri
         public HttpMessageHandler? HttpHandler { get; init; }
         /// <summary>Hook vor jeder verändernden Aktion. Standard: alles erlaubt. Siehe KoLibri.Safety.</summary>
         public IActionGuard? ActionGuard { get; init; }
+        /// <summary>
+        /// Darf die Lib mit dem gespeicherten Passwort selbst neu anmelden (Lesen nach einer Login-Seite, OpenAsync ohne Cookie)?
+        /// Wird vor jedem automatischen Reconnect gefragt; null heißt ja. Ein expliziter ReconnectAsync-Aufruf gilt immer.
+        /// Ergänzt in Schritt 3 (Desktop-Schalter "Log in again automatically").
+        /// </summary>
+        public Func<bool>? AutoReconnect { get; init; }
+
+        internal bool MayAutoReconnect => AutoReconnect?.Invoke() ?? true;
 
         /// <summary>Tests only (InternalsVisibleTo): no waiting between requests.</summary>
         internal bool DisableLimiterForTests { get; init; }
@@ -205,6 +213,8 @@ namespace KoLibri
         /// <summary>Mindestabstand zwischen zwei Lese-Requests. Untergrenze 200 ms.</summary>
         public TimeSpan ReadInterval { get; init; } = TimeSpan.FromSeconds(1);
         public int ReadConcurrency { get; init; } = 2;
+        /// <summary>Höchstens so viele Requests je Sekunde über beide Lanes (1–5; 0 = aus). Ergänzt in Schritt 3 (Desktop-Einstellung).</summary>
+        public double MaxPerSecond { get; init; } = 2;
     }
 
     public sealed class LoginOptions

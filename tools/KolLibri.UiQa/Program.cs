@@ -6,9 +6,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
+using KoLibri;
 using KoLibri.Desktop;
+using KoLibri.Extras;
 
 // Offline: in-memory accounts (no stored session, no network), a temp settings file, fixture data.
 if (Environment.GetEnvironmentVariable("KOLIBRI_QA_XVFB") != "1")
@@ -51,9 +51,15 @@ async Task RunAsync()
         {
             var theme = dark ? "dark" : "light";
             var settings = new DesktopSettingsStore(Path.Combine(tmp.FullName, $"s-{w}-{theme}.json"));
-            var window = new MainWindow(null, tmp.FullName,
-                new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore()),
-                null, settings, applySettingsToLimiters: false)
+            // No stored account and a handler that refuses everything: the window can never reach KoL.
+            var accounts = new DesktopAccounts(new KolibriOptions
+            {
+                AccountStore = new InMemoryAccountStore(),
+                StateDirectory = tmp.FullName,
+                HttpHandler = new NoNetwork(),
+                AutoReconnect = () => false
+            });
+            var window = new MainWindow(null, tmp.FullName, accounts, settings)
             { Width = w, Height = h };
             Application.Current!.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
             window.Show();
@@ -67,11 +73,11 @@ async Task RunAsync()
             await Section(window, "NavAdventure"); Shot(window, P("adventures"));
             if (w == 1280 && !dark)
             {
-                window.ShowDecisionForQa(new KoLibri.Core.Spiel.NeedsDecisionInfo
+                window.ShowDecisionForQa(new NeedsDecisionInfo
                 {
                     RunId = "qa", ChoiceId = "1003", Title = "A Turtle Tamer appears",
-                    Options = new[] { new KoLibri.Core.Spiel.ChoiceOptionInfo(1, "Help the turtle"),
-                        new KoLibri.Core.Spiel.ChoiceOptionInfo(2, "Leave it alone") },
+                    Options = new[] { new ChoiceOptionInfo(1, "Help the turtle"),
+                        new ChoiceOptionInfo(2, "Leave it alone") },
                     Reason = "No choice policy answers this choice. Pick an option."
                 });
                 await Pump(400); Shot(window, P("adventures-choice"));
@@ -132,11 +138,12 @@ async Task RunAsync()
 static void SeedCharpane(MainWindow w)
 {
     var now = DateTimeOffset.UtcNow;
-    var status = new KoLibri.Core.Spiel.KoLStatusSnapshot("QA Tester", 87, 2345678, 13, now)
+    var status = new Status("QA Tester", 13, 2345678, 87, now)
     {
-        CurrentHp = 120, MaximumHp = 200, CurrentMp = 85, MaximumMp = 150,
-        Fullness = 5, Inebriety = 3, Spleen = 7, FamiliarId = "9", FamiliarWeight = 20,
-        TimedEffects = [new("Ode to Booze", 14), new("Ur-Kel's Aria of Annoyance", 120), new("Polka of Plenty", 1)]
+        Hp = 120, MaxHp = 200, Mp = 85, MaxMp = 150,
+        Fullness = new global::KoLibri.OrganState(5, null), Inebriety = new global::KoLibri.OrganState(3, null), Spleen = new global::KoLibri.OrganState(7, null),
+        FamiliarId = 9, FamiliarWeight = 20,
+        Effects = [new(71, "Ode to Booze", 14), new(0, "Ur-Kel's Aria of Annoyance", 120), new(0, "Polka of Plenty", 1)]
     };
     w.FindControl<CharpaneView>("CharacterPane")!.Show(CharpaneState.FromStatus(status, "Main", now));
 }
@@ -192,7 +199,7 @@ static void SeedFixtures(MainWindow w)
         ItemId = i.Id, Name = i.Name, Quantity = i.Qty, AccessFlags = i.Flags,
         Uses = new[] { "Use", "Autosell" }, CheapestMallPrice = 100 * (n + 1)
     }).ToList(), DateTimeOffset.Now);
-    inv.Organs = new OrganState(3, 2, 5);
+    inv.Organs = new KoLibri.Desktop.OrganState(3, 2, 5);
     inv.SelectedItem = inv.Items.First(i => i.Name == "hot wing");
     inv.ActionResult = "Ate 2 × hot wing; 10 left. " + inv.OrganSummary;
 }
@@ -257,7 +264,7 @@ async Task SeedQueuedBuys(MainWindow w)
     var ledger = new MallSpendLedger();
     var queue = new MallBuyQueue("Mallbot", ledger, log, a => Avalonia.Threading.Dispatcher.UIThread.Post(a),
         verifyDelay: TimeSpan.FromMilliseconds(50), batchWait: TimeSpan.FromMilliseconds(50));
-    model.PurchaseRequest = new MallPurchaseCoordinator("Mallbot", _ => Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>(null),
+    model.PurchaseRequest = new MallPurchaseCoordinator("Mallbot", _ => Task.FromResult<DesktopMallPurchaseService?>(null),
         null!, log, ledger, queue: queue);
     search.Attach(model, Priv<LiveMallViewModel>(w, "_mall"));
     model.SearchText = "Hot wing";
@@ -300,34 +307,20 @@ sealed class AllowAll : IMallPurchaseRequest
 
 sealed class FixtureBackend(List<MallOfferRow> rows) : IMallSearchBackend
 {
-    public Task<MallSearchPage> SearchAsync(string term, bool forceRefresh, CancellationToken ct)
+    public Task<global::KoLibri.MallSearchResult> SearchAsync(string term, bool forceRefresh, CancellationToken ct)
     {
-        var uri = new Uri("https://www.kingdomofloathing.com/mall.php");
-        var listings = rows.Select(r => new MallListing(r.ItemId, r.ShopId, r.ShopName, r.UnitPrice, r.Stock ?? 0, r.DailyLimit,
-            DateTimeOffset.Now, uri)
-        { ItemName = r.ItemName, QuantityKnown = r.Stock is not null, LimitKind = r.LimitKind }).ToList();
-        var page = new MallSearchPage(term, [new MallItemOffers("471", "Hot wing", listings, 40)], DateTimeOffset.Now, uri);
-        return Task.FromResult(page);
+        var listings = rows.Select(r => new MallListing(int.Parse(r.ShopId), r.ShopName, 471, r.UnitPrice, r.Stock ?? 0, r.DailyLimit)
+        { QuantityKnown = r.Stock is not null, LimitKnown = r.LimitKind != MallLimitKind.Unknown }).ToList();
+        return Task.FromResult(new global::KoLibri.MallSearchResult(term,
+            [new MallOffers(471, "Hot wing", listings, DateTimeOffset.Now)], DateTimeOffset.Now));
     }
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken ct)
         => Task.FromResult(new PricegunInfo(1300, DateTimeOffset.Now, false));
 }
 
-sealed class InMemoryAccountStore : IAccountStore
+/// <summary>Offline guard for the screenshots: every request fails before it leaves the process.</summary>
+sealed class NoNetwork : HttpMessageHandler
 {
-    private AccountConfiguration _config = new() { Accounts = new() };
-    public Task<AccountConfiguration> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(_config);
-    public Task SaveAsync(AccountConfiguration configuration, CancellationToken cancellationToken = default)
-    { _config = configuration; return Task.CompletedTask; }
-}
-
-sealed class InMemorySecretStore : ISecretStore
-{
-    private readonly Dictionary<string, AccountCredentials> _secrets = new(StringComparer.OrdinalIgnoreCase);
-    public Task<AccountCredentials?> GetAsync(string accountId, CancellationToken cancellationToken = default)
-        => Task.FromResult(_secrets.TryGetValue(accountId, out var c) ? c : null);
-    public Task SetAsync(string accountId, AccountCredentials credentials, CancellationToken cancellationToken = default)
-    { _secrets[accountId] = credentials; return Task.CompletedTask; }
-    public Task RemoveAsync(string accountId, CancellationToken cancellationToken = default)
-    { _secrets.Remove(accountId); return Task.CompletedTask; }
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        => throw new HttpRequestException("UiQa is offline; no request leaves the process.");
 }
