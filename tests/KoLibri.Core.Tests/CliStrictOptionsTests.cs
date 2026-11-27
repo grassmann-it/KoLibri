@@ -4,6 +4,7 @@ using KoLibri.Core.Basis;
 
 namespace KoLibri.Core.Tests;
 
+[Collection(ConsoleCollection.Name)] // runs the CLI, which writes to Console.Out
 public sealed class CliStrictOptionsTests
 {
     private static async Task<(int Code, string Out)> Run(Func<string[], Task<int>> command, params string[] args)
