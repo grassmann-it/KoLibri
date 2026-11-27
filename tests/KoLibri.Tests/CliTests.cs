@@ -98,17 +98,66 @@ public sealed class CliTests : IDisposable
         Assert.Contains("login --role main", error);
     }
 
-    [Fact]
-    public async Task Commands_not_in_0_5_dev_send_nothing_and_exit_3()
+    [Theory]
+    [InlineData("repl")]
+    [InlineData("mafia-script", "x.txt")]
+    [InlineData("adventure-plan")]
+    [InlineData("combat", "preview")]
+    [InlineData("autocombat")]
+    [InlineData("auto-combat")]
+    [InlineData("--experimental", "categorize")]
+    [InlineData("--experimental", "bribe-rank")]
+    [InlineData("--experimental", "bribe-plan")]
+    [InlineData("--experimental", "workflow-plan")]
+    [InlineData("--experimental", "snatch-plan")]
+    [InlineData("--experimental", "watchlist", "list")]
+    [InlineData("--experimental", "scheduler")]
+    [InlineData("--experimental", "market-scan")]
+    [InlineData("--experimental", "market")]
+    public async Task Removed_commands_exit_2_name_a_replacement_and_send_nothing(params string[] args)
     {
-        foreach (var args in new[] { new[] { "repl" }, new[] { "mafia-script", "x.txt" }, new[] { "adventure", "start" }, new[] { "daily", "go" },
-                     new[] { "combat", "preview" }, new[] { "--experimental", "watchlist", "list" }, new[] { "--experimental", "reprice" } })
-        {
-            var (code, _, error) = await Cli(args);
-            Assert.Equal(3, code);
-            Assert.Contains("follow-up PR", error);
-        }
+        var (code, _, error) = await Cli(args);
+        Assert.Equal(2, code);
+        Assert.Contains("was removed in KoLibri 0.5: use ", error);
+        Assert.Contains("Nothing was sent", error);
         Assert.Empty(_kol.Requests);
+    }
+
+    [Theory]
+    [InlineData("categorize")]
+    [InlineData("bribe-rank")]
+    [InlineData("bribe-plan")]
+    [InlineData("workflow-plan")]
+    [InlineData("snatch-plan")]
+    [InlineData("watchlist")]
+    [InlineData("scheduler")]
+    [InlineData("market-scan")]
+    [InlineData("market")]
+    public async Task Experimental_removed_commands_are_still_hidden_without_the_flag(string command)
+    {
+        var (code, _, error) = await Cli(command);
+        Assert.Equal(3, code);
+        Assert.Contains("experimental", error);
+        Assert.Empty(_kol.Requests);
+    }
+
+    [Fact]
+    public async Task Reprice_stays_not_yet_until_it_is_ported()
+    {
+        var (code, _, _) = await Cli("--experimental", "reprice");
+        Assert.Equal(3, code);
+        Assert.Empty(_kol.Requests);
+    }
+
+    [Fact]
+    public void Help_lists_replacements_not_follow_up()
+    {
+        var writer = new StringWriter();
+        KolibriCli.PrintHelp(writer, experimental: true);
+        var output = writer.ToString();
+        Assert.Contains("Removed in 0.5", output);
+        Assert.DoesNotContain("follow-up PR", output);
+        Assert.DoesNotContain("Not in 0.5-dev yet", output);
     }
 
     [Fact]
