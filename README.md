@@ -2,240 +2,178 @@
 
 # KoLibri
 
-**KoLmafia's automation, minus the clicking.**
+**A KoLmafia-like client for Kingdom of Loathing, on a small .NET library you can program against.**
 
-KoLibri is a .NET 8 toolset for [Kingdom of Loathing](https://www.kingdomofloathing.com/).
-It covers the same ground as [KoLmafia](https://github.com/kolmafia/kolmafia) —
-the complete data snapshot, account reads, mall pricing, crafting,
-adventures and the daily routines — but it leans on automation instead of
-manual clicks: you tell it *what* should happen, it works out the *how*,
-shows you the plan and asks for approval before it touches anything.
+KoLibri is a .NET 8 toolset for [Kingdom of Loathing](https://www.kingdomofloathing.com/). You can play by hand
+(log in, adventure, eat, drink, use items, buy from the mall), farm with a simple auto-combat loop, or write your
+own tool with the library: `using KoLibri;`.
 
+```bash
+kolibri login main                                     # once per account
+kolibri adventure run --location 113 --max-turns 5     # preview: sends nothing
+kolibri daily run --role main                          # preview of the day's routine
 ```
-dotnet run --project tools/KolLibri.Cli -- daily breakfast --role all --execute --approval-token $TOK
-```
 
-That single command reads both accounts, works out the day's numbers
-from the live data, plans the routine and runs it.
+> **Early Alpha (0.5.0).** KoLibri is usable but not stable; commands, options, file formats and the library API may
+> change before 1.0. 0.4.0 was an internal milestone and was never released; its scope is part of 0.5.0.
+> - **Included:** the library `KoLibri` (plus the optional `KoLibri.Safety`), the CLI `kolibri` (alias `kolicli`), the
+>   MCP server `kolibri-mcp` and the desktop app `kolibri-desktop`. Release archives for `linux-x64`, `win-x64`,
+>   `osx-arm64` and `osx-x64`; the two library packages are attached to the GitHub release as `.nupkg` files (not on
+>   nuget.org).
+> - **Unstable:** the desktop UI, MCP tool names and schemas, and the Windows and macOS builds (validated manually;
+>   CI test failures there are tolerated).
+> - **Live use:** needs your own Kingdom of Loathing account, one session per account (logging in elsewhere can end
+>   the stored session). Requests are rate limited (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; see
+>   [usage](docs/usage.md)). Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get
+>   your confirmation first.
+> - Details: [CHANGELOG.md](CHANGELOG.md), plans: [ROADMAP.md](ROADMAP.md). New here? Start with
+>   [docs/quickstart.md](docs/quickstart.md); [docs/usage.md](docs/usage.md) shows CLI, desktop, MCP and library.
 
-> **Early Alpha (0.4.0).** KoLibri is usable but not stable; commands, options and file formats may change before 1.0.
-> - **Included:** `LibKolibri` (library, source checkout; NuGet planned for 0.5), `kolicli` / `kolibri` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early example client, not broadly tested live).
-> - **Unstable:** the desktop UI, MCP tool names and schemas, daily/arbitrage planners, and the Windows and macOS builds (validated manually; CI test failures there are tolerated for this release).
-> - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](docs/usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
-> - Details: [CHANGELOG.md](CHANGELOG.md).
+## What 0.5.0 can do
 
-## What 0.4.0 can do / what is experimental
-
-**Supported in 0.4.0** (the scope we test live before the release):
-
-- Login and reconnect; status / charpane with organ limits.
+- Login and reconnect; status and charpane with organ limits.
 - Inventory: use, eat, drink, chew; cast, rest, equip.
-- Adventuring by hand: the browser tab and the encounter view (fight actions, choices).
-- A simple auto-combat batch in the desktop: N turns in one zone, stops on a choice, a defeat or a HP threshold.
-- Mall search and price-guarded buying.
-- Sending KMail.
-- `LibKolibri` from a source checkout, to write your own tool. Its API is still large and changes in 0.5.
+- Adventuring by hand (desktop browser tab and encounter view; CLI `adventure inspect|step|fight`) and a simple
+  auto-combat loop: desktop turn batch and CLI `adventure run`, with an HP floor, a round limit, stop conditions and
+  a choice policy. Turtle Tamer encounters are clicked through by default.
+- Mall search and price-guarded buying; sending KMail; own shop read; pirate encryption keys.
+- The daily routine (`daily run`: Day Shortener via the campfire, Hermit clovers, Internet Meme Shop).
+- A library to write your own tool, plus a [cookbook](samples/cookbook/README.md) of small apps.
 
-**Experimental, hidden by default:** arbitrage, foreign bribes, snatch planning, shop CRM / customer rewards,
-categorize, workflow plans, clan stash and farm metrics. They are not deleted, just
-not shown, and they get no live verification for this release.
-
-- CLI: add `--experimental` to see and run those commands.
-- MCP: start `kolibri-mcp` with `KOLIBRI_EXPERIMENTAL=1` to offer more than the core tools
-  (status, inventory, adventure, choice, item use, mall buy).
-
-Where this goes next: [ROADMAP.md](ROADMAP.md).
-
-> KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
-> Where this is going: [ROADMAP.md](ROADMAP.md).
-> New here? Start with [docs/quickstart.md](docs/quickstart.md); [docs/usage.md](docs/usage.md) shows CLI (`kolibri` / `kolicli`), desktop, MCP and library side by side.
+KoLibri is an unofficial project, not affiliated with the Kingdom of Loathing team. See [NOTICE.md](NOTICE.md).
 
 ## What is in here
 
 | Project | Role | Package |
 |---|---|---|
-| `src/KoLibri.Core` | The domain: KoL connector, data catalog, adventure and combat, mall, bounded runner (plus experimental planners) | `KoLibri.Core` |
-| `src/LibKolibri` | The public API façade over the core | `KoLibri.LibKolibri` |
-| `tools/KolLibri.Cli` | Command line front-end | — |
-| `tools/KolLibri.Mcp` | MCP / JSON-RPC server for agent hosts | — |
-| `KoLibri.Desktop` | Avalonia desktop client | — |
-| `external/kolmafia-data` | The KoLmafia data dump as JSON Lines | — |
+| `src/KoLibri` | The library: session, requests, adventures, fights, choices, items, mall, shop, KMail, events, game data | `KoLibri` |
+| `src/KoLibri.Safety` | Optional guards: grants, budgets, approval tokens, audit journal | `KoLibri.Safety` |
+| `src/KoLibri.Daily`, `src/KoLibri.Extras` | Daily routine and experimental extras, used inside the apps | not packed |
+| `tools/KolLibri.Cli` | Command line `kolibri` | - |
+| `tools/KolLibri.Mcp` | MCP server `kolibri-mcp` for AI clients | - |
+| `KoLibri.Desktop` | Avalonia desktop client | - |
+| `samples/cookbook` | Small apps that use only the public library API | - |
+| `external/kolmafia-data` | The KoLmafia data dump as JSON Lines | - |
 
-The split follows one question: *what gets reused?* Everything that
-several tools would need — the connector, the planners, the arbitators —
-lives in the core. The façade is deliberately thin. The apps are the
-operator-facing part.
+`KoLibri.Core` and `LibKolibri` still exist in the repository as internal implementation layers behind `KoLibri`
+(the package bundles `KoLibri.Core` privately). They are not packages of their own and are going away.
+The CLI, MCP server and desktop app are consumers of the library, not where features start.
 
-## Features
-
-### Daily routines
-
-| Routine | What it does |
-|---|---|
-| **Campfire** | Burns one inflammable leaf to advance the day, or crafts a Day Shortener (222 leaves) when the reserve runs thin. |
-| **Hermit** | Trades worthless items for permits (`autopermit=on`), then opens 11-leaf clovers — as many as the daily stock allows, capped at three. |
-| **Internet shop** | Claims the daily free pulls, skipping whatever was already taken. |
-| **Foreign bribes** | Buys bribe bags on the mall when the spread justifies it. |
-| **Bacon arbitrage** | Buys the Infinite BACON machine once and then BACON while the spread against the resale median is positive. |
-| **Clover restock** | Buys cheap 11-leaf clovers so the main account stays stocked for the hermit trade. |
-
-Every routine is split in two: a **planner** that is a pure function over
-a snapshot, and an **executor** that submits. The planner never touches
-the network, so the operator can see exactly what would happen before
-anything is sent.
-
-### Adventures
-
-- A **manual adventure browser**: locations → encounter → monster →
-  skill/item, with a token-gated live path.
-- A **bounded runner** that submits only allowlisted actions, stops after
-  a bounded number of choices and never replays a request.
-- An **auto-combat adapter** that turns a strategy into typed step specs,
-  so a manual run and an automated one share the same contract.
-
-### Mall and pricing
-
-- Mall search, own-store reads, pricegun history.
-- A price provider that plugs into the pricing engine.
-- An executor that buys from another player's store: it reads the store
-  password hash out of the store page and submits the purchase with the
-  exact listing price, because KoL rejects a purchase whose price moved.
-
-### Multi-account
-
-Main and Mallbot are first-class roles with their own sessions, their
-own meat pools and their own daily shop limits. `daily go --role all`
-runs both, in parallel, with one hash-chained audit trail across the
-whole run.
-
-### Data
-
-The complete KoLmafia data dump, bundled and typed:
-
-| Records | Count |
-|---|---|
-| Items | 12 103 |
-| Modifiers | 13 375 |
-| Effects | 3 015 |
-| Concoctions | 2 238 |
-| Monster parts | 2 214 |
-| Monsters | 2 366 |
-| Skills | 1 657 |
-| Restores | 164 |
-| Adventures | 601 |
-| Zones | 148 |
-
-```bash
-python3 scripts/import-kolmafia-data.py   # refresh from a KoLmafia checkout
-```
+Not in the library on purpose: diet planning, market strategies, shop CRM. Build them with it.
 
 ## Install
 
-The library:
+The library (the `.nupkg` files come with the GitHub release; point a local NuGet feed at the folder), or reference
+the project from a source checkout:
 
 ```xml
-<!-- NuGet publishing is planned for 0.5; until then reference the project from a source checkout -->
-<ProjectReference Include="path/to/KoLibri/src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
+<PackageReference Include="KoLibri" Version="0.5.0" />
+<!-- or, from a source checkout: -->
+<ProjectReference Include="path/to/KoLibri/src/KoLibri/KoLibri.csproj" />
 ```
 
 ```csharp
-using KoLibri.Core.Basis;
-using LibKolibri;
+using KoLibri;
 
-using var kol = await KolibriClient.OpenAsync(AccountRole.Main);
-var status = await kol.GetStatusAsync();
-Console.WriteLine($"{status.PlayerName}: {status.Meat} meat");
+public static async Task RunAsync(string password)
+{
+    await using var kol = KolibriClient.Create();
+
+    // First run: log in once. "main" is a free local id; later runs use OpenAsync("main").
+    await using var session = await kol.LoginAsync("MyCharacter", password,
+        new LoginOptions { AccountId = "main", RememberPassword = true });
+
+    var status = await session.Character.GetStatusAsync(refresh: true);
+    Console.WriteLine($"{status.PlayerName}: {status.Meat} Meat, {status.Adventures} adventures, " +
+                      $"fullness {status.Fullness.Current}/{status.Fullness.Limit?.ToString() ?? "?"}");
+
+    // Up to 5 turns in the Haunted Pantry (snarfblat 113): attack in fights, stop at choices
+    // without an answer, stop early when HP drops below 30 %.
+    var run = await session.Adventure.RunAsync(new RunRequest(113, 5)
+    {
+        Combat = CombatStrategies.AttackOnly,
+        Choices = ChoiceResolvers.Safe(),
+        StopWhen = new[] { StopCondition.HpBelowPercent(30) }
+    });
+    Console.WriteLine($"{run.StopReason} after {run.TurnsSpent} turns, {run.MeatGained} Meat");
+    if (run.Open is ChoiceEncounter choice)
+        Console.WriteLine($"Choice {choice.ChoiceId} is open: {string.Join(", ", choice.Options.Select(o => o.Option + "=" + o.Text))}");
+
+    // Mall: three seal teeth (item 2), never above 500 Meat each, keep 100 000 Meat.
+    var bought = await session.Mall.QuoteAndBuyAsync(new PurchaseOrder(new ItemRef(2), 3, 500) { MeatReserve = 100_000 });
+    Console.WriteLine($"{bought.Status}: {bought.QuantityBought} bought for {bought.MeatSpent} Meat");
+}
 ```
 
-Build from source (NuGet packages for the library, CLI and MCP server are planned for 0.5; until then use the release archives or a source build):
+More in [src/KoLibri/README.md](src/KoLibri/README.md); the full API in [docs/lib-api-0.5.md](docs/lib-api-0.5.md).
+
+Accounts are free local ids (`"main"`, `"mallbot"`, ...), not fixed roles. The KoLmafia data is bundled
+(`external/kolmafia-data`); point the `DataDirectory` option at another copy if you need to.
+
+Build the apps from source (needs the .NET 8 SDK):
 
 ```bash
 dotnet build KoLibri.slnx
 dotnet run --project tools/KolLibri.Cli -- --help
 ```
 
-## Desktop
-
-The desktop client is the operator's console: it reads both accounts
-live, shows the inventory with the KoLmafia catalog, the daily briefing,
-the market scan with the buy rules, the mall and the combat panel.
-
-```bash
-dotnet run --project KoLibri.Desktop
-```
-
-It needs a session for each account — the panels stay empty without one:
-
-```bash
-kolibri login refresh --role main
-kolibri login refresh --role mallbot
-```
-
-`kolibri login status` tells whether a session still works. It asks KoL,
-not just the stored cookie: a session that KoL dropped says
-`rejectedByServer: true`, and `usable: false`. If KoL cannot be reached
-(timeout, HTTP 5xx) the row says `serverUnreachable: true` and `usable: null`
-instead — that is not a rejection. `expiresAt` is the cookie's expiry; no login time is stored. The stored expiry only
-covers the cookie's lifetime — KoL ends a session earlier when the
-password changes or the account is signed out somewhere else.
-
-The panels:
-
-| Panel | What it shows |
-|---|---|
-| **Guts** | Meat, adventures, items and level of both accounts |
-| **Inventory** | The live inventory with the catalog's flags, uses and images |
-| **Daily** | The day's briefing from the live accounts |
-| **Arbitrage** | Mall listings against the pricegun median, plus the buy rules |
-| **Mall** | Own store and the market |
-| **Adventures** | Locations, encounters and the bounded runner |
-| **Combat** | The auto-combat policy and the fight log |
-
-Everything that spends meat is behind the approval token:
-
-```bash
-kolibri token mint
-```
-
 ## CLI
 
+Previews by default: nothing is sent without `--execute` (and `--approval-token` where it spends Meat or turns).
+
 ```bash
-# Account sessions
+# Accounts
+kolibri login main                         # asks for the password, stores an encrypted session
 kolibri login status
-kolibri login refresh --role main          # saved password if there is one, else asks (password not echoed)
-kolibri login clear --role all
+kolibri login refresh --role main
+kolibri token mint                         # approval token for --execute
 
-# Approval token
-kolibri token mint
-
-# Live reads
+# Reads
 kolibri status --role main --refresh
 kolibri inventory --role main --refresh
-kolibri shop --role mallbot --refresh
-kolibri pricegun --item 10881 --refresh
+kolibri mall --role mallbot --item 2
+kolibri shop --role mallbot
 
-# Daily routine — the morning run
-kolibri daily breakfast --role all                 # preview
-kolibri daily breakfast --role all \
-  --execute --approval-token "$TOK"                 # live
+# Adventures
+kolibri adventure locations --name pantry
+kolibri adventure run --location 113 --max-turns 5                                      # preview
+kolibri adventure run --location 113 --max-turns 5 --execute --approval-token "$TOK"    # live
+kolibri adventure inspect                  # the open fight or choice, read-only
+kolibri choice pending                     # exit 4 if a choice is open
+kolibri choice policy list
 
-# Individual routines
-kolibri daily campfire --leaves 37191 --meat 128310
-kolibri daily hermit --permits 2 --clovers 3 --clover-sale 30000
-kolibri daily internet-shop
-kolibri daily meme-shop-read
-
-# Audit trail
-kolibri daily-audit --tail 20
-kolibri daily-audit --verify
+# Items and the day
+kolibri consume --role main --kind food --item ID --execute
+kolibri rest --role main --times 1 --execute
+kolibri daily run --role main                                         # preview
+kolibri daily run --role main --only hermit --execute --approval-token "$TOK"
+kolibri daily audit --tail 20
 ```
+
+Also: `cast`, `keys` (pirate keys), `shop add`, `mall-reconcile`, `relay` (browse KoL in your own browser through the
+stored session). Commands that were removed in 0.5 (`daily-audit`, `combat`, `autocombat`, `adventure-plan`,
+`mafia-script`, `repl`) exit with code 2 and send nothing; the message names the replacement. `kolibri --help` is the
+authoritative list.
+
+Planned, not merged yet: `adventure run` farm flags (`--combat-rules`, `--recover-hp`, `--stop-item`, ...) and
+`reprice` as an experimental command. <P2-W5/P3-W2: update when merged>
+
+## Desktop
+
+```bash
+dotnet run --project KoLibri.Desktop      # or kolibri-desktop from the release archive
+```
+
+The desktop client needs a stored session per account (`kolibri login main`); it can renew stale ones at start.
+It has a live character pane, inventory, skills and effects, gear, adventures (browser tab, encounter view and the
+auto-combat turn batch), mall search and buy, the daily routine, an embedded browser (the relay in-process) and a
+settings view. `<L3: final panel list>`
 
 ## MCP
 
-`kolibri-mcp` serves MCP over HTTP on `127.0.0.1:8765` (local only). An AI client
-connects, the browser opens a consent page, and **you** choose accounts, rights and
-daily limits. The client only receives what you approved; see
-[docs/mcp-access.md](docs/mcp-access.md).
+`kolibri-mcp` serves MCP over HTTP on `127.0.0.1:8765` (local only). An AI client connects, the browser opens a
+consent page, and **you** choose accounts, rights and daily limits. The client only receives what you approved; see
+[docs/mcp-access.md](docs/mcp-access.md) and [docs/MCP.md](docs/MCP.md).
 
 ```bash
 kolibri-mcp                    # http://127.0.0.1:8765/mcp, consent code printed here
@@ -244,73 +182,57 @@ kolibri-mcp grants revoke ID   # stop one client at once
 kolibri-mcp --stdio            # read-only tools over stdio, no approval needed
 ```
 
-| Tool | What it does |
-|---|---|
-| `kol_status` / `kol_inventory` | Account reads |
-| `kol_price_summary` / `kol_price_recommendation` / `kol_underprice_preview` | Market reads |
-| `kol_run_daily_bridge` / `kol_daily_*` | Plans the daily routine without executing |
-| `kol_preview_purchase` / `kol_preview_transfer` | Validates a proposal without acting |
-| `kol_mall_buy` / `kol_meme_shop` | Buy under a price ceiling / run the meme shop |
-| `kol_shop_sales` / `kol_shop_buyers` / `kol_shop_price_suggestions` / `kol_reward_buyer` | Own-store sales, customers (loyalty ledger), price suggestions, reward a customer |
-| `kol_transfer` / `kol_send_message` / `kol_use_item` / `kol_reprice_shop` | Send to the other account / KMail / use items / change shop prices |
-| `kol_adventure_run_execute` / `kol_choice_chain_execute` | Bounded live adventures (right `adventure`) |
+Default tools (19): `kol_status`, `kol_inventory`, `kol_login_status`, `kol_adventure_locations`,
+`kol_adventure_run_execute`, `kol_combat_inspect`, `kol_combat_decision`, `kol_choice_pending`, `kol_choice_options`,
+`kol_choice_chain_execute`, `kol_use_item`, `kol_consume`, `kol_rest`, `kol_price_summary`, `kol_mall_buy`,
+`kol_send_message`, `kol_daily_audit`, `kol_run_daily_bridge`, `kol_meme_shop`.
 
-Every write is two steps: preview returns a `planId`, the same call with that id executes once.
-
-In 0.4.0 the server offers only the core tools by default (status, inventory, adventure, choice, item use,
-mall buy). Market, shop, transfer and daily tools from this table appear only with `KOLIBRI_EXPERIMENTAL=1`.
-
-Login management tools are not available to AI clients.
+Every write is two steps: the preview returns a `planId`, the same call with that id executes once, inside the
+daily limits you granted. Login management is not available to AI clients.
 
 ## Safety model
 
-This tool acts on a game account that holds real value, so the guardrails
-are structural rather than advisory.
+1. **Reads are free, writes are gated.** An AI client needs a token you approved in the browser, with rights and
+   per-day limits. The CLI and desktop are yours and need none; under an AI harness the CLI asks for a confirmation
+   at the real terminal before it writes (`kolibri agent-mode`).
+2. **Credentials never appear in code.** Sessions live encrypted in your local app-data folder.
+3. **One policy hook in the library.** Every write goes through `IActionGuard`. The optional `KoLibri.Safety` package
+   adds grants, budgets with a usage ledger, approval tokens and a hash-chained audit journal; the MCP server uses it.
+4. **Bounded runs.** An adventure run stops at the turn cap, a stop condition (HP floor, item gained, ...), an
+   unanswered choice, a fight round limit or a time limit, and never replays a request.
+5. **Price discipline.** A purchase is submitted at the price the listing showed; if it moved, KoL rejects it and
+   KoLibri does not raise the bid. `MaxUnitPrice` and `MeatReserve` are checked before and after.
 
-1. **Reads are free, writes are gated.** An AI client needs a token you
-   approved in the browser, with rights and per-day limits. The CLI and Desktop
-   are yours and need none; under an AI harness the CLI asks for a
-   confirmation at the real terminal before it writes (`kolibri agent-mode`).
-2. **Credentials never appear in code.** Sessions live encrypted in the
-   user's local app-data folder. The library reads them at runtime and
-   keeps them inside the authenticated HTTP clients.
-3. **Every write is auditable.** Actions land in an append-only journal
-   where each row carries the SHA-256 hash of the row before it.
-   `kolibri daily-audit --verify` reports the first tampered row.
-4. **Bounded runs.** The runner stops after a configured number of
-   choices or a configured duration, and never replays a request.
-5. **Price discipline.** A purchase is submitted with the price the
-   listing showed. If the price moved, KoL rejects it — KoLibri does not
-   silently raise the bid.
+## Experimental
+
+Arbitrage, bribes, CRM and price-report commands (`arbitrage plan|buy`, `pricegun`, `crm`, `reprice`, `apply-prices`)
+and the matching MCP tools are hidden by default and not part of the library's promise. Show them with `--experimental`
+(CLI) or `KOLIBRI_EXPERIMENTAL=1` (MCP). They get no live verification for this release.
+
+## Data
+
+The complete KoLmafia data dump is bundled and typed (items 12 103, modifiers 13 375, effects 3 015, concoctions
+2 238, monsters 2 366, skills 1 657, adventures 601, zones 148, and more). Refresh it from a KoLmafia checkout with
+`python3 scripts/import-kolmafia-data.py`.
 
 ## Limitations
 
-Honest about what does not work yet:
-
-- **Leaves cannot be bought.** The inflammable leaf only comes from the
-  campfire, so a leaf shortage cannot be fixed by shopping.
-- **Free pulls need a clan store.** The Lucky Surprise Egg and the
-  Infinite BACON machine are claimed from the storage, which requires the
-  clan store password.
-- **The transfer path is separate.** Restocking the main account from
-  the mallbot goes through its own preview/approval/commit flow rather
-  than through the daily routine.
-- **The combat preview is an estimate.** Until the effect and modifier
-  tracker is complete, the auto-combat preview does not account for every
-  conditional buff.
-- **The daily shop limit is per account.** Running both accounts buys
-  twice as much, but KoL's limit applies to each account separately.
+- The CLI does not cover everything the desktop and the library do: equip and item use are desktop and MCP only.
+- Combat macros and KoLmafia-style combat scripts are not implemented; fights follow a strategy or a fixed action.
+- Windows and macOS builds are validated by hand; Linux is the reference platform.
+- The desktop client has not been live-tested broadly.
+- The library API is small but not frozen before 1.0.
 
 ## Development
 
 ```bash
 dotnet build KoLibri.slnx
-dotnet test tests/KoLibri.Core.Tests/KoLibri.Core.Tests.csproj
-dotnet pack src/KoLibri.Core/KoLibri.Core.csproj -c Release
+dotnet test KoLibri.slnx
+scripts/pack-lib.sh dist/nuget 0.5.0       # packs and checks KoLibri and KoLibri.Safety
 ```
 
 Repository: [grassmann-it/KoLibri](https://github.com/grassmann-it/KoLibri).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

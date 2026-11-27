@@ -1,35 +1,35 @@
 # Quickstart
 
-> **Early Alpha (0.4.0).** KoLibri is usable but not stable; commands, options and file formats may change before 1.0.
-> - **Included:** `LibKolibri` (library, source checkout; NuGet planned for 0.5), `kolicli` / `kolibri` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early example client, not broadly tested live).
-> - **Unstable:** the desktop UI, MCP tool names and schemas, daily/arbitrage planners, and the Windows and macOS builds (validated manually; CI test failures there are tolerated for this release).
+> **Early Alpha (0.5.0).** KoLibri is usable but not stable; commands, options, file formats and the library API may change before 1.0. (0.4.0 was never released.)
+> - **Included:** the library `KoLibri` (+ optional `KoLibri.Safety`), `kolibri` / `kolicli` (CLI), `kolibri-mcp` (MCP server), and the desktop UI (an early client, not broadly tested live).
+> - **Unstable:** the desktop UI, MCP tool names and schemas, and the Windows and macOS builds (validated manually; CI test failures there are tolerated).
 > - **Live use:** needs your own Kingdom of Loathing account. Requests are rate limited in two lanes (actions one per 2 s, `KOLIBRI_MIN_REQUEST_INTERVAL_MS`; display reads a little faster and side by side; see [usage](usage.md)). Use one session per account; logging in elsewhere can end the stored session. Anything that spends Meat or turns needs `--execute` in the CLI; AI agents must get your confirmation first.
 > - Details: [CHANGELOG.md](../CHANGELOG.md).
 
-
-KoLibri gives you a .NET library, a command line (`kolibri`), an MCP server (`kolibri-mcp`) and an early-alpha desktop
+KoLibri gives you a small .NET library (`using KoLibri;`), a command line (`kolibri`), an MCP server (`kolibri-mcp`) and an early-alpha desktop
 client for Kingdom of Loathing. You act yourself through the CLI and desktop. An AI acts through MCP, only inside
 limits you approve.
 
-## What 0.4.0 can do / what is experimental
+## What 0.5.0 can do / what is experimental
 
-**Supported in 0.4.0** (the scope we test live before the release):
+**Supported in 0.5.0** (the scope we test live before the release):
 
 - Login and reconnect; status / charpane with organ limits.
 - Inventory: use, eat, drink, chew; cast, rest, equip.
-- Adventuring by hand: the browser tab and the encounter view (fight actions, choices).
-- A simple auto-combat batch in the desktop: N turns in one zone, stops on a choice, a defeat or a HP threshold.
-- Mall search and price-guarded buying.
-- Sending KMail.
-- `LibKolibri` from a source checkout, to write your own tool. Its API is still large and changes in 0.5.
+- Adventuring by hand: the browser tab and the encounter view (fight actions, choices); in the CLI
+  `adventure inspect|step|fight`.
+- A simple auto-combat batch: desktop turn batch and CLI `adventure run` (N turns in one location; stops on an
+  unanswered choice, a defeat, a HP threshold or a round limit). Turtle Tamer encounters are clicked through by default.
+- Mall search and price-guarded buying; sending KMail.
+- The daily routine: `daily run` (Day Shortener via the campfire, Hermit clovers, Internet Meme Shop).
+- The `KoLibri` library to write your own tool; see [src/KoLibri/README.md](../src/KoLibri/README.md) and the
+  [cookbook](../samples/cookbook/README.md).
 
-**Experimental, hidden by default:** arbitrage, foreign bribes, snatch planning, shop CRM / customer rewards,
-categorize, workflow plans, clan stash and farm metrics. They are not deleted, just
-not shown, and they get no live verification for this release.
+**Experimental, hidden by default:** arbitrage, price reports, shop CRM and related MCP tools. They are not part of
+the library and get no live verification for this release.
 
 - CLI: add `--experimental` to see and run those commands.
-- MCP: start `kolibri-mcp` with `KOLIBRI_EXPERIMENTAL=1` to offer more than the core tools
-  (status, inventory, adventure, choice, item use, mall buy).
+- MCP: start `kolibri-mcp` with `KOLIBRI_EXPERIMENTAL=1` to offer more than the 19 core tools.
 
 Where this goes next: [ROADMAP.md](../ROADMAP.md).
 
@@ -41,7 +41,7 @@ Where this goes next: [ROADMAP.md](../ROADMAP.md).
 beside the programs. On macOS the programs are not signed yet: allow them once under
 System Settings, Privacy & Security. On Windows SmartScreen may warn for the same reason.
 
-**dotnet tools.** Publishing `KoLibri.Cli` and `KoLibri.Mcp` on nuget.org is planned for 0.5; `dotnet tool install` does not work yet.
+**Library.** The `KoLibri` and `KoLibri.Safety` packages are attached to the GitHub release as `.nupkg` files (not on nuget.org); add the folder as a local NuGet feed. `dotnet tool install` for the CLI and MCP server is not available yet.
 
 **From source (needs the .NET 8 SDK or newer):** `dotnet build KoLibri.slnx`, then `dotnet run --project tools/KolLibri.Cli -- --help`.
 
@@ -66,7 +66,7 @@ It listens on `http://127.0.0.1:8765/mcp` (this computer only). Add that URL as 
 (Claude Desktop, Cursor, ...). On first connect the client opens a browser page. There you choose
 
 - which accounts it may use,
-- which rights it gets (read, market, adventure, mall buy, daily run, transfer, messages, item use, shop prices),
+- which rights it gets (read, market, adventure, mall buy, daily run, messages, item use),
 - the daily limits (for example 5,000,000 meat of mall purchases, price ceiling, meat reserve),
 - how long the access lasts.
 
@@ -79,12 +79,19 @@ kolibri-mcp grants list          # who has access, and today's usage
 kolibri-mcp grants revoke <id>   # cut one client off immediately
 ```
 
-## 4. Daily routine yourself
+## 4. Adventure and the daily routine yourself
 
 ```bash
-kolibri daily go --role all                 # preview of the whole routine from the live accounts
-kolibri daily go --role all --execute       # run the confirmed steps
-kolibri daily meme-shop --role main --execute   # Internet Meme Shop (BACON top-up is on by default; --no-top-up)
+kolibri adventure locations --name pantry            # find a location id (no login, no request)
+kolibri adventure run --location 113 --max-turns 5   # preview, sends nothing
+kolibri token mint                                   # approval token for live runs
+kolibri adventure run --location 113 --max-turns 5 --execute --approval-token TOKEN
+kolibri choice pending                               # a choice left open blocks the game; exit 4 if one is open
+
+kolibri daily run --role main                        # preview of the day's routine from the live account
+kolibri daily run --role main --execute --approval-token TOKEN
+kolibri daily run --role main --only hermit --execute --approval-token TOKEN   # one step (or --skip STEP)
+kolibri daily audit --tail 20
 ```
 
 Under an AI harness the CLI asks for a confirmation at the real terminal before it writes (agent mode, see
@@ -97,9 +104,10 @@ Windows protects the local key file with DPAPI; on Linux and macOS it is an owne
 is not used yet). The agent-mode confirmation uses the console device on Windows, which has not been tried on a
 real machine yet.
 
-## Known gaps in 0.4.0
+## Known gaps in 0.5.0
 
 - The desktop client is early alpha.
 - Verified live over MCP (21 Nov 2026): `kol_mall_buy` and `kol_transfer`, including the usage ledger. The other write tools (meme shop, item use, shop prices, messages, adventures) are covered by tests with fakes and fixtures only; try them with small limits first.
-- Foreign bribes are not part of this release.
+- Foreign bribes are gone; arbitrage and price reports are experimental. Adventure farm flags (`--combat-rules`, `--recover-hp`, `--stop-item`, ...) are not merged yet. <placeholder>
+- The CLI has no equip or item-use command; use the desktop or MCP.
 - Adventure limits count the requested turn cap, not the exact turns used.
