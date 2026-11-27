@@ -101,7 +101,7 @@ public sealed class CliTests : IDisposable
     [Fact]
     public async Task Commands_not_in_0_5_dev_send_nothing_and_exit_3()
     {
-        foreach (var args in new[] { new[] { "repl" }, new[] { "mafia-script", "x.txt" }, new[] { "adventure", "start" }, new[] { "daily", "go" },
+        foreach (var args in new[] { new[] { "repl" }, new[] { "mafia-script", "x.txt" }, new[] { "daily", "go" },
                      new[] { "combat", "preview" }, new[] { "--experimental", "watchlist", "list" }, new[] { "--experimental", "reprice" } })
         {
             var (code, _, error) = await Cli(args);

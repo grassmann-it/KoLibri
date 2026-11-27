@@ -18,8 +18,12 @@ internal static partial class KolibriCli
         return args[0].ToLowerInvariant() switch
         {
             "run" or "execute" => await AdventureRunAsync(args[1..]),
-            "locations" or "location" or "list" or "start" or "begin" or "inspect" or "status" or "resume" or "step" or "advance"
-                or "bounded-preview" or "run-preview" or "choice-chain" or "choicechain" or "stop" or "abort" => NotYet($"adventure {args[0]}"),
+            "start" or "begin" or "bounded-preview" or "run-preview" => await AdventureRunAsync(args[1..]),
+            "locations" or "location" or "list" => await AdventureLocationsAsync(args[1..]),
+            "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
+            "step" or "advance" => await AdventureStepAsync(args[1..]),
+            "fight" => await AdventureFightAsync(args[1..]),
+            "stop" or "abort" or "choice-chain" or "choicechain" => AdventureRetiredCommand(args[0]),
             _ => Fail($"Unknown adventure command: {args[0]}")
         };
     }
@@ -461,6 +465,12 @@ internal static partial class KolibriCli
         Console.WriteLine("      bounded by --max-fight-rounds N (30) and --min-hp-percent N (20); a fight left open is reported as openFight with the command to finish it");
         Console.WriteLine("      choices: --choice-action CHOICE:OPTION plus the defaults of `choice policy`; an unknown choice stops with needsDecision (exit 4)");
         Console.WriteLine("  choice pending|submit|policy                         see `choice --help`");
-        Console.WriteLine("  adventure locations|start|inspect|step|stop|choice-chain: not in 0.5-dev yet (follow-up PR).");
+        Console.WriteLine("      start|begin|bounded-preview|run-preview are aliases of `adventure run`");
+        Console.WriteLine("  adventure inspect [--role main]                      the open fight/choice (read-only, exit 4 if one is open)");
+        Console.WriteLine("  adventure step --location ID [--snarfblat N] --execute --approval-token TOKEN   exactly one adventure, nothing resolved (alias: advance)");
+        Console.WriteLine("  adventure fight --action attack|run|skill:ID|item:ID[,ID2] [--until-end --max-rounds N --min-hp-percent N] --execute --approval-token TOKEN");
+        Console.WriteLine("      one round, or with --until-end the same action until the fight ends or a bound is reached (exit 4 = fight still open)");
+        Console.WriteLine("  adventure locations [--name TEXT] [--id N] [--limit N]   location catalog (no login, no request)");
+        Console.WriteLine("  adventure stop|abort|choice-chain: gone (exit 2, the message names the replacement)");
     }
 }
