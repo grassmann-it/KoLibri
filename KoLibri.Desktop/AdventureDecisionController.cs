@@ -5,8 +5,10 @@ namespace KoLibri.Desktop;
 /// <summary>Reads and submits the open choice of the selected account; faked in tests.</summary>
 public interface IOpenChoicePort
 {
-    Task<OpenChoiceDetection> DetectAsync(CancellationToken cancellationToken);
-    Task<OpenChoiceSubmitResult> SubmitAsync(string choiceId, int option, CancellationToken cancellationToken);
+    /// <summary>The open fight or choice, null when nothing is open. Throws when KoL could not be asked.</summary>
+    Task<Encounter?> DetectAsync(CancellationToken cancellationToken);
+    /// <summary>Answers the open choice (one POST); the encounter KoL shows next. Throws <see cref="KolibriException"/> when refused.</summary>
+    Task<Encounter> SubmitAsync(int choiceId, int option, CancellationToken cancellationToken);
 }
 
 /// <summary>One button of the decision panel.</summary>
@@ -33,7 +35,7 @@ public sealed class AdventureDecisionController : DesktopViewModel
     public AdventureDecisionController(IOpenChoicePort? port, Func<IChoiceResolver>? resolver = null)
     {
         _port = port;
-        _resolver = resolver ?? (() => new ChoiceResolver(new ChoiceResolutionConfigStore().Load()));
+        _resolver = resolver ?? DesktopChoicePolicy.Load;
         Options = new ObservableCollection<DecisionOptionRow>();
     }
 
@@ -58,17 +60,16 @@ public sealed class AdventureDecisionController : DesktopViewModel
         OnPropertyChanged(nameof(IsChoiceOpen)); OnPropertyChanged(nameof(IsVisible));
     }
 
-    /// <summary>Shows the choice or fight of an encounter the gateway returned; clears the panel otherwise.</summary>
-    public void Show(AdventureEncounterState? encounter)
+    /// <summary>Shows the choice or fight of an encounter KoLibri returned; clears the panel otherwise.</summary>
+    public void Show(Encounter? encounter)
     {
-        if (encounter is { Kind: AdventureEncounterKind.Choice, ChoiceId: { } id })
+        if (encounter is ChoiceEncounter choice)
         {
-            SetChoice(id, encounter.ChoiceTitle, encounter.AvailableChoices
-                .Where(x => int.TryParse(x, out _))
-                .Select(x => new ChoiceOptionInfo(int.Parse(x), encounter.ChoiceLabels.GetValueOrDefault(x, $"Option {x}"))));
+            SetChoice(choice.ChoiceId.ToString(System.Globalization.CultureInfo.InvariantCulture), choice.Title,
+                choice.Options.Select(o => new ChoiceOptionInfo(o.Option, o.Text)));
             Message = "A choice is open. Pick an option or apply your policy.";
         }
-        else if (encounter is { Kind: AdventureEncounterKind.Fight })
+        else if (encounter is FightEncounter)
         {
             Clear();
             IsFightOpen = true;
@@ -87,31 +88,18 @@ public sealed class AdventureDecisionController : DesktopViewModel
             ? "No choice policy answers this choice. Pick an option." : info.Reason!;
     }
 
-    public void Show(OpenChoiceDetection detection)
+    /// <summary>Shows what a detection found; "nothing open" says so.</summary>
+    public void ShowDetected(Encounter? encounter)
     {
-        ArgumentNullException.ThrowIfNull(detection);
-        switch (detection.Kind)
-        {
-            case OpenChoiceKind.Fight:
-                Clear(); IsFightOpen = true; Message = "A fight is open. Use Fight encounter or pick an action."; break;
-            case OpenChoiceKind.Choice when detection.Choice is { } state:
-                SetChoice(state.ChoiceId, state.Title, state.Options);
-                Message = "A choice is open. Pick an option or apply your policy."; break;
-            case OpenChoiceKind.Choice:
-                Clear(); _choiceUnreadable = true; OnPropertyChanged(nameof(IsChoiceOpen)); OnPropertyChanged(nameof(IsVisible));
-                Message = "A choice is open but its options could not be read. Continue it in KoL (choice.php)."; break;
-            case OpenChoiceKind.Unavailable:
-                // Keep what is shown: "could not ask" must never look like "nothing is open".
-                Message = detection.Message; break;
-            default:
-                Clear(); Message = "No choice or fight is open."; break;
-        }
+        if (encounter is ChoiceEncounter or FightEncounter) Show(encounter);
+        else { Clear(); Message = "No choice or fight is open."; }
     }
 
     public async Task<string> RefreshAsync(CancellationToken cancellationToken = default)
     {
         if (_port is null) return Message = "No live session; the open choice cannot be read.";
-        try { Show(await _port.DetectAsync(cancellationToken).ConfigureAwait(false)); }
+        // On failure keep what is shown: "could not ask" must never look like "nothing is open".
+        try { ShowDetected(await _port.DetectAsync(cancellationToken).ConfigureAwait(false)); }
         catch (Exception e) when (e is not OperationCanceledException) { Message = AdventureFailureMapper.Describe(e).Text; }
         return Message;
     }
@@ -127,11 +115,22 @@ public sealed class AdventureDecisionController : DesktopViewModel
             if (ActiveRunSubmit is not null
                 && await ActiveRunSubmit(id, option, cancellationToken).ConfigureAwait(false) is { } handled)
                 return Message = handled;
-            var result = await _port.SubmitAsync(id, option, cancellationToken).ConfigureAwait(false);
-            Show(result.Next);
-            Message = result.Submitted
-                ? $"Chose option {option}. {result.Message}"
-                : $"Not sent: {AdventureFailureMapper.Describe(result.Message).Text}";
+            if (!int.TryParse(id, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var choiceId))
+                return Message = $"Choice {id} has no numeric id; nothing was sent.";
+            Encounter next;
+            try { next = await _port.SubmitAsync(choiceId, option, cancellationToken).ConfigureAwait(false); }
+            catch (KolibriException refused) when (refused is not SessionExpiredException)
+            {
+                // KoLibri checks the open choice first and says "Nothing was sent" when it refuses; show what is open now.
+                var text = $"Not sent: {AdventureFailureMapper.Describe(refused.Message).Text}";
+                try { ShowDetected(await _port.DetectAsync(cancellationToken).ConfigureAwait(false)); }
+                catch (Exception e) when (e is not OperationCanceledException) { }
+                return Message = text;
+            }
+            var open = next is ChoiceEncounter or FightEncounter;
+            Show(open ? next : null);
+            Message = $"Chose option {option}. "
+                + (open ? "Submitted. Another choice or fight is now open." : "Submitted. No choice is open any more.");
         }
         catch (Exception e) when (e is not OperationCanceledException) { Message = AdventureFailureMapper.Describe(e).Text; }
         return Message;
@@ -149,8 +148,10 @@ public sealed class AdventureDecisionController : DesktopViewModel
         {
             if (ChoiceId is not { } id)
                 return Message = done.Count == 0 ? "No readable choice is open." : $"Policy applied: {string.Join("; ", done)}.";
-            var resolution = _resolver().Resolve(new ChoiceResolutionRequest("manual", id, Title, Options
-                .Select(o => new ChoiceOptionInfo(o.Number, o.Text)).ToArray()));
+            if (!int.TryParse(id, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var choiceId))
+                return Message = $"Choice {id} has no numeric id; pick an option yourself.";
+            var resolution = _resolver().Resolve(new ChoiceContext(null, choiceId, Title, Options
+                .Select(o => new ChoiceOption(o.Number, o.Text)).ToArray()));
             if (resolution.Option is not { } option)
                 return Message = (done.Count == 0 ? "" : $"Policy applied: {string.Join("; ", done)}. ")
                     + $"The policy has no answer for choice {id}: {resolution.Reason} Pick an option yourself.";

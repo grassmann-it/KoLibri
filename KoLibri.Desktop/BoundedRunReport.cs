@@ -4,15 +4,15 @@ namespace KoLibri.Desktop;
 /// <summary>What a bounded batch of turns did and why it stopped, as readable text.</summary>
 public sealed record BoundedRunReport(
     int TurnsUsed, int TurnsLeft, string StopReason, string WhyStopped,
-    IReadOnlyList<QuestDrop> Drops, bool NeedsUser)
+    IReadOnlyList<AdventureDrop> Drops, bool NeedsUser)
 {
     public static BoundedRunReport From(
         int turnsStarted, int turnsLeft, BoundedAdventureRunStopReason stop,
-        IEnumerable<QuestDrop>? drops, string? failure = null)
+        IEnumerable<AdventureDrop>? drops, string? failure = null)
     {
-        var merged = (drops ?? Array.Empty<QuestDrop>())
+        var merged = (drops ?? Array.Empty<AdventureDrop>())
             .GroupBy(d => d.ItemName, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new QuestDrop { ItemName = g.First().ItemName, Quantity = g.Sum(d => d.Quantity) })
+            .Select(g => new AdventureDrop { ItemName = g.First().ItemName, Quantity = g.Sum(d => d.Quantity) })
             .OrderByDescending(d => d.Quantity).ToArray();
         var (why, needsUser) = stop switch
         {
