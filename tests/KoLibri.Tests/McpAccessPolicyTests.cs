@@ -146,22 +146,20 @@ public sealed class McpAccessPolicyTests : IDisposable
         Assert.True(authorize("kol_inventory", Args("{\"role\":\"Mallbot\"}")).Allowed);
     }
 
-    [Fact]
-    public void Purchase_preview_needs_the_account_read_right_besides_market_read()
+    [Theory]
+    [InlineData("kol_price_recommendation")]
+    [InlineData("kol_underprice_preview")]
+    [InlineData("kol_workflow_plan")]
+    [InlineData("kol_plan_daily_adventures")]
+    [InlineData("kol_preview_purchase")]
+    [InlineData("kol_preview_transfer")]
+    public void Removed_or_merged_tools_have_no_right_of_their_own(string tool)
     {
-        var grants = new GrantStore(Path.Combine(_dir, "g.json"));
-        var gate = new AccessGate(grants, new UsageLedger(Path.Combine(_dir, "u.jsonl")));
-        var market = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.MarketRead] = new() }, TimeSpan.FromDays(1)).Token;
-        var both = grants.Create("ai", ["Main"], new Dictionary<string, RightLimit> { [Rights.MarketRead] = new(), [Rights.AccountRead] = new() }, TimeSpan.FromDays(1)).Token;
-        var current = market;
-        var authorize = McpAccessPolicy.ForToken(gate, () => current, "Main");
-
-        var denied = authorize("kol_preview_purchase", Args("{}"));
+        // Merged previews reach the policy under their target's name (kol_mall_buy / kol_transfer, self-gated).
+        var (_, _, authorize) = Setup(["Main", "Mallbot"]);
+        var denied = authorize(tool, Args("{}"));
         Assert.False(denied.Allowed);
-        Assert.Contains("account.read", denied.Message);
-        Assert.True(authorize("kol_price_summary", Args("{}")).Allowed);
-        current = both;
-        Assert.True(authorize("kol_preview_purchase", Args("{}")).Allowed);
+        Assert.Contains("not available", denied.Message);
     }
 
     [Fact]

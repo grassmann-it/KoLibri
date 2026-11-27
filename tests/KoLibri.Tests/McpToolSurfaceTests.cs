@@ -37,8 +37,7 @@ public sealed class McpToolSurfaceTests : IDisposable
     private static readonly string[] Experimental =
     [
         "kol_arbitrage_plan", "kol_reprice_shop", "kol_reward_buyer", "kol_shop_sales", "kol_shop_buyers",
-        "kol_shop_price_suggestions", "kol_transfer", "kol_price_recommendation", "kol_underprice_preview",
-        "kol_workflow_plan", "kol_daily_routine", "kol_preview_transfer", "kol_preview_purchase",
+        "kol_shop_price_suggestions", "kol_transfer", "kol_daily_routine",
     ];
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "kolibri-surface-" + Guid.NewGuid().ToString("N"));
@@ -83,7 +82,7 @@ public sealed class McpToolSurfaceTests : IDisposable
     public async Task Experimental_tools_are_not_callable_by_default_not_even_through_an_alias()
     {
         var server = FullHost(experimental: false);
-        foreach (var name in Experimental.Append("underprice").Append("workflow-plan"))
+        foreach (var name in Experimental.Append("kol_preview_purchase").Append("kol_preview_transfer").Append("preview-purchase"))
         {
             var res = (await server.HandleAsync(JsonDocument.Parse(
                 $"{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{{\"name\":\"{name}\",\"arguments\":{{}}}}}}").RootElement))!.Value;

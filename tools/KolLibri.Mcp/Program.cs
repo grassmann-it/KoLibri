@@ -30,7 +30,6 @@ var grants = new GrantStore();
 var gate = new AccessGate(grants, new UsageLedger());
 using var bridge = new AdventureMcpExecutionBridge(accounts);
 var server = new KolibriMcpServer(accounts, options, executionBridge: bridge);
-server.Tools.Remove("kol_plan_daily_adventures_execute");
 server.Tools.Remove("kol_login_clear");     // session management stays with the user
 server.Tools.Remove("kol_login_refresh");   // runs on a mock transport, not live
 server.EnableWriteTools(gate, new KolibriClientActions(accounts));

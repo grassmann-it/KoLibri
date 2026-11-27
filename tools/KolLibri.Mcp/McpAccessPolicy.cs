@@ -27,21 +27,15 @@ internal static class McpAccessPolicy
         ["kol_inventory"] = "account.inventory",
         ["kol_login_status"] = "account.status",
         ["kol_price_summary"] = "market.search",
-        ["kol_price_recommendation"] = "market.search",
-        ["kol_underprice_preview"] = "market.search",
-        ["kol_preview_purchase"] = "market.search",
         ["kol_arbitrage_plan"] = "market.search",
-        ["kol_preview_transfer"] = "account.status",
         ["kol_shop_sales"] = "shop.read",
         ["kol_shop_buyers"] = "shop.read",
         ["kol_shop_price_suggestions"] = "shop.read",
-        ["kol_workflow_plan"] = "daily.preview",
         ["kol_daily_routine"] = "daily.preview",
         ["kol_daily_campfire_plan"] = "daily.preview",
         ["kol_daily_hermit_plan"] = "daily.preview",
         ["kol_daily_audit"] = "daily.preview",
         ["kol_run_daily_bridge"] = "daily.preview",
-        ["kol_plan_daily_adventures"] = "daily.preview",
         ["kol_adventure_locations"] = "account.status",
         ["kol_adventure_bounded_preview"] = "account.status",
         ["kol_adventure_daily_schedule"] = "account.status",
@@ -58,10 +52,7 @@ internal static class McpAccessPolicy
     private static readonly HashSet<string> MultiRoleTools = new(StringComparer.Ordinal) { "kol_login_status", "kol_daily_audit", "kol_run_daily_bridge" };
 
     /// <summary>Extra rights a read tool needs on the same role because its answer contains private account data.</summary>
-    private static readonly Dictionary<string, string[]> ExtraReadRights = new(StringComparer.Ordinal)
-    {
-        ["kol_preview_purchase"] = ["account.status", "account.inventory"],
-    };
+    private static readonly Dictionary<string, string[]> ExtraReadRights = new(StringComparer.Ordinal);
 
     /// <summary>Tools that read the buyer CRM, which is shared by both accounts: they need the right on every account.</summary>
     private static readonly HashSet<string> AllAccountTools = new(StringComparer.Ordinal) { "kol_shop_buyers" };
