@@ -1,0 +1,12 @@
+<html><body><span id="monname" monsterid="1351">mud turtle</span>
+<span id="playerhp">80/100</span><span id="playermp">40/50</span>
+<form name="attack" action="fight.php" method="post"><input type="hidden" name="onturn" value="1">
+<button name="action" value="attack">Attack with Weapon</button></form>
+<form name="skill" action="fight.php" method="post"><input type="hidden" name="action" value="skill">
+<select name="whichskill"><option value="0">-- select a skill --</option>
+<option value="2023">Toss (1 mp)</option><option value="3004">Entangling Noodles (4 mp)</option></select>
+<input type="submit" value="Use Skill"></form>
+<form name="useitem" action="fight.php" method="post"><input type="hidden" name="action" value="useitem">
+<select name="whichitem"><option value="0">-- select an item --</option>
+<option value="2">seal tooth (3)</option></select>
+<input type="submit" value="Use Item"></form></body></html>

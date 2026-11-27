@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using CoreSpiel = KoLibri.Core.Spiel;
 
 namespace KoLibri
@@ -41,7 +42,22 @@ namespace KoLibri
     {
         public IReadOnlyList<ActiveEffect> Effects { get; init; } = Array.Empty<ActiveEffect>();
         public Inventory? Inventory { get; init; }
+
+        /// <summary>Skills, die das Dropdown der Kampfseite gerade anbietet. Leer = die Seite hat keine Liste gezeigt (dann nichts ausschließen).</summary>
+        public IReadOnlyList<CombatOption> AvailableSkills { get; init; } = Array.Empty<CombatOption>();
+
+        /// <summary>Kampf-Items, die das Dropdown der Kampfseite gerade anbietet. Leer = keine Liste gezeigt.</summary>
+        public IReadOnlyList<CombatOption> AvailableItems { get; init; } = Array.Empty<CombatOption>();
+
+        /// <summary>KoL-Monster-Id der Kampfseite, falls sie eine nennt.</summary>
+        public int? MonsterId => Fight.MonsterId;
+
+        /// <summary>Turtle-Tamer-Monster (Name enthält turtle/tortoise/terrapin). Nur Markierung, gezähmt wird nie automatisch.</summary>
+        public bool IsTurtleMonster => CoreSpiel.TurtleTamerEncounters.IsTurtleMonster(Fight.MonsterName);
     }
+
+    /// <summary>Ein Eintrag aus dem Skill- oder Item-Dropdown der Kampfseite. MpCost ist null, wenn weder Seite noch Spieldaten ihn kennen.</summary>
+    public sealed record CombatOption(int Id, string Name, int? MpCost);
 
     /// <summary>Wählt die nächste Kampfaktion. Analog zu IChoiceResolver: synchron, rein, ohne Requests.</summary>
     public interface ICombatStrategy
@@ -62,22 +78,91 @@ namespace KoLibri
             return new DelegateStrategy(_ => action);
         }
 
-        /// <summary>Regel-DSL von 0.4 (AutoCombatPolicy.Parse), z.B. "if hp &lt; 30% then run; skill 1005 x3; attack".</summary>
-        public static ICombatStrategy FromRules(string rules)
+        /// <summary>
+        /// Regel-DSL von 0.4 (AutoCombatPolicy.Parse), z.B. "if hp &lt; 30% then run; skill 1005; attack".
+        /// Skills und Items nur per Id; Namen lösen nur die Überladung mit <see cref="GameData"/> auf.
+        /// </summary>
+        public static ICombatStrategy FromRules(string rules) => Build(rules, null);
+
+        /// <summary>
+        /// Wie <see cref="FromRules(string)"/>, aber Skills und Items dürfen per Name stehen:
+        /// <c>if monster "X" then skill "Name"; attack</c>. Ein unbekannter Name wirft eine ArgumentException,
+        /// bevor ein Request geschickt wird. Fehlen die Spieldaten ganz, sagt die Meldung das.
+        /// Zur Laufzeit wählt die Strategie nie einen Skill/ein Item, das die Kampfseite nicht anbietet
+        /// oder dessen MP-Kosten die aktuellen MP übersteigen: dann gilt die nächste passende Regel, sonst Stop.
+        /// </summary>
+        public static ICombatStrategy FromRules(string rules, GameData data)
+        {
+            ArgumentNullException.ThrowIfNull(data);
+            return Build(rules, data);
+        }
+
+        /// <summary>Gibt bei einem Turtle-Monster den Kampf an den Menschen zurück (Stop), sonst entscheidet <paramref name="inner"/>.</summary>
+        public static ICombatStrategy StopOnTurtle(ICombatStrategy inner)
+        {
+            ArgumentNullException.ThrowIfNull(inner);
+            return new DelegateStrategy(context => context.IsTurtleMonster ? CombatAction.Stop : inner.Next(context));
+        }
+
+        private static readonly Regex QuotedName = new(
+            @"\b(?<kind>skill|cast|item|use)\s+(?<q>[""'])(?<name>.+?)\k<q>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // A bare action ("...; attack") reads as an unconditional rule: `true then attack`.
+        private static readonly Regex BareAction = new(
+            @"(?<lead>^|[;\n]\s*)(?<action>(?:attack|hit|skill|cast|item|use|run|flee)\b(?:(?!\bthen\b|->)[^;\n])*)(?=$|[;\n])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        private static RulesStrategy Build(string rules, GameData? data)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(rules);
             CoreSpiel.AutoCombatPolicy policy;
             try
             {
-                policy = CoreSpiel.AutoCombatPolicy.Parse(rules);
+                // `skill "Name With Spaces"` -> `skill(Name With Spaces)`: the 0.4 parser reads one bare word otherwise.
+                var text = rules.TrimStart().StartsWith('{') || rules.TrimStart().StartsWith('[')
+                    ? rules
+                    : BareAction.Replace(QuotedName.Replace(rules, m => $"{m.Groups["kind"].Value}({m.Groups["name"].Value})"),
+                        m => $"{m.Groups["lead"].Value}true then {m.Groups["action"].Value}");
+                policy = CoreSpiel.AutoCombatPolicy.Parse(text);
                 policy.Validate();
             }
             catch (Exception exception) when (exception is FormatException or ArgumentException or InvalidOperationException)
             {
                 throw new ArgumentException($"Invalid combat rules: {exception.Message}", nameof(rules), exception);
             }
-            return new RulesStrategy(policy);
+            if (data is not null) policy = ResolveNames(policy, data);
+            return new RulesStrategy(policy, data);
         }
+
+        private static CoreSpiel.AutoCombatPolicy ResolveNames(CoreSpiel.AutoCombatPolicy policy, GameData data)
+        {
+            var loaded = new Lazy<bool>(() => DataLoaded(data));
+            CoreSpiel.AutoCombatAction Resolve(CoreSpiel.AutoCombatAction action)
+            {
+                if (action.Kind is not (CoreSpiel.AutoCombatActionKind.Skill or CoreSpiel.AutoCombatActionKind.Item)) return action;
+                var name = action.Id!;
+                if (int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out _)) return action;
+                var isSkill = action.Kind == CoreSpiel.AutoCombatActionKind.Skill;
+                if (!loaded.Value)
+                    throw new ArgumentException(
+                        $"Spieldaten fehlen: '{name}' kann nicht in eine Id aufgelöst werden, weil keine KoLmafia-Daten geladen sind "
+                        + "(external/kolmafia-data nicht gefunden, siehe ClientOptions.DataDirectory). Mit Ids statt Namen geht es ohne Daten.", "rules");
+                var id = isSkill ? data.FindSkill(name)?.Skill.Id : data.FindItem(name)?.Item.Id;
+                if (id is null)
+                    throw new ArgumentException($"Unbekannter {(isSkill ? "Skill" : "Item")} '{name}' in den Kampfregeln.", "rules");
+                return action with { Id = id.Value.ToString(CultureInfo.InvariantCulture) };
+            }
+            return policy with
+            {
+                Rules = policy.Rules.Select(r => r with { Action = Resolve(r.Action) }).ToArray(),
+                DefaultAction = policy.DefaultAction is { } d ? Resolve(d) : null
+            };
+        }
+
+        // GameData loads silently empty when the data folder is missing; probe two names that exist in every dump.
+        // (Replace with GameData.IsLoaded once the data package offers it.)
+        private static bool DataLoaded(GameData data) => data.FindItem("seal tooth") is not null || data.FindSkill("Toss") is not null;
 
         public static ICombatStrategy FromDelegate(Func<CombatContext, CombatAction> next)
         {
@@ -93,19 +178,21 @@ namespace KoLibri
         /// <summary>
         /// Adapter over the 0.4 policy. It stays pure: rule usage ("skill 1005 x3") is rebuilt from the round
         /// history on every call by replaying the policy, nothing is stored between calls.
+        /// A rule whose skill/item the fight page does not offer (or whose MP cost is too high) is skipped
+        /// like a rule whose condition does not hold; if nothing else matches the answer is Stop, never a blind request.
         /// </summary>
-        private sealed class RulesStrategy(CoreSpiel.AutoCombatPolicy policy) : ICombatStrategy
+        private sealed class RulesStrategy(CoreSpiel.AutoCombatPolicy policy, GameData? data) : ICombatStrategy
         {
             public CombatAction Next(CombatContext context)
             {
                 var usage = new CoreSpiel.AutoCombatUsage();
                 for (var i = 0; i < context.History.Count; i++)
                 {
-                    var past = policy.Evaluate(Context(context, i + 1, i == 0 ? context.Hp : context.History[i - 1].Hp,
+                    var past = Decide(context, Context(context, i + 1, i == 0 ? context.Hp : context.History[i - 1].Hp,
                         i == 0 ? context.Mp : context.History[i - 1].Mp), usage);
                     usage = usage.After(past);
                 }
-                var decision = policy.Evaluate(Context(context, context.Round, context.Hp, context.Mp), usage);
+                var decision = Decide(context, Context(context, context.Round, context.Hp, context.Mp), usage);
                 var id = int.TryParse(decision.Action.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : (int?)null;
                 return decision.Action.Kind switch
                 {
@@ -115,6 +202,43 @@ namespace KoLibri
                     CoreSpiel.AutoCombatActionKind.Run => CombatAction.RunAway,
                     _ => CombatAction.Stop
                 };
+            }
+
+            /// <summary>Evaluates the policy; rules that cannot be played right now are disabled and the evaluation repeated.</summary>
+            private CoreSpiel.AutoCombatDecision Decide(CombatContext context, CoreSpiel.AutoCombatContext state, CoreSpiel.AutoCombatUsage usage)
+            {
+                var current = policy;
+                for (var attempt = 0; attempt <= policy.Rules.Count; attempt++)
+                {
+                    var decision = current.Evaluate(state, usage);
+                    if (decision.Action.Kind is not (CoreSpiel.AutoCombatActionKind.Skill or CoreSpiel.AutoCombatActionKind.Item)
+                        || Playable(context, decision.Action, state.Mp))
+                        return decision;
+                    if (decision.RuleIndex is not { } index) return StopDecision(decision);
+                    current = current with
+                    {
+                        Rules = current.Rules.Select((r, i) => i == index ? r with { Enabled = false } : r).ToArray()
+                    };
+                }
+                return StopDecision(current.Evaluate(state, usage));
+            }
+
+            // A default action that cannot be played has no rule to disable: hand the fight back.
+            private static CoreSpiel.AutoCombatDecision StopDecision(CoreSpiel.AutoCombatDecision decision) => decision with
+            {
+                Action = CoreSpiel.AutoCombatAction.Manual("Skill or item is not available on the fight page."),
+                Status = CoreSpiel.AutoCombatDecisionStatus.Manual
+            };
+
+            private bool Playable(CombatContext context, CoreSpiel.AutoCombatAction action, int mp)
+            {
+                if (!int.TryParse(action.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var id)) return true;
+                if (action.Kind == CoreSpiel.AutoCombatActionKind.Item)
+                    return context.AvailableItems.Count == 0 || context.AvailableItems.Any(o => o.Id == id);
+                var offered = context.AvailableSkills.Count == 0 ? null : context.AvailableSkills.FirstOrDefault(o => o.Id == id);
+                if (context.AvailableSkills.Count > 0 && offered is null) return false;
+                var cost = offered?.MpCost ?? data?.Skill(new SkillRef(id))?.MpCost;
+                return cost is not { } needed || needed <= mp;
             }
 
             private static CoreSpiel.AutoCombatContext Context(CombatContext context, int round, int hp, int mp) => new()

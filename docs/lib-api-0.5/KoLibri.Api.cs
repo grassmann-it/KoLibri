@@ -412,7 +412,16 @@ namespace KoLibri
     {
         public IReadOnlyList<ActiveEffect> Effects { get; init; } = Array.Empty<ActiveEffect>();
         public Inventory? Inventory { get; init; }
+        /// <summary>Skills, die das Dropdown der Kampfseite gerade anbietet. Leer = die Seite hat keine Liste gezeigt (dann nichts ausschließen).</summary>
+        public IReadOnlyList<CombatOption> AvailableSkills { get; init; } = Array.Empty<CombatOption>();
+        /// <summary>Kampf-Items, die das Dropdown der Kampfseite gerade anbietet. Leer = keine Liste gezeigt.</summary>
+        public IReadOnlyList<CombatOption> AvailableItems { get; init; } = Array.Empty<CombatOption>();
+        public int? MonsterId => Fight.MonsterId;
+        public bool IsTurtleMonster => false;
     }
+
+    /// <summary>Ein Eintrag aus dem Skill- oder Item-Dropdown der Kampfseite. MpCost ist null, wenn weder Seite noch Spieldaten ihn kennen.</summary>
+    public sealed record CombatOption(int Id, string Name, int? MpCost);
 
     /// <summary>Wählt die nächste Kampfaktion. Analog zu IChoiceResolver: synchron, rein, ohne Requests.</summary>
     public interface ICombatStrategy
@@ -428,6 +437,10 @@ namespace KoLibri
         public static ICombatStrategy Macro(string macro) => throw new NotImplementedException();
         /// <summary>Regel-DSL von 0.4 (AutoCombatPolicy.Parse), z.B. "if hp &lt; 30% then run; skill 1005 x3; attack".</summary>
         public static ICombatStrategy FromRules(string rules) => throw new NotImplementedException();
+        /// <summary>Wie FromRules(rules), aber Skills und Items dürfen per Name stehen; unbekannte Namen oder fehlende Spieldaten werfen ArgumentException.</summary>
+        public static ICombatStrategy FromRules(string rules, GameData data) => throw new NotImplementedException();
+        /// <summary>Gibt bei einem Turtle-Monster den Kampf an den Menschen zurück (Stop).</summary>
+        public static ICombatStrategy StopOnTurtle(ICombatStrategy inner) => throw new NotImplementedException();
         public static ICombatStrategy FromDelegate(Func<CombatContext, CombatAction> next) => throw new NotImplementedException();
     }
 
