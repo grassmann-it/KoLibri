@@ -1,11 +1,9 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
 using KoLibri.Desktop;
 using KoLibri.Desktop.ContextMenus;
+using KoLibri.Extras;
 using Xunit;
 
-namespace KoLibri.Core.Tests;
+namespace KoLibri.Tests.Desktop;
 
 public sealed class MallTabTests
 {
@@ -18,20 +16,16 @@ public sealed class MallTabTests
         public override DateTimeOffset GetUtcNow() => Value;
     }
 
-    private static MallListing Listing(string item, string shop, long price) =>
-        new(item, shop, $"Shop {shop}", price, 5, null, DateTimeOffset.UtcNow, Source) { ItemName = "x", SellerName = $"Seller {shop}" };
-
-    private sealed class Backend(bool stale = false) : IMallSearchBackend
+    private sealed class Backend : IMallSearchBackend
     {
         public List<string> Terms { get; } = new();
-        public Task<MallSearchPage> SearchAsync(string term, bool force, CancellationToken ct)
+        public Task<global::KoLibri.MallSearchResult> SearchAsync(string term, bool force, CancellationToken ct)
         {
             Terms.Add(term);
-            return Task.FromResult(new MallSearchPage(term, new[]
-            {
-                new MallItemOffers("10881", "11-leaf clover", new[] { Listing("10881", "1", 25_000), Listing("10881", "2", 29_000) }, 2),
-                new MallItemOffers("10882", "11-leaf clover pack", new[] { Listing("10882", "3", 100) }, 1)
-            }, DateTimeOffset.UtcNow, Source, stale));
+            return Task.FromResult(MallSearchViewModelTests.Page(term,
+                MallSearchViewModelTests.Offers(10881, "11-leaf clover",
+                    MallSearchViewModelTests.Listing(10881, 1, 25_000), MallSearchViewModelTests.Listing(10881, 2, 29_000)),
+                MallSearchViewModelTests.Offers(10882, "11-leaf clover pack", MallSearchViewModelTests.Listing(10882, 3, 100))));
         }
         public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken ct)
             => Task.FromResult(new PricegunInfo(null, DateTimeOffset.UtcNow, false));
@@ -44,20 +38,12 @@ public sealed class MallTabTests
     }
 
     [Fact]
-    public async Task Stale_pages_give_rows_that_cannot_be_bought()
-    {
-        var vm = new MallSearchViewModel(new Backend(stale: true)) { PurchaseRequest = new AllowAll() };
-        await vm.SearchItemAsync("10881", "11-leaf clover");
-        Assert.All(vm.Offers, o => { Assert.True(o.IsStale); Assert.False(o.CanBuy); });
-    }
-
-    [Fact]
     public async Task Coordinator_refuses_a_stale_row_without_asking_or_sending()
     {
         var log = new SessionLogViewModel(now: () => Now);
         var opened = 0;
         var coordinator = new MallPurchaseCoordinator("Mallbot",
-            _ => { opened++; return Task.FromResult<(DesktopMallPurchaseService, MallPurchaseObserver)?>(null); },
+            _ => { opened++; return Task.FromResult<DesktopMallPurchaseService?>(null); },
             null!, log, new MallSpendLedger(new Clock(Now)));
         var row = new MallOfferRow
         {
@@ -149,32 +135,6 @@ public sealed class MallTabTests
         finally { Directory.Delete(dir, true); }
     }
 
-    private sealed class StaleReads : IMallPurchaseReads
-    {
-        public Task<MallSearchPage> SearchAsync(string term, CancellationToken ct)
-        {
-            var l = new MallListing("789", "42", "Shop", 100, 5, null, Now.AddHours(-3), Source)
-            { SellerId = "42", QuantityKnown = true, LimitKind = MallLimitKind.Unlimited };
-            return Task.FromResult(new MallSearchPage(term, [new MallItemOffers("789", "Thing", [l], 1)], Now.AddHours(-3), Source, true));
-        }
-        public Task<KoLStatusSnapshot?> StatusAsync(CancellationToken ct)
-            => Task.FromResult<KoLStatusSnapshot?>(new KoLStatusSnapshot("Bot", 10, 10_000, 1, Now));
-        public Task<DesktopInventorySnapshot> InventoryAsync(CancellationToken ct)
-            => Task.FromResult(new DesktopInventorySnapshot { Role = AccountRole.Mallbot, Items = [], ObservedAt = Now });
-    }
-
-    [Fact]
-    public async Task Observer_blocks_a_stale_offer_before_any_post_and_never_redates_it()
-    {
-        var observer = new MallPurchaseObserver(new StaleReads(), "Mallbot", () => 50_000,
-            new MallSpendLedger(new Clock(Now)), new Clock(Now));
-        observer.Remember("789", "Thing");
-        var request = new MallPurchaseRequest("42", "42", "789", 100, 1, accountId: "Mallbot");
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => observer.BeforeAsync(request, default));
-        Assert.Contains("stale", ex.Message);
-        Assert.Contains("stale", MallPurchaseMessages.Describe(ex));
-    }
-
     [Theory]
     [InlineData(MallPurchaseAbortReason.SessionInvalid, "not logged in")]
     [InlineData(MallPurchaseAbortReason.PerPurchaseLimitExceeded, "more expensive")]
@@ -203,4 +163,53 @@ public sealed class MallTabTests
         Assert.Contains("Copy seller", labels);
         Assert.Contains("Search this item again", labels);
     }
+
+    [Fact]
+    public async Task Rows_get_buyable_with_a_purchase_hook_and_the_only_buyable_filter_hides_the_rest()
+    {
+        var vm = new MallSearchViewModel(new Backend()) { PurchaseRequest = new OnlyCheap() };
+        await vm.SearchItemAsync("10881", "11-leaf clover");
+        Assert.Equal(new[] { true, false }, vm.Offers.Select(o => o.CanBuy).ToArray());
+        vm.OnlyBuyable = true;
+        Assert.Single(vm.Offers);
+        Assert.Equal(1, vm.HiddenOfferCount);
+    }
+
+    [Fact]
+    public async Task Own_shop_lists_the_listings_from_backoffice()
+    {
+        var kol = new FakeKol().On("GET backoffice.php", OwnShopPage);
+        await using var accounts = MallKit.Accounts(kol);
+        var shop = new LiveMallViewModel(AccountRole.Mallbot, new DesktopLiveDataProvider(accounts));
+        await shop.LoadAsync();
+        Assert.Equal(DesktopLoadState.Ready, shop.LoadState);
+        var row = Assert.Single(shop.Rows);
+        Assert.Equal(("989", "tiny plastic bitchin' meatcar", 73, 17_999L, 1), (row.ItemId, row.ItemName, row.Quantity, row.Price, row.PurchaseLimit!.Value));
+        Assert.Equal("17,999 Meat", row.PriceText);
+        Assert.Equal("1 / day", row.LimitText);
+        Assert.Contains("1 listings", shop.Summary);
+        Assert.True(kol.Requests.Any(r => r.Path.Contains("backoffice.php?which=1")));
+    }
+
+    [Fact]
+    public async Task Own_shop_of_a_signed_out_role_says_how_to_sign_in()
+    {
+        await using var accounts = DesktopKit.Accounts(new FakeKol());
+        var shop = new LiveMallViewModel(AccountRole.Mallbot, new DesktopLiveDataProvider(accounts));
+        await shop.LoadAsync();
+        Assert.Equal(DesktopLoadState.Empty, shop.LoadState);
+        Assert.Equal("Sign in as Mallbot under Accounts to see store listings.", shop.Summary);
+    }
+
+    private sealed class OnlyCheap : IMallPurchaseRequest
+    {
+        public bool CanRequest(MallOfferRow offer) => offer.UnitPrice < 27_000;
+        public Task RequestAsync(MallOfferRow offer, CancellationToken ct) => Task.CompletedTask;
+    }
+
+    private const string OwnShopPage = """
+        <html><body><table id="inv">
+        <tr class="deets" rel="624148858" data-after="202"><td valign="center"><img src="https://images.kingdomofloathing.com/itemimages/fig27.gif"></td><td valign="center"><b>tiny plastic bitchin' meatcar</b></td><td valign="center" align="center">73</td valign="center"><td align="center"><span class="tohide">17,999</span><input type="text" class="hideit price" rel="100" style="width:80px" name="price[989]" value="17,999" /></td><td valign="center" align="center"><span class="tohide">1/day</span><input type="text" class="hideit lim" style="width:24px" name="limit[989]" value="1" /><input type="submit" value="Save" class="button hideit pricejax" style="font-size: 8pt"/></td><td align="right" valign="center">[<a href="#" class="update">update</a>]</td></tr>
+        </table></body></html>
+        """;
 }
