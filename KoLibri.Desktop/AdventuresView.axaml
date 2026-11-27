@@ -2,6 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:KoLibri.Desktop"
              x:Class="KoLibri.Desktop.AdventuresView">
+  <UserControl.Styles>
+    <Style Selector="Button.location-star">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Button.location-star:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+  </UserControl.Styles>
   <Border Classes="card">
     <StackPanel Spacing="14">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -20,21 +33,46 @@
           <TextBlock Text="Manual adventures" Classes="h3" />
           <Grid ColumnDefinitions="*,*" ColumnSpacing="14" x:Name="AdventureTopGrid">
             <StackPanel Spacing="6">
-              <TextBlock Text="Zone" Classes="muted" />
-              <ComboBox x:Name="EncounterZoneBox" HorizontalAlignment="Stretch" PlaceholderText="All zones"
-                        AutomationProperties.Name="Zone filter" />
-              <TextBlock Text="Location" Classes="muted" />
-              <TextBox x:Name="EncounterFilterBox" Watermark="Filter by location or zone" />
-              <ListBox x:Name="EncounterLocationsGrid" MinHeight="150" MaxHeight="240" AutomationProperties.Name="Locations">
+              <!-- Location picker: type to search, arrows to move, Enter to choose; Favorites and Recent on top, then zones. -->
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Location" Classes="muted" />
+                <TextBlock Grid.Column="1" x:Name="LocationPickerSelected" Classes="muted" FontSize="11"
+                           TextTrimming="CharacterEllipsis" MaxWidth="260" />
+              </Grid>
+              <TextBox x:Name="EncounterFilterBox" Watermark="Search location, zone or number (e.g. skel, 439)"
+                       AutomationProperties.Name="Search locations" />
+              <TextBlock x:Name="LocationPickerEmpty" Classes="muted" FontSize="12" IsVisible="False" TextWrapping="Wrap" />
+              <ListBox x:Name="EncounterLocationsGrid" MinHeight="150" MaxHeight="260" AutomationProperties.Name="Locations">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="Padding" Value="6,2" />
+                    <Setter Property="MinHeight" Value="0" />
+                  </Style>
+                </ListBox.Styles>
                 <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="local:EncounterBrowserLocationRow">
-                    <StackPanel>
-                      <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Zone}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                  <DataTemplate x:DataType="local:LocationPickerEntry">
+                    <Panel ToolTip.Tip="{Binding Tip}">
+                      <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsHeader}" Margin="0,4,0,0">
+                        <TextBlock Text="{Binding Chevron}" Classes="muted" Width="14" FontSize="11" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Label}" FontWeight="SemiBold" FontSize="12"
+                                   Classes="muted" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+                      </Grid>
+                      <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsLocation}" Opacity="{Binding RowOpacity}" Margin="14,0,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Detail}" Classes="muted" FontSize="11" VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="location-star" Content="{Binding Star}" Tag="{Binding}"
+                                ToolTip.Tip="{Binding StarTip}" AutomationProperties.Name="{Binding StarTip}"
+                                Focusable="False" />
+                      </Grid>
+                    </Panel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
+              <TextBlock Text="↑↓ move · Enter choose · ☆ favorite" Classes="muted" FontSize="11" />
             </StackPanel>
             <StackPanel Grid.Column="1" Spacing="6">
               <TextBlock Text="Turns" Classes="muted" />

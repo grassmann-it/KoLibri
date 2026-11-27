@@ -74,6 +74,11 @@ public sealed class DesktopSettings
     /// <summary>Steps skipped for a day, key "Role|step" to ISO date.</summary>
     public Dictionary<string, string> SkippedSteps { get; set; } = new();
 
+    /// <summary>Starred locations of the Adventure tab's location picker (KoLmafia location ids, e.g. "adventure=439:The Skeleton Store").</summary>
+    public List<string> FavoriteLocations { get; set; } = new();
+    /// <summary>Last used locations of the location picker, newest first (at most <see cref="LocationPickerViewModel.RecentLimit"/>).</summary>
+    public List<string> RecentLocations { get; set; } = new();
+
     public static string SkipKey(string role, string step) => $"{role}|{step}";
 
     public bool IsSkipped(string role, string step, DateOnly today)
@@ -249,6 +254,8 @@ public sealed class DesktopSettingsStore
                 foreach (var d in DesktopSettings.Definitions)
                     if (numbers[d.Key] is JsonValue v && v.TryGetValue<double>(out var n))
                         settings.Set(d.Key, n);
+            settings.FavoriteLocations = Strings(root, "favoriteLocations", LocationPickerViewModel.FavoriteLimit);
+            settings.RecentLocations = Strings(root, "recentLocations", LocationPickerViewModel.RecentLimit);
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -275,6 +282,8 @@ public sealed class DesktopSettingsStore
             spleenItems = settings.SpleenItems,
             skippedSteps = settings.SkippedSteps,
             numbers,
+            favoriteLocations = settings.FavoriteLocations,
+            recentLocations = settings.RecentLocations,
         }, Write);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path))!);
         var tmp = Path + ".tmp";
@@ -296,6 +305,12 @@ public sealed class DesktopSettingsStore
         }
         return list;
     }
+
+    private static List<string> Strings(JsonObject o, string key, int limit)
+        => o[key] is JsonArray array
+            ? array.OfType<JsonValue>().Select(v => v.TryGetValue<string>(out var s) ? s : null)
+                .Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct(StringComparer.OrdinalIgnoreCase).Take(limit).ToList()
+            : new List<string>();
 
     private static string? Str(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var s) && !string.IsNullOrWhiteSpace(s) ? s : null;
     private static bool Bool(JsonObject o, string k, bool d) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : d;

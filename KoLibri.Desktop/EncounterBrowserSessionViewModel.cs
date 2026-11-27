@@ -84,6 +84,12 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
     /// <summary>The report of the last bounded batch (turns, drops, stop reason).</summary>
     public BoundedRunReport? LastReport { get; private set; }
 
+    /// <summary>
+    /// Called with (snarfblat, accessible, reason) whenever a start already read a location's access, so the
+    /// location picker can gray out locked zones without an extra request.
+    /// </summary>
+    public Action<int, bool, string?>? AccessObserved { get; set; }
+
     public string? RunId
     {
         get => _runId;
@@ -160,6 +166,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
         var session = await RequireSessionAsync(cancellationToken);
         // Only locations with a known access rule cost a read here; the others are left to KoL.
         var access = await session.Adventure.GetLocationAccessAsync(location.Snarfblat, cancellationToken);
+        AccessObserved?.Invoke(location.Snarfblat, access.Accessible, access.Reason);
         if (!access.Accessible)
         {
             LastMessage = access.Reason ?? $"{location.DisplayName} is not accessible.";
@@ -345,6 +352,7 @@ public sealed class EncounterBrowserSessionViewModel : DesktopViewModel
 
         var session = await RequireSessionAsync(cancellationToken);
         var access = await session.Adventure.GetLocationAccessAsync(batchLocation.Snarfblat, cancellationToken);
+        AccessObserved?.Invoke(batchLocation.Snarfblat, access.Accessible, access.Reason);
         if (!access.Accessible)
         {
             LastMessage = access.Reason ?? $"{batchLocation.DisplayName} is not accessible.";
