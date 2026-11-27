@@ -1,4 +1,5 @@
 using KoLibri.Desktop;
+using KoLibri.Extras;
 using Xunit;
 
 namespace KoLibri.Tests.Desktop;

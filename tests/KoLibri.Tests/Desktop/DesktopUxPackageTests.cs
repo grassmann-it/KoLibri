@@ -166,17 +166,17 @@ public sealed class DesktopUxPackageTests : IDisposable
     [Fact]
     public void Charpane_shows_reported_organ_limits_and_familiar_name_and_marks_assumptions()
     {
-        var reported = new KoLStatusSnapshot("T", 1, 1, 1, Now)
+        var reported = new Status("T", 1, 1, 1, Now)
         {
-            Fullness = 4, Inebriety = 2, Spleen = 1, FamiliarId = "9", FamiliarName = "Fluffy", FamiliarWeight = 30,
-            FullnessLimit = 20, InebrietyLimit = 19, SpleenLimit = 25
+            Fullness = new global::KoLibri.OrganState(4, 20), Inebriety = new global::KoLibri.OrganState(2, 19),
+            Spleen = new global::KoLibri.OrganState(1, 25), FamiliarId = 9, FamiliarName = "Fluffy", FamiliarWeight = 30
         };
         var s = CharpaneState.FromStatus(reported, "Main", Now);
         Assert.Equal("Fullness 4 / 20", s.Fullness);
         Assert.Equal("Drunkenness 2 / 19", s.Drunk);
         Assert.Equal("Spleen 1 / 25", s.Spleen);
         Assert.Equal("Fluffy · 30 lb", s.Familiar);
-        var plain = CharpaneState.FromStatus(new KoLStatusSnapshot("T", 1, 1, 1, Now) { Fullness = 4, FamiliarId = "9" }, "Main", Now);
+        var plain = CharpaneState.FromStatus(new Status("T", 1, 1, 1, Now) { Fullness = new global::KoLibri.OrganState(4, null), FamiliarId = 9 }, "Main", Now);
         Assert.Equal("Fullness 4 / ?", plain.Fullness);
         Assert.Equal("Familiar #9", plain.Familiar);
     }
@@ -189,13 +189,13 @@ public sealed class DesktopUxPackageTests : IDisposable
     }
 
     private static MallListing L(string shop, long price, int qty) =>
-        new("10881", shop, $"Shop {shop}", price, qty, null, DateTimeOffset.UtcNow, new Uri("https://www.kingdomofloathing.com/mall.php")) { ItemName = "x" };
+        new(int.Parse(shop), $"Shop {shop}", 10881, price, qty, null);
 
     [Fact]
     public async Task Mall_offers_sort_by_column_flip_on_second_click_and_filter_to_buyable()
     {
-        var page = new MallSearchPage("x", [new MallItemOffers("10881", "11-leaf clover", [L("1", 25_000, 5), L("2", 29_000, 900), L("3", 30_000, 40)], 3)],
-            DateTimeOffset.UtcNow, new Uri("https://www.kingdomofloathing.com/mall.php"));
+        var page = new global::KoLibri.MallSearchResult("x", [new MallOffers(10881, "11-leaf clover", [L("1", 25_000, 5), L("2", 29_000, 900), L("3", 30_000, 40)], DateTimeOffset.UtcNow)],
+            DateTimeOffset.UtcNow);
         var backend = new MallBackend(page);
         var vm = new MallSearchViewModel(backend, t => t == "11-leaf clover" || t == "10881" ? [("10881", "11-leaf clover")] : []) { SearchText = "10881", PurchaseRequest = new OnlyShop2() };
         await vm.SearchAsync();
@@ -216,9 +216,9 @@ public sealed class DesktopUxPackageTests : IDisposable
         Assert.Equal(3, vm.Offers.Count);
     }
 
-    private sealed class MallBackend(MallSearchPage page) : IMallSearchBackend
+    private sealed class MallBackend(global::KoLibri.MallSearchResult page) : IMallSearchBackend
     {
-        public Task<MallSearchPage> SearchAsync(string term, bool force, CancellationToken ct) => Task.FromResult(page);
+        public Task<global::KoLibri.MallSearchResult> SearchAsync(string term, bool force, CancellationToken ct) => Task.FromResult(page);
         public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken ct)
             => Task.FromResult(new PricegunInfo(26_000, DateTimeOffset.UtcNow, false));
     }
