@@ -174,7 +174,8 @@ public partial class MainWindow
             var maxBaconPrice = (long)(this.FindControl<NumericUpDown>("DailyBaconMaxPrice")?.Value ?? 1500);
             var pocketText = (this.FindControl<TextBox>("DailyCargoPockets")?.Text ?? "").Trim();
             var playChess = this.FindControl<CheckBox>("DailyPlayChess")?.IsChecked == true;
-            var itemError = SaveDailyItemSettings(pocketText, playChess);
+            var cargoMode = (this.FindControl<ComboBox>("DailyCargoMode")?.SelectedItem as ComboBoxItem)?.Tag as string ?? "auto";
+            var itemError = SaveDailyItemSettings(cargoMode, pocketText, playChess);
             if (itemError is not null)
             {
                 ReportDailyStep(itemError + " Nothing was sent.", error: true);
@@ -197,7 +198,7 @@ public partial class MainWindow
     /// Checks and saves the Cargo pocket list and the chess opt-in (merged into the settings on disk, like the skip list).
     /// Returns an error text for a list that is not pocket numbers or names a pocket that starts a fight.
     /// </summary>
-    private string? SaveDailyItemSettings(string pocketText, bool playChess)
+    private string? SaveDailyItemSettings(string cargoMode, string pocketText, bool playChess)
     {
         try
         {
@@ -206,21 +207,26 @@ public partial class MainWindow
             if (fight != 0) return $"Cargo pocket {CargoPockets.Describe(fight)} starts a fight; the daily routine only picks pockets without a fight.";
         }
         catch (FormatException exception) { return "Cargo pockets: " + exception.Message; }
-        if (_settings.DailyCargoPockets == pocketText && _settings.DailyPlayChess == playChess) return null;
+        if (cargoMode == "list" && string.IsNullOrWhiteSpace(pocketText))
+            return "Cargo pocket mode 'Liste' needs pocket numbers (or choose 'Nach Wert' / 'aus').";
+        if (_settings.DailyCargoPockets == pocketText && _settings.DailyPlayChess == playChess && _settings.DailyCargoMode == cargoMode) return null;
         try
         {
             var fresh = _settingsStore.Load();
             fresh.DailyCargoPockets = pocketText;
             fresh.DailyPlayChess = playChess;
+            fresh.DailyCargoMode = cargoMode;
             _settingsStore.Save(fresh);
             _settings.DailyCargoPockets = pocketText;
             _settings.DailyPlayChess = playChess;
+            _settings.DailyCargoMode = cargoMode;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // The run still uses the values on screen; only remembering them failed.
             _settings.DailyCargoPockets = pocketText;
             _settings.DailyPlayChess = playChess;
+            _settings.DailyCargoMode = cargoMode;
             _log.Error($"Could not save the daily item settings: {exception.Message}");
         }
         return null;
@@ -277,8 +283,9 @@ public partial class MainWindow
                 }
             }
         }
-        var steps = DailyRun.Plan(live, DesktopDailyItems.Options(_settings, hermitClovers));
-        return await DailyRun.ExecuteAsync(session, steps, cancellationToken);
+        var options = DesktopDailyItems.Options(_settings, hermitClovers);
+        var steps = DailyRun.Plan(live, options);
+        return await DailyRun.ExecuteAsync(session, steps, options, cancellationToken);
     }
 
     private static KoLmafiaCatalog? TryLoadCatalog()

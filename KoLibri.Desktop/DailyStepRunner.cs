@@ -141,14 +141,16 @@ public static class DailyRunReport
     {
         if (result is null) return "The daily routine could not be completed.";
         var failed = result.FailedSteps.Count == 0 ? "" : " Failed: " + string.Join("; ", result.FailedSteps) + ".";
+        var gains = result.Steps.SelectMany(s => s.Gains).ToArray();
+        var got = gains.Length == 0 ? "" : " Erhalten: " + string.Join(", ", gains) + ".";
         return result.Completeness switch
         {
             global::KoLibri.Daily.DailyRunCompleteness.None
                 => "Daily routine: nothing to do, no step was sent.",
             global::KoLibri.Daily.DailyRunCompleteness.Complete
-                => $"Daily routine executed: {result.SubmittedSteps} step(s).",
+                => $"Daily routine executed: {result.SubmittedSteps} step(s).{got}",
             global::KoLibri.Daily.DailyRunCompleteness.Partial
-                => $"Daily routine only PARTLY executed: {result.SubmittedSteps} of {result.AttemptedSteps} step(s) went through, the rest failed.{failed}",
+                => $"Daily routine only PARTLY executed: {result.SubmittedSteps} of {result.AttemptedSteps} step(s) went through, the rest failed.{failed}{got}",
             _ => $"Daily routine FAILED: none of {result.AttemptedSteps} step(s) went through.{failed}"
         };
     }

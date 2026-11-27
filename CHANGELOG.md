@@ -37,7 +37,8 @@ auto-combat loop, and write your own tools with `using KoLibri;`. Usable, not st
 - CLI `kolibri`: login/refresh, status, inventory, consume, cast, rest, `adventure run` (auto-combat with HP floor,
   round limit, stop conditions, choice policy), `adventure inspect|step|fight|locations`, `choice pending|submit|policy`,
   `daily run` (with `--only` / `--skip`, aliases `daily campfire|hermit|internet-shop`; owned daily items: cheap toaster,
-  VIP Klaw 3x, Cargo Cultist Shorts pocket with `--cargo-pocket`, fancy chess set with `--chess`) and `daily audit`, mall search,
+  VIP Klaw 3x, Cargo Cultist Shorts pocket by value by default (`--cargo-pocket auto|none|N,M`), fancy chess set with
+  `--chess`; the run reports what each step gained) and `daily audit`, mall search,
   shop read and `shop add`, pirate keys, relay. Adventure farm flags (`--combat-rules`, `--recover-hp`,
   `--stop-item`, ...) and an experimental `reprice`: <placeholder until merged>.
 - MCP `kolibri-mcp`: 19 core tools by default (`kol_status`, `kol_inventory`, `kol_login_status`,
