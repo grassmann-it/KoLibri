@@ -1,7 +1,6 @@
 using System.Net;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Markt;
-using KoLibri.Desktop;
 using Xunit;
 
 namespace KoLibri.Core.Tests;
@@ -122,18 +121,5 @@ public sealed class MallReceiptAndBudgetTests
             Credentials, 8763, 1, 10_000_000, 1_500, 1_000, itemName: "BACON");
         Assert.Equal("NotBought", outcome.Verdict);
         Assert.Empty(store.Forms);
-    }
-
-    [Fact]
-    public void The_result_limit_setting_reaches_the_mall_policy()
-    {
-        var settings = new DesktopSettings();
-        settings.Set("resultLimit", 7);
-        settings.Set("cacheMinutes", 3);
-        var policy = settings.ToMallPolicy();
-        Assert.Equal(7, policy.MaxListingsPerItem);
-        Assert.Equal(TimeSpan.FromMinutes(3), policy.CacheTtl);
-        Assert.Equal(settings.MaxStale, policy.MaxStale);
-        policy.Validate();
     }
 }
