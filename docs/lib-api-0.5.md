@@ -889,17 +889,22 @@ die Identität nicht meldet (außer `AllowIdentityChange`) – wie `login refres
 
 ### 12.3 Befehle
 
-**Auf der neuen API, gleiche Exit-Codes und Sicherheitsprüfungen** (Approval-Token vor jedem Request,
-AgentGuard, Experimental-Gate unverändert): `login`, `login status|clear|refresh`, `token mint|show`, `status`,
-`inventory` (inkl. `--probe`), `shop`, `shop add`, `consume`, `rest`, `cast`, `keys status|options|assemble|redeem`,
-`mall --item`, `mall-reconcile`, `relay`, `adventure run`, `choice pending|submit|policy`, `daily run`,
-experimentell `pricegun`, `crm`, `crm-block`, `apply-prices`, `arbitrage plan|buy`, sowie `agent-mode`.
+**Stand `release/0.5.0`.** Alle Befehle laufen auf der neuen API (Approval-Token vor jedem Request, AgentGuard,
+Experimental-Gate unverändert): `login`, `login status|clear|refresh`, `token mint|show`, `status`, `inventory`
+(inkl. `--probe`), `shop`, `shop add`, `consume`, `rest`, `cast`, `keys status|options|assemble|redeem`, `mall --item`,
+`mall-reconcile`, `relay`, `choice pending|submit|policy`, `agent-mode`, sowie
 
-**Vorerst nicht in 0.5-dev** (Meldung "moves onto the new KoLibri library in a follow-up PR. Nothing was sent.",
-Exit 3, kein Request): `mafia-script`, `repl`, `adventure-plan`, `adventure locations|start|inspect|step|stop|
-bounded-preview|choice-chain`, `combat`, `autocombat`, `daily campfire|hermit|internet-shop|routine|go|bridge|
-breakfast|meme-shop|…`, `daily-audit`, experimentell `compare`, `bribe-rank`, `bribe-plan`, `workflow-plan`,
-`categorize`, `reprice`, `snatch-plan`, `watchlist`, `market-scan`.
+- `adventure run|inspect|step|fight|locations` (Aliase: `location|list`, `status|resume`, `advance`),
+- `daily run` mit `--skip` und `--only STEP` (`campfire|hermit|internet-shop`), den Aliasen `daily campfire|hermit|
+  internet-shop|meme-shop` (= `daily run --only STEP`) und `daily routine|go|bridge|breakfast` (= `daily run`)
+  sowie `daily audit [--tail N] [--verify]` (`daily-audit` leitet dorthin um),
+- experimentell: `pricegun` (`history`), `crm`, `crm-block`, `apply-prices`, `arbitrage plan|buy`.
+
+**Entfernt (Exit 2, Meldung "removed in KoLibri 0.5: use …", nichts gesendet):** `mafia-script`, `repl`,
+`adventure-plan`, `combat`, `autocombat`, `market-scan`/`market`, `watchlist`/`scheduler`; experimentell `categorize`,
+`snatch-plan`, `bribe-rank`, `bribe-plan`, `workflow-plan`.
+
+**Noch nicht umgezogen (Exit 3, nichts gesendet):** experimentell `reprice`/`batch` und `compare`.
 
 ### 12.4 Abweichungen in der Ausgabe
 
@@ -966,28 +971,26 @@ CLI). Ein Login, Logout oder eine Erneuerung in der CLI gilt sofort; ein Neustar
 
 ### 13.2 Tools
 
-**Auf der neuen API.** Gate, Rechte, Consent-Anzeige, Zwei-Schritt-Plan/Execute und Fehlerformate sind unverändert.
+**Stand `release/0.5.0` (#79 und Folge-PRs).** Gate, Rechte, Consent-Anzeige, Zwei-Schritt-Plan/Execute und
+Fehlerformate sind unverändert. `kolibri-mcp --stdio` ist nur lesend; Schreib-Tools gibt es über HTTP mit Grant.
 
-- Die 19 Standard-Tools: `kol_status`, `kol_inventory`, `kol_login_status`, `kol_price_summary`, `kol_mall_buy`,
-  `kol_meme_shop`, `kol_send_message`, `kol_use_item`, `kol_consume`, `kol_rest`, `kol_adventure_locations`,
-  `kol_adventure_run_execute`, `kol_choice_chain_execute`, `kol_choice_pending`, `kol_choice_options`,
-  `kol_combat_inspect`, `kol_combat_decision`, `kol_daily_audit`, `kol_run_daily_bridge` (Vorschau).
-- Experimentell: `kol_login_refresh`, `kol_login_clear`, `kol_shop_sales`, `kol_shop_buyers`,
-  `kol_reward_buyer`, `kol_shop_price_suggestions`, `kol_transfer`, `kol_reprice_shop`, `kol_arbitrage_plan`.
-- Experimentell auf dem Live-Pfad: `kol_daily_campfire_plan`, `kol_daily_hermit_plan`, `kol_daily_routine`.
-  Sie nutzen `DailyRun.ReadAsync` mit Status, Inventar und den Tagesmarkern im 0.4-Schlüssel und senden nichts.
+- **19 Standard-Tools** (`McpToolSurface.Core`): `kol_status`, `kol_inventory`, `kol_login_status`, `kol_price_summary`,
+  `kol_mall_buy`, `kol_meme_shop`, `kol_send_message`, `kol_use_item`, `kol_consume`, `kol_rest`,
+  `kol_adventure_locations`, `kol_adventure_run_execute`, `kol_choice_chain_execute`, `kol_choice_pending`,
+  `kol_choice_options`, `kol_combat_inspect`, `kol_combat_decision`, `kol_daily_audit`, `kol_run_daily_bridge` (Vorschau).
+- **Experimentell** (nur mit `--experimental` / `KOLIBRI_EXPERIMENTAL=1`; sonst nicht in `tools/list`, nicht aufrufbar,
+  Rechte nicht auf der Consent-Seite), auf der neuen API: `kol_login_refresh`, `kol_login_clear`, `kol_shop_sales`,
+  `kol_shop_buyers`, `kol_reward_buyer`, `kol_shop_price_suggestions`, `kol_transfer`, `kol_reprice_shop`,
+  `kol_arbitrage_plan`, und auf dem Live-Pfad (senden nichts) `kol_daily_campfire_plan`, `kol_daily_hermit_plan`,
+  `kol_daily_routine`.
+- **Experimentell, noch nicht umgezogen** (registriert, antworten mit dem Tool-Fehler "not available … nothing was
+  sent"): `kol_price_recommendation`, `kol_underprice_preview`, `kol_workflow_plan`, `kol_plan_daily_adventures`,
+  `kol_plan_daily_adventures_execute`, `kol_preview_purchase`, `kol_preview_transfer`, `kol_autocombat_preview`,
+  `kol_autocombat_action_preview`, `kol_recovery_plan`, `kol_adventure_bounded_preview`,
+  `kol_adventure_daily_schedule`.
 
-**Vorerst nicht in 0.5-dev.** Diese Tools bleiben registriert, mit gleichem Gate und gleicher Consent-Anzeige. Sie
-antworten mit dem Tool-Fehler "not available in 0.5-dev, moves in a follow-up PR, nothing was sent" und senden
-keinen Request:
-
-- `kol_price_recommendation`, `kol_underprice_preview`, `kol_workflow_plan`
-- `kol_plan_daily_adventures`, `kol_plan_daily_adventures_execute`
-- `kol_preview_purchase`, `kol_preview_transfer`
-- `kol_autocombat_preview`, `kol_autocombat_action_preview`, `kol_recovery_plan`
-- `kol_adventure_bounded_preview`, `kol_adventure_daily_schedule`
-
-Der HTTP-Host entfernt wie in 0.4 `kol_plan_daily_adventures_execute`, `kol_login_clear` und `kol_login_refresh`.
+Der HTTP-Host entfernt `kol_plan_daily_adventures_execute`, `kol_login_clear` und `kol_login_refresh`.
+Nutzerdoku: [MCP.md](MCP.md), [mcp-access.md](mcp-access.md).
 
 ### 13.3 Abweichungen in der Ausgabe
 
