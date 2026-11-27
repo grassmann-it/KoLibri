@@ -494,9 +494,26 @@ namespace KoLibri
         public static IChoiceResolver Safe(IReadOnlyDictionary<int, int>? optionByChoiceId = null) => throw new NotImplementedException();
     }
 
-    public sealed record ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe);
+    public sealed record ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe)
+    {
+        public bool CostsMeat { get; init; }
+        public bool CostsItem { get; init; }
+        public bool StartsFight { get; init; }
+        public bool Hurts { get; init; }
+        public bool SkipsTurn { get; init; }
+        public IReadOnlyList<string> Items { get; init; } = null!;
+    }
 
-    public sealed record ChoiceDefault(int Id, string? Name, int? Snarfblat, int? Default, IReadOnlyDictionary<int, ChoiceDefaultOption> Options, string Source, string? Note, bool Turtle);
+    public sealed record ChoiceDefault(int Id, string? Name, int? Snarfblat, int? Default, IReadOnlyDictionary<int, ChoiceDefaultOption> Options, string Source, string? Note, bool Turtle)
+    {
+        public const string LiveConfidence = "live";
+        public const string KolmafiaConfidence = "kolmafia-default";
+        /// <summary>live (Standard, auch Version 1) oder kolmafia-default (Default nur bei sicherer Option).</summary>
+        public string Confidence { get; init; } = null!;
+        public string? Location { get; init; }
+        public string? Zone { get; init; }
+        public bool IsLive => throw new NotImplementedException();
+    }
 
     /// <summary>Kuratierte Choice-Tabelle (KoLibri-eigenes choices.json, nicht KoLmafia).</summary>
     public sealed class ChoiceDefaultTable
