@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <!-- One version for every package: KoLibri, KoLibri.Safety, KoLibri.Cli, KoLibri.Mcp (0.5). -->
-    <KoLibriVersion>0.4.0</KoLibriVersion>
+    <!-- Shared version for KoLibri, KoLibri.Safety, CLI, MCP, and Desktop. -->
+    <KoLibriVersion>0.5.0</KoLibriVersion>
     <Version>$(KoLibriVersion)</Version>
     <Authors>KoLibri contributors</Authors>
     <RepositoryUrl>https://github.com/grassmann-it/KoLibri</RepositoryUrl>

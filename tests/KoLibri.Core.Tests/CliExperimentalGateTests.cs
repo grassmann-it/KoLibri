@@ -2,7 +2,7 @@ using Xunit;
 
 namespace KoLibri.Core.Tests;
 
-/// <summary>0.4.0: market/shop extras are hidden behind --experimental / KOLIBRI_EXPERIMENTAL=1. No test sends anything.</summary>
+/// <summary>0.5.0: market/shop extras are hidden behind --experimental / KOLIBRI_EXPERIMENTAL=1. No test sends anything.</summary>
 [Collection(ConsoleCollection.Name)] // runs the CLI, which writes to Console.Out
 public sealed class CliExperimentalGateTests
 {

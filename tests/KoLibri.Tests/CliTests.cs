@@ -149,7 +149,7 @@ public sealed class CliTests : IDisposable
         var output = writer.ToString();
         Assert.Contains("Removed in 0.5", output);
         Assert.DoesNotContain("follow-up PR", output);
-        Assert.DoesNotContain("Not in 0.5-dev yet", output);
+        Assert.DoesNotContain("not available in KoLibri 0.5; nothing was sent", output);
     }
 
     [Fact]

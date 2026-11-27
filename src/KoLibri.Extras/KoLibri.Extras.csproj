@@ -7,7 +7,6 @@
     <!-- Market analysis and shop extras that are not part of the library promise (docs/lib-api-0.5.md §6.2).
          Not published on NuGet; used by the CLI. Only the public KoLibri API, no KoLibri.Core. -->
     <IsPackable>false</IsPackable>
-    <Version>0.5.0-dev</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../KoLibri/KoLibri.csproj" />

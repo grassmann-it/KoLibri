@@ -60,7 +60,7 @@ public sealed class DesktopSettings
     public bool DailyDefaults { get; set; } = true;
     /// <inheritdoc cref="PricegunDisplay"/>
     public bool OptionalTools { get; set; } = true;
-    /// <summary>Default OFF: shows the extras outside the 0.4.0 scope. See <see cref="ExperimentalFeatures"/>.</summary>
+    /// <summary>Default OFF: shows the extras outside the 0.5.0 scope. See <see cref="ExperimentalFeatures"/>.</summary>
     public bool ExperimentalTools { get; set; }
     public string Theme { get; set; } = "Light";
     /// <summary>"conservative" (default) or "browser-like": base values of the read lane and the global cap; explicit numbers and environment variables still win.</summary>

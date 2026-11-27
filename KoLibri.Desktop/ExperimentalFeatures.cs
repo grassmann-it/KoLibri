@@ -1,7 +1,7 @@
 namespace KoLibri.Desktop;
 
 /// <summary>
-/// The one switch for extras outside the 0.4.0 scope (manual adventuring, consumption, inventory, mall buy, KoLmail,
+/// The one switch for extras outside the 0.5.0 scope (manual adventuring, consumption, inventory, mall buy, KoLmail,
 /// Daily): Arbitrage, clan VIP lounge and stash, farm figures. Off by default. On when the environment variable
 /// <c>KOLIBRI_EXPERIMENTAL=1</c> is set or the Settings box "Show experimental tools" is ticked.
 /// While off, these panels are hidden and start no requests. The code stays in place.

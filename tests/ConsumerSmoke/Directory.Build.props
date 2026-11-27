@@ -1,6 +1,6 @@
 <Project>
   <!-- Stops inheritance of the repo root props: the smoke test is a third-party consumer of the packed NuGets. -->
   <PropertyGroup>
-    <KoLibriPackageVersion Condition="'$(KoLibriPackageVersion)' == ''">0.5.0-dev</KoLibriPackageVersion>
+    <KoLibriPackageVersion Condition="'$(KoLibriPackageVersion)' == ''">0.5.0</KoLibriPackageVersion>
   </PropertyGroup>
 </Project>

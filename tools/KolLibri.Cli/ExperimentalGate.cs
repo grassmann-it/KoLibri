@@ -1,5 +1,5 @@
 /// <summary>
-/// 0.5.0-dev Early Alpha: market-analysis and shop-management extras (arbitrage, bribes, CRM, watchlist, ...)
+/// 0.5.0 Early Alpha: market-analysis and shop-management extras (arbitrage, bribes, CRM, watchlist, ...)
 /// are hidden, not removed. They run only with <c>--experimental</c> or <c>KOLIBRI_EXPERIMENTAL=1</c>.
 /// Without the switch the command prints a hint, sends nothing and exits with <see cref="BlockedExitCode"/>.
 /// </summary>
@@ -33,7 +33,7 @@ internal static class ExperimentalGate
     public static int? Check(string command, bool enabled, TextWriter error)
     {
         if (enabled || !IsExperimental(command)) return null;
-        error.WriteLine($"'{command}' is experimental and hidden in KoLibri 0.5.0-dev (Early Alpha). Nothing was sent.");
+        error.WriteLine($"'{command}' is experimental and hidden in KoLibri 0.5.0 (Early Alpha). Nothing was sent.");
         error.WriteLine($"To run it anyway, add {Flag} or set {EnvironmentVariable}=1.");
         return BlockedExitCode;
     }

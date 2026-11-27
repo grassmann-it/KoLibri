@@ -9,7 +9,6 @@
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0026;RS0036;RS0037</WarningsAsErrors>
 
     <PackageId>KoLibri.Safety</PackageId>
-    <Version>0.5.0-dev</Version>
     <Description>Optional guards for KoLibri: grants, budgets with a usage ledger, approval tokens and a hash-chained audit journal, all as IActionGuard.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolibri;safety;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
