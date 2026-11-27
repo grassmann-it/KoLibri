@@ -296,28 +296,15 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>Buy on a row: preview, confirmation window, one confirmed purchase. Limits come from the settings.</summary>
+    /// <summary>Buy on a row: confirmation window, one price-guarded library purchase. Limits come from the settings.</summary>
     private MallPurchaseCoordinator CreatePurchaseCoordinator()
     {
         var role = _selectedRole;
         return new MallPurchaseCoordinator(
             role.ToString(),
-            async cancellationToken =>
-            {
-                if (await _live.OpenPurchaseSessionAsync(role, cancellationToken) is not { } session) return null;
-                var observer = new MallPurchaseObserver(
-                    new LiveMallPurchaseReads(_live, role), role.ToString(),
-                    () => (long)_settings.Get("meatPerDay"), _spendLedger);
-                var transport = new HttpMallPurchaseTransport(
-                    session.Http,
-                    new HttpMallPurchaseTransportOptions
-                    {
-                        PasswordHashProvider = (_, _) => Task.FromResult(session.PasswordHash)
-                    },
-                    observer.BeforeAsync, observer.AfterAsync);
-                var service = new DesktopMallPurchaseService(transport, DesktopMallPurchaseSettings.ToOptions(_settings));
-                return (service, observer);
-            },
+            async cancellationToken => await _live.SessionAsync(role, cancellationToken) is null
+                ? null
+                : DesktopMallPurchaseService.ForRole(_live, role, DesktopMallPurchaseSettings.ToOptions(_settings)),
             new WindowMallPurchasePrompt(this),
             _log,
             _spendLedger,

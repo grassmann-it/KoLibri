@@ -21,17 +21,17 @@ public static class BrowserNavigationPolicy
     {
         if (string.Equals(url, "about:blank", StringComparison.OrdinalIgnoreCase)) return BrowserNavigationDecision.Allow;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return BrowserNavigationDecision.Block;
-        if (RelayHost.IsSameOrigin(relayOrigin, url)) return BrowserNavigationDecision.Allow;
+        if (IsSameOrigin(relayOrigin, url)) return BrowserNavigationDecision.Allow;
         return uri.Scheme is "http" or "https" ? BrowserNavigationDecision.AskExternal : BrowserNavigationDecision.Block;
     }
 
     /// <summary>Path and redacted query for the address bar. The entry URL (which carries the token) shows as its bare path.</summary>
     public static string DisplayPath(string relayOrigin, string? url)
     {
-        if (!RelayHost.IsSameOrigin(relayOrigin, url)) return "";
+        if (!IsSameOrigin(relayOrigin, url)) return "";
         var uri = new Uri(url!);
-        if (uri.AbsolutePath == RelayServer.EntryPath) return "/";
-        return RelayServer.RedactUrl(uri.PathAndQuery);
+        if (uri.AbsolutePath == EntryPath) return "/";
+        return RedactUrl(uri.PathAndQuery);
     }
 
     /// <summary>
@@ -45,13 +45,42 @@ public static class BrowserNavigationPolicy
         string path;
         if (text.Contains("://", StringComparison.Ordinal))
         {
-            if (!RelayHost.IsSameOrigin(relayOrigin, text)) return null;
+            if (!IsSameOrigin(relayOrigin, text)) return null;
             path = new Uri(text).PathAndQuery;
         }
         else path = text.StartsWith('/') ? text : "/" + text;
         if (path.StartsWith("//", StringComparison.Ordinal) || path.StartsWith("/\\", StringComparison.Ordinal)
             || path.Contains("..", StringComparison.Ordinal) || path.Contains(' ', StringComparison.Ordinal)
-            || path.StartsWith(RelayServer.EntryPath, StringComparison.Ordinal)) return null;
+            || path.StartsWith(EntryPath, StringComparison.Ordinal)) return null;
         return path;
     }
+
+    // Copied from KoLibri.Core (0.5 step 3): the relay's entry path and its address-bar redaction.
+
+    /// <summary>The relay path that carries the one-time token (see <see cref="RelayServer.EntryUri"/>).</summary>
+    public const string EntryPath = "/__kolibri/enter";
+
+    private static readonly HashSet<string> SafeLoggedValues = new(StringComparer.OrdinalIgnoreCase)
+        { "snarfblat", "action", "whichchoice", "option", "which", "whichitem", "ajax" };
+
+    public static bool IsSameOrigin(string origin, string? url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var u) && Uri.TryCreate(origin, UriKind.Absolute, out var o)
+           && u.Scheme == o.Scheme && u.Host == o.Host && u.Port == o.Port;
+
+    /// <summary>Path plus query where only the safe keys keep their values: "/a.php?pwd=…&amp;action=x".</summary>
+    public static string RedactUrl(string? rawUrl)
+    {
+        if (string.IsNullOrEmpty(rawUrl)) return "";
+        var q = rawUrl.IndexOf('?');
+        if (q < 0) return rawUrl;
+        var parts = rawUrl[(q + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p =>
+        {
+            var kv = p.Split('=', 2);
+            if (kv.Length == 1) return kv[0];
+            return SafeLoggedValues.Contains(Unescape(kv[0])) ? p : kv[0] + "=…";
+        });
+        return rawUrl[..q] + "?" + string.Join("&", parts);
+    }
+
+    private static string Unescape(string s) { try { return Uri.UnescapeDataString(s.Replace('+', ' ')); } catch { return s; } }
 }

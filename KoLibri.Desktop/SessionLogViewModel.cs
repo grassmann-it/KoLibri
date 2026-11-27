@@ -119,7 +119,7 @@ public sealed class SessionLogViewModel : INotifyPropertyChanged
     public string ToText() => string.Join(Environment.NewLine, Visible.Select(e => e.Text));
 
     /// <summary>The KoL day an instant belongs to; the file of that day collects its entries.</summary>
-    public static string KolDay(DateTimeOffset at) => DailyDoneStore.KolDay(at);
+    public static string KolDay(DateTimeOffset at) => global::KoLibri.Desktop.KolDay.Of(at).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     public string? DayFilePath(DateTimeOffset at)
         => _directory is null ? null : Path.Combine(_directory, $"session-log-{KolDay(at)}.jsonl");

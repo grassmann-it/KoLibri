@@ -852,7 +852,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (this.FindControl<TextBox>("ClanStashQuantity") is { } stashQuantity) stashQuantity.Text = string.Empty;
         if (this.FindControl<ComboBox>("ClanStashDepositItems") is { } depositItems) depositItems.ItemsSource = null;
         if (this.FindControl<TextBox>("ClanStashDepositQuantity") is { } depositQuantity) depositQuantity.Text = string.Empty;
-        _koLmailFolder = KoLMailFolder.Inbox;
+        _koLmailFolder = MailFolder.Inbox;
         SetKoLmailDeleteConfirmation(false);
         SetKoLmailNavigation(1, false);
         if (this.FindControl<TextBox>("KoLmailRecipient") is { } recipient) recipient.Text = string.Empty;
