@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <!-- One version for every package: KoLibri.Core, KoLibri.LibKolibri, KoLibri.Cli, KoLibri.Mcp. -->
+    <!-- One version for every package: KoLibri, KoLibri.Safety, KoLibri.Cli, KoLibri.Mcp (0.5). -->
     <KoLibriVersion>0.4.0</KoLibriVersion>
     <Version>$(KoLibriVersion)</Version>
     <Authors>KoLibri contributors</Authors>
