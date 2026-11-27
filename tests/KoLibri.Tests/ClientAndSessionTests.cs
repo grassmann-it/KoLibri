@@ -10,7 +10,7 @@ public sealed class ClientAndSessionTests
     {
         var lib = typeof(KolibriClient).Assembly.GetExportedTypes();
         Assert.All(lib, t => Assert.Equal("KoLibri", t.Namespace));
-        Assert.Equal(110, lib.Length); // 108 from the draft + IdentityMismatchException, PirateKeyStep (step 3, CLI)
+        Assert.Equal(115, lib.Length); // 108 from the draft + IdentityMismatchException, PirateKeyStep (step 3, CLI) + 5 for W3 (ChoiceDefault, ChoiceDefaultOption, ChoiceDefaultTable, ChoiceDefaults, Encounters)
         var safety = typeof(KoLibri.Safety.CompositeGuard).Assembly.GetExportedTypes();
         Assert.All(safety, t => Assert.Equal("KoLibri.Safety", t.Namespace));
         Assert.Equal(13, safety.Length);

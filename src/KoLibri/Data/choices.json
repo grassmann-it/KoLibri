@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "choices": [
+    {
+      "id": 1060,
+      "snarfblat": 439,
+      "default": 2,
+      "options": { "2": {} },
+      "source": "live verifiziert, Hauptaccount 2026-11",
+      "note": "Farm-Zone 439. Nur die Option ist belegt; Titel und Optionstexte bewusst leer, bis live gesehen."
+    }
+  ]
+}

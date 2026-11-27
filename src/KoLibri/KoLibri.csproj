@@ -30,6 +30,9 @@
     <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Data/choices.json" LogicalName="KoLibri.Data.choices.json" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

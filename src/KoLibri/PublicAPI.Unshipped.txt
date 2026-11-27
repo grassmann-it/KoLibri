@@ -905,6 +905,9 @@ KoLibri.UnexpectedPageException.Page.get -> KoLibri.Page!
 KoLibri.UnexpectedPageException.UnexpectedPageException(KoLibri.Page! page, string! message) -> void
 override KoLibri.AccountId.ToString() -> string!
 static KoLibri.ChoiceDecision.Ask(string! reason) -> KoLibri.ChoiceDecision!
+static KoLibri.ChoiceDefaults.Embedded.get -> KoLibri.ChoiceDefaultTable!
+static KoLibri.ChoiceDefaults.Load(System.IO.Stream! stream) -> KoLibri.ChoiceDefaultTable!
+static KoLibri.ChoiceDefaults.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null) -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.AlwaysAsk.get -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.FromTable(System.Collections.Generic.IReadOnlyDictionary<int, int>! optionByChoiceId) -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.Safe(System.Collections.Generic.IReadOnlyDictionary<int, int>? optionByChoiceId = null) -> KoLibri.IChoiceResolver!
@@ -918,6 +921,8 @@ static KoLibri.CombatStrategies.AttackOnly.get -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.FromDelegate(System.Func<KoLibri.CombatContext!, KoLibri.CombatAction!>! next) -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.FromRules(string! rules) -> KoLibri.ICombatStrategy!
 static KoLibri.CombatStrategies.Macro(string! macro) -> KoLibri.ICombatStrategy!
+static KoLibri.Encounters.IsTurtleEncounter(KoLibri.Encounter! encounter) -> bool
+static KoLibri.Encounters.IsTurtleMonster(string? monsterName) -> bool
 static KoLibri.GuardDecision.Allow.get -> KoLibri.GuardDecision!
 static KoLibri.GuardDecision.Deny(string! reason) -> KoLibri.GuardDecision!
 static KoLibri.ItemRef.implicit operator KoLibri.ItemRef(int id) -> KoLibri.ItemRef
@@ -968,3 +973,36 @@ KoLibri.MallListing.QuantityKnown.get -> bool
 KoLibri.MallListing.QuantityKnown.init -> void
 KoLibri.Account.HasPassword.get -> bool
 KoLibri.Account.HasPassword.init -> void
+KoLibri.ChoiceDefault
+KoLibri.ChoiceDefault.ChoiceDefault(int Id, string? Name, int? Snarfblat, int? Default, System.Collections.Generic.IReadOnlyDictionary<int, KoLibri.ChoiceDefaultOption!>! Options, string! Source, string? Note, bool Turtle) -> void
+KoLibri.ChoiceDefault.Default.get -> int?
+KoLibri.ChoiceDefault.Default.init -> void
+KoLibri.ChoiceDefault.Id.get -> int
+KoLibri.ChoiceDefault.Id.init -> void
+KoLibri.ChoiceDefault.Name.get -> string?
+KoLibri.ChoiceDefault.Name.init -> void
+KoLibri.ChoiceDefault.Note.get -> string?
+KoLibri.ChoiceDefault.Note.init -> void
+KoLibri.ChoiceDefault.Options.get -> System.Collections.Generic.IReadOnlyDictionary<int, KoLibri.ChoiceDefaultOption!>!
+KoLibri.ChoiceDefault.Options.init -> void
+KoLibri.ChoiceDefault.Snarfblat.get -> int?
+KoLibri.ChoiceDefault.Snarfblat.init -> void
+KoLibri.ChoiceDefault.Source.get -> string!
+KoLibri.ChoiceDefault.Source.init -> void
+KoLibri.ChoiceDefault.Turtle.get -> bool
+KoLibri.ChoiceDefault.Turtle.init -> void
+KoLibri.ChoiceDefaultOption
+KoLibri.ChoiceDefaultOption.ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe) -> void
+KoLibri.ChoiceDefaultOption.CostsTurn.get -> bool?
+KoLibri.ChoiceDefaultOption.CostsTurn.init -> void
+KoLibri.ChoiceDefaultOption.Label.get -> string?
+KoLibri.ChoiceDefaultOption.Label.init -> void
+KoLibri.ChoiceDefaultOption.Safe.get -> bool?
+KoLibri.ChoiceDefaultOption.Safe.init -> void
+KoLibri.ChoiceDefaultTable
+KoLibri.ChoiceDefaultTable.Entries.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceDefault!>!
+KoLibri.ChoiceDefaultTable.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null) -> KoLibri.IChoiceResolver!
+KoLibri.ChoiceDefaultTable.TryGet(int choiceId, out KoLibri.ChoiceDefault! entry) -> bool
+KoLibri.ChoiceDefaultTable.Version.get -> int
+KoLibri.ChoiceDefaults
+KoLibri.Encounters
