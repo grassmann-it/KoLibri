@@ -315,6 +315,8 @@ KoLibri.GuardedAction.Kind.get -> KoLibri.GuardedActionKind
 KoLibri.GuardedAction.Kind.init -> void
 KoLibri.GuardedAction.Meat.get -> long
 KoLibri.GuardedAction.Meat.init -> void
+KoLibri.GuardedAction.MaxUnitPrice.get -> long?
+KoLibri.GuardedAction.MaxUnitPrice.init -> void
 KoLibri.GuardedAction.Path.get -> string?
 KoLibri.GuardedAction.Path.init -> void
 KoLibri.GuardedAction.Quantity.get -> int
@@ -817,6 +819,8 @@ KoLibri.RunRequest.Location.get -> KoLibri.Location
 KoLibri.RunRequest.Location.init -> void
 KoLibri.RunRequest.MaxRecoveryStepsPerTurn.get -> int
 KoLibri.RunRequest.MaxRecoveryStepsPerTurn.init -> void
+KoLibri.RunRequest.MaxRecoveryAdventures.get -> int
+KoLibri.RunRequest.MaxRecoveryAdventures.init -> void
 KoLibri.RunRequest.MaxRoundsPerFight.get -> int
 KoLibri.RunRequest.MaxRoundsPerFight.init -> void
 KoLibri.RunRequest.MaxTurns.get -> int
@@ -839,6 +843,8 @@ KoLibri.RunResult.Open.get -> KoLibri.Encounter?
 KoLibri.RunResult.Open.init -> void
 KoLibri.RunResult.RecoverySteps.get -> System.Collections.Generic.IReadOnlyList<KoLibri.RecoveryStep!>!
 KoLibri.RunResult.RecoverySteps.init -> void
+KoLibri.RunResult.RecoveryAdventuresSpent.get -> int
+KoLibri.RunResult.RecoveryAdventuresSpent.init -> void
 KoLibri.RunResult.RunResult(KoLibri.RunStopReason StopReason, int TurnsSpent, System.Collections.Generic.IReadOnlyList<KoLibri.Encounter!>! Encounters, string? Detail) -> void
 KoLibri.RunResult.StopReason.get -> KoLibri.RunStopReason
 KoLibri.RunResult.StopReason.init -> void
@@ -880,6 +886,8 @@ KoLibri.ShopPriceChange.Item.get -> KoLibri.ItemRef
 KoLibri.ShopPriceChange.Item.init -> void
 KoLibri.ShopPriceChange.LimitPerDay.get -> int?
 KoLibri.ShopPriceChange.LimitPerDay.init -> void
+KoLibri.ShopPriceChange.ExpectedPrice.get -> long?
+KoLibri.ShopPriceChange.ExpectedPrice.init -> void
 KoLibri.ShopPriceChange.Price.get -> long
 KoLibri.ShopPriceChange.Price.init -> void
 KoLibri.ShopPriceChange.ShopPriceChange(KoLibri.ItemRef Item, long Price, int? LimitPerDay = null) -> void

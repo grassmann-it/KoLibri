@@ -15,6 +15,8 @@ public sealed class RunRecoveryTests
         public int Hp = 100, MaxHp = 100, Mp = 40, MaxMp = 50, Adventures = 50, Damage = 40;
         public string Monster = "Skeleton";
         public bool RestWorks = true;
+        /// <summary>Adventures one rest costs (0 = free rests left).</summary>
+        public int RestCost;
         public readonly Dictionary<int, int> Inventory = new();
         public readonly List<(string Name, int Turns)> Effects = new();
         public readonly FakeKol Kol = new();
@@ -36,7 +38,7 @@ public sealed class RunRecoveryTests
             });
             Kol.On("POST campground.php", (_, _) =>
             {
-                if (RestWorks) { Hp = MaxHp; Mp = MaxMp; return FakeKol.Html("<html><body>You rest and feel much better.</body></html>"); }
+                if (RestWorks) { Hp = MaxHp; Mp = MaxMp; Adventures -= RestCost; return FakeKol.Html("<html><body>You rest and feel much better.</body></html>"); }
                 return FakeKol.Html("<html><body>Nothing happens.</body></html>");
             });
             Kol.On("POST inv_use.php", (_, form) =>
@@ -104,6 +106,31 @@ public sealed class RunRecoveryTests
         Assert.Equal(RunStopReason.TurnsDone, result.StopReason);
         Assert.Equal(3, result.TurnsSpent);
         Assert.True(farm.Kol.Count("POST", "campground.php") >= 1);
+    }
+
+    [Fact]
+    public async Task Paid_rests_are_reported_and_bounded_by_max_recovery_adventures()
+    {
+        // Free rests are used up: every rest costs an adventure. Default budget 0: the first paid rest is seen in the
+        // answer and reported, then the run stops instead of resting on.
+        var farm = new Farm { Hp = 40, RestCost = 1 };
+        var policy = RecoveryPolicies.Simple(50, 0, new[] { RecoveryStep.Rest }, Array.Empty<RecoveryStep>());
+
+        var result = await farm.RunAsync(new RunRequest(113, 5) { Recovery = policy });
+
+        Assert.Equal(RunStopReason.Recovery, result.StopReason);
+        Assert.Equal(1, result.RecoveryAdventuresSpent);
+        Assert.Equal(0, result.TurnsSpent);
+        Assert.Equal(1, farm.Kol.Count("POST", "campground.php"));
+
+        // With a budget of 2, two paid rests are allowed; the third is refused before it is sent.
+        var budgeted = new Farm { Hp = 40, RestCost = 1, Damage = 70 };
+        var second = await budgeted.RunAsync(new RunRequest(113, 5) { Recovery = policy, MaxRecoveryAdventures = 2 });
+
+        Assert.Equal(RunStopReason.Recovery, second.StopReason);
+        Assert.Equal(2, second.RecoveryAdventuresSpent);
+        Assert.Equal(2, budgeted.Kol.Count("POST", "campground.php"));
+        Assert.Equal(50 - 2 - second.TurnsSpent, budgeted.Adventures);
     }
 
     [Fact]

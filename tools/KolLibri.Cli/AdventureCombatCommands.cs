@@ -342,6 +342,9 @@ internal static partial class KolibriCli
         var loopDeadline = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300 * Math.Min(turnsWanted, 100))));
         var minHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100);
         var maxFightRounds = Math.Max(1, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds));
+        // Paid rests (once the free ones are used up) cost adventures outside --max-turns: default none, budget over the whole run.
+        var maxRecoveryAdventures = Math.Max(0, ReadInt(args, "--max-recovery-adventures", 0));
+        var recoveryAdventures = 0;
         // The 0.4 policy file keeps its per-choice defaults; the built-in table (ChoiceDefaults) is the fallback for choices it does not know.
         var policyResolver = CreateChoiceResolver(LoadChoicePolicy(), choiceTable);
         var resolver = new LoggingChoiceResolver(useChoiceDefaults
@@ -385,9 +388,11 @@ internal static partial class KolibriCli
                 Choices = resolver,
                 StopWhen = stopWhen,
                 MaxRoundsPerFight = maxFightRounds,
-                Recovery = recovery
+                Recovery = recovery,
+                MaxRecoveryAdventures = Math.Max(0, maxRecoveryAdventures - recoveryAdventures)
             });
             recoverySteps.AddRange(result.RecoverySteps);
+            recoveryAdventures += result.RecoveryAdventuresSpent;
             stopReason = StopReasonName(result, strategy, maxFightRounds);
             if (result.StopReason == RunStopReason.NeedsCombat) fightStop = stopReason;
             foreach (var encounter in result.Encounters)
@@ -410,6 +415,7 @@ internal static partial class KolibriCli
                 stopReason,
                 monster = result.Encounters.Select(MonsterOf).LastOrDefault(m => m is not null),
                 recovery = RecoveryDocument(result.RecoverySteps),
+                recoveryAdventuresSpent = result.RecoveryAdventuresSpent,
                 adventuresBefore = before.Adventures,
                 adventuresAfter = after.Adventures,
                 hp = after.MaxHp > 0 ? $"{after.Hp}/{after.MaxHp}" : null
@@ -449,6 +455,8 @@ internal static partial class KolibriCli
             turnsRequested = turnsWanted,
             turnsDone = turns.Count,
             recoverySteps = RecoveryDocument(recoverySteps),
+            recoveryAdventuresSpent = recoveryAdventures,
+            maxRecoveryAdventures,
             loopStop,
             stopReason,
             needsDecision = needs is null ? null : NeedsDecisionDocument(needs, runId, location, role, result!.Detail, continueCommand),
@@ -579,7 +587,8 @@ internal static partial class KolibriCli
 
     private static readonly string[] ContinueValueOptions =
     {
-        "--combat-rules", "--combat-rules-file", "--recover-hp", "--recover-mp", "--max-steps", "--max-fight-rounds", "--min-hp-percent", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file"
+        "--combat-rules", "--combat-rules-file", "--recover-hp", "--recover-mp", "--max-steps", "--max-fight-rounds", "--min-hp-percent", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file",
+        "--max-recovery-adventures"
     };
 
     /// <summary>The command that continues this run later: same location, snarfblat, rules and limits.</summary>
@@ -664,6 +673,7 @@ internal static partial class KolibriCli
         Console.WriteLine("      choices: --choice-action CHOICE:OPTION plus the defaults of `choice policy`; an unknown choice stops with needsDecision (exit 4)");
         Console.WriteLine("      farm flags: --combat-rules \"TEXT\" | --combat-rules-file PATH (instead of --fight-action; --min-hp-percent still applies),");
         Console.WriteLine("      --recover-hp PCT:STEP[,STEP] --recover-mp PCT:STEP[,STEP] --upkeep EFFECT_ID:MINTURNS:STEP (repeatable); STEP = rest | item:ID|NAME | skill:ID|NAME,");
+        Console.WriteLine("      --max-recovery-adventures N (0): adventures paid rests may cost on top of --max-turns (the first paid rest is seen in KoL's answer, then the run stops),");
         Console.WriteLine("      --stop-item ID|NAME:N --stop-monster NAME --stop-title REGEX (repeatable), --stop-on-turtle (Turtle Tamer encounters are clicked through by default),");
         Console.WriteLine("      --no-choice-defaults (built-in farm choices such as 1060 -> 2 are on by default)");
         Console.WriteLine("      farm recipe: kolibri adventure run --location 439 --max-turns 50 --combat-rules \"attack\" --recover-hp 40:rest --stop-item knucklebone:200 --execute --approval-token TOKEN");

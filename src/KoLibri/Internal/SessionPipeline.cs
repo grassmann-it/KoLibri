@@ -127,10 +127,15 @@ internal static class SessionPipeline
         }
     }
 
+    /// <summary>
+    /// The lane of a request. Only a known read-only page (KoLRequestLanes allowlist) is a read; a caller may force
+    /// Action on a read, but never Read on anything else (a state-changing GET such as inv_use.php stays an action).
+    /// </summary>
     public static RequestLane EffectiveLane(HttpRequestMessage request)
     {
-        if (request.Options.TryGetValue(LaneKey, out var forced) && forced != RequestLane.Auto) return forced;
-        return CoreBasis.KoLRequestLanes.Classify(request) == CoreBasis.KoLRequestLane.Read ? RequestLane.Read : RequestLane.Action;
+        var classified = CoreBasis.KoLRequestLanes.Classify(request) == CoreBasis.KoLRequestLane.Read ? RequestLane.Read : RequestLane.Action;
+        if (request.Options.TryGetValue(LaneKey, out var forced) && forced == RequestLane.Action) return RequestLane.Action;
+        return classified;
     }
 
     /// <summary>Raises <see cref="KolibriEvents.Request"/> for every request of a session.</summary>

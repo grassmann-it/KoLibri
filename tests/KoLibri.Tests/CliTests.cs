@@ -431,14 +431,14 @@ public sealed class CliTests : IDisposable
     public async Task Daily_run_preview_plans_from_live_numbers_without_sending()
     {
         _kol.On("GET api.php?what=inventory", """{"11341":230,"8763":120,"9025":1,"43":2,"10881":1}""");
-        var (code, json, _) = await Cli("daily", "run", "--role", "main");
+        var (code, json, _) = await Cli("daily", "run", "--role", "main", "--hermit-clovers", "1");
 
         Assert.Equal(0, code);
         Assert.True(json.GetProperty("previewOnly").GetBoolean());
         var ids = json.GetProperty("steps").EnumerateArray().Select(s => s.GetProperty("id").GetString()).ToArray();
         Assert.DoesNotContain("choice-campfire", ids);
         Assert.Contains("choice-day-shortner", ids);
-        Assert.Contains("worthless-item", ids);
+        Assert.Single(ids, id => id == "worthless-item");  // capped by --hermit-clovers 1
         Assert.Contains(DailyInternetShopPlanner.MachineChoiceId, ids);
         Assert.Equal(230, json.GetProperty("live").GetProperty("leaves").GetInt32());
         Assert.DoesNotContain(_kol.Requests, r => r.Method == "POST");
@@ -482,7 +482,7 @@ public sealed class CliTests : IDisposable
         var token = await MintTokenAsync();
         _kol.On("GET api.php?what=inventory", """{"11341":230}""")
             .On("GET campground.php", "<html><body>Pile of Burning Leaves <form><input type=hidden name=whichchoice value=1510></form> You have 230 leaves</body></html>")
-            .On("POST choice.php", (_, form) => { Assert.Contains("leaves=222", form); return FakeKol.Html("<html><body>You burn 222 leaves.</body></html>"); });
+            .On("POST choice.php", (_, form) => { Assert.Contains("leaves=222", form); return FakeKol.Html("<html><body>You burn 222 leaves. You acquire an item: <b>day shortener</b></body></html>"); });
 
         var (code, json, _) = await Run(KolibriCli.DailyCommandAsync, "run", "--role", "main", "--execute", "--approval-token", token);
 

@@ -64,7 +64,11 @@ namespace KoLibri
             ExpiresAt = _record.ExpiresAt
         };
 
-        /// <summary>GET auf eine relative KoL-Seite. Lane Auto: bekannte Lesepfade sind Read, alles andere Action.</summary>
+        /// <summary>
+        /// GET auf eine relative KoL-Seite. Nur bekannte Lesepfade (Allowlist in KoLRequestLanes) laufen ohne Guard in der
+        /// Read-Lane; alles andere ist eine Aktion und geht durch den <see cref="IActionGuard"/>. Ein erzwungenes
+        /// <see cref="RequestLane.Read"/> macht aus einer Aktion keinen Lesezugriff.
+        /// </summary>
         public async Task<Page> GetPageAsync(string path, IReadOnlyDictionary<string, string>? query = null, RequestLane lane = RequestLane.Auto, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -281,8 +285,8 @@ namespace KoLibri
 
         private static RequestLane EffectiveLane(HttpMethod method, Uri uri, RequestLane lane)
         {
-            if (lane != RequestLane.Auto) return lane;
             using var probe = new HttpRequestMessage(method, uri);
+            probe.Options.Set(SessionPipeline.LaneKey, lane);
             return SessionPipeline.EffectiveLane(probe);
         }
 

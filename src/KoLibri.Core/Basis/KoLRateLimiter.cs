@@ -42,8 +42,9 @@ public static class KoLRequestLanes
         }
         var page = path[(path.LastIndexOf('/') + 1)..];
         if (!ReadPages.Contains(page)) return KoLRequestLane.Action;
-        // A page that is normally a read but is asked to do something is an action.
-        if (query.Contains("action=", StringComparison.OrdinalIgnoreCase)
+        // A page that is normally a read but is asked to do something is an action. A request hash (pwd=) is only
+        // sent with requests that change something.
+        if ((query.Contains("action=", StringComparison.OrdinalIgnoreCase) || query.Contains("pwd=", StringComparison.OrdinalIgnoreCase))
             && !page.Equals("api.php", StringComparison.OrdinalIgnoreCase)) return KoLRequestLane.Action;
         return KoLRequestLane.Read;
     }
