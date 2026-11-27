@@ -17,6 +17,7 @@ public partial class KolibriMcpServer
     private readonly KolibriMcpServerOptions _options;
     private readonly McpToolRegistry _registry;
     private readonly Dictionary<string, string> _aliases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (string Tool, Func<JsonElement, JsonElement> Map)> _previewAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly TimeProvider _clock;
     private readonly AdventureMcpExecutionBridge? _executionBridge;
@@ -186,6 +187,9 @@ public partial class KolibriMcpServer
 
         if (_aliases.TryGetValue(name, out var canonical))
             name = canonical;
+        Func<JsonElement, JsonElement>? previewOnly = null;
+        if (_previewAliases.TryGetValue(name, out var preview))
+            (name, previewOnly) = preview;
         if (!_registry.TryGet(name, out var tool))
             return ErrorResponse(id, -32602, $"Unknown MCP tool '{name}'.");
 
@@ -194,6 +198,11 @@ public partial class KolibriMcpServer
             : McpJson.EmptyObject;
         if (arguments.ValueKind != JsonValueKind.Object)
             return ErrorResponse(id, -32602, "Tool arguments must be an object.");
+        if (previewOnly is not null)
+        {
+            try { arguments = previewOnly(arguments); }
+            catch (McpInvalidParamsException exception) { return ToolErrorResponse(id, exception.Message); }
+        }
 
         var authorization = Authorizer?.Invoke(name, arguments) ?? ToolAuthorization.Ok();
         if (!authorization.Allowed)
@@ -283,12 +292,6 @@ public partial class KolibriMcpServer
         Register("kol_status", "Read the configured KoL account status snapshot.", RefreshSchema(), StatusAsync);
         Register("kol_inventory", "Read the configured KoL inventory snapshot.", RefreshSchema(), InventoryAsync);
         Register("kol_price_summary", "Summarize cached/read-only buy and sell observations for an item.", ItemQuerySchema(), PriceSummaryAsync);
-        Register("kol_price_recommendation", "Explain a read-only acquisition and resale recommendation.", RecommendationSchema(), NotYet("kol_price_recommendation"));
-        Register("kol_underprice_preview", "Build a bounded underpriced purchase plan; never submits a purchase.", UnderpriceSchema(), NotYet("kol_underprice_preview"));
-        Register("kol_workflow_plan", "Build the deterministic two-account workflow plan in preview mode.", WorkflowSchema(), NotYet("kol_workflow_plan"));
-        Register("kol_plan_daily_adventures", "Build a daily adventure plan from a read-only state snapshot.", AdventureSchema(), NotYet("kol_plan_daily_adventures"));
-        Register("kol_preview_purchase", "Validate a proposed purchase and return a review object only.", PurchaseSchema(), NotYet("kol_preview_purchase"));
-        Register("kol_preview_transfer", "Validate a proposed cross-account transfer and return a review object only.", TransferSchema(), NotYet("kol_preview_transfer"));
         RegisterArbitrageTool();
         RegisterAdventurePreviewTools();
         if (_executionBridge is not null) RegisterAdventureExecutionTools();
@@ -296,7 +299,6 @@ public partial class KolibriMcpServer
         RegisterLoginTools();
         RegisterDailyAuditTool();
         RegisterDailyBridgeTool();
-        if (_executionBridge is not null) RegisterDailyPlanExecutionTools();
 
         // Friendly command-shaped aliases are accepted by tools/call while the
         // advertised list stays the fixed, documented `kol_*` surface.
@@ -304,13 +306,16 @@ public partial class KolibriMcpServer
         Alias("inventory", "kol_inventory");
         Alias("price", "kol_price_summary");
         Alias("price-summary", "kol_price_summary");
-        Alias("price-recommendation", "kol_price_recommendation");
-        Alias("underprice", "kol_underprice_preview");
-        Alias("underprice-preview", "kol_underprice_preview");
-        Alias("workflow-plan", "kol_workflow_plan");
-        Alias("workflow_plan", "kol_workflow_plan");
-        Alias("preview-purchase", "kol_preview_purchase");
-        Alias("preview-transfer", "kol_preview_transfer");
+
+        // 0.5: the old review-only previews are the preview step of the two-step write tools (planId is dropped,
+        // so these names never buy or send). Experimental only, like the tools they replace.
+        if (_options.ExperimentalTools)
+        {
+            PreviewAlias("kol_preview_purchase", "kol_mall_buy", PurchasePreviewArgs);
+            PreviewAlias("preview-purchase", "kol_mall_buy", PurchasePreviewArgs);
+            PreviewAlias("kol_preview_transfer", "kol_transfer", TransferPreviewArgs);
+            PreviewAlias("preview-transfer", "kol_transfer", TransferPreviewArgs);
+        }
     }
 
     private void Register(
@@ -333,6 +338,42 @@ public partial class KolibriMcpServer
 
     private void Alias(string alias, string canonical)
         => _aliases[alias] = canonical;
+
+    /// <summary>An old name that maps onto the preview step of a two-step tool: arguments are translated, planId is removed.</summary>
+    private void PreviewAlias(string alias, string canonical, Func<JsonElement, JsonElement> map)
+        => _previewAliases[alias] = (canonical, args => map(args));
+
+    /// <summary>0.4 kol_preview_purchase arguments (itemId as string, unitPrice) as a kol_mall_buy preview.</summary>
+    private JsonElement PurchasePreviewArgs(JsonElement args)
+    {
+        var itemId = NullableIntProperty(args, "itemId") ?? throw new McpInvalidParamsException("itemId is required.");
+        var itemName = OptionalString(args, "itemName") ?? _accounts.Client.Data.Item(itemId)?.Name
+            ?? throw new McpInvalidParamsException("itemName is required (item unknown in the data).");
+        var node = new System.Text.Json.Nodes.JsonObject
+        {
+            ["itemId"] = itemId,
+            ["itemName"] = itemName,
+            ["quantity"] = NullableIntProperty(args, "quantity") ?? 0,
+            ["maxPricePerUnit"] = LongProperty(args, "maxPricePerUnit", LongProperty(args, "unitPrice")),
+        };
+        if (OptionalString(args, "role") is { } role) node["role"] = role;
+        return JsonDocument.Parse(node.ToJsonString()).RootElement.Clone();
+    }
+
+    /// <summary>0.4 kol_preview_transfer arguments (from/to, itemId as string) as a kol_transfer preview.</summary>
+    private static JsonElement TransferPreviewArgs(JsonElement args)
+    {
+        var from = OptionalString(args, "from") ?? OptionalString(args, "role");
+        var to = OptionalString(args, "to");
+        if (from is not null && to is not null && string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+            throw new McpInvalidParamsException("from and to must be different accounts.");
+        var node = new System.Text.Json.Nodes.JsonObject();
+        if (from is not null) node["role"] = from;
+        if (NullableIntProperty(args, "itemId") is { } itemId) node["itemId"] = itemId;
+        if (NullableIntProperty(args, "quantity") is { } quantity) node["quantity"] = quantity;
+        if (NullableIntProperty(args, "meat") is { } meat) node["meat"] = meat;
+        return JsonDocument.Parse(node.ToJsonString()).RootElement.Clone();
+    }
 
     private async Task<object?> StatusAsync(JsonElement arguments, CancellationToken cancellationToken)
     {
@@ -551,24 +592,6 @@ public partial class KolibriMcpServer
 
     private static JsonElement ItemQuerySchema()
         => Schema("{\"type\":\"object\",\"required\":[\"itemId\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"forceRefresh\":{\"type\":\"boolean\",\"default\":false},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":false}");
-
-    private static JsonElement RecommendationSchema()
-        => Schema("{\"type\":\"object\",\"required\":[\"itemId\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"acquisitionCost\":{\"type\":[\"number\",\"null\"],\"minimum\":0},\"forceRefresh\":{\"type\":\"boolean\",\"default\":false},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]}},\"additionalProperties\":false}");
-
-    private static JsonElement UnderpriceSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{\"itemId\":{\"type\":\"string\"},\"forceRefresh\":{\"type\":\"boolean\"},\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"listings\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},\"references\":{\"type\":\"object\"},\"limits\":{\"type\":\"object\"},\"tradeability\":{\"type\":\"object\"}},\"additionalProperties\":true}");
-
-    private static JsonElement WorkflowSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{\"snapshot\":{\"type\":\"object\"},\"mainSessionValid\":{\"type\":\"boolean\"},\"mallbotSessionValid\":{\"type\":\"boolean\"},\"mallbotMeat\":{\"type\":\"integer\"},\"foreignBribeBagPrice\":{\"type\":[\"integer\",\"null\"]},\"foreignBribeBagStock\":{\"type\":\"integer\"},\"pilotBagQuantity\":{\"type\":\"integer\"},\"mallbotMeatReserve\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
-
-    private static JsonElement AdventureSchema()
-        => Schema("{\"type\":\"object\",\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"state\":{\"type\":\"object\"},\"options\":{\"type\":\"object\"},\"knucklebones\":{\"type\":\"integer\"},\"adventureTurnsRemaining\":{\"type\":\"integer\"}},\"additionalProperties\":true}");
-
-    private static JsonElement PurchaseSchema()
-        => Schema("{\"type\":\"object\",\"required\":[\"itemId\",\"quantity\",\"unitPrice\"],\"properties\":{\"role\":{\"enum\":[\"Main\",\"Mallbot\"]},\"itemId\":{\"type\":\"string\",\"minLength\":1},\"storeId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"integer\",\"minimum\":1},\"unitPrice\":{\"type\":\"number\",\"minimum\":0},\"approvalToken\":{\"type\":[\"string\",\"null\"]},\"listing\":{\"type\":\"object\"},\"status\":{\"type\":\"object\"},\"inventory\":{\"type\":\"object\"},\"budget\":{\"type\":\"object\"},\"policy\":{\"type\":\"object\"}},\"additionalProperties\":true}");
-
-    private static JsonElement TransferSchema()
-        => Schema("{\"type\":\"object\",\"required\":[\"itemId\",\"quantity\",\"from\",\"to\"],\"properties\":{\"itemId\":{\"type\":\"string\",\"minLength\":1},\"quantity\":{\"type\":\"integer\",\"minimum\":1},\"from\":{\"enum\":[\"Main\",\"Mallbot\"]},\"to\":{\"enum\":[\"Main\",\"Mallbot\"]},\"reason\":{\"type\":\"string\"},\"approvalToken\":{\"type\":[\"string\",\"null\"]}},\"additionalProperties\":false}");
 
     private static JsonElement Schema(string json) => McpJson.ParseElement(json);
 }

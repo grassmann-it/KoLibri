@@ -18,32 +18,15 @@ public sealed record ShopSalesReport(
     DateTimeOffset FetchedAt, bool IsStale, int SaleCount, long TotalMeat, int NewSalesInCrm,
     IReadOnlyList<ShopItemSales> Items, IReadOnlyList<BuyerSummary> TopBuyers);
 
-/// <summary>A suggested new price for one own listing, with the evidence behind it.</summary>
+/// <summary>
+/// A suggested new price for one own listing, with the evidence behind it (from <see cref="ShopRepricer"/>).
+/// <c>MarketLowest</c> stays for 0.4 clients and equals <c>CompetitorFloor</c>: the cheapest store that is not ours.
+/// <c>Direction</c> is Up, Down, Keep or NoData; nothing is written, apply with kol_reprice_shop.
+/// </summary>
 public sealed record PriceSuggestion(
     string ItemId, string? ItemName, long CurrentPrice, int Quantity, long? MarketLowest,
-    long? SuggestedPrice, string Advice, int RecentSoldQuantity, bool MarketStale);
-
-public static class ShopAdvice
-{
-    /// <summary>Same rule as the CLI: never undercut ourselves, go just below the floor otherwise.</summary>
-    public static long? Suggest(long current, long? marketLowest)
-    {
-        if (marketLowest is null) return null;
-        if (current <= marketLowest.Value) return current;
-        var below = Math.Min(marketLowest.Value - 1, (long)Math.Floor(marketLowest.Value * 0.995m));
-        return Math.Max(100, below);
-    }
-
-    public static string Describe(long current, long? lowest, long? suggested, int recentSold)
-    {
-        if (lowest is null) return "No market data; keep the price.";
-        if (suggested is null || suggested == current)
-            return recentSold == 0 && current * 10 < lowest.Value * 9 ? "Cheaper than the market and nothing sold recently; consider raising."
-                : current < lowest.Value ? "Already the cheapest; consider a small raise if it sells quickly." : "Matches the market floor; keep.";
-        return recentSold > 0 ? "Above the market floor but still selling; lower slightly to stay ahead."
-            : "Above the market floor and nothing sold recently; lower.";
-    }
-}
+    long? SuggestedPrice, string Advice, int RecentSoldQuantity, bool MarketStale,
+    long? CompetitorFloor = null, int OwnListingsExcluded = 0, string Direction = nameof(RepriceDirection.NoData), long? PricegunMedian = null);
 
 public sealed partial class KolibriClientActions
 {
@@ -107,16 +90,27 @@ public sealed partial class KolibriClientActions
                 sold[g.Key] = g.Sum(s => s.Quantity);
         }
         catch (Exception e) when (e is not OperationCanceledException) { /* sales are optional evidence */ }
+        // Own stores = every stored account (main and mallbot), never hard-coded; the name is the fallback.
+        var accounts = await _accounts.Client.Accounts.ListAsync(ct).ConfigureAwait(false);
+        var ownIds = new HashSet<int>(accounts.Where(a => a.PlayerId is not null).Select(a => a.PlayerId!.Value));
+        if (session.Account.PlayerId is { } current) ownIds.Add(current);
+        var ownNames = new HashSet<string>(accounts.Select(a => a.PlayerName).Append(session.Account.PlayerName)
+            .Where(n => !string.IsNullOrWhiteSpace(n)), StringComparer.OrdinalIgnoreCase);
+        var options = new ShopRepricerOptions { OwnStoreNames = ownNames };
+
         var result = new List<PriceSuggestion>();
         foreach (var listing in shop.OrderByDescending(l => l.Price * l.Quantity).Take(Math.Clamp(maxItems, 1, 40)))
         {
             ct.ThrowIfCancellationRequested();
             var market = await session.Mall.GetOffersAsync(listing.Item, refresh: true, ct).ConfigureAwait(false);
-            long? lowest = market.Listings.Count == 0 ? null : market.Listings.Min(l => l.UnitPrice);
-            var suggested = ShopAdvice.Suggest(listing.Price, lowest);
+            PriceHistory? history = null;
+            try { history = await _accounts.Client.GetPriceHistoryAsync(listing.Item, ct).ConfigureAwait(false); }
+            catch (Exception e) when (e is not OperationCanceledException) { /* Pricegun is optional evidence */ }
+            var s = ShopRepricer.Suggest(listing, market, ownIds, history, options);
             var recent = sold.GetValueOrDefault(listing.Name);
-            result.Add(new PriceSuggestion(listing.Item.Id.ToString(CultureInfo.InvariantCulture), listing.Name, listing.Price, listing.Quantity, lowest, suggested,
-                ShopAdvice.Describe(listing.Price, lowest, suggested, recent), recent, false));
+            result.Add(new PriceSuggestion(listing.Item.Id.ToString(CultureInfo.InvariantCulture), s.Name, s.CurrentPrice, s.Quantity,
+                s.CompetitorFloor, s.SuggestedPrice, s.Advice, recent, false,
+                s.CompetitorFloor, s.OwnListingsExcluded, s.Direction.ToString(), s.PricegunMedian));
         }
         return result;
     }
@@ -171,7 +165,7 @@ public partial class KolibriMcpServer
             });
 
         Register("kol_shop_price_suggestions",
-            "Read-only: own listings against the current mall floor and recent sales, with a suggested price and advice. Apply with kol_reprice_shop. Needs right 'shop.read'.",
+            "Read-only: own listings against the cheapest competitor (stores of the own accounts never count) and recent sales, with a suggested price, direction (Up/Down/Keep) and advice. Prices may go up. Writes nothing; apply with kol_reprice_shop. Needs right 'shop.read'.",
             Sch("""{"type":"object","additionalProperties":false,"properties":{@ROLE@,"maxItems":{"type":"integer","minimum":1,"maximum":40}}}"""),
             async (a, ct) =>
             {

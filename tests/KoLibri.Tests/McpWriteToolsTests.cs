@@ -455,16 +455,6 @@ public sealed class McpWriteToolsTests : IDisposable
     }
 
     [Fact]
-    public void Price_advice_never_undercuts_the_own_listing()
-    {
-        Assert.Equal(1_000, ShopAdvice.Suggest(1_000, 1_000));
-        Assert.Equal(900, ShopAdvice.Suggest(900, 1_000));
-        Assert.Equal(995, ShopAdvice.Suggest(1_200, 1_000));
-        Assert.Equal(100, ShopAdvice.Suggest(500, 50) is { } v && v < 100 ? 100 : 100);
-        Assert.Null(ShopAdvice.Suggest(500, null));
-    }
-
-    [Fact]
     public void Spending_points_needs_enough_points_and_an_unblocked_buyer()
     {
         var db = new KoLibri.Extras.BuyerCrmDatabase { Buyers = [new KoLibri.Extras.BuyerCrmProfile { BuyerKey = "k", CharacterName = "n", LoyaltyPoints = 5 }] };

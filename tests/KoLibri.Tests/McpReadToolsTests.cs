@@ -84,8 +84,8 @@ public sealed class McpReadToolsTests
 
     public static TheoryData<string> Placeholders() => new()
     {
-        "kol_price_recommendation", "kol_underprice_preview", "kol_workflow_plan", "kol_plan_daily_adventures",
-        "kol_preview_purchase", "kol_preview_transfer", "kol_autocombat_preview", "kol_autocombat_action_preview",
+        // Only the adventure/combat planners (P2) are still placeholders; the rest was removed or merged in 0.5.
+        "kol_autocombat_preview", "kol_autocombat_action_preview",
         "kol_recovery_plan", "kol_adventure_bounded_preview", "kol_adventure_daily_schedule"
     };
 
