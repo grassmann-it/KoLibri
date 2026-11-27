@@ -43,7 +43,8 @@ public sealed class McpDailyToolsTests : IDisposable
         Assert.Equal("Act", payload.GetProperty("verdict").GetString());
         Assert.Equal(230, payload.GetProperty("live").GetProperty("leaves").GetInt32());
         var ids = StepIds(payload);
-        Assert.Contains("choice-campfire", ids);
+        Assert.Contains("choice-day-shortner", ids);   // 230 leaves: Day Shortener; no 1-leaf burn since #81
+        Assert.DoesNotContain("choice-campfire", ids);
         Assert.Contains("worthless-item", ids);
         Assert.DoesNotContain(_kol.Requests, r => r.Method == "POST");
     }
