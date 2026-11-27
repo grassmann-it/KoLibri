@@ -13,16 +13,19 @@ public sealed record SkillRow(int Id, string Name, int MpCost, string Type)
 /// <summary>Result of one cast as shown in the window.</summary>
 public sealed record SkillCastReport(bool Confirmed, string Message, int? HpChange, int? MpChange)
 {
-    public static SkillCastReport From(SkillRow skill, int times, CharacterCastOutcome outcome)
+    /// <summary>From the library's cast result: <see cref="ActionResult.Completed"/> is the number of confirmed casts.</summary>
+    public static SkillCastReport From(SkillRow skill, int times, ActionResult outcome)
     {
-        var fresh = !outcome.After.Status.IsStale && !outcome.Before.Status.IsStale;
-        int? hp = fresh ? outcome.After.Status.CurrentHp - outcome.Before.Status.CurrentHp : null;
-        int? mp = fresh ? outcome.After.Status.CurrentMp - outcome.Before.Status.CurrentMp : null;
-        if (!outcome.Confirmed)
-            return new(false, outcome.ConfirmedCount > 0
-                ? $"{skill.Name}: {outcome.ConfirmedCount} of {times} cast(s) confirmed. {outcome.Problem ?? "The rest is not confirmed."} {Delta("HP", hp)}, {Delta("MP", mp)}."
-                : $"{skill.Name} ×{times}: {outcome.Problem ?? "not confirmed."}", hp, mp);
-        return new(true, $"Cast {skill.Name} ×{outcome.ConfirmedCount} (each confirmed). {Delta("HP", hp)}, {Delta("MP", mp)}.", hp, mp);
+        var fresh = outcome.Before is not null && outcome.After is not null;
+        int? hp = fresh ? outcome.After!.Hp - outcome.Before!.Hp : null;
+        int? mp = fresh ? outcome.After!.Mp - outcome.Before!.Mp : null;
+        var confirmed = outcome.Status == ActionStatus.Done;
+        var problem = confirmed ? null : outcome.Rejection;
+        if (!confirmed)
+            return new(false, outcome.Completed > 0
+                ? $"{skill.Name}: {outcome.Completed} of {times} cast(s) confirmed. {problem ?? "The rest is not confirmed."} {Delta("HP", hp)}, {Delta("MP", mp)}."
+                : $"{skill.Name} ×{times}: {problem ?? "not confirmed."}", hp, mp);
+        return new(true, $"Cast {skill.Name} ×{outcome.Completed} (each confirmed). {Delta("HP", hp)}, {Delta("MP", mp)}.", hp, mp);
     }
 
     private static string Delta(string label, int? value)
@@ -105,11 +108,11 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
     public string ResultText { get => _resultText; private set => Set(ref _resultText, value); }
 
     /// <summary>Takes the latest status: effect rows and the MP used for the "not enough MP" pre-check.</summary>
-    public void ApplyStatus(KoLStatusSnapshot? status)
+    public void ApplyStatus(Status? status)
     {
         Effects.Clear();
         if (status is null) { _currentMp = -1; return; }
-        _currentMp = status.IsStale ? -1 : status.CurrentMp;
+        _currentMp = status.Mp;
         foreach (var row in CharpaneState.FromStatus(status, "").Effects) Effects.Add(row);
     }
 
@@ -140,7 +143,7 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
 
     /// <summary>Sends the confirmed cast. Errors become result text; never throws.</summary>
     public async Task<SkillCastReport?> ConfirmCastAsync(
-        Func<int, int, CancellationToken, Task<CharacterCastOutcome>> cast, CancellationToken cancellationToken = default)
+        Func<int, int, CancellationToken, Task<ActionResult>> cast, CancellationToken cancellationToken = default)
     {
         if (_pending is not { } pending) return null;
         CancelCast();
@@ -156,7 +159,8 @@ public sealed class SkillsEffectsViewModel : INotifyPropertyChanged
             var outcome = await cast(pending.Skill.Id, pending.Times, cancellationToken).ConfigureAwait(true);
             var report = SkillCastReport.From(pending.Skill, pending.Times, outcome);
             ResultText = report.Message;
-            ApplyStatus(outcome.After.Status);
+            // Without a fresh status after the cast the MP pre-check is unknown until the next refresh.
+            ApplyStatus(outcome.After);
             return report;
         }
         catch (Exception exception)

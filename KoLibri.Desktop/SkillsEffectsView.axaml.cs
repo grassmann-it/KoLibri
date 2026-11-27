@@ -10,7 +10,7 @@ public partial class SkillsEffectsView : UserControl
     private IShellHost? _host;
     private ISkillsEffectsViewHandlers? _handlers;
     private SkillsEffectsViewModel? _model;
-    private Func<int, int, CancellationToken, Task<CharacterCastOutcome>>? _cast;
+    private Func<int, int, CancellationToken, Task<ActionResult>>? _cast;
     private Func<Task>? _afterCast;
 
     public SkillsEffectsView() => InitializeComponent();
@@ -29,7 +29,7 @@ public partial class SkillsEffectsView : UserControl
 
     /// <summary>Binds the page to its model. <paramref name="cast"/> sends one confirmed cast; <paramref name="afterCast"/> refreshes the charpane.</summary>
     public void AttachModel(SkillsEffectsViewModel model,
-        Func<int, int, CancellationToken, Task<CharacterCastOutcome>> cast, Func<Task> afterCast)
+        Func<int, int, CancellationToken, Task<ActionResult>> cast, Func<Task> afterCast)
     {
         _model = model;
         _cast = cast;
