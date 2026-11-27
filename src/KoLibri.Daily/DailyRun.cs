@@ -100,6 +100,22 @@ public static class DailyRun
         };
     }
 
+    /// <summary>Smallest leaf count with any reward (flaming leaflet fight at 11 leaves); below it burning is pointless.</summary>
+    public const int CampfireMinUsefulLeaves = 11;
+
+    /// <summary>Why the campfire step is not planned (null when the Day Shortener is planned or the step is skipped by the user).</summary>
+    public static string? CampfireSkipReason(DailyRunLive live, DailyRunOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(live);
+        options ??= new DailyRunOptions();
+        if (options.Skip.Contains("campfire") || live.DayShortenerDoneToday) return null;
+        if (live.Leaves < CampfireMinUsefulLeaves)
+            return $"zu wenige Blätter (n<{CampfireMinUsefulLeaves}), Verbrennen lohnt nicht";
+        if (live.Leaves < DayShortenerLeafCost + options.CampfireReserve)
+            return $"Blätter ({live.Leaves}) reichen noch nicht für den Day Shortener ({DayShortenerLeafCost}+{options.CampfireReserve} Reserve)";
+        return null;
+    }
+
     /// <summary>The 0.4 bridge plan (AutoCombatDailyBridge.BuildSteps), pure.</summary>
     public static IReadOnlyList<DailyStep> Plan(DailyRunLive live, DailyRunOptions? options = null)
     {
@@ -111,9 +127,8 @@ public static class DailyRun
         var leaves = skipCampfire ? 0 : live.Leaves;
         var steps = new List<DailyStep>();
 
-        // 1. Campfire: exactly one leaf when the reserve is healthy; the Day Shortener once per day for 222 leaves.
-        if (!live.CampfireLeafDoneToday && leaves > options.CampfireReserve && live.Meat > 0)
-            steps.Add(new DailyStep("choice", "choice-campfire", "1"));
+        // 1. Campfire: burning a single leaf yields nothing worthwhile (the first reward milestone is 11 leaves, the
+        //    Day Shortener needs 222), so only the Day Shortener is planned. See CampfireSkipReason for the preview note.
         if (!(skipCampfire || live.DayShortenerDoneToday) && leaves >= DayShortenerLeafCost + options.CampfireReserve)
             steps.Add(new DailyStep("choice", "choice-day-shortner", DayShortenerLeafCost.ToString(CultureInfo.InvariantCulture)));
 

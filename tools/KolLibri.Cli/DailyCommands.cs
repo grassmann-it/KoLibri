@@ -57,6 +57,7 @@ internal static partial class KolibriCli
             {
                 command = "daily run", readOnly = true, previewOnly = true, role = role.ToString(), live = liveDoc,
                 steps = steps.Select(Step).ToArray(),
+                campfireSkipped = DailyRun.CampfireSkipReason(live, options),
                 note = "Preview: only status and inventory were read. Add --execute --approval-token to send these steps."
             });
             return 0;

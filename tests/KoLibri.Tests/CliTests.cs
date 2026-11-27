@@ -395,7 +395,7 @@ public sealed class CliTests : IDisposable
         Assert.Equal(0, code);
         Assert.True(json.GetProperty("previewOnly").GetBoolean());
         var ids = json.GetProperty("steps").EnumerateArray().Select(s => s.GetProperty("id").GetString()).ToArray();
-        Assert.Contains("choice-campfire", ids);
+        Assert.DoesNotContain("choice-campfire", ids);
         Assert.Contains("choice-day-shortner", ids);
         Assert.Contains("worthless-item", ids);
         Assert.Contains(DailyInternetShopPlanner.MachineChoiceId, ids);
@@ -436,12 +436,12 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
-    public async Task Daily_run_execute_burns_one_leaf_and_marks_the_day()
+    public async Task Daily_run_execute_burns_222_leaves_for_the_day_shortener_and_marks_the_day()
     {
         var token = await MintTokenAsync();
-        _kol.On("GET api.php?what=inventory", """{"11341":10}""")
-            .On("GET campground.php", "<html><body>Pile of Burning Leaves <form><input type=hidden name=whichchoice value=1510></form> You have 10 leaves</body></html>")
-            .On("POST choice.php", (_, form) => { Assert.Contains("leaves=1", form); return FakeKol.Html("<html><body>You burn 1 leaf. The flames rise.</body></html>"); });
+        _kol.On("GET api.php?what=inventory", """{"11341":230}""")
+            .On("GET campground.php", "<html><body>Pile of Burning Leaves <form><input type=hidden name=whichchoice value=1510></form> You have 230 leaves</body></html>")
+            .On("POST choice.php", (_, form) => { Assert.Contains("leaves=222", form); return FakeKol.Html("<html><body>You burn 222 leaves.</body></html>"); });
 
         var (code, json, _) = await Run(KolibriCli.DailyCommandAsync, "run", "--role", "main", "--execute", "--approval-token", token);
 
@@ -450,7 +450,21 @@ public sealed class CliTests : IDisposable
         Assert.Equal(1, json.GetProperty("submitted").GetInt32());
         await using var client = KolibriCli.CreateClient();
         await using var session = await client.OpenAsync("main");
-        Assert.True(session.Daily.IsDone(DailyRun.Markers.CampfireLeaf));
+        Assert.True(session.Daily.IsDone(DailyRun.Markers.DayShortener));
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(10, true)]
+    [InlineData(11, false)]
+    [InlineData(230, false)]
+    public void Campfire_never_plans_a_single_leaf_burn_and_explains_too_few_leaves(int leaves, bool tooFew)
+    {
+        var live = new DailyRunLive { Leaves = leaves, Meat = 1000 };
+        Assert.DoesNotContain(DailyRun.Plan(live), s => s.Id == "choice-campfire");
+        var reason = DailyRun.CampfireSkipReason(live);
+        Assert.Equal(tooFew, reason is not null && reason.Contains("zu wenige Blätter (n<11)"));
+        Assert.Equal(leaves >= DailyRun.DayShortenerLeafCost + 3, DailyRun.Plan(live).Any(s => s.Id == "choice-day-shortner"));
     }
 
     private const string MallSearchPage = """
