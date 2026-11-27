@@ -262,15 +262,6 @@ public static class DailyItems
         var auto = wanted is null;
         var usable = CargoPockets.Usable(wanted);
         if (!auto && usable.Count == 0) return DailyItemOutcome.Fail("cargo-pocket: no pocket configured (fight pockets are never picked)");
-        CargoPriceBook? book = null;
-        if (auto)
-        {
-            // All price requests (Pricegun, mall) happen before the pocket page opens the choice; afterwards only the cache counts.
-            book = PriceBook(session, stateDirectory, options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups);
-            var known = CargoPocketState.Load(StateFile(stateDirectory, PocketStateFile), session.Account.Id.Value);
-            await CargoPocketValue.RankAsync(known, book, ct).ConfigureAwait(false);
-            book.Offline = true;
-        }
         var html = (await GetAsync(session, "inventory.php?action=pocket", ct).ConfigureAwait(false)).Body;
         if (Has(html, CargoPockets.ExhaustedText))
         {
@@ -280,12 +271,17 @@ public static class DailyItems
         var available = CargoPockets.AvailablePockets(html);
         if (available is null)
             return DailyItemOutcome.Fail($"cargo-pocket (unklar: the pocket page did not open; nothing picked) {Short(html)}");
-        CargoPocketState.Save(StateFile(stateDirectory, PocketStateFile), session.Account.Id.Value, available);
+        var stateFile = StateFile(stateDirectory, PocketStateFile);
+        if (stateFile is not null) CargoPocketState.Save(stateFile, session.Account.Id.Value, session.Daily.GameDay, available);
         int pocket;
         string why = "";
         if (auto)
         {
-            var ranking = await CargoPocketValue.RankAsync(available, book!, ct).ConfigureAwait(false);
+            // Ranked on the live list just read. Pricegun is not KoL, so it may be asked while choice 1420 is open; the mall is
+            // a KoL page (KoL would answer it with the choice), so it is not asked here (the preview does that).
+            var book = PriceBook(session, stateDirectory, options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups);
+            book.MallOffline = true;
+            var ranking = await CargoPocketValue.RankAsync(available, book, ct, "live").ConfigureAwait(false);
             if (ranking.Chosen is not { } best)
             {
                 await LeavePocketsAsync(session, ct).ConfigureAwait(false);
@@ -333,6 +329,9 @@ public static class DailyItems
         {
             session.Daily.MarkDone(Markers.CargoPocket);
             outcome = DailyItemOutcome.Done($"cargo-pocket: {CargoPockets.Describe(pocket)} geleert{why}") with { Gains = DailyGains.Parse(body) };
+            // The emptied pocket is gone for this ascension: the saved list says so for the next preview.
+            if (stateFile is not null)
+                CargoPocketState.Save(stateFile, session.Account.Id.Value, session.Daily.GameDay, available.Where(p => p != pocket).ToHashSet());
         }
         else
             outcome = DailyItemOutcome.Fail($"cargo-pocket {pocket} (unklar: KoL's answer shows no result; no daily marker set) {Short(body)}");
@@ -355,17 +354,19 @@ public static class DailyItems
     internal const string PocketStateFile = "cargo-pockets.json";
     internal const string PriceCacheFile = "cargo-prices.json";
 
-    /// <summary>A file next to the daily markers (the client's state directory, or the default KoLibri data folder).</summary>
-    internal static string StateFile(string? stateDirectory, string name)
+    /// <summary>
+    /// A state file in <paramref name="stateDirectory"/>, or null: without an explicit folder nothing is read or written (a
+    /// caller that wants the default folder passes <see cref="DefaultStateDirectory"/>; tests pass a temp folder).
+    /// </summary>
+    internal static string? StateFile(string? stateDirectory, string name)
+        => string.IsNullOrWhiteSpace(stateDirectory) ? null : Path.Combine(stateDirectory, name);
+
+    /// <summary>The default KoLibri data folder (where the daily markers live without a configured StateDirectory).</summary>
+    public static string DefaultStateDirectory()
     {
-        var root = stateDirectory;
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
-            if (string.IsNullOrWhiteSpace(data)) data = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            root = Path.Combine(data, "KoLibri");
-        }
-        return Path.Combine(root, name);
+        var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        if (string.IsNullOrWhiteSpace(data)) data = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(data, "KoLibri");
     }
 
     /// <summary>Prices from Pricegun (no KoL request), then the mall's cheapest offer for the top candidates; cached per KoL day.</summary>
@@ -388,9 +389,15 @@ public static class DailyItems
     {
         ArgumentNullException.ThrowIfNull(session);
         var dir = options?.StateDirectory;
-        var available = CargoPocketState.Load(StateFile(dir, PocketStateFile), session.Account.Id.Value);
-        return CargoPocketValue.RankAsync(available,
-            PriceBook(session, dir, priceLookups ?? options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups), cancellationToken);
+        var file = StateFile(dir, PocketStateFile);
+        var saved = file is null ? null : CargoPocketState.Load(file, session.Account.Id.Value);
+        var today = session.Daily.GameDay;
+        // Usable: read today or yesterday (the list is saved after each pick, so yesterday's list is today's state). Older
+        // lists, lists without a day (before 0.5.x) and an unknown ascension change count as unknown.
+        var fresh = saved is { } s && s.Day >= today.AddDays(-CargoPocketState.MaxAgeDays) ? s : null;
+        var source = fresh is null ? CargoPocketState.UnknownSource : $"cache {fresh.Day:yyyy-MM-dd}";
+        return CargoPocketValue.RankAsync(fresh?.Pockets,
+            PriceBook(session, dir, priceLookups ?? options?.CargoPriceLookups ?? CargoPocketValue.DefaultPriceLookups), cancellationToken, source);
     }
 
     private static bool Has(string? body, string text) => body?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;

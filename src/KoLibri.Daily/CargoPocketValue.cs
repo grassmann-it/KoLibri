@@ -30,6 +30,9 @@ public sealed record CargoCandidate(int Pocket, string Content, int Quantity, lo
 /// <summary>The ranking of the pockets still full (top 5 and the chosen one).</summary>
 public sealed record CargoRanking(IReadOnlyList<CargoCandidate> Top, CargoCandidate? Chosen, bool PocketsKnown, int PriceLookups, string? Note)
 {
+    /// <summary>Where the list of full pockets came from: "live", "cache yyyy-MM-dd" or "unbekannt, wird beim Ziehen live gelesen".</summary>
+    public string PocketsSource { get; init; } = CargoPocketState.UnknownSource;
+
     public static CargoRanking Empty(string note) => new(Array.Empty<CargoCandidate>(), null, false, 0, note);
 }
 
@@ -68,11 +71,13 @@ public static class CargoPocketValue
     /// Ranks the pockets that are still full (<paramref name="available"/>; null = unknown, all pockets count) with prices from
     /// <paramref name="book"/>. Pure apart from the lookups the book makes.
     /// </summary>
-    public static async Task<CargoRanking> RankAsync(IReadOnlySet<int>? available, CargoPriceBook book, CancellationToken cancellationToken = default)
+    public static async Task<CargoRanking> RankAsync(IReadOnlySet<int>? available, CargoPriceBook book, CancellationToken cancellationToken = default,
+        string? pocketsSource = null)
     {
+        pocketsSource ??= available is null ? CargoPocketState.UnknownSource : "live";
         ArgumentNullException.ThrowIfNull(book);
         var pockets = CargoPocketData.All.Where(p => !p.StartsFight && p.HasValue && (available is null || available.Contains(p.Number))).ToArray();
-        if (pockets.Length == 0) return CargoRanking.Empty("keine volle Tasche mit Meat oder Items mehr");
+        if (pockets.Length == 0) return CargoRanking.Empty("keine volle Tasche mit Meat oder Items mehr") with { PocketsSource = pocketsSource };
 
         // 1. Pricegun (cache first, then up to the lookup budget; favourites first).
         var items = pockets.SelectMany(p => p.Items.Select(i => (Item: i, p.Type))).Where(x => x.Item.Tradeable)
@@ -89,7 +94,8 @@ public static class CargoPocketValue
         var chosen = ranked.FirstOrDefault(c => c.Value > 0);
         book.Save();
         return new CargoRanking(ranked.Take(TopCount).ToArray(), chosen, available is not null, book.Lookups,
-            available is null ? "Taschenstand unbekannt (noch nie gelesen): beim Ausführen wird die Taschen-Seite gelesen und neu gerechnet" : null);
+            available is null ? "Taschenstand unbekannt: die Liste rechnet mit allen Taschen; beim Ziehen wird die Taschen-Seite live gelesen und neu gerechnet" : null)
+        { PocketsSource = pocketsSource };
     }
 
     private static IReadOnlyList<CargoCandidate> Rank(IEnumerable<CargoPocket> pockets, CargoPriceBook book)
@@ -156,6 +162,9 @@ public sealed class CargoPriceBook
     /// </summary>
     public bool Offline { get; set; }
 
+    /// <summary>No mall searches (KoL requests) — Pricegun may still be asked. Set while choice 1420 is open.</summary>
+    public bool MallOffline { get; set; }
+
     public CargoItemPrice? Get(int itemId) => _prices.TryGetValue(itemId, out var p) ? p : null;
 
     /// <summary>Sets a price (tests, or prices the caller already knows).</summary>
@@ -184,7 +193,7 @@ public sealed class CargoPriceBook
     /// <summary>Mall search for items without a market price (at most <see cref="CargoPocketValue.MallLookups"/> per run). Returns how many got a price.</summary>
     public async Task<int> MallAsync(IReadOnlyList<int> itemIds, CancellationToken cancellationToken)
     {
-        if (_mall is null || Offline) return 0;
+        if (_mall is null || Offline || MallOffline) return 0;
         var found = 0;
         foreach (var id in itemIds)
         {
@@ -252,18 +261,28 @@ public sealed class CargoPriceBook
 /// <summary>The pockets still full, as last read from the pocket page (so the preview does not open the choice).</summary>
 public static class CargoPocketState
 {
-    public static IReadOnlySet<int>? Load(string path, string account)
+    public const string UnknownSource = "unbekannt, wird beim Ziehen live gelesen";
+
+    /// <summary>A saved list is used by the preview when it was read today or yesterday.</summary>
+    public const int MaxAgeDays = 1;
+
+    /// <summary>A saved list of full pockets and the KoL day it was read.</summary>
+    public sealed record Saved(DateOnly Day, IReadOnlySet<int> Pockets);
+
+    /// <summary>The saved list, or null (none, unreadable, or the old format without a day).</summary>
+    public static Saved? Load(string path, string account)
     {
         try
         {
             if (!File.Exists(path) || JsonNode.Parse(File.ReadAllText(path)) is not JsonObject root) return null;
-            if (root[account] is not JsonArray list) return null;
-            return list.Select(n => n is JsonValue v && v.TryGetValue<int>(out var p) ? p : 0).Where(p => p > 0).ToHashSet();
+            if (root[account] is not JsonObject entry || entry["pockets"] is not JsonArray list) return null;
+            if (!DateOnly.TryParseExact((string?)entry["day"], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)) return null;
+            return new Saved(day, list.Select(n => n is JsonValue v && v.TryGetValue<int>(out var p) ? p : 0).Where(p => p > 0).ToHashSet());
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException) { return null; }
     }
 
-    public static void Save(string path, string account, IReadOnlySet<int> available)
+    public static void Save(string path, string account, DateOnly day, IReadOnlySet<int> available)
     {
         try
         {
@@ -272,7 +291,7 @@ public static class CargoPocketState
             catch (JsonException) { root = new JsonObject(); }
             var list = new JsonArray();
             foreach (var p in available.OrderBy(p => p)) list.Add(p);
-            root[account] = list;
+            root[account] = new JsonObject { ["day"] = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ["pockets"] = list };
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             File.WriteAllText(path, root.ToJsonString());
         }

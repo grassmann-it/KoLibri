@@ -202,7 +202,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
 
     private async Task<IReadOnlyList<DailyBriefingRow>> CargoTopRowsAsync(KolibriSession session, global::KoLibri.Daily.DailyRunLive run, CancellationToken ct)
     {
-        var options = DesktopDailyItems.Options(_settings());
+        var options = DesktopDailyItems.Options(_settings(), stateDirectory: _provider is null ? null : DesktopDailyItems.StateDirectoryOf(_provider));
         if (!run.HasCargoShorts || run.CargoPocketDoneToday || global::KoLibri.Daily.DailyItems.CargoModeOf(options) != global::KoLibri.Daily.CargoPocketMode.Auto)
             return Array.Empty<DailyBriefingRow>();
         try
@@ -224,6 +224,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         {
             rank++;
             var unit = c.UnitPrice is { } u ? $"{c.Quantity} × {u:N0}" : $"{c.Quantity} Stück";
+            if (rank == 1) yield return BuildRow("Cargo (Wert)", "Taschenstand", ranking.PocketsSource, "open");
             yield return BuildRow($"Cargo #{rank}", $"Tasche {c.Pocket}: {c.Content}", $"{unit} = {c.Value:N0} Meat ({c.Source})",
                 ranking.Chosen?.Pocket == c.Pocket ? "chosen" : "candidate");
         }
