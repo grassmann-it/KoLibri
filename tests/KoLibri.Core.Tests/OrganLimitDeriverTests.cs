@@ -1,5 +1,4 @@
 using KoLibri.Core.Spiel;
-using KoLibri.Desktop;
 using Xunit;
 
 namespace KoLibri.Core.Tests;
@@ -81,19 +80,6 @@ public sealed class OrganLimitDeriverTests
         var html = "<b>Skills</b><a onclick='skill(1)'>Liver of Steel (P)</a> <a>Toss</a> <a>Spleen of Steel</a>";
         Assert.Equal(["Liver of Steel", "Spleen of Steel"], OrganLimitDeriver.ParseCharsheetSkills(html));
         Assert.Null(OrganLimitDeriver.ParseCharsheetSkills("<html>Please log in</html>"));
-    }
-
-    [Fact]
-    public void Charpane_and_planner_show_derived_limits_and_question_marks_when_unknown()
-    {
-        var derived = OrganLimitDeriver.Apply(Char(["Liver of Steel"]));
-        var pane = CharpaneState.FromStatus(derived, "Main", Now);
-        Assert.Equal("Drunkenness 0 / 19", pane.Drunk);
-        Assert.Equal("Fullness 3/15 · Inebriety 0/19 · Spleen 7/15", OrganState.From(derived).Summary);
-
-        var unknown = OrganLimitDeriver.Apply(Char(null));
-        Assert.Equal("Drunkenness 0 / ?", CharpaneState.FromStatus(unknown, "Main", Now).Drunk);
-        Assert.Contains("?", OrganState.From(unknown).Summary);
     }
 
     [Fact]

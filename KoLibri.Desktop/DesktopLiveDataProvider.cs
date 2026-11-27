@@ -1,6 +1,3 @@
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -52,8 +49,8 @@ public sealed record MallSearchResult
 
     /// <summary>The cheapest listing, or null when nothing is listed.</summary>
     public MallListing? Cheapest => Listings
-        .Where(l => l.Price > 0)
-        .OrderBy(l => l.Price)
+        .Where(l => l.UnitPrice > 0)
+        .OrderBy(l => l.UnitPrice)
         .FirstOrDefault();
 }
 
@@ -61,37 +58,30 @@ public sealed record MallSearchResult
 /// Loads live account data for the desktop: inventory, status and the mall
 /// listings that price the inventory.
 ///
-/// The provider owns the session handling so the view models never touch
-/// credentials or HTTP directly. A missing session is a normal state, not
-/// an exception: the provider returns an empty snapshot with an error
-/// message and the view shows it.
+/// Since 0.5 every request goes through the KoLibri library (<see cref="KolibriSession"/>): allowlist, limiter and
+/// the guard hook are the library's. The provider owns no HTTP clients; it maps the library records onto what the
+/// views show. A missing session is a normal state, not an exception: reads return null or an empty snapshot with
+/// <see cref="DesktopInventorySnapshot.HasSession"/> false and the view says so.
 /// </summary>
 public sealed class DesktopLiveDataProvider : IDisposable
 {
-    private readonly AccountSessionManager _accounts;
-    private readonly Func<AccountSession, HttpClient> _createAccountHttp;
-    private readonly Dictionary<AccountRole, AccountClients> _clients = new();
-    private readonly HttpClient _pricegunHttp = new();
-    private readonly PricegunReadClient _pricegun;
-    private readonly MallReadPolicy? _mallPolicy;
-    private readonly Func<bool> _reloginAutomatically;
+    private readonly DesktopAccounts _accounts;
 
-    private sealed record AccountClients(
-        AccountSession Session, HttpClient Http, KoLAccountReadClient Account, IMallReadClient Mall);
-
-    public DesktopLiveDataProvider(AccountSessionManager? accounts = null,
-        Func<AccountSession, HttpClient>? createAccountHttp = null,
-        DesktopSettings? settings = null,
-        Func<bool>? reloginAutomatically = null)
+    public DesktopLiveDataProvider(DesktopAccounts accounts)
     {
-        // Read before every automatic reconnect, so the saved setting always wins. Without a reader: never log in again.
-        _reloginAutomatically = reloginAutomatically ?? (() => false);
-        _accounts = accounts ?? AccountSessionManager.CreateDefault();
-        _createAccountHttp = createAccountHttp ?? (session => KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials, new Uri("https://www.kingdomofloathing.com/")));
-        _pricegun = new PricegunReadClient(_pricegunHttp, policy: settings?.ToPricegunPolicy());
-        _mallPolicy = settings?.ToMallPolicy();
+        _accounts = accounts;
     }
+
+    public DesktopAccounts Accounts => _accounts;
+
+    /// <summary>The session of a role, or null when it is signed out (see <see cref="DesktopAccounts.TryOpenAsync"/>).</summary>
+    public Task<KolibriSession?> SessionAsync(AccountRole role, CancellationToken cancellationToken = default)
+        => _accounts.TryOpenAsync(role, cancellationToken);
+
+    /// <summary>The session of a role; signed out is an <see cref="InvalidOperationException"/> with the given hint.</summary>
+    public async Task<KolibriSession> RequireSessionAsync(AccountRole role, string whatFor, CancellationToken cancellationToken = default)
+        => await SessionAsync(role, cancellationToken).ConfigureAwait(false)
+           ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to {whatFor}.");
 
     /// <summary>The live inventory of the given account.</summary>
     public async Task<DesktopInventorySnapshot> LoadInventoryAsync(
@@ -100,9 +90,8 @@ public sealed class DesktopLiveDataProvider : IDisposable
         KoLmafiaCatalog? catalog = null,
         CancellationToken cancellationToken = default)
     {
-        var inventory = await ReadAccountAsync(role, forceRefresh, (reader, refresh, token) =>
-            reader.FetchInventoryAsync(refresh, token), cancellationToken).ConfigureAwait(false);
-        if (inventory is null)
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        if (session is null)
         {
             return new DesktopInventorySnapshot
             {
@@ -112,11 +101,12 @@ public sealed class DesktopLiveDataProvider : IDisposable
                 ObservedAt = DateTimeOffset.UtcNow
             };
         }
+        var inventory = await session.Inventory.GetAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
         return ProjectInventory(role, inventory, catalog);
     }
 
     internal static DesktopInventorySnapshot ProjectInventory(
-        AccountRole role, KoLInventorySnapshot inventory, KoLmafiaCatalog? catalog)
+        AccountRole role, Inventory inventory, KoLmafiaCatalog? catalog)
     {
         // The catalog has ~12 000 items and the inventory ~1 400; a linear
         // lookup per row would be millions of comparisons. Index it once.
@@ -128,12 +118,13 @@ public sealed class DesktopLiveDataProvider : IDisposable
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var items = inventory.Items.Select(item =>
         {
-            var record = index is not null && index.TryGetValue(item.ItemId, out var found)
+            var id = item.Item.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var record = index is not null && index.TryGetValue(id, out var found)
                 ? found
                 : null;
             return new DesktopInventoryItem
             {
-                ItemId = item.ItemId,
+                ItemId = id,
                 // KoL's inventory API only returns ids and counts. The
                 // catalog carries the real name, so prefer it and fall back
                 // to what the response gave us.
@@ -148,19 +139,30 @@ public sealed class DesktopLiveDataProvider : IDisposable
         {
             Role = role,
             Items = items,
-            ObservedAt = inventory.FetchedAt,
-            IsStale = inventory.IsStale
+            ObservedAt = inventory.FetchedAt
         };
     }
 
-    /// <summary>The live status of the given account.</summary>
-    public async Task<KoLStatusSnapshot?> LoadStatusAsync(
+    /// <summary>The live status of the given account (api.php plus the charsheet organ limits), null when signed out.</summary>
+    public async Task<Status?> LoadStatusAsync(
         AccountRole role,
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        return await ReadAccountAsync(role, forceRefresh, (reader, refresh, token) =>
-            reader.FetchStatusAsync(refresh, token), cancellationToken).ConfigureAwait(false);
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        return session is null ? null
+            : await session.Character.GetStatusAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The worn equipment (from the same cached status read), null when signed out.</summary>
+    public async Task<Equipment?> LoadEquipmentAsync(
+        AccountRole role,
+        bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        return session is null ? null
+            : await session.Inventory.GetEquipmentAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The cheapest mall listing for an item, or null when nothing
@@ -170,17 +172,17 @@ public sealed class DesktopLiveDataProvider : IDisposable
         string itemName,
         CancellationToken cancellationToken = default)
     {
-        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false);
-        if (mall is null || string.IsNullOrWhiteSpace(itemName)) return null;
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        if (session is null || string.IsNullOrWhiteSpace(itemName)) return null;
         try
         {
-            var snapshot = await mall.SearchAsync(itemName, cancellationToken: cancellationToken).ConfigureAwait(false);
-            var cheapest = snapshot.Listings
-                .Where(l => l.Price > 0)
-                .Select(l => (long?)l.Price)
+            var result = await session.Mall.SearchAsync(itemName, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return result.Items
+                .SelectMany(i => i.Listings)
+                .Where(l => l.UnitPrice > 0)
+                .Select(l => (long?)l.UnitPrice)
                 .DefaultIfEmpty(null)
                 .Min();
-            return cheapest;
         }
         catch when (!cancellationToken.IsCancellationRequested)
         {
@@ -197,21 +199,6 @@ public sealed class DesktopLiveDataProvider : IDisposable
         return uses;
     }
 
-    /// <summary>Reads the live status and inventory and derives the daily
-    /// snapshot from them — the same numbers the CLI's `daily breakfast`
-    /// uses.</summary>
-    public async Task<LiveDailySnapshot?> LoadDailySnapshotAsync(
-        AccountRole role,
-        DailyRoutineSnapshot baseline,
-        bool forceRefresh = false,
-        CancellationToken cancellationToken = default)
-    {
-        var client = await CreateReadClientAsync(role, cancellationToken).ConfigureAwait(false);
-        if (client is null) return null;
-        var builder = new LiveDailySnapshotBuilder(client);
-        return await builder.BuildAsync(baseline, cancellationToken, forceRefresh, role).ConfigureAwait(false);
-    }
-
     /// <summary>
     /// The live mall listings for a set of items. The result maps the search
     /// term onto its listings so the arbitrage table can show the spread
@@ -223,20 +210,19 @@ public sealed class DesktopLiveDataProvider : IDisposable
         CancellationToken cancellationToken = default,
         bool forceRefresh = false)
     {
-        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false);
-        if (mall is null) return Array.Empty<MallSearchResult>();
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        if (session is null) return Array.Empty<MallSearchResult>();
         var results = new List<MallSearchResult>();
         foreach (var name in itemNames)
         {
             if (string.IsNullOrWhiteSpace(name)) continue;
             try
             {
-                var snapshot = await mall.SearchAsync(name, forceRefresh, cancellationToken).ConfigureAwait(false);
+                var found = await session.Mall.SearchAsync(name, forceRefresh, cancellationToken).ConfigureAwait(false);
                 results.Add(new MallSearchResult
                 {
                     ItemName = name,
-                    Listings = snapshot.Listings,
-                    IsStale = snapshot.IsStale
+                    Listings = found.Items.SelectMany(i => i.Listings).ToArray()
                 });
             }
             catch when (!cancellationToken.IsCancellationRequested)
@@ -253,21 +239,20 @@ public sealed class DesktopLiveDataProvider : IDisposable
         return results;
     }
 
-    public async Task<MallSnapshot> SearchMallAsync(
-        AccountRole role, string query, CancellationToken cancellationToken)
-    {
-        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to search the mall.");
-        return await mall.SearchAsync(query, cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
-
     /// <summary>Mall search that keeps the offers per item.</summary>
-    public async Task<MallSearchPage> SearchMallItemsAsync(
+    public async Task<global::KoLibri.MallSearchResult> SearchMallItemsAsync(
         AccountRole role, string term, bool forceRefresh, CancellationToken cancellationToken)
     {
-        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Sign in as {role} under Accounts to search the mall.");
-        return await mall.SearchItemsAsync(term, forceRefresh, cancellationToken).ConfigureAwait(false);
+        var session = await RequireSessionAsync(role, "search the mall", cancellationToken).ConfigureAwait(false);
+        return await session.Mall.SearchAsync(term, forceRefresh, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The current offers of one item (fresh from KoL when <paramref name="forceRefresh"/>).</summary>
+    public async Task<MallOffers> LoadOffersAsync(
+        AccountRole role, ItemRef item, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        var session = await RequireSessionAsync(role, "search the mall", cancellationToken).ConfigureAwait(false);
+        return await session.Mall.GetOffersAsync(item, forceRefresh, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -278,26 +263,28 @@ public sealed class DesktopLiveDataProvider : IDisposable
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)
         => LoadPricegunAsync(itemId, forceRefresh: false, cancellationToken);
 
+    /// <summary>
+    /// Pricegun through the library (its own client without the KoL cookie, cached and throttled there).
+    /// <paramref name="forceRefresh"/> is kept for the callers; the library decides when to fetch again.
+    /// </summary>
     public async Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
     {
-        var snapshot = await _pricegun.FetchAsync(itemId, forceRefresh, cancellationToken).ConfigureAwait(false);
-        if (snapshot.Sales.Count == 0) return new PricegunInfo(null, snapshot.FetchedAt, snapshot.IsStale);
-        var prices = snapshot.Sales.Select(sale => (decimal)sale.UnitPrice).OrderBy(price => price).ToArray();
-        var median = prices.Length % 2 == 1
-            ? prices[prices.Length / 2]
-            : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
-        return new PricegunInfo((long)median, snapshot.FetchedAt, snapshot.IsStale);
+        if (!int.TryParse(itemId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
+            throw new ArgumentException($"Not a KoL item id: {itemId}", nameof(itemId));
+        var history = await _accounts.Client.GetPriceHistoryAsync(id, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("pricegun.loathers.net did not answer.");
+        return new PricegunInfo(Median(history), history.FetchedAt, IsStale: false);
     }
 
     /// <summary>Reads the own store listings, or returns null for a signed-out role.</summary>
-    public async Task<IReadOnlyList<OwnShopListing>?> LoadOwnShopAsync(
+    public async Task<IReadOnlyList<ShopListing>?> LoadOwnShopAsync(
         AccountRole role,
         CancellationToken cancellationToken = default,
         bool forceRefresh = false)
     {
-        var mall = await CreateMallClientAsync(role, cancellationToken).ConfigureAwait(false);
-        return mall is null ? null
-            : await mall.FetchOwnShopAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        return session is null ? null
+            : await session.Shop.GetListingsAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -309,21 +296,11 @@ public sealed class DesktopLiveDataProvider : IDisposable
         string itemId,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(itemId)) return null;
+        if (!int.TryParse(itemId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)) return null;
         try
         {
-            var snapshot = await _pricegun
-                .FetchAsync(itemId, forceRefresh: false, cancellationToken)
-                .ConfigureAwait(false);
-            if (snapshot.Sales.Count == 0) return null;
-            var prices = snapshot.Sales
-                .Select(sale => (decimal)sale.UnitPrice)
-                .OrderBy(price => price)
-                .ToArray();
-            var median = prices.Length % 2 == 1
-                ? prices[prices.Length / 2]
-                : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
-            return (long)median;
+            var history = await _accounts.Client.GetPriceHistoryAsync(id, cancellationToken).ConfigureAwait(false);
+            return history is null ? null : Median(history);
         }
         catch when (!cancellationToken.IsCancellationRequested)
         {
@@ -331,284 +308,58 @@ public sealed class DesktopLiveDataProvider : IDisposable
         }
     }
 
-    public Task<KoLClanProfile?> ReadClanProfileAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchClanProfileAsync(token), cancellationToken);
-
-    public Task<IReadOnlyList<KoLClanMember>?> ReadClanMembersAsync(
-        AccountRole role, string clanId, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchClanMembersAsync(clanId, token), cancellationToken);
-
-    public Task<KoLClanLoungeSnapshot?> ReadClanLoungeAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchClanLoungeAsync(token), cancellationToken);
-
-    public async Task<bool> UseClanLookingGlassAsync(AccountRole role, CancellationToken cancellationToken)
+    /// <summary>Median unit price of the recorded sales (as in 0.4), null without sales.</summary>
+    internal static long? Median(PriceHistory history)
     {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the clan looking glass.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.UseClanLookingGlassAsync(hash, cancellationToken).ConfigureAwait(false);
+        if (history.Points.Count == 0) return null;
+        var prices = history.Points.Select(p => (decimal)p.Price).OrderBy(p => p).ToArray();
+        var median = prices.Length % 2 == 1
+            ? prices[prices.Length / 2]
+            : (prices[prices.Length / 2 - 1] + prices[prices.Length / 2]) / 2m;
+        return (long)median;
     }
 
-    public async Task<KoLCrimboTreeResult> UseClanCrimboTreeAsync(AccountRole role, CancellationToken cancellationToken)
+    // Clan and chat moved to DesktopCommunity (raw pages through the session).
+
+    public async Task<MailPage?> ReadMailboxPageAsync(AccountRole role, MailFolder folder, int page, CancellationToken cancellationToken)
     {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to check the clan Crimbo Tree.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.UseClanCrimboTreeAsync(hash, cancellationToken).ConfigureAwait(false);
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false);
+        return session is null ? null : await session.Mail.GetAsync(folder, page, cancellationToken).ConfigureAwait(false);
     }
-
-    public async Task<KoLClanKlawResult> PlayClanKlawAsync(AccountRole role, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to play the clan Klaw.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.PlayClanKlawAsync(hash, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<string> UseClanHotTubAsync(
-        AccountRole role, bool allowRemovingCurse, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the clan Hot Tub.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.UseClanHotTubAsync(hash, allowRemovingCurse, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<KoLClanPoolResult> PlayClanPoolAsync(
-        AccountRole role, KoLClanPoolStance stance, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to play clan pool.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.PlayClanPoolAsync(hash, stance, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<KoLClanShowerResult> TakeClanShowerAsync(
-        AccountRole role, KoLClanShowerTemperature temperature, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the April Shower.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.TakeClanShowerAsync(hash, temperature, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<KoLClanSwimResult> SwimInClanPoolAsync(
-        AccountRole role, KoLClanSwimWorkout workout, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the clan swimming pool.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.SwimInClanPoolAsync(hash, workout, cancellationToken).ConfigureAwait(false);
-    }
-
-    public Task<KoLClanPoolChoice?> ReadClanPoolChoiceAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.ReadClanPoolChoiceAsync(token), cancellationToken);
-
-    public async Task<KoLClanPoolChoice> SubmitClanPoolChoiceAsync(
-        AccountRole role, KoLClanPoolMove? move, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the clan swimming pool.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await (move is { } action
-            ? clients.Account.MoveInClanPoolAsync(hash, action, cancellationToken)
-            : clients.Account.CannonballAsync(hash, cancellationToken)).ConfigureAwait(false);
-    }
-
-    public Task<string?> ReadClanPhotocopyMonsterAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.ReadClanPhotocopyMonsterAsync(token), cancellationToken);
-
-    public async Task<bool> TransferClanFaxAsync(AccountRole role, bool send, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to use the clan fax machine.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await clients.Account.TransferClanFaxAsync(hash, send, cancellationToken).ConfigureAwait(false);
-    }
-
-    public Task<KoLClanStashSnapshot?> ReadClanStashAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchClanStashAsync(token), cancellationToken);
-
-    public async Task<bool> TransferClanStashItemAsync(
-        AccountRole role, string itemId, int quantity, bool deposit, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to transfer an item to or from the clan stash.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        return await (deposit
-            ? clients.Account.DepositClanStashItemAsync(itemId, quantity, hash, cancellationToken)
-            : clients.Account.TakeClanStashItemAsync(itemId, quantity, hash, cancellationToken)).ConfigureAwait(false);
-    }
-
-    public Task<IReadOnlyList<KoLChatContact>?> ReadChatContactsAsync(AccountRole role, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchChatContactsAsync(token), cancellationToken);
-
-    public Task<KoLChatBatch?> ReadChatAsync(AccountRole role, long cursor, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, false, (reader, _, token) => reader.FetchChatAsync(cursor, token), cancellationToken);
-
-    public async Task<KoLChatBatch> SendChatAsync(
-        AccountRole role, string target, string message, long cursor, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to send KoL chat.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-        return await clients.Account.SendChatAsync(hash, target, message, cursor, cancellationToken).ConfigureAwait(false);
-    }
-
-    public Task<KoLMailboxSnapshot?> ReadMailboxPageAsync(AccountRole role, KoLMailFolder folder, int page, CancellationToken cancellationToken)
-        => ReadAccountAsync(role, true, (reader, _, token) =>
-            reader.FetchMailboxPageAsync(folder, page, token), cancellationToken);
 
     public async Task SaveInboxMessageAsync(AccountRole role, string id, CancellationToken cancellationToken)
     {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to save KoLmail.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        await clients.Account.SaveInboxMessageAsync(id, hash, cancellationToken).ConfigureAwait(false);
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Sign in to save KoLmail.");
+        await session.Mail.SaveAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task DeleteMailboxMessageAsync(
-        AccountRole role, KoLMailFolder folder, string id, CancellationToken cancellationToken)
+        AccountRole role, MailFolder folder, string id, CancellationToken cancellationToken)
     {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to delete KoLmail.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        await clients.Account.DeleteMailboxMessageAsync(folder, id, hash, cancellationToken).ConfigureAwait(false);
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Sign in to delete KoLmail.");
+        await session.Mail.DeleteAsync(folder, id, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Sends one KoLmail; true when KoL confirmed it. Attachments and meat are re-read afterwards by the library.</summary>
     public async Task<bool> SendKoLmailAsync(
-        AccountRole role, string recipient, string message, IReadOnlyList<KoLMailAttachment> attachments,
+        AccountRole role, string recipient, string message, IReadOnlyList<InventoryItem> attachments,
         long meat, CancellationToken cancellationToken)
     {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null)
-            throw new InvalidOperationException("Sign in to send KoLmail.");
-        var hash = await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false);
-
-        try
-        {
-            return await KoLMailbox.SendAsync(clients.Http, hash, recipient, message, attachments, meat, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        finally
-        {
-            if (attachments.Count > 0 || meat > 0)
-                clients.Account.Invalidate();
-        }
-    }
-
-    private async Task<T?> ReadAccountAsync<T>(
-        AccountRole role, bool forceRefresh,
-        Func<KoLAccountReadClient, bool, CancellationToken, Task<T>> read,
-        CancellationToken cancellationToken) where T : class?
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null) return null;
-        try
-        {
-            return await read(clients.Account, forceRefresh, cancellationToken).ConfigureAwait(false);
-        }
-        catch (KoLHtmlResponseException exception) when (exception.Kind == KoLHtmlResponseKind.LoginPage)
-        {
-            var session = await ReconnectAsync(clients.Session, cancellationToken).ConfigureAwait(false);
-            if (session is null) throw;
-            var renewed = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-            if (renewed is null || renewed.Session.Profile != session.Profile) return null;
-            return await read(renewed.Account, true, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private Task<AccountSession?> ReconnectAsync(AccountSession session, CancellationToken cancellationToken)
-        => !_reloginAutomatically()
-            ? Task.FromResult<AccountSession?>(null)
-            : _accounts.ReconnectAsync(session,
-            (username, password, token) => new KoLLoginClient().LoginAsync(username, password, true, token),
-            cancellationToken);
-
-    private async Task<IAccountReadClient?> CreateReadClientAsync(AccountRole role, CancellationToken cancellationToken)
-        => (await GetClientsAsync(role, cancellationToken).ConfigureAwait(false))?.Account;
-
-    private async Task<IMallReadClient?> CreateMallClientAsync(AccountRole role, CancellationToken cancellationToken)
-        => (await GetClientsAsync(role, cancellationToken).ConfigureAwait(false))?.Mall;
-
-    /// <summary>
-    /// The signed-in HTTP client and password hash for an explicit user-confirmed
-    /// purchase; null without a session. The client stays owned by this provider.
-    /// </summary>
-    public async Task<(HttpClient Http, string? PasswordHash)?> OpenPurchaseSessionAsync(
-        AccountRole role, CancellationToken cancellationToken)
-    {
-        var clients = await GetClientsAsync(role, cancellationToken).ConfigureAwait(false);
-        if (clients is null) return null;
-        return (clients.Http, await RequireHashAsync(clients, cancellationToken).ConfigureAwait(false));
+        var session = await SessionAsync(role, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Sign in to send KoLmail.");
+        var result = await session.Mail.SendAsync(new MailMessage(recipient, message) { Items = attachments, Meat = meat }, cancellationToken)
+            .ConfigureAwait(false);
+        return result.Status == MailSendStatus.Sent;
     }
 
     /// <summary>True when a stored session exists for the role but is expired (no automatic log-in was attempted or it failed).</summary>
-    public async Task<bool> HasExpiredSessionAsync(AccountRole role, CancellationToken cancellationToken = default)
-        => await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken).ConfigureAwait(false) is null
-           && await _accounts.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken).ConfigureAwait(false) is not null;
+    public Task<bool> HasExpiredSessionAsync(AccountRole role, CancellationToken cancellationToken = default)
+        => _accounts.HasExpiredSessionAsync(role, cancellationToken);
 
-    /// <summary>KoL's real request hash for this session (not the login cookie); throws instead of sending a wrong one.</summary>
-    private static Task<string> RequireHashAsync(AccountClients clients, CancellationToken cancellationToken)
-        => KoLPwdHashResolver.RequireAsync(clients.Http, clients.Session.Credentials.CookieHeader!, cancellationToken);
-
-    private async Task<AccountClients?> GetClientsAsync(AccountRole role, CancellationToken cancellationToken)
-    {
-        var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (session is null && await _accounts.GetSessionAsync(role, includeExpired: true,
-                cancellationToken: cancellationToken).ConfigureAwait(false) is { } expired)
-            session = await ReconnectAsync(expired, cancellationToken).ConfigureAwait(false);
-        lock (_clients)
-        {
-            if (_clients.TryGetValue(role, out var cached))
-            {
-                if (cached.Session == session) return cached;
-                _clients.Remove(role);
-                cached.Http.Dispose();
-            }
-
-            if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-                return null;
-
-            var http = _createAccountHttp(session);
-            var clients = new AccountClients(session, http, new KoLAccountReadClient(http) { ReadCharsheetForOrganLimits = true }, new KoLMallReadClient(http, policy: _mallPolicy));
-            _clients.Add(role, clients);
-            return clients;
-        }
-    }
-
+    /// <summary>The accounts own the client and its sessions; nothing to release here.</summary>
     public void Dispose()
     {
-        lock (_clients)
-        {
-            foreach (var clients in _clients.Values) clients.Http.Dispose();
-            _clients.Clear();
-        }
-        _pricegunHttp.Dispose();
     }
 }

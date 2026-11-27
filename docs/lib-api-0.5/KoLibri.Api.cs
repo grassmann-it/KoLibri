@@ -55,6 +55,8 @@ namespace KoLibri
         public HttpMessageHandler? HttpHandler { get; init; }
         /// <summary>Hook vor jeder verändernden Aktion. Standard: alles erlaubt. Siehe KoLibri.Safety.</summary>
         public IActionGuard? ActionGuard { get; init; }
+        /// <summary>Darf die Lib mit gespeichertem Passwort selbst neu anmelden? Vor jedem automatischen Reconnect gefragt; null = ja. Ergänzt in Schritt 3 (Desktop).</summary>
+        public Func<bool>? AutoReconnect { get; init; }
     }
 
     public sealed class LimiterOptions
@@ -63,6 +65,8 @@ namespace KoLibri
         public TimeSpan ActionInterval { get; init; } = TimeSpan.FromSeconds(1);
         public TimeSpan ReadInterval { get; init; } = TimeSpan.FromMilliseconds(250);
         public int ReadConcurrency { get; init; } = 2;
+        /// <summary>Höchstens so viele Requests je Sekunde (1–5; 0 = aus). Ergänzt in Schritt 3 (Desktop).</summary>
+        public double MaxPerSecond { get; init; } = 2;
     }
 
     public sealed class LoginOptions
@@ -194,6 +198,8 @@ namespace KoLibri
         public bool UseBrowserUserAgent { get; init; }
         /// <summary>Eine Zeile je weitergeleitetem Request (redigiert). Ergänzt in Schritt 3 (CLI).</summary>
         public Action<string>? Output { get; init; }
+        /// <summary>Vor jeder weitergeleiteten Anfrage: null leitet weiter, ein Text lehnt ab. Ergänzt in Schritt 3 (Desktop-Browser).</summary>
+        public Func<Task<string?>>? SessionCheck { get; init; }
     }
 
     public sealed class RelayServer : IAsyncDisposable
@@ -238,6 +244,13 @@ namespace KoLibri
         public string? PathName { get; init; }
         public int? RoninTurnsRemaining { get; init; }
         public int? StoragePullsRemaining { get; init; }
+        /// <summary>Ergänzt in Schritt 3 (Desktop-Charpane).</summary>
+        public int? PlayerId { get; init; }
+        public string? FamiliarName { get; init; }
+        public int? FamiliarWeight { get; init; }
+        public int? PathId { get; init; }
+        public int? Ascensions { get; init; }
+        public bool? Hardcore { get; init; }
     }
 
     public readonly record struct OrganState(int Current, int? Limit);

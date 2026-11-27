@@ -20,7 +20,7 @@ public partial class MainWindow
             return;
 
         _encounterBrowser = createEncounterPane?.Invoke(UpdateEncounterStatus)
-            ?? new EncounterBrowserPane(_accounts, UpdateEncounterStatus);
+            ?? new EncounterBrowserPane(_live.Accounts, UpdateEncounterStatus);
         try
         {
             _encounterBrowser.Initialise(catalogDir, tokenDirectory);
@@ -148,7 +148,7 @@ public partial class MainWindow
             this.FindControl<TextBox>("EncounterBatchItem")?.Text,
             _autoCombat.MaxRounds, _autoCombat.AbortHpPercent, out var error);
         if (job is null) UpdateEncounterStatus(error ?? "The adventure settings are not valid.");
-        return job is null ? null : job with { CombatPolicy = _autoCombat.BuildBatchPolicy() };
+        return job is null ? null : job with { CombatRules = _autoCombat.BuildBatchPolicy() };
     }
 
     /// <summary>
@@ -183,7 +183,7 @@ public partial class MainWindow
     }
 
     /// <summary>Screenshot QA only: shows a choice in the decision panel without any request.</summary>
-    public void ShowDecisionForQa(KoLibri.Core.Spiel.NeedsDecisionInfo info)
+    public void ShowDecisionForQa(NeedsDecisionInfo info)
     {
         _encounterBrowser?.Session?.Decisions.Show(info);
         SyncDecisionPanel();

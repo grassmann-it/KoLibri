@@ -1,6 +1,6 @@
 # KoLibri 0.5: Bestandsaufnahme und API-Entwurf
 
-Status: **Entwurf entschieden (§8), Schritt 3 umgesetzt: Lib (§11) und CLI (§12).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
+Status: **Entwurf entschieden (§8), Schritt 3 umgesetzt: Lib (§11), CLI (§12), MCP (§13) und Desktop (§14).** Grundlage ist `release/0.4.0` @ `911517b` (nach dem Tag `v0.4.0`).
 Der Entwurf selbst baute keine App um; den Umsetzungsstand beschreibt §11. Das Dokument deckt Schritt 1 und 2 des Lib-Umbaus aus
 [ROADMAP.md](../ROADMAP.md) (Abschnitt 0.5) ab.
 
@@ -1017,14 +1017,60 @@ Der HTTP-Host entfernt wie in 0.4 `kol_plan_daily_adventures_execute`, `kol_logi
 - In Core.Tests bleiben nur die reinen Core- und LibKolibri-Tests (`McpLoginToolsTests` testet den
   `AccountSessionManager`, `McpRoleRuntimeTests` die `LibKolibriRuntime`).
 
-## 14. Pakete
+---
+
+## 14. Umsetzungsstand Schritt 3, Teil 4: Desktop auf der neuen Lib
+
+Stand 2026-11-27. `KoLibri.Desktop` referenziert nur noch `KoLibri`, `KoLibri.Safety`, `KoLibri.Daily` und `KoLibri.Extras`
+(alle mit `PrivateAssets="all"` wie die CLI), kein `KoLibri.Core`, kein `LibKolibri`.
+
+### 14.1 Aufbau
+
+| Baustein | Inhalt |
+|---|---|
+| `DesktopAccounts` | ein `KolibriClient` für das Fenster, je Rolle (`main`/`mallbot`) eine gecachte `KolibriSession`; `TryOpenAsync` liefert `null` statt Ausnahme, automatische Neuanmeldung nur, solange der Schalter "Log in again automatically" sie erlaubt (`KolibriOptions.AutoReconnect`) |
+| `DesktopLiveDataProvider` | Status, Inventar, Ausrüstung, Mall, Pricegun, eigener Shop, KMail über die Facetten der Sitzung |
+| `DesktopCommunity` | Clan, Lounge, Stash, Chat über `GetPageAsync`/`PostAsync`, Parser aus Core kopiert |
+| `DesktopCharacterActions` | Closet, Storage, Combine, Friars, Familiar-Ausrüstung, Dual Wield über rohe Seiten (Request-Formen wie 0.4) |
+| Abenteuer | Encounter-Ansicht, manuelle Schritte, Choice-Entscheidungen und Batch auf `session.Adventure` (`AdventureAsync`, `FightAsync`, `ChooseAsync`, `RunAsync`); Kampfplan als Regeltext für `CombatStrategies.FromRules`; Desktop-Kopien von Approval-Token-Store, Choice-Policy und Unknown-Page-Archiv (gleiche Dateien) |
+| Daily | Tagesplan und Daily-Button auf `KoLibri.Daily.DailyRun`, Marker über `session.Daily` (0.4-Schlüssel mit Spieler-Id) |
+| Mall | Kauf je Ticket über `Mall.BuyAsync` (frischer Preis, nie über dem gezeigten, Inventar/Meat danach geprüft), parallele Queue je Item, Spend-Ledger aus Extras |
+| `KoLibri.Extras/KoLmafiaData` | Kopie des KoLmafia-Katalogs (Bilder, Access-Flags, Organe, Outfits, `ItemClassifier`) |
+| `KoLibri.Safety/Access` | die MCP-Freigaben (`GrantStore`, `UsageLedger`) für die Agents-Seite, identisch mit dem MCP-Zweig |
+
+### 14.2 API-Ergänzungen (additiv, in `PublicAPI.Unshipped.txt` und im Stub)
+
+| Ergänzung | Wofür |
+|---|---|
+| `Status.PlayerId`, `FamiliarName`, `FamiliarWeight`, `PathId`, `Ascensions`, `Hardcore` | Charpane und Abenteuer-Kopfzeile, Aszensions-Erkennung |
+| `KolibriOptions.AutoReconnect` (`Func<bool>?`) | Desktop-Schalter "Log in again automatically" gilt vor jedem automatischen Reconnect |
+| `LimiterOptions.MaxPerSecond` | Desktop-Einstellung "Requests pro Sekunde" |
+| `RelayOptions.SessionCheck` | Browser-Tab: Relay lehnt ab, sobald die Rolle neu angemeldet wurde |
+
+### 14.3 Abweichungen im Verhalten
+
+| Stelle | Abweichung |
+|---|---|
+| alte Daten | Die Lib liefert keine veralteten Kopien; "stale"-Hinweise in Charpane, Mall und Daily entfallen, ein Lesefehler wird als Fehler gezeigt |
+| Limiter | Einstellungen und Umgebungsvariablen wirken beim Start (der Client wird einmal erzeugt); Pricegun-Intervall nur noch über `KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS`; Mall-Cache-Dauer und Ergebnislimit der Einstellungen wirken nicht mehr |
+| Mall-Suche | keine Gesamtzahl der Angebote ("Showing the cheapest 4 of 40" entfällt), kein Verkäufername (Kopieren nutzt den Shopnamen) |
+| Mall-Kauf | rund 5 Requests je Kauf (Lib liest Angebot, Status und Inventar selbst) statt 1 plus gemeinsamem Nachlesen; jede Ausnahme außer Guard-Ablehnung zählt als unklar |
+| KMail | PvP-Ordner nicht unterstützt, Anhänge werden nicht gelesen |
+| Kampf | Aktionsliste aus den Auswahllisten der Kampfseite; Monster-HP nicht mehr in der Zusammenfassung; Kampfplan höchstens 30 Runden (fest in `FightToEndAsync`) |
+| Batch | ein `RunAsync` je Batch; bei normalem Ende zählt das ganze Budget als verbraucht |
+| Konsum | ist das Organ-Limit bekannt, lehnt die Lib "trotzdem essen" ohne Request ab; der Overfill-Dialog wirkt nur noch bei unbekanntem Limit |
+| Gear-Seite | Slotnamen der Lib (`OffHand`, `Back`) statt Offhand/Container |
+| Daily-Button | kein Bridge-Audit-Log und kein Approval-Token mehr |
+| BACON | Nachkauf über `QuoteAndBuyAsync` mit Meat-Reserve, Menge so begrenzt, dass Menge × Höchstpreis im Tagesbudget bleibt |
+
+## 15. Pakete
 
 Zwei NuGet-Pakete gehören zur Bibliothek: `KoLibri` und `KoLibri.Safety` (hängt von `KoLibri` mit derselben Version ab).
 `KoLibri.Core`, `KoLibri.LibKolibri`, `KoLibri.Daily` und `KoLibri.Extras` sind `IsPackable=false`. Gepackt und
 geprüft wird mit `scripts/pack-lib.sh <outdir> [version]`: genau zwei nupkgs, Pflichtdateien vorhanden, kein
 `ref/net8.0/KoLibri.Core.dll`, Abhängigkeiten stimmen.
 
-### 14.1 Bündel-Layout von `KoLibri`
+### 15.1 Bündel-Layout von `KoLibri`
 
 ```
 lib/net8.0/KoLibri.dll, KoLibri.Core.dll, KoLibri.xml   Laufzeit: Core liegt dabei
@@ -1039,7 +1085,7 @@ Abhängigkeit: System.Security.Cryptography.ProtectedData 8.0.0 (kommt sonst von
 öffentliche Fläche bleibt damit genau die in `PublicAPI.*.txt` eingefrorene. Umgesetzt in `src/KoLibri/KoLibri.csproj`
 (Target `KolibriBundleCore`, `TargetsForTfmSpecificBuildOutput`).
 
-### 14.2 Spieldaten
+### 15.2 Spieldaten
 
 Die Daten liegen im Paket unter `data/kolmafia-data/`. `KoLibri.targets` fügt sie als `Content` mit
 `CopyToOutputDirectory` ein; sie landen so bei `build` und `publish` in `<Ausgabe>/external/kolmafia-data/`, wo
@@ -1047,7 +1093,7 @@ Die Daten liegen im Paket unter `data/kolmafia-data/`. `KoLibri.targets` fügt s
 `KolibriOptions.DataDirectory` setzen, sonst bleibt der Katalog still leer). Innerhalb dieses Repos greift das Target
 nicht, weil Projekte `KoLibri` per `ProjectReference` einbinden und ihre Daten selbst kopieren.
 
-### 14.3 Release-Schritt: PublicAPI Unshipped → Shipped
+### 15.3 Release-Schritt: PublicAPI Unshipped → Shipped
 
 Beim Tag (Koordinator), für `src/KoLibri` und `src/KoLibri.Safety` getrennt:
 
@@ -1057,7 +1103,7 @@ Beim Tag (Koordinator), für `src/KoLibri` und `src/KoLibri.Safety` getrennt:
 4. Dazu im selben Commit die `<Version>0.5.0-dev</Version>`-Überschreibungen in den csproj entfernen und
    `KoLibriVersion` in `Directory.Build.props` auf `0.5.0` setzen.
 
-### 14.4 Ausblick
+### 15.4 Ausblick
 
 - Schritt (b): Die ~40 erreichbaren Core-Dateien (~11.000 Zeilen, 17 % von `KoLibri.Core.dll`) wandern nach
   `src/KoLibri/Internal`, `KoLibri.Core` entfällt, das Target `KolibriBundleCore` wird entfernt. Für Nutzer unsichtbar,

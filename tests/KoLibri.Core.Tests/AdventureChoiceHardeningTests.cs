@@ -2,15 +2,13 @@ using System.Net;
 using System.Text.Json;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
-using KoLibri.Desktop;
-using KoLibri.Desktop.ContextMenus;
 using LibKolibri;
 using LibKolibri.Access;
 using Xunit;
 
 namespace KoLibri.Core.Tests;
 
-/// <summary>Package W-B: adventure and choice hardening, all against fake transports.</summary>
+/// <summary>Package W-B: adventure and choice hardening, all against fake transports. The desktop part lives in KoLibri.Tests/Desktop.</summary>
 public sealed class AdventureChoiceHardeningTests
 {
     private const string ChoiceHtml =
@@ -126,27 +124,6 @@ public sealed class AdventureChoiceHardeningTests
         var result = await new OpenChoiceClient(new HttpClient(kol)).SubmitAsync("9001", 2);
         Assert.False(result.Submitted);
         Assert.Contains("could not be confirmed", result.Message);
-    }
-
-    [Fact]
-    public async Task Unavailable_keeps_the_choice_panel_and_says_so()
-    {
-        var port = new FakePort(OpenChoiceDetection.Unavailable("HTTP 503"));
-        var decisions = new AdventureDecisionController(port);
-        decisions.Show(new NeedsDecisionInfo
-        {
-            RunId = "r", ChoiceId = "9001", Options = new[] { new ChoiceOptionInfo(1, "a") }
-        });
-        var message = await decisions.RefreshAsync();
-        Assert.Contains("could not be read", message);
-        Assert.Equal("9001", decisions.ChoiceId); // never wiped by a failed read
-    }
-
-    private sealed class FakePort(OpenChoiceDetection detection) : IOpenChoicePort
-    {
-        public Task<OpenChoiceDetection> DetectAsync(CancellationToken ct) => Task.FromResult(detection);
-        public Task<OpenChoiceSubmitResult> SubmitAsync(string choiceId, int option, CancellationToken ct)
-            => Task.FromResult(new OpenChoiceSubmitResult(false, "refused", detection));
     }
 
     // --- M11: HP/MP live conditions ------------------------------------------------------------
@@ -373,201 +350,5 @@ public sealed class AdventureChoiceHardeningTests
         Assert.Contains("--max-steps 7", command);
         Assert.Contains("--conditions-file \"my conditions.json\"", command);
         Assert.EndsWith("--execute --approval-token <token>", command);
-    }
-
-    // --- job: one default, one definition (KoLmafia item 2) ------------------------------------
-
-    [Fact]
-    public void Menu_and_form_describe_the_same_job_with_one_default()
-    {
-        Assert.Equal(AdventureJob.DefaultTurns, new LocationMenuTarget("1", "x").RunTurns);
-        var job = AdventureJob.TryCreate(3, " 123 ", 15, 40, out var error);
-        Assert.Null(error);
-        Assert.Equal(new AdventureJob(3, "123", 15, 40), job);
-        Assert.Null(AdventureJob.TryCreate(3, "abc", 0, 0, out error));
-        Assert.NotNull(error);
-        Assert.Equal(AdventureJob.DefaultTurns, AdventureJob.TryCreate(null, null, 0, 0, out _)!.Turns);
-
-        var withItem = new LocationContextMenu(new MenuHost()).Build(new LocationMenuTarget("1", "x", RunTurns: 3, StopItemId: "123"));
-        Assert.Contains(withItem, i => i.Label == "Run 3 turns (until item 123)");
-    }
-
-    private sealed class MenuHost : IShellHost
-    {
-        public AccountRole ActiveRole => AccountRole.Main;
-        public SessionLogViewModel SessionLog { get; } = new(post: action => action());
-        public void ShowMessage(string message) { }
-        public Task NavigateToAsync(string section) => Task.CompletedTask;
-        public Task RefreshStatusAsync(bool forceRefresh) => Task.CompletedTask;
-        public Task SearchMallAsync(string term) => Task.CompletedTask;
-        public Task CopyTextAsync(string text) => Task.CompletedTask;
-        public Task OpenUrlAsync(Uri uri) => Task.CompletedTask;
-    }
-
-    // --- desktop: End run, HP stop, answered choice --------------------------------------------
-
-    private const string Status = """{"name":"Fixture","adventures":"9","hp":"80","maxhp":"100"}""";
-
-    private static string Fixture(params string[] parts)
-        => File.ReadAllText(Path.Combine(new[] { AppContext.BaseDirectory, "Fixtures" }.Concat(parts).ToArray()));
-
-    private sealed class Handler(Func<int, HttpRequestMessage, CancellationToken, Task<string>> reply) : HttpMessageHandler
-    {
-        private int _count;
-        public List<(string Path, HttpMethod Method)> Requests { get; } = new();
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            int index;
-            lock (Requests) { index = _count++; Requests.Add((request.RequestUri!.AbsolutePath, request.Method)); }
-            var body = await reply(index, request, ct);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body), RequestMessage = request };
-        }
-    }
-
-    private static EncounterBrowserSessionViewModel Session(Handler handler, string root, out EncounterBrowserViewModel browser)
-    {
-        var endpoint = new Uri("https://adventure.test/");
-        var tokens = new ApprovalTokenStore(root);
-        var audit = new AuditEventJournal(Path.Combine(root, "audit.jsonl"));
-        var store = new InMemoryAdventureRunCheckpointStore();
-        var viewModel = new EncounterBrowserSessionViewModel((role, approval, verification, _) =>
-        {
-            var account = new AccountSession(new AccountProfile { Id = "fixture", DisplayName = "Fixture", Role = role }, new AccountCredentials());
-            var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = endpoint };
-            return Task.FromResult(new ManualAdventureSession(KoLAdventureSessionFactory.Create(
-                account, http, approval, verification, store, audit,
-                new AdventureHttpTransportOptions { BaseUri = endpoint, AllowedHosts = new[] { endpoint.Host } })));
-        }, tokens, AccountRole.Main) { ApprovalToken = "fixture" };
-        browser = new EncounterBrowserViewModel(new MafiaDataLoader().Load(
-            Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data")));
-        return viewModel;
-    }
-
-    private static readonly KoLibri.Desktop.AdventureLocation Garden =
-        new("fixture-zone", "Fixture", "Fixture", 543, 1, Array.Empty<AdventureEncounterMetadata>());
-
-    [Fact]
-    public async Task Run_turns_passes_the_hp_stop_to_the_fight_rounds()
-    {
-        var root = Directory.CreateTempSubdirectory("kolibri-wb-hp-");
-        try
-        {
-            var fight = Fixture("Adventure", "combat-round-1.html"); // HP 80/100
-            var handler = new Handler((_, request, _) => Task.FromResult(
-                request.RequestUri!.AbsolutePath.EndsWith("api.php") ? Status : fight));
-            var viewModel = Session(handler, root.FullName, out var browser);
-
-            await viewModel.RunTurnsAsync(browser, Garden, 5, null, default, maxFightRounds: 0, minimumHpPercent: 90);
-
-            Assert.Equal(1, handler.Requests.Count(r => r.Method == HttpMethod.Post)); // the adventure POST only
-            Assert.DoesNotContain(handler.Requests, r => r.Path.EndsWith("fight.php"));
-            Assert.Contains("HP is below", viewModel.LastMessage);
-            Assert.True(viewModel.IsSessionActive); // the fight stays open for the user
-        }
-        finally { root.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public async Task End_run_cancels_a_running_batch_and_sends_no_more_turns()
-    {
-        var root = Directory.CreateTempSubdirectory("kolibri-wb-end-");
-        try
-        {
-            var firstPostSeen = new TaskCompletionSource();
-            var reward = Fixture("Html", "SkeletonOfCrimbosPast", "reward.html");
-            var handler = new Handler(async (_, request, ct) =>
-            {
-                if (request.RequestUri!.AbsolutePath.EndsWith("adventure.php"))
-                {
-                    firstPostSeen.TrySetResult();
-                    await Task.Delay(Timeout.Infinite, ct); // KoL is slow; End run must cut this short
-                }
-                return reward;
-            });
-            using var pane = new EncounterBrowserPane((role, approval, verification, _) =>
-            {
-                var endpoint = new Uri("https://adventure.test/");
-                var account = new AccountSession(new AccountProfile { Id = "f", DisplayName = "F", Role = role }, new AccountCredentials());
-                var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = endpoint };
-                return Task.FromResult(new ManualAdventureSession(KoLAdventureSessionFactory.Create(
-                    account, http, approval, verification, new InMemoryAdventureRunCheckpointStore(),
-                    new AuditEventJournal(Path.Combine(root.FullName, "audit.jsonl")),
-                    new AdventureHttpTransportOptions { BaseUri = endpoint, AllowedHosts = new[] { endpoint.Host } })));
-            }, _ => { });
-            pane.Initialise(Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"), root.FullName);
-            pane.SelectAccount(AccountRole.Main);
-            pane.ApplyApprovalToken("fixture");
-            var row = pane.Browser!.Locations.First(r => r.Snarfblat == 543);
-
-            var running = pane.RunJobAsync(row, new AdventureJob(10, null, 0, 0)).AsTask();
-            await firstPostSeen.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            pane.EndSession();
-            await running.WaitAsync(TimeSpan.FromSeconds(10)); // returns instead of burning the budget
-
-            Assert.Equal(1, handler.Requests.Count(r => r.Method == HttpMethod.Post));
-            Assert.False(pane.Session!.IsSessionActive);
-        }
-        finally { root.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public async Task An_answered_choice_updates_the_run_so_the_remaining_turns_continue()
-    {
-        var root = Directory.CreateTempSubdirectory("kolibri-wb-choice-");
-        try
-        {
-            var choice = Fixture("Adventure", "choice-success.html");
-            var reward = Fixture("Html", "SkeletonOfCrimbosPast", "reward.html");
-            var replies = new Queue<string>(new[] { Status, "{}", choice, reward, Status, Status, "{}", reward, Status, "{\"123\":1}", Status });
-            var handler = new Handler((_, _, _) => Task.FromResult(replies.Dequeue()));
-            var viewModel = Session(handler, root.FullName, out var browser);
-
-            await viewModel.RunTurnsAsync(browser, Garden, 10, "123");
-            Assert.True(viewModel.IsSessionActive, viewModel.LastMessage);
-            Assert.NotNull(viewModel.Decisions.ChoiceId);
-
-            var message = await viewModel.Decisions.SubmitAsync(2);
-
-            Assert.StartsWith("Chose option 2", message);
-            Assert.False(viewModel.IsSessionActive, message); // RunId follows the answered choice
-            Assert.Null(viewModel.Decisions.ChoiceId);
-            await viewModel.RunTurnsAsync(browser, null, 0, null);
-            Assert.Contains("left", viewModel.LastMessage);
-            Assert.Equal(new[] { "/adventure.php", "/choice.php", "/adventure.php" },
-                handler.Requests.Where(r => r.Method == HttpMethod.Post).Select(r => r.Path));
-        }
-        finally { root.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public async Task A_role_switch_during_a_decision_is_not_an_unhandled_exception()
-    {
-        var root = Directory.CreateTempSubdirectory("kolibri-wb-switch-");
-        try
-        {
-            var started = new TaskCompletionSource();
-            var handler = new Handler(async (_, _, ct) => { started.TrySetResult(); await Task.Delay(Timeout.Infinite, ct); return ""; });
-            var statuses = new List<string>();
-            using var pane = new EncounterBrowserPane((role, approval, verification, _) =>
-            {
-                var endpoint = new Uri("https://adventure.test/");
-                var account = new AccountSession(new AccountProfile { Id = "f", DisplayName = "F", Role = role }, new AccountCredentials());
-                var http = new HttpClient(handler, disposeHandler: false) { BaseAddress = endpoint };
-                return Task.FromResult(new ManualAdventureSession(KoLAdventureSessionFactory.Create(
-                    account, http, approval, verification, new InMemoryAdventureRunCheckpointStore(),
-                    new AuditEventJournal(Path.Combine(root.FullName, "audit.jsonl")),
-                    new AdventureHttpTransportOptions { BaseUri = endpoint, AllowedHosts = new[] { endpoint.Host } })));
-            }, statuses.Add);
-            pane.Initialise(Path.Combine(AppContext.BaseDirectory, "external", "kolmafia-data"), root.FullName);
-            pane.SelectAccount(AccountRole.Main);
-
-            var refresh = pane.RefreshDecisionAsync().AsTask();
-            await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            pane.SelectAccount(AccountRole.Mallbot);
-
-            await refresh.WaitAsync(TimeSpan.FromSeconds(10)); // completes normally, no OperationCanceledException
-            Assert.DoesNotContain(statuses, s => s.Contains("canceled")); // nothing lands in the new account's status
-        }
-        finally { root.Delete(recursive: true); }
     }
 }

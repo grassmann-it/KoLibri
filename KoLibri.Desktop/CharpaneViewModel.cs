@@ -1,6 +1,4 @@
 using System.Globalization;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -36,33 +34,29 @@ public sealed record CharpaneState
     public string? Message { get; init; }
     public bool IsError { get; init; }
 
-    public static CharpaneState FromStatus(KoLStatusSnapshot status, string role, DateTimeOffset? now = null)
+    public static CharpaneState FromStatus(Status status, string role, DateTimeOffset? now = null)
     {
-        var effects = status.TimedEffects.Count > 0
-            ? status.TimedEffects.Select(e => new EffectRow(e.Name, e.TurnsRemaining)).ToList()
-            : status.Effects.Select(e => new EffectRow(e, 0)).ToList();
-        var age = (now ?? DateTimeOffset.UtcNow) - status.FetchedAt;
+        // 0.5: the library throws instead of returning old data, so there is no stale state to show any more.
+        var effects = status.Effects.Select(e => new EffectRow(e.Name, e.Turns)).ToList();
         return new CharpaneState
         {
-            Name = status.PlayerName ?? role,
-            Role = status.IsStale ? $"{role} · stale" : role,
+            Name = string.IsNullOrWhiteSpace(status.PlayerName) ? role : status.PlayerName,
+            Role = role,
             Level = $"Level {status.Level}",
-            Hp = status.MaximumHp > 0 ? $"HP {status.CurrentHp:N0} / {status.MaximumHp:N0}" : "HP —",
-            Mp = status.MaximumMp > 0 ? $"MP {status.CurrentMp:N0} / {status.MaximumMp:N0}" : "MP —",
-            HpFraction = Fraction(status.CurrentHp, status.MaximumHp),
-            MpFraction = Fraction(status.CurrentMp, status.MaximumMp),
+            Hp = status.MaxHp > 0 ? $"HP {status.Hp:N0} / {status.MaxHp:N0}" : "HP —",
+            Mp = status.MaxMp > 0 ? $"MP {status.Mp:N0} / {status.MaxMp:N0}" : "MP —",
+            HpFraction = Fraction(status.Hp, status.MaxHp),
+            MpFraction = Fraction(status.Mp, status.MaxMp),
             Adventures = $"Adventures {status.Adventures:N0}",
             Meat = $"Meat {status.Meat:N0}",
-            Fullness = Organ("Fullness", status.Fullness, status.FullnessLimit),
-            Drunk = Organ("Drunkenness", status.Inebriety, status.InebrietyLimit),
-            Spleen = Organ("Spleen", status.Spleen, status.SpleenLimit),
+            Fullness = Organ("Fullness", status.Fullness.Current, status.Fullness.Limit),
+            Drunk = Organ("Drunkenness", status.Inebriety.Current, status.Inebriety.Limit),
+            Spleen = Organ("Spleen", status.Spleen.Current, status.Spleen.Limit),
             Familiar = DescribeFamiliar(status),
             Effects = effects,
             EffectsText = effects.Count == 0 ? "None" : string.Join(Environment.NewLine, effects.Select(e => e.Display)),
-            Message = status.IsStale
-                ? $"Showing old data from {status.FetchedAt.ToLocalTime():HH:mm:ss} ({FormatAge(age)} ago): KoL did not answer with a fresh status."
-                : null,
-            IsError = status.IsStale
+            Message = null,
+            IsError = false
         };
     }
 
@@ -83,19 +77,20 @@ public sealed record CharpaneState
 
     public static string DescribeError(Exception exception) => exception switch
     {
-        KoLHtmlResponseException { Kind: KoLHtmlResponseKind.LoginPage }
+        SessionExpiredException => "The KoL session has expired. Sign in again in Settings.",
+        UnexpectedPageException { Page.Kind: PageKind.LoginRequired }
             => "The KoL session has expired. Sign in again in Settings.",
-        KoLHtmlResponseException => "KoL answered with an unexpected page (maintenance or an interstitial). Try again in a minute.",
+        UnexpectedPageException => "KoL answered with an unexpected page (maintenance or an interstitial). Try again in a minute.",
         OperationCanceledException => "The request was cancelled.",
         HttpRequestException h => $"Could not reach KoL: {h.Message}",
         _ => $"The request failed: {exception.Message}"
     };
 
-    public static string DescribeFamiliar(KoLStatusSnapshot status)
+    public static string DescribeFamiliar(Status status)
     {
-        if (string.IsNullOrWhiteSpace(status.FamiliarId) || status.FamiliarId == "0") return "None";
+        if (status.FamiliarId is not { } familiarId || familiarId == 0) return "None";
         var weight = status.FamiliarWeight is { } w ? $" · {w} lb" : "";
-        var name = string.IsNullOrWhiteSpace(status.FamiliarName) ? $"Familiar #{status.FamiliarId}" : status.FamiliarName.Trim();
+        var name = string.IsNullOrWhiteSpace(status.FamiliarName) ? $"Familiar #{familiarId}" : status.FamiliarName.Trim();
         return $"{name}{weight}";
     }
 
@@ -107,7 +102,4 @@ public sealed record CharpaneState
 
     private static double Fraction(int current, int maximum)
         => maximum > 0 ? Math.Clamp((double)current / maximum, 0, 1) : 0;
-
-    private static string FormatAge(TimeSpan age)
-        => age.TotalMinutes < 1 ? "under a minute" : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min" : $"{(int)age.TotalHours} h";
 }

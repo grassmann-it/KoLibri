@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -33,14 +31,14 @@ public sealed record CombatTarget
 /// </summary>
 public sealed class AutoCombatViewModel : DesktopViewModel
 {
-    private readonly KoLibri.Core.Spiel.KoLmafiaCatalog? _catalog;
+    private readonly KoLmafiaCatalog? _catalog;
     private CombatTarget? _selectedTarget;
     private CombatOption? _selectedSkill;
     private CombatOption? _selectedItem;
     private int _abortHpPercent = 30;
     private int _maxRounds = 20;
 
-    public AutoCombatViewModel(KoLibri.Core.Spiel.KoLmafiaCatalog? catalog = null)
+    public AutoCombatViewModel(KoLmafiaCatalog? catalog = null)
     {
         _catalog = catalog;
         Targets = new ObservableCollection<CombatTarget>();
@@ -229,20 +227,20 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     }
 
     /// <summary>
-    /// Builds the deterministic policy from the current selection. The
-    /// skills come first in the order the operator picked them, the items
-    /// follow, and attacking is the fallback.
+    /// Builds the deterministic plan from the current selection as rule text for
+    /// <see cref="CombatStrategies.FromRules"/>. The skills come first in the order the operator
+    /// picked them (each once), the items follow (each once), and attacking is the fallback.
     /// </summary>
-    public KoLibri.Core.Spiel.AutoCombatPolicy BuildPolicy()
-        => BuildPolicyCore(
+    public string BuildPolicy()
+        => BuildRules(
             SelectedSkills.Select(s => s.Id).ToArray(),
             SelectedItems.Select(i => i.Id).ToArray());
 
     /// <summary>
-    /// The policy for fights in an adventure batch: the plan's skills and items, then attack. Null
+    /// The plan for fights in an adventure batch: the plan's skills and items, then attack. Null
     /// when no skill or item is picked, so the batch keeps its plain attack default.
     /// </summary>
-    public KoLibri.Core.Spiel.AutoCombatPolicy? BuildBatchPolicy()
+    public string? BuildBatchPolicy()
         => SelectedSkills.Count == 0 && SelectedItems.Count == 0 ? null : BuildPolicy();
 
     /// <summary>The accounts the operator wants to fight on.</summary>
@@ -253,158 +251,24 @@ public sealed class AutoCombatViewModel : DesktopViewModel
     };
 
     /// <summary>
-    /// The policy builder lives here rather than in the core so the
-    /// desktop does not depend on the core's internal assembly layout for
-    /// something this small.
+    /// The 0.4 policy (one rule per skill/item with maxUses 1, default attack) in the JSON form of the
+    /// AutoCombatPolicy DSL: the text DSL has no per-rule use limit.
     /// </summary>
-    private static KoLibri.Core.Spiel.AutoCombatPolicy BuildPolicyCore(
-        IReadOnlyList<string> skillIds,
-        IReadOnlyList<string> itemIds)
+    internal static string BuildRules(IReadOnlyList<string> skillIds, IReadOnlyList<string> itemIds)
     {
-        var rules = new List<KoLibri.Core.Spiel.AutoCombatRule>();
-        foreach (var skill in skillIds.Where(s => !string.IsNullOrWhiteSpace(s)))
+        static object Rule(string kind, string id) => new Dictionary<string, object>
         {
-            rules.Add(new KoLibri.Core.Spiel.AutoCombatRule
-            {
-                When = new KoLibri.Core.Spiel.AutoCombatPredicate(),
-                Then = new KoLibri.Core.Spiel.AutoCombatAction
-                {
-                    Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Skill,
-                    Id = skill.Trim(),
-                    Quantity = 1
-                },
-                MaxUses = 1
-            });
-        }
-        foreach (var item in itemIds.Where(i => !string.IsNullOrWhiteSpace(i)))
-        {
-            rules.Add(new KoLibri.Core.Spiel.AutoCombatRule
-            {
-                When = new KoLibri.Core.Spiel.AutoCombatPredicate(),
-                Then = new KoLibri.Core.Spiel.AutoCombatAction
-                {
-                    Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Item,
-                    Id = item.Trim(),
-                    Quantity = 1
-                },
-                MaxUses = 1
-            });
-        }
-        return new KoLibri.Core.Spiel.AutoCombatPolicy
-        {
-            Rules = rules.ToArray(),
-            DefaultAction = new KoLibri.Core.Spiel.AutoCombatAction
-            {
-                Kind = KoLibri.Core.Spiel.AutoCombatActionKind.Attack,
-                Quantity = 1
-            }
+            ["when"] = new Dictionary<string, object>(),
+            ["action"] = new Dictionary<string, object> { ["kind"] = kind, ["id"] = id.Trim(), ["quantity"] = 1 },
+            ["maxUses"] = 1
         };
-    }
-
-    /// <summary>
-    /// Runs the fight on every selected account. Each account gets its own
-    /// gateway and its own run; one account failing never stops the
-    /// others.
-    /// </summary>
-    public async Task<IReadOnlyList<CombatRunOutcome>> RunAsync(
-        string encounterId,
-        string? adventureId,
-        string? approvalToken,
-        CancellationToken cancellationToken = default)
-    {
-        var outcomes = new List<CombatRunOutcome>();
-        if (!HasConfiguration)
+        var rules = skillIds.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => Rule("skill", s))
+            .Concat(itemIds.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => Rule("item", i)))
+            .ToArray();
+        return System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            outcomes.Add(new CombatRunOutcome
-            {
-                Role = AccountRole.Main,
-                Outcome = "not-configured",
-                Rationale = "Pick a target and at least one skill first."
-            });
-            return outcomes;
-        }
-        if (string.IsNullOrWhiteSpace(approvalToken))
-        {
-            outcomes.Add(new CombatRunOutcome
-            {
-                Role = AccountRole.Main,
-                Outcome = "no-token",
-                Rationale = "Live fights need an approval token."
-            });
-            return outcomes;
-        }
-        var policy = BuildPolicy();
-        foreach (var role in Roles)
-        {
-            try
-            {
-                var gateway = await CreateCombatGatewayAsync(role, approvalToken, cancellationToken)
-                    ;
-                var runner = new KoLibri.Core.Spiel.AutoCombatRunner(gateway);
-                var result = await runner.RunAsync(
-                    policy,
-                    combatId: encounterId,
-                    adventureId: adventureId,
-                    accountId: role.ToString(),
-                    maxRounds: MaxRounds,
-                    abortBelowHpPercent: AbortHpPercent,
-                    approvalToken: approvalToken,
-                    cancellationToken: cancellationToken);
-                outcomes.Add(new CombatRunOutcome
-                {
-                    Role = role,
-                    Outcome = result.Outcome,
-                    Rationale = result.Rationale,
-                    Rounds = result.Rounds,
-                    RoundLog = result.RoundLog
-                });
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                outcomes.Add(new CombatRunOutcome
-                {
-                    Role = role,
-                    Outcome = "failed",
-                    Rationale = exception.Message
-                });
-            }
-        }
-        return outcomes;
+            ["rules"] = rules,
+            ["defaultAction"] = new Dictionary<string, object> { ["kind"] = "attack", ["quantity"] = 1 }
+        });
     }
-
-    private static async Task<KoLibri.Core.Spiel.ManualCombatGateway>
-        CreateCombatGatewayAsync(AccountRole role, string approvalToken, CancellationToken cancellationToken)
-    {
-        var accounts = AccountSessionManager.CreateDefault();
-        await accounts.InitializeAsync(cancellationToken);
-        var session = await accounts.GetSessionAsync(role, cancellationToken: cancellationToken)
-            ;
-        if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
-            throw new InvalidOperationException($"No valid session for {role}.");
-        var http = KoLibri.Core.Basis.KoLLoginClient.CreateAuthenticatedClient(
-            session.Credentials, new Uri("https://www.kingdomofloathing.com/"));
-        var transport = new KoLibri.Core.Spiel.LiveManualCombatTransport(http);
-        var approval = new KoLibri.Core.Spiel.DelegateManualCombatApprovalHook(
-            (context, _) => ValueTask.FromResult(
-                KoLibri.Core.Spiel.ManualCombatApprovalDecision.Allow(approvalToken)));
-        return new KoLibri.Core.Spiel.ManualCombatGateway(
-            transport,
-            policy: null,
-            approval: approval);
-    }
-}
-
-/// <summary>What one account's fight did.</summary>
-public sealed record CombatRunOutcome
-{
-    public required AccountRole Role { get; init; }
-    public required string Outcome { get; init; }
-    public required string Rationale { get; init; }
-    public int Rounds { get; init; }
-    public IReadOnlyList<KoLibri.Core.Spiel.AutoCombatRound> RoundLog { get; init; }
-        = Array.Empty<KoLibri.Core.Spiel.AutoCombatRound>();
 }

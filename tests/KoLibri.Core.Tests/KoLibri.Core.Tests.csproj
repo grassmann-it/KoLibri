@@ -10,7 +10,6 @@
     <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
     <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
     <ProjectReference Include="../../tools/KolLibri.Cli/KolLibri.Cli.csproj" />
-    <ProjectReference Include="../../KoLibri.Desktop/KoLibri.Desktop.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">

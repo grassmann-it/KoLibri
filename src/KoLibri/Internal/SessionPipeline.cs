@@ -32,6 +32,7 @@ internal static class SessionPipeline
             ActionInterval = limiter.ActionInterval < CoreBasis.KoLRateLimiter.MinimumInterval ? CoreBasis.KoLRateLimiter.MinimumInterval : limiter.ActionInterval,
             ReadInterval = limiter.ReadInterval,
             ReadConcurrency = limiter.ReadConcurrency,
+            MaxPerSecond = double.IsNaN(limiter.MaxPerSecond) ? 2 : limiter.MaxPerSecond <= 0 ? 0 : Math.Clamp(limiter.MaxPerSecond, 1, CoreBasis.KoLLimiterOptions.MaximumPerSecond),
         });
     }
 

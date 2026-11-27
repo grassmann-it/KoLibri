@@ -159,21 +159,4 @@ public sealed class MoneyPathTests
         }
         finally { Directory.Delete(dir, true); }
     }
-
-    [Fact]
-    public void Desktop_ledger_shares_the_rules()
-    {
-        var dir = TempDir();
-        try
-        {
-            var path = Path.Combine(dir, "mall.json");
-            var a = new KoLibri.Desktop.MallSpendLedger(new FixedClock(), path);
-            Assert.True(a.TryReserve("Main", 400, 500, out _));
-            var b = new KoLibri.Desktop.MallSpendLedger(new FixedClock(), path);
-            Assert.False(b.TryReserve("Main", 200, 500, out _));
-            a.Settle("Main", 400);
-            Assert.Equal(400, b.SpentToday("Main"));
-        }
-        finally { Directory.Delete(dir, true); }
-    }
 }

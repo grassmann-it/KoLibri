@@ -166,7 +166,8 @@ namespace KoLibri
             var host = CoreBasis.RelayHost.Start(session, options.Port, options.LogPath, options.UseBrowserUserAgent, options.Output,
                 upstreamHandler: Client.Options.HttpHandler is null ? null : new NonDisposingHandler(Client.Options.HttpHandler),
                 kolOrigin: Client.Options.BaseUri.GetLeftPart(UriPartial.Authority),
-                limiter: Client.Limiter);
+                limiter: Client.Limiter,
+                sessionCheck: options.SessionCheck);
             return Task.FromResult(new RelayServer(host));
         }
 
@@ -213,6 +214,7 @@ namespace KoLibri
             catch (Exception exception) when (Mapping.IsLoginPage(exception))
             {
                 _expired = true;
+                if (!Client.Options.MayAutoReconnect) throw new SessionExpiredException(_record.Account.Id);
                 await ReconnectAsync(cancellationToken).ConfigureAwait(false);
                 result = await read(Reader).ConfigureAwait(false);
             }
@@ -296,7 +298,7 @@ namespace KoLibri
             if (page.Kind == PageKind.LoginRequired)
             {
                 _expired = true;
-                if (effective == RequestLane.Read && !string.IsNullOrEmpty(_record.Password ?? (await Client.FindRecordAsync(_record.Account.Id.Value, true, cancellationToken).ConfigureAwait(false))?.Password))
+                if (effective == RequestLane.Read && Client.Options.MayAutoReconnect && !string.IsNullOrEmpty(_record.Password ?? (await Client.FindRecordAsync(_record.Account.Id.Value, true, cancellationToken).ConfigureAwait(false))?.Password))
                 {
                     await ReconnectAsync(cancellationToken).ConfigureAwait(false);
                     page = await SendOnceAsync(method, uri, form, lane, cancellationToken).ConfigureAwait(false);
@@ -410,6 +412,11 @@ namespace KoLibri
         public bool UseBrowserUserAgent { get; init; }
         /// <summary>Gets one line per relayed request (redacted), e.g. for a console. Ergänzt in 0.5 Schritt 3.</summary>
         public Action<string>? Output { get; init; }
+        /// <summary>
+        /// Vor jeder weitergeleiteten Anfrage gefragt: null leitet weiter, ein Text lehnt mit dieser Meldung ab
+        /// (z. B. "das Konto hat sich neu angemeldet"). Ergänzt in Schritt 3 (Desktop-Browser).
+        /// </summary>
+        public Func<Task<string?>>? SessionCheck { get; init; }
     }
 
     public sealed class RelayServer : IAsyncDisposable
