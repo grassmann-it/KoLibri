@@ -11,7 +11,10 @@ namespace KoLibri
         Skill,
         Item,
         RunAway,
-        /// <summary>Experimentell in 0.5: der Läufer lehnt Makros mit NotSupportedException ab, bis sie live geprüft sind.</summary>
+        /// <summary>
+        /// Experimentell in 0.5: der Läufer schickt Makros nur mit <see cref="KolibriOptions.EnableExperimentalMacros"/> = true,
+        /// sonst NotSupportedException (KOLIBRI0001), bis sie live geprüft sind.
+        /// </summary>
         [Experimental(KolibriDiagnostics.CombatMacros)]
         Macro,
         Stop
@@ -20,7 +23,7 @@ namespace KoLibri
     /// <summary>Diagnose-Ids für [Experimental]-APIs. Nutzer schalten sie per NoWarn bewusst frei.</summary>
     public static class KolibriDiagnostics
     {
-        /// <summary>KoL-Combat-Makros: angelegt, aber vor dem Live-Test nicht freigeschaltet.</summary>
+        /// <summary>KoL-Combat-Makros: Sendepfad vorhanden, läuft nur mit KolibriOptions.EnableExperimentalMacros (vor dem Live-Test).</summary>
         public const string CombatMacros = "KOLIBRI0001";
     }
 
@@ -32,9 +35,12 @@ namespace KoLibri
         public static CombatAction Stop { get; } = new(CombatActionKind.Stop);
         public static CombatAction Skill(SkillRef skill) => new(CombatActionKind.Skill, skill.Id);
         public static CombatAction Item(ItemRef item, ItemRef? second = null) => new(CombatActionKind.Item, item.Id, second?.Id);
-        /// <summary>KoL-Combat-Makro, wird über fight.php?action=macro geschickt. Experimentell in 0.5.</summary>
+        /// <summary>
+        /// KoL-Combat-Makro, wird über fight.php (action=macro, macrotext=…) geschickt. Experimentell in 0.5:
+        /// läuft nur mit <see cref="KolibriOptions.EnableExperimentalMacros"/>. Leere oder zu lange Makros wirft schon hier eine ArgumentException.
+        /// </summary>
         [Experimental(KolibriDiagnostics.CombatMacros)]
-        public static CombatAction FromMacro(string macro) => new(CombatActionKind.Macro, Macro: macro);
+        public static CombatAction FromMacro(string macro) => new(CombatActionKind.Macro, Macro: CombatMacroText.Normalize(macro));
     }
 
     /// <summary>Was eine Strategie pro Runde sieht. Reiner Schnappschuss, keine Requests.</summary>
@@ -69,12 +75,18 @@ namespace KoLibri
     {
         public static ICombatStrategy AttackOnly { get; } = new DelegateStrategy(_ => CombatAction.Attack);
 
-        /// <summary>Jede Runde dasselbe Makro (KoL wertet es serverseitig aus). Experimentell in 0.5, siehe KolibriDiagnostics.CombatMacros.</summary>
+        /// <summary>
+        /// Jede Runde dasselbe Makro (KoL wertet es serverseitig aus, eine Antwort kann mehrere Runden enthalten).
+        /// Experimentell in 0.5: läuft nur mit <see cref="KolibriOptions.EnableExperimentalMacros"/>, siehe KolibriDiagnostics.CombatMacros.
+        /// Bricht KoL das Makro ab (Kampf bleibt offen), schickt FightToEndAsync dasselbe Makro nicht noch einmal, sondern endet mit Stopped.
+        /// </summary>
         [Experimental(KolibriDiagnostics.CombatMacros)]
         public static ICombatStrategy Macro(string macro)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(macro);
+#pragma warning disable KOLIBRI0001
             var action = CombatAction.FromMacro(macro);
+#pragma warning restore KOLIBRI0001
             return new DelegateStrategy(_ => action);
         }
 
@@ -312,6 +324,40 @@ namespace KoLibri
                         ? ChoiceDecisionSource.Configured : ChoiceDecisionSource.BuiltIn, result.Reason)
                     : ChoiceDecision.Ask(result.Reason);
             }
+        }
+    }
+
+    /// <summary>
+    /// Makrotext wie KoLmafia ihn vor dem Senden verdichtet (FightRequest.handleMacroAction, MACRO_COMPACT_PATTERN):
+    /// Kommentare (#…) bis zum nächsten Trenner weg, aufeinanderfolgende Trenner zusammengefasst, außen getrimmt.
+    /// Ein leeres Makro würde KoL mit "Invalid macro" beantworten, darum wird es hier abgelehnt.
+    /// </summary>
+    internal static class CombatMacroText
+    {
+        /// <summary>KoLibri-eigene Obergrenze (KoLs genaue Grenze ist nicht belegt; KoLmafia prüft keine). Im Live-Test nachschärfen.</summary>
+        internal const int MaxLength = 10_000;
+
+        private static readonly Regex Compact = new(@"(?:#.*?)?([;\n])[\s;\n]*", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        internal static string Normalize(string macro)
+        {
+            ArgumentNullException.ThrowIfNull(macro);
+            var text = Compact.Replace(macro.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n'), "$1").Trim();
+            if (text.Length == 0 || text.All(c => c is ';' or '\n'))
+                throw new ArgumentException("The combat macro is empty (after removing comments); KoL would answer \"Invalid macro\".", nameof(macro));
+            if (text.Length > MaxLength)
+                throw new ArgumentException($"The combat macro has {text.Length} characters; KoLibri sends at most {MaxLength}.", nameof(macro));
+            return text;
+        }
+
+        /// <summary>Kurzform für GuardedAction.Summary und Logs: Anfang des Makros plus Hash, nie der volle Text.</summary>
+        internal static string Summary(string? macro)
+        {
+            var text = macro ?? "";
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..8].ToLowerInvariant();
+            var head = text.Replace('\n', ' ');
+            if (head.Length > 32) head = head[..32] + "…";
+            return $"macro \"{head}\" #{hash} ({text.Length} chars)";
         }
     }
 }

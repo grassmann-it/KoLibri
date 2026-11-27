@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Standalone test app for the macro live check (docs/macro-live-check.md). Builds against the library in this repo,
+       not the NuGet package, so the coordinator can run it right after the merge. -->
+  <PropertyGroup>
+    <RootNamespace>MacroLiveCheck</RootNamespace>
+    <!-- KOLIBRI0001: this app uses the experimental macro API on purpose. -->
+    <NoWarn>$(NoWarn);KOLIBRI0001</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/KoLibri/KoLibri.csproj" />
+  </ItemGroup>
+</Project>

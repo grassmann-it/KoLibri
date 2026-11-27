@@ -417,8 +417,11 @@ public static class ChoiceResolvers
   das spart Requests pro Runde. **In 0.5 nur als Typ angelegt** (§8 Punkt 6): `CombatStrategies.Macro`,
   `CombatAction.FromMacro` und `CombatActionKind.Macro` tragen `[Experimental("KOLIBRI0001")]`
   (`KolibriDiagnostics.CombatMacros`). Wer sie nutzt, bekommt einen Compilerfehler, bis er die Id per `NoWarn`
-  freischaltet. Läufer und `FightAsync` lehnen Makro-Aktionen in 0.5 mit `NotSupportedException` ab. Freigeschaltet
-  wird erst nach einem festgehaltenen Live-Test; dann entfallen Attribut und Sperre.
+  freischaltet. Läufer und `FightAsync` lehnen Makro-Aktionen in 0.5 mit `NotSupportedException` ab, solange
+  `KolibriOptions.EnableExperimentalMacros` (ebenfalls KOLIBRI0001) nicht `true` ist. Mit der Option geht das Makro als
+  `POST fight.php` (`action=macro`, `macrotext`, `pwd`, wie KoLmafia) raus; eine Antwort kann mehrere Runden enthalten
+  (`FightRound.RoundsInResponse`), Abbruch und ungültiges Makro stehen in `FightRound.MacroError`. Ablauf des
+  Live-Tests: `docs/macro-live-check.md`. Danach entfallen Attribut und Sperre.
 - Turtle-Tamer-Begegnungen bleiben eine Choice. `ChoiceResolvers.Safe` erkennt sie am Titel wie heute
   `TurtleTamerEncounters` und fragt, solange keine Option konfiguriert ist.
 

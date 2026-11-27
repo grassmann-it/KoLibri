@@ -327,6 +327,14 @@ namespace KoLibri
                     if (action.SecondId is { } second) form["whichitem2"] = second.ToString(CultureInfo.InvariantCulture);
                     break;
                 case CombatActionKind.RunAway: form["action"] = "runaway"; break;
+#pragma warning disable KOLIBRI0001
+                case CombatActionKind.Macro:
+#pragma warning restore KOLIBRI0001
+                    // As KoLmafia sends it (FightRequest.handleMacroAction + GenericRequest.getDataString): action=macro, macrotext=…, pwd.
+                    form["action"] = "macro";
+                    form["macrotext"] = CombatMacroText.Normalize(action.Macro ?? "");
+                    form["pwd"] = await _session.GetPasswordHashAsync(cancellationToken).ConfigureAwait(false);
+                    break;
                 default: throw new NotSupportedException($"Combat action {action.Kind} cannot be sent.");
             }
             var previous = _lastObservation;
@@ -339,6 +347,10 @@ namespace KoLibri
             }
             var observation = new CoreSpiel.KoLCombatObservationParser().Parse(page.Html, page.Url);
             _lastObservation = observation;
+#pragma warning disable KOLIBRI0001
+            if (action.Kind == CombatActionKind.Macro)
+#pragma warning restore KOLIBRI0001
+                return MacroRound(action, page, observation, previous);
             var outcome = observation.Outcome switch
             {
                 CoreSpiel.CombatOutcome.Ongoing => FightOutcome.Ongoing,
@@ -365,6 +377,81 @@ namespace KoLibri
             return round;
         }
 
+        private static readonly Regex MacroActionMarker = new(@"<!--\s*macroaction:\s*(?<action>\w+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex MacroAbortText = new(@"macro abort|could not match item\(s\) for use", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex MacroInvalidText = new(@"invalid macro", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>
+        /// One macro answer can hold several rounds (KoL puts a "&lt;!-- macroaction: … --&gt;" comment before each, see KoLmafia
+        /// FightRequest.MACRO_PATTERN). Outcome from the page's end markers (&lt;!--WINWINWIN--&gt;, &lt;!--LOSELOSELOSE--&gt;) or the
+        /// observation parser; abort/invalid texts as in KoLmafia FightRequest.containsMacroError.
+        /// </summary>
+        private FightRound MacroRound(CombatAction action, Page page, CoreSpiel.CombatObservation observation, CoreSpiel.CombatObservation? previous)
+        {
+            var html = page.Html;
+            var steps = MacroActionMarker.Matches(html).Count;
+            var invalid = MacroInvalidText.IsMatch(html);
+            var aborted = !invalid && MacroAbortText.IsMatch(html);
+            var outcome = html.Contains("<!--WINWINWIN-->", StringComparison.OrdinalIgnoreCase) ? FightOutcome.Won
+                : html.Contains("<!--LOSELOSELOSE-->", StringComparison.OrdinalIgnoreCase) ? FightOutcome.Lost
+                // KoL: "You run away, like a little coward." (KoLmafia test_fight_battle_end_both_combat_bars_runaway_macro.html)
+                : !OpenFightForm(html) && MacroRanAway.IsMatch(Plain(html)) ? FightOutcome.RanAway
+                : observation.Outcome switch
+                {
+                    CoreSpiel.CombatOutcome.Victory => FightOutcome.Won,
+                    CoreSpiel.CombatOutcome.Defeat => FightOutcome.Lost,
+                    CoreSpiel.CombatOutcome.Fled => FightOutcome.RanAway,
+                    CoreSpiel.CombatOutcome.Ongoing => FightOutcome.Ongoing,
+                    _ when OpenFightForm(html) => FightOutcome.Ongoing,
+                    _ => FightOutcome.Unknown
+                };
+            string? error = null;
+            if (invalid && outcome is not (FightOutcome.Won or FightOutcome.Lost or FightOutcome.RanAway))
+            {
+                // KoL refused the macro text: nothing ran. Unknown ends FightToEndAsync without a second request.
+                outcome = FightOutcome.Unknown;
+                error = "KoL rejected the macro as invalid: " + MacroMessage(html, MacroInvalidText);
+            }
+            else if (aborted && outcome == FightOutcome.Ongoing)
+                error = "KoL aborted the macro; the fight is still open: " + MacroMessage(html, MacroAbortText);
+            var rounds = Math.Max(steps, error is not null && outcome == FightOutcome.Unknown ? 0 : 1);
+            var (gained, meat) = outcome == FightOutcome.Ongoing || outcome == FightOutcome.Unknown ? (Array.Empty<InventoryItem>(), 0L) : Loot(html);
+            // "var onturn = N" names the round the macro started in (KoLmafia test_fight_lose.html: onturn = 1 after 19 actions).
+            var start = observation.Round > 0 ? observation.Round : (previous?.Round ?? _fight?.Round ?? 0) + 1;
+            var number = start + Math.Max(1, rounds) - 1;
+            var round = new FightRound(number, action, outcome,
+                observation.PlayerHp ?? previous?.PlayerHp ?? 0, observation.PlayerMp ?? previous?.PlayerMp ?? 0, page)
+            {
+                DamageDealt = Delta(previous?.EnemyHp, observation.EnemyHp),
+                DamageTaken = Delta(previous?.PlayerHp, observation.PlayerHp),
+                Items = gained,
+                Meat = meat,
+#pragma warning disable KOLIBRI0001
+                RoundsInResponse = rounds,
+                MacroError = error
+#pragma warning restore KOLIBRI0001
+            };
+            if (outcome == FightOutcome.Ongoing && _fight is { } open)
+                _fight = open with { Page = page, Round = round.Round };
+            else if (outcome != FightOutcome.Ongoing)
+                _fight = null;
+            if (gained.Length > 0) _session.RaiseItems(gained, ItemSource.Fight);
+            return round;
+        }
+
+        private static readonly Regex MacroRanAway = new(@"\byou run away\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>KoL's text from the marker to the end of its sentence, e.g. "Macro Aborted: 37 instructions (In a row?!) executed without any actions being taken."</summary>
+        private static string MacroMessage(string html, Regex marker)
+        {
+            var text = Plain(html);
+            var match = marker.Match(text);
+            if (!match.Success) return "(no text)";
+            var end = Regex.Match(text[match.Index..], @"\.(?=\s|$)");
+            var sentence = (end.Success && end.Index < 160 ? text.Substring(match.Index, end.Index + 1) : text.Substring(match.Index, Math.Min(match.Length, text.Length - match.Index))).Trim();
+            return sentence;
+        }
+
         internal async Task<FightResult> FightToEndAsync(ICombatStrategy strategy, int maxRounds, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(strategy);
@@ -388,12 +475,21 @@ namespace KoLibri
                 };
                 var action = strategy.Next(context);
                 if (action.Kind == CombatActionKind.Stop) { outcome = FightOutcome.Stopped; break; }
+#pragma warning disable KOLIBRI0001
+                var isMacro = action.Kind == CombatActionKind.Macro;
+                // KoL aborted this very macro last time and the fight is still open: sending it again would abort again.
+                if (isMacro && rounds.Count > 0 && rounds[^1] is { MacroError: not null, Action: var last } && last == action)
+                { outcome = FightOutcome.Stopped; break; }
+#pragma warning restore KOLIBRI0001
                 var round = await FightAsync(action, cancellationToken).ConfigureAwait(false);
-                if (round.Outcome == FightOutcome.Ongoing && !HasHp(_lastObservation))
+                if ((round.Outcome == FightOutcome.Ongoing || isMacro && round.Outcome != FightOutcome.Unknown) && !HasHp(_lastObservation))
                 {
-                    // Only while the fight goes on, and only when the page has no HP: one status read, never a guess.
+                    // Only when the page has no HP: one status read, never a guess. Normally only while the fight goes on;
+                    // a macro answer may hold many rounds, so after a macro the HP are read even when the fight ended.
+                    var before = hp;
                     status = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
                     round = round with { Hp = status.Hp, Mp = status.Mp };
+                    if (isMacro) round = round with { DamageTaken = Math.Max(0, before - status.Hp) };
                 }
                 rounds.Add(round);
                 hp = round.Hp;
@@ -708,11 +804,18 @@ namespace KoLibri
             return null;
         }
 
-        private static void ValidateAction(CombatAction action)
+        private void ValidateAction(CombatAction action)
         {
 #pragma warning disable KOLIBRI0001
             if (action.Kind == CombatActionKind.Macro)
-                throw new NotSupportedException("Combat macros are not enabled in KoLibri 0.5 (KOLIBRI0001); they need a recorded live test first.");
+            {
+                if (!_session.Client.Options.EnableExperimentalMacros)
+                    throw new NotSupportedException("Combat macros are not enabled in KoLibri 0.5 (KOLIBRI0001); they need a recorded live test first. "
+                        + "To try them anyway, set KolibriOptions.EnableExperimentalMacros = true.");
+                if (string.IsNullOrWhiteSpace(action.Macro))
+                    throw new ArgumentException("A macro action needs macro text.", nameof(action));
+                _ = CombatMacroText.Normalize(action.Macro); // empty after comments or too long: refuse before sending
+            }
 #pragma warning restore KOLIBRI0001
             if (action.Kind == CombatActionKind.Stop)
                 throw new ArgumentException("CombatAction.Stop is not sent to KoL; it hands the fight back to a human.", nameof(action));
@@ -724,6 +827,9 @@ namespace KoLibri
         {
             CombatActionKind.Skill => $"skill {action.Id}",
             CombatActionKind.Item => action.SecondId is { } second ? $"items {action.Id}+{second}" : $"item {action.Id}",
+#pragma warning disable KOLIBRI0001
+            CombatActionKind.Macro => CombatMacroText.Summary(action.Macro),
+#pragma warning restore KOLIBRI0001
             _ => action.Kind.ToString().ToLowerInvariant()
         };
 
@@ -757,6 +863,14 @@ namespace KoLibri
         public int DamageTaken { get; init; }
         public IReadOnlyList<InventoryItem> Items { get; init; } = Array.Empty<InventoryItem>();
         public long Meat { get; init; }
+
+        /// <summary>Wie viele Kampfrunden diese eine Antwort enthält: 1 für normale Aktionen, bei Makros die Zahl der ausgeführten Makro-Aktionen (0 bei ungültigem Makro).</summary>
+        [System.Diagnostics.CodeAnalysis.Experimental(KolibriDiagnostics.CombatMacros)]
+        public int RoundsInResponse { get; init; } = 1;
+
+        /// <summary>Nur bei Makros: KoL hat das Makro abgebrochen (Kampf offen, Outcome Ongoing) oder als ungültig abgelehnt (Outcome Unknown). Sonst null.</summary>
+        [System.Diagnostics.CodeAnalysis.Experimental(KolibriDiagnostics.CombatMacros)]
+        public string? MacroError { get; init; }
     }
 
     public sealed record FightResult(FightOutcome Outcome, string MonsterName, IReadOnlyList<FightRound> Rounds)

@@ -202,6 +202,13 @@ namespace KoLibri
 
         internal bool MayAutoReconnect => AutoReconnect?.Invoke() ?? true;
 
+        /// <summary>
+        /// Schaltet KoL-Combat-Makros (CombatStrategies.Macro, CombatAction.FromMacro) frei. Standard: aus, dann lehnt der
+        /// Läufer Makros wie bisher mit NotSupportedException ab (KOLIBRI0001). Experimentell, bis der Live-Test aufgenommen ist.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.Experimental(KolibriDiagnostics.CombatMacros)]
+        public bool EnableExperimentalMacros { get; init; }
+
         /// <summary>Tests only (InternalsVisibleTo): no waiting between requests.</summary>
         internal bool DisableLimiterForTests { get; init; }
     }
