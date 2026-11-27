@@ -484,13 +484,13 @@ namespace KoLibri
         public IReadOnlyList<ChoiceDefault> Entries => throw new NotImplementedException();
         public bool TryGet(int choiceId, out ChoiceDefault entry) => throw new NotImplementedException();
         /// <summary>Overrides vor Tabellen-Defaults vor Ask; nicht sichtbare Default-Option ergibt Ask.</summary>
-        public IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null) => throw new NotImplementedException();
+        public IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) => throw new NotImplementedException();
     }
 
     public static class ChoiceDefaults
     {
         public static ChoiceDefaultTable Embedded => throw new NotImplementedException();
-        public static IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null) => throw new NotImplementedException();
+        public static IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) => throw new NotImplementedException();
         /// <summary>Kaputte Datei wirft InvalidDataException mit Grund.</summary>
         public static ChoiceDefaultTable Load(System.IO.Stream stream) => throw new NotImplementedException();
     }

@@ -35,11 +35,15 @@ public sealed class ChoiceDefaultTable
 
     public bool TryGet(int choiceId, out ChoiceDefault entry) => _byId.TryGetValue(choiceId, out entry!);
 
-    /// <summary>Overrides vor Tabellen-Defaults vor Ask. Eine Default-Option, die nicht sichtbar ist, ergibt Ask.</summary>
-    public IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null)
-        => new TableResolver(this, overrides);
+    /// <summary>
+    /// Overrides vor Tabellen-Defaults vor Ask. Eine Default-Option, die nicht sichtbar ist, ergibt Ask.
+    /// Turtle-Choices ohne belegte Option werden standardmäßig durchgeklickt (erste sichtbare Option, UNBELEGT,
+    /// live prüfen); mit <paramref name="stopOnTurtle"/> stoppen sie stattdessen mit Ask.
+    /// </summary>
+    public IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false)
+        => new TableResolver(this, overrides, stopOnTurtle);
 
-    private sealed class TableResolver(ChoiceDefaultTable table, IReadOnlyDictionary<int, int>? overrides) : IChoiceResolver
+    private sealed class TableResolver(ChoiceDefaultTable table, IReadOnlyDictionary<int, int>? overrides, bool stopOnTurtle) : IChoiceResolver
     {
         public ChoiceDecision Resolve(ChoiceContext context)
         {
@@ -62,16 +66,27 @@ public sealed class ChoiceDefaultTable
                     : Ask(context, $"Standard-Option {option} für Choice {id} ist auf der Seite nicht sichtbar.");
             }
 
+            // Turtle ohne belegte Option: durchklicken, außer der Aufrufer will stoppen.
+            // UNBELEGT, live prüfen: Core und 0.4 kennen keine Turtle-Option, genommen wird die erste sichtbare.
+            if (!stopOnTurtle && IsTurtle(context) && visible.Count > 0)
+            {
+                var first = visible.Min();
+                return new ChoiceDecision(first, ChoiceDecisionSource.BuiltIn,
+                    $"turtle: standardmäßig durchklicken (Choice {id}, Option {first}; unbelegt, live prüfen).");
+            }
+
             return Ask(context, table.TryGet(id, out _)
                 ? $"Für Choice {id} ist keine Standard-Option hinterlegt."
                 : $"Choice {id} ist nicht in der Tabelle.");
         }
 
+        private bool IsTurtle(ChoiceContext context)
+            => Encounters.IsTurtleEncounterTitle(context.Title)
+                || (table.TryGet(context.ChoiceId, out var e) && e.Turtle);
+
         private ChoiceDecision Ask(ChoiceContext context, string reason)
         {
-            var isTurtle = Encounters.IsTurtleEncounterTitle(context.Title)
-                || (table.TryGet(context.ChoiceId, out var e) && e.Turtle);
-            return ChoiceDecision.Ask(isTurtle
+            return ChoiceDecision.Ask(IsTurtle(context)
                 ? CoreSpiel.TurtleTamerEncounters.DecisionReason(
                     context.ChoiceId.ToString(CultureInfo.InvariantCulture), context.Title, reason)
                     + $" Für `adventure run`: --choice-action {context.ChoiceId}:<N>."
@@ -89,9 +104,12 @@ public static class ChoiceDefaults
     /// <summary>Die mit der Bibliothek ausgelieferte Tabelle (einmal geladen).</summary>
     public static ChoiceDefaultTable Embedded => EmbeddedTable.Value;
 
-    /// <summary>Resolver über der eingebetteten Tabelle. Overrides schlagen Defaults, unbekannte Choices fragen.</summary>
-    public static IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null)
-        => Embedded.Resolver(overrides);
+    /// <summary>
+    /// Resolver über der eingebetteten Tabelle. Overrides schlagen Defaults, unbekannte Choices fragen.
+    /// Turtle-Choices ohne Eintrag werden durchgeklickt (erste sichtbare Option, unbelegt); <paramref name="stopOnTurtle"/> stoppt sie.
+    /// </summary>
+    public static IChoiceResolver Resolver(IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false)
+        => Embedded.Resolver(overrides, stopOnTurtle);
 
     /// <summary>Liest eine Tabelle. Kaputte oder unvollständige Dateien werfen <see cref="InvalidDataException"/> mit Grund.</summary>
     public static ChoiceDefaultTable Load(Stream stream)

@@ -73,9 +73,19 @@ public sealed class ChoiceDefaultsTests
     }
 
     [Fact]
-    public void Turtle_title_without_entry_asks_with_the_choice_id()
+    public void Turtle_title_without_entry_clicks_through_with_the_first_visible_option()
     {
-        var d = ChoiceDefaults.Resolver().Resolve(Ctx(777, "Turtle Soup Kitchen", 1, 2));
+        var d = ChoiceDefaults.Resolver().Resolve(Ctx(777, "Turtle Soup Kitchen", 3, 2, 4));
+        Assert.Equal(2, d.Option);
+        Assert.Equal(ChoiceDecisionSource.BuiltIn, d.Source);
+        Assert.Contains("turtle: standardmäßig durchklicken", d.Reason);
+        Assert.Contains("unbelegt", d.Reason);
+    }
+
+    [Fact]
+    public void Turtle_with_stop_opt_in_asks_with_the_choice_id()
+    {
+        var d = ChoiceDefaults.Resolver(stopOnTurtle: true).Resolve(Ctx(777, "Turtle Soup Kitchen", 1, 2));
         Assert.Null(d.Option);
         Assert.Contains("777", d.Reason);
         Assert.Contains("Turtle Tamer", d.Reason);
@@ -83,21 +93,34 @@ public sealed class ChoiceDefaultsTests
     }
 
     [Fact]
-    public void Turtle_flag_entry_asks_even_when_the_title_is_unknown()
+    public void Turtle_flag_entry_clicks_through_or_stops_on_opt_in()
     {
         var table = Parse("""{"version":1,"choices":[{"id":555,"default":null,"turtle":true,"source":"test"}]}""");
-        var d = table.Resolver().Resolve(Ctx(555, "Opaque Title", 1, 2));
+        Assert.Equal(1, table.Resolver().Resolve(Ctx(555, "Opaque Title", 1, 2)).Option);
+        var d = table.Resolver(stopOnTurtle: true).Resolve(Ctx(555, "Opaque Title", 1, 2));
         Assert.Null(d.Option);
         Assert.Contains("555", d.Reason);
-        Assert.Contains("Turtle Tamer", d.Reason);
+    }
+
+    [Fact]
+    public void Verified_turtle_default_beats_the_first_option()
+    {
+        var table = Parse("""{"version":1,"choices":[{"id":555,"default":2,"turtle":false,"source":"test"}]}""");
+        Assert.Equal(2, table.Resolver().Resolve(Ctx(555, "Turtle Thing", 1, 2)).Option);
     }
 
     [Fact]
     public void Turtle_choice_can_still_be_answered_by_an_override()
     {
-        var table = Parse("""{"version":1,"choices":[{"id":555,"turtle":true,"source":"test"}]}""");
-        var d = table.Resolver(new Dictionary<int, int> { [555] = 2 }).Resolve(Ctx(555, "Turtle Thing", 1, 2));
+        var d = ChoiceDefaults.Resolver(new Dictionary<int, int> { [555] = 2 }).Resolve(Ctx(555, "Turtle Thing", 1, 2));
         Assert.Equal(2, d.Option);
+        Assert.Equal(ChoiceDecisionSource.Configured, d.Source);
+    }
+
+    [Fact]
+    public void Turtle_choice_without_visible_options_asks()
+    {
+        Assert.Null(ChoiceDefaults.Resolver().Resolve(Ctx(777, "Turtle Soup Kitchen")).Option);
     }
 
     [Theory]

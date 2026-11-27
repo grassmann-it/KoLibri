@@ -907,7 +907,7 @@ override KoLibri.AccountId.ToString() -> string!
 static KoLibri.ChoiceDecision.Ask(string! reason) -> KoLibri.ChoiceDecision!
 static KoLibri.ChoiceDefaults.Embedded.get -> KoLibri.ChoiceDefaultTable!
 static KoLibri.ChoiceDefaults.Load(System.IO.Stream! stream) -> KoLibri.ChoiceDefaultTable!
-static KoLibri.ChoiceDefaults.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null) -> KoLibri.IChoiceResolver!
+static KoLibri.ChoiceDefaults.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.AlwaysAsk.get -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.FromTable(System.Collections.Generic.IReadOnlyDictionary<int, int>! optionByChoiceId) -> KoLibri.IChoiceResolver!
 static KoLibri.ChoiceResolvers.Safe(System.Collections.Generic.IReadOnlyDictionary<int, int>? optionByChoiceId = null) -> KoLibri.IChoiceResolver!
@@ -1001,7 +1001,7 @@ KoLibri.ChoiceDefaultOption.Safe.get -> bool?
 KoLibri.ChoiceDefaultOption.Safe.init -> void
 KoLibri.ChoiceDefaultTable
 KoLibri.ChoiceDefaultTable.Entries.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceDefault!>!
-KoLibri.ChoiceDefaultTable.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null) -> KoLibri.IChoiceResolver!
+KoLibri.ChoiceDefaultTable.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) -> KoLibri.IChoiceResolver!
 KoLibri.ChoiceDefaultTable.TryGet(int choiceId, out KoLibri.ChoiceDefault! entry) -> bool
 KoLibri.ChoiceDefaultTable.Version.get -> int
 KoLibri.ChoiceDefaults

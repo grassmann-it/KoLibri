@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "_turtle": "Turtle-Choices ohne Eintrag werden standardmäßig durchgeklickt (erste sichtbare Option): UNBELEGT, live prüfen. Belegte Optionen hier eintragen: {\"id\":N,\"default\":X,\"turtle\":true}.",
   "choices": [
     {
       "id": 1060,
