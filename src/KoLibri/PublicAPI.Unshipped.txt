@@ -1,4 +1,6 @@
 #nullable enable
+const KoLibri.ChoiceDefault.KolmafiaConfidence = "kolmafia-default" -> string!
+const KoLibri.ChoiceDefault.LiveConfidence = "live" -> string!
 const KoLibri.KolibriDiagnostics.CombatMacros = "KOLIBRI0001" -> string!
 KoLibri.Account
 KoLibri.Account.Account(KoLibri.AccountId Id, string! PlayerName, int? PlayerId, string? Label, System.Collections.Generic.IReadOnlyList<string!>! Tags) -> void
@@ -1044,10 +1046,15 @@ KoLibri.Account.HasPassword.get -> bool
 KoLibri.Account.HasPassword.init -> void
 KoLibri.ChoiceDefault
 KoLibri.ChoiceDefault.ChoiceDefault(int Id, string? Name, int? Snarfblat, int? Default, System.Collections.Generic.IReadOnlyDictionary<int, KoLibri.ChoiceDefaultOption!>! Options, string! Source, string? Note, bool Turtle) -> void
+KoLibri.ChoiceDefault.Confidence.get -> string!
+KoLibri.ChoiceDefault.Confidence.init -> void
 KoLibri.ChoiceDefault.Default.get -> int?
 KoLibri.ChoiceDefault.Default.init -> void
 KoLibri.ChoiceDefault.Id.get -> int
 KoLibri.ChoiceDefault.Id.init -> void
+KoLibri.ChoiceDefault.IsLive.get -> bool
+KoLibri.ChoiceDefault.Location.get -> string?
+KoLibri.ChoiceDefault.Location.init -> void
 KoLibri.ChoiceDefault.Name.get -> string?
 KoLibri.ChoiceDefault.Name.init -> void
 KoLibri.ChoiceDefault.Note.get -> string?
@@ -1060,14 +1067,28 @@ KoLibri.ChoiceDefault.Source.get -> string!
 KoLibri.ChoiceDefault.Source.init -> void
 KoLibri.ChoiceDefault.Turtle.get -> bool
 KoLibri.ChoiceDefault.Turtle.init -> void
+KoLibri.ChoiceDefault.Zone.get -> string?
+KoLibri.ChoiceDefault.Zone.init -> void
 KoLibri.ChoiceDefaultOption
 KoLibri.ChoiceDefaultOption.ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe) -> void
+KoLibri.ChoiceDefaultOption.CostsItem.get -> bool
+KoLibri.ChoiceDefaultOption.CostsItem.init -> void
+KoLibri.ChoiceDefaultOption.CostsMeat.get -> bool
+KoLibri.ChoiceDefaultOption.CostsMeat.init -> void
 KoLibri.ChoiceDefaultOption.CostsTurn.get -> bool?
 KoLibri.ChoiceDefaultOption.CostsTurn.init -> void
+KoLibri.ChoiceDefaultOption.Hurts.get -> bool
+KoLibri.ChoiceDefaultOption.Hurts.init -> void
+KoLibri.ChoiceDefaultOption.Items.get -> System.Collections.Generic.IReadOnlyList<string!>!
+KoLibri.ChoiceDefaultOption.Items.init -> void
 KoLibri.ChoiceDefaultOption.Label.get -> string?
 KoLibri.ChoiceDefaultOption.Label.init -> void
 KoLibri.ChoiceDefaultOption.Safe.get -> bool?
 KoLibri.ChoiceDefaultOption.Safe.init -> void
+KoLibri.ChoiceDefaultOption.SkipsTurn.get -> bool
+KoLibri.ChoiceDefaultOption.SkipsTurn.init -> void
+KoLibri.ChoiceDefaultOption.StartsFight.get -> bool
+KoLibri.ChoiceDefaultOption.StartsFight.init -> void
 KoLibri.ChoiceDefaultTable
 KoLibri.ChoiceDefaultTable.Entries.get -> System.Collections.Generic.IReadOnlyList<KoLibri.ChoiceDefault!>!
 KoLibri.ChoiceDefaultTable.Resolver(System.Collections.Generic.IReadOnlyDictionary<int, int>? overrides = null, bool stopOnTurtle = false) -> KoLibri.IChoiceResolver!

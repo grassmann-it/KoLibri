@@ -5,7 +5,30 @@ using CoreSpiel = KoLibri.Core.Spiel;
 namespace KoLibri;
 
 /// <summary>Eine Option eines kuratierten Choice-Eintrags. Alle Angaben optional: nur Belegtes steht drin.</summary>
-public sealed record ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe);
+/// <remarks>
+/// Die Flags (ab Version 2) kommen aus KoLmafias Spoilern und Kosten: <see cref="CostsMeat"/>/<see cref="CostsItem"/>,
+/// <see cref="StartsFight"/>, <see cref="Hurts"/> (z.B. „get Beaten Up“), <see cref="SkipsTurn"/> („skip adventure“).
+/// </remarks>
+public sealed record ChoiceDefaultOption(string? Label, bool? CostsTurn, bool? Safe)
+{
+    /// <summary>Kostet Meat (KoLmafia-ChoiceCost oder Spoilertext).</summary>
+    public bool CostsMeat { get; init; }
+
+    /// <summary>Verbraucht Items (oder andere Ressourcen wie MP) laut KoLmafia.</summary>
+    public bool CostsItem { get; init; }
+
+    /// <summary>Startet einen Kampf.</summary>
+    public bool StartsFight { get; init; }
+
+    /// <summary>Schadet dem Charakter (Beaten Up, HP-Verlust).</summary>
+    public bool Hurts { get; init; }
+
+    /// <summary>Überspringt das Adventure (verlässt die Choice, laut KoLmafia ohne Gewinn).</summary>
+    public bool SkipsTurn { get; init; }
+
+    /// <summary>Items, die die Option laut KoLmafia bringt.</summary>
+    public IReadOnlyList<string> Items { get; init; } = [];
+}
 
 /// <summary>Ein Eintrag aus choices.json: Choice-Id, belegte Standard-Option (oder null), Quelle.</summary>
 public sealed record ChoiceDefault(
@@ -16,9 +39,28 @@ public sealed record ChoiceDefault(
     IReadOnlyDictionary<int, ChoiceDefaultOption> Options,
     string Source,
     string? Note,
-    bool Turtle);
+    bool Turtle)
+{
+    /// <summary>Confidence-Wert für live verifizierte Einträge (schlagen KoLmafia immer).</summary>
+    public const string LiveConfidence = "live";
 
-/// <summary>Kuratierte Choice-Tabelle (KoLibri-eigenes Format, nicht KoLmafia).</summary>
+    /// <summary>Confidence-Wert für aus KoLmafia importierte Einträge (Default nur, wenn die Option sicher ist).</summary>
+    public const string KolmafiaConfidence = "kolmafia-default";
+
+    /// <summary><see cref="LiveConfidence"/> (Standard, auch für Version 1) oder <see cref="KolmafiaConfidence"/>.</summary>
+    public string Confidence { get; init; } = LiveConfidence;
+
+    /// <summary>Ort laut KoLmafia (Location-Name), falls bekannt.</summary>
+    public string? Location { get; init; }
+
+    /// <summary>KoLmafia-Zone, falls bekannt.</summary>
+    public string? Zone { get; init; }
+
+    /// <summary>True für live verifizierte Einträge.</summary>
+    public bool IsLive => Confidence == LiveConfidence;
+}
+
+/// <summary>Choice-Tabelle (KoLibri-eigenes Format): live verifizierte Einträge plus importierte KoLmafia-Spoiler.</summary>
 public sealed class ChoiceDefaultTable
 {
     private readonly Dictionary<int, ChoiceDefault> _byId;
@@ -37,6 +79,8 @@ public sealed class ChoiceDefaultTable
 
     /// <summary>
     /// Overrides vor Tabellen-Defaults vor Ask. Eine Default-Option, die nicht sichtbar ist, ergibt Ask.
+    /// KoLmafia-Defaults (confidence kolmafia-default) gelten nur, wenn die Option als sicher markiert ist
+    /// (kein Meat/Item, kein Kampf, kein Schaden); sonst Ask mit den Spoilern im Grund.
     /// Turtle-Choices ohne belegte Option werden standardmäßig durchgeklickt (erste sichtbare Option, UNBELEGT,
     /// live prüfen); mit <paramref name="stopOnTurtle"/> stoppen sie stattdessen mit Ask.
     /// </summary>
@@ -58,15 +102,29 @@ public sealed class ChoiceDefaultTable
                     : Ask(context, $"Vorgegebene Option {forced} für Choice {id} ist auf der Seite nicht sichtbar.");
             }
 
-            if (table.TryGet(id, out var entry) && entry.Default is { } option)
+            var known = table.TryGet(id, out var entry);
+            string? held = null;
+            if (known && entry.Default is { } option)
             {
-                return visible.Contains(option)
-                    ? new ChoiceDecision(option, ChoiceDecisionSource.BuiltIn,
-                        $"Standard für Choice {id}: Option {option} ({entry.Source}).")
-                    : Ask(context, $"Standard-Option {option} für Choice {id} ist auf der Seite nicht sichtbar.");
+                if (entry.IsLive)
+                {
+                    return visible.Contains(option)
+                        ? new ChoiceDecision(option, ChoiceDecisionSource.BuiltIn,
+                            $"Standard für Choice {id}: Option {option} ({entry.Source}).")
+                        : Ask(context, $"Standard-Option {option} für Choice {id} ist auf der Seite nicht sichtbar.");
+                }
+
+                entry.Options.TryGetValue(option, out var opt);
+                if (!visible.Contains(option))
+                    held = $"KoLmafia-Standard Option {option} für Choice {id} ist auf der Seite nicht sichtbar.";
+                else if (opt?.Safe != true)
+                    held = $"KoLmafia-Standard Option {option} für Choice {id} wird nicht automatisch genommen ({Risk(opt)}).";
+                else
+                    return new ChoiceDecision(option, ChoiceDecisionSource.BuiltIn,
+                        $"KoLmafia-Standard für Choice {id}{NamePart(entry)}: Option {option} „{opt.Label}“{(opt.SkipsTurn ? " (überspringt)" : "")} ({entry.Source}).");
             }
 
-            // Turtle ohne belegte Option: durchklicken, außer der Aufrufer will stoppen.
+            // Turtle ohne nutzbare Option: durchklicken, außer der Aufrufer will stoppen.
             // UNBELEGT, live prüfen: Core und 0.4 kennen keine Turtle-Option, genommen wird die erste sichtbare.
             if (!stopOnTurtle && IsTurtle(context) && visible.Count > 0)
             {
@@ -75,9 +133,45 @@ public sealed class ChoiceDefaultTable
                     $"turtle: standardmäßig durchklicken (Choice {id}, Option {first}; unbelegt, live prüfen).");
             }
 
-            return Ask(context, table.TryGet(id, out _)
-                ? $"Für Choice {id} ist keine Standard-Option hinterlegt."
-                : $"Choice {id} ist nicht in der Tabelle.");
+            if (!known) return Ask(context, $"Choice {id} ist nicht in der Tabelle.");
+            var reason = held ?? $"Für Choice {id} ist keine Standard-Option hinterlegt.";
+            var spoilers = Spoilers(entry);
+            return Ask(context, spoilers.Length == 0
+                ? reason
+                : $"{reason} Optionen{NamePart(entry)} laut {entry.Source}: {spoilers}"
+                    + (IsTurtle(context) ? "" : $" Festlegen mit --choice-action {id}:<N>."));
+        }
+
+        private static string NamePart(ChoiceDefault entry)
+            => entry.Name is { Length: > 0 } n ? $" („{n}“)" : "";
+
+        private static string Risk(ChoiceDefaultOption? o)
+        {
+            if (o is null) return "Option ohne Spoiler";
+            var parts = new List<string>();
+            if (o.CostsMeat) parts.Add("kostet Meat");
+            if (o.CostsItem) parts.Add("kostet Items");
+            if (o.StartsFight) parts.Add("startet Kampf");
+            if (o.Hurts) parts.Add("schadet");
+            if (parts.Count == 0) parts.Add(string.IsNullOrWhiteSpace(o.Label) ? "Option ohne Spoiler" : "nicht als sicher markiert");
+            return string.Join(", ", parts);
+        }
+
+        private static string Spoilers(ChoiceDefault entry)
+            => string.Join("; ", entry.Options
+                .Where(p => !string.IsNullOrWhiteSpace(p.Value.Label))
+                .OrderBy(p => p.Key)
+                .Select(p => $"{p.Key} = {p.Value.Label}" + Flags(p.Value)));
+
+        private static string Flags(ChoiceDefaultOption o)
+        {
+            var f = new List<string>();
+            if (o.CostsMeat) f.Add("Meat");
+            if (o.CostsItem) f.Add("Items");
+            if (o.StartsFight) f.Add("Kampf");
+            if (o.Hurts) f.Add("Schaden");
+            if (o.SkipsTurn) f.Add("überspringt");
+            return f.Count == 0 ? "" : $" [{string.Join(", ", f)}]";
         }
 
         private bool IsTurtle(ChoiceContext context)
@@ -95,7 +189,7 @@ public sealed class ChoiceDefaultTable
     }
 }
 
-/// <summary>Lädt die kuratierten Choice-Defaults (eingebettete choices.json oder eine eigene Datei).</summary>
+/// <summary>Lädt die Choice-Defaults (eingebettete choices.json oder eine eigene Datei; Version 1 oder 2).</summary>
 public static class ChoiceDefaults
 {
     private const string ResourceName = "KoLibri.Data.choices.json";
@@ -121,7 +215,7 @@ public static class ChoiceDefaults
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) throw Bad("Wurzel ist kein Objekt.");
             var version = Int(root, "version") ?? throw Bad("'version' fehlt.");
-            if (version != 1) throw Bad($"Unbekannte Version {version} (erwartet 1).");
+            if (version is not (1 or 2)) throw Bad($"Unbekannte Version {version} (erwartet 1 oder 2).");
             if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
                 throw Bad("'choices' fehlt oder ist kein Array.");
 
@@ -148,7 +242,16 @@ public static class ChoiceDefaults
                             throw Bad($"{where} (Choice {id}): Optionsschlüssel '{p.Name}' ist keine positive Zahl.");
                         if (p.Value.ValueKind != JsonValueKind.Object)
                             throw Bad($"{where} (Choice {id}): Option {n} ist kein Objekt.");
-                        options[n] = new ChoiceDefaultOption(Str(p.Value, "label", where), Bool(p.Value, "costsTurn", where), Bool(p.Value, "safe", where));
+                        var v = p.Value;
+                        options[n] = new ChoiceDefaultOption(Str(v, "label", where), Bool(v, "costsTurn", where), Bool(v, "safe", where))
+                        {
+                            CostsMeat = Bool(v, "costsMeat", where) ?? false,
+                            CostsItem = Bool(v, "costsItem", where) ?? false,
+                            StartsFight = Bool(v, "startsFight", where) ?? false,
+                            Hurts = Bool(v, "hurts", where) ?? false,
+                            SkipsTurn = Bool(v, "skipsTurn", where) ?? false,
+                            Items = Strings(v, "items", where),
+                        };
                     }
                 }
 
@@ -162,8 +265,17 @@ public static class ChoiceDefaults
                         throw Bad($"{where} (Choice {id}): 'default' {d} steht nicht in 'options'.");
                 }
 
+                var confidence = Str(c, "confidence", where) ?? ChoiceDefault.LiveConfidence;
+                if (confidence is not (ChoiceDefault.LiveConfidence or ChoiceDefault.KolmafiaConfidence))
+                    throw Bad($"{where} (Choice {id}): unbekannte confidence '{confidence}' (erwartet live oder kolmafia-default).");
+
                 entries.Add(new ChoiceDefault(id, Str(c, "name", where), Int(c, "snarfblat", where), def,
-                    options, source!, Str(c, "note", where), turtle));
+                    options, source!, Str(c, "note", where), turtle)
+                {
+                    Confidence = confidence,
+                    Location = Str(c, "location", where),
+                    Zone = Str(c, "zone", where),
+                });
             }
             return new ChoiceDefaultTable(version, entries);
         }
@@ -196,6 +308,15 @@ public static class ChoiceDefaults
         if (!o.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null) return null;
         if (v.ValueKind != JsonValueKind.String) throw Bad($"{where}: '{name}' ist kein Text.");
         return v.GetString();
+    }
+
+    private static string[] Strings(JsonElement o, string name, string where)
+    {
+        if (!o.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null) return [];
+        if (v.ValueKind != JsonValueKind.Array) throw Bad($"{where}: '{name}' ist keine Liste.");
+        return v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String
+            ? e.GetString()!
+            : throw Bad($"{where}: '{name}' enthält etwas anderes als Text.")).ToArray();
     }
 
     private static bool? Bool(JsonElement o, string name, string where)
