@@ -253,10 +253,9 @@ public sealed class DesktopShellWiringTests
             var root = Directory.CreateTempSubdirectory("kolibri-shell-split-");
             try
             {
-                var accounts = new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore());
+                var accounts = DesktopKit.Accounts(new FakeKol());
                 var window = new KoLibri.Desktop.MainWindow(null, root.FullName, accounts,
-                    settingsStore: new DesktopSettingsStore(Path.Combine(root.FullName, "settings.json")),
-                    applySettingsToLimiters: false);
+                    settingsStore: new DesktopSettingsStore(Path.Combine(root.FullName, "settings.json")));
                 window.Show();
                 bool Visible(string name) => window.FindControl<Control>(name)!.IsVisible;
                 void Click(string name) => window.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
