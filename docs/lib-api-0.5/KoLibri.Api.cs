@@ -364,6 +364,8 @@ namespace KoLibri
     public sealed record FightEncounter(Page Page, Location? Location, string? Title, string MonsterName, int? MonsterId, int Round) : Encounter(Page, Location, Title);
     public sealed record ChoiceEncounter(Page Page, Location? Location, string? Title, int ChoiceId, IReadOnlyList<ChoiceOption> Options) : Encounter(Page, Location, Title);
     public sealed record NonCombatEncounter(Page Page, Location? Location, string? Title, IReadOnlyList<InventoryItem> Items, long Meat) : Encounter(Page, Location, Title);
+    /// <summary>Ein Kampf, den KoL schon auf der Startseite beendet hat (Auto-Attack): nichts offen, Ergebnis in Result.</summary>
+    public sealed record FinishedFightEncounter(Page Page, Location? Location, string? Title, string MonsterName, int? MonsterId, FightResult Result) : Encounter(Page, Location, Title);
     /// <summary>Kein Zug möglich: keine Adventures, Ort gesperrt, Organ zu voll, unbekannte Seite.</summary>
     public sealed record BlockedEncounter(Page Page, Location? Location, string? Title, BlockReason Reason) : Encounter(Page, Location, Title);
 

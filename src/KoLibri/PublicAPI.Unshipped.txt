@@ -235,6 +235,14 @@ KoLibri.FightEncounter.MonsterName.get -> string!
 KoLibri.FightEncounter.MonsterName.init -> void
 KoLibri.FightEncounter.Round.get -> int
 KoLibri.FightEncounter.Round.init -> void
+KoLibri.FinishedFightEncounter
+KoLibri.FinishedFightEncounter.FinishedFightEncounter(KoLibri.Page! Page, KoLibri.Location? Location, string? Title, string! MonsterName, int? MonsterId, KoLibri.FightResult! Result) -> void
+KoLibri.FinishedFightEncounter.MonsterId.get -> int?
+KoLibri.FinishedFightEncounter.MonsterId.init -> void
+KoLibri.FinishedFightEncounter.MonsterName.get -> string!
+KoLibri.FinishedFightEncounter.MonsterName.init -> void
+KoLibri.FinishedFightEncounter.Result.get -> KoLibri.FightResult!
+KoLibri.FinishedFightEncounter.Result.init -> void
 KoLibri.FightEndedEventArgs
 KoLibri.FightEndedEventArgs.FightEndedEventArgs(KoLibri.AccountId account, System.DateTimeOffset at, KoLibri.FightResult! result) -> void
 KoLibri.FightEndedEventArgs.Result.get -> KoLibri.FightResult!

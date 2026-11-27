@@ -54,7 +54,7 @@ Bricht sie wegen einer Choice, eines Turtle-Monsters oder HP unter 30 % ab, ist 
 |---|---|---|
 | M1 | `dotnet run --project samples/macro-live-check -- --case M1 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | genau eine Runde, `outcome=Ongoing` oder `Won`, `roundsInResponse=1` |
 | M2 | `dotnet run --project samples/macro-live-check -- --case M2 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | mehrere Runden in einer Antwort, `outcome=Won`, Beute und Meat auf derselben Seite |
-| M3 | `dotnet run --project samples/macro-live-check -- --case M3 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | `macro error: KoL aborted the macro…`, Kampf bleibt offen (`open encounter after: fight`) |
+| M3 | `dotnet run --project samples/macro-live-check -- --case M3 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | `macro error: KoL aborted the macro…`, Kampf bleibt offen (`open encounter after: fight`). Die App setzt den Monsternamen ohne Artikel ein (siehe Live-Ergebnis) |
 | M4 | `dotnet run --project samples/macro-live-check -- --case M4 --skill "<Skillname>" --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | Skill-Runde plus Angriffe, MP sinkt (`status after`) |
 | M5 | `dotnet run --project samples/macro-live-check -- --case M5 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | `outcome=RanAway` |
 | M6 | `dotnet run --project samples/macro-live-check -- --case M6 --location 113 --save tests/KoLibri.Tests/Fixtures/macro --yes` | `outcome=Unknown`, `macro error: KoL rejected the macro as invalid…`, Kampf unverändert offen |
@@ -98,3 +98,42 @@ Diese Ausgabe pro Fall in die Notizen kopieren.
 | „Invalid Macro“ | `Unknown` mit `MacroError`, kein zweiter Request |
 
 Die Texte stammen aus KoLmafia (`FightRequest.containsMacroError`, `MACRO_PATTERN`, `updateRoundData`) und den echten KoL-Seiten in KoLmafias Testordner `src/test/root/request`.
+
+## Live-Ergebnis 2026-11-27
+
+Main-Account (Level 23, Turtle Tamer, Auto-Attack **an**), The Haunted Pantry (113). Die Seiten liegen jetzt als echte
+Fixtures in `tests/KoLibri.Tests/Fixtures/macro/` (`pwd` durch `PWDHASH` ersetzt), die Zahlen in `CombatMacroTests` sind die
+dieser Seiten.
+
+| Fall | Ergebnis | Seite |
+|---|---|---|
+| M1 | bestanden: eine `macroaction: attack`, Knob Goblin Assistant Chef stirbt sofort, `<!--WINWINWIN-->`, 12 Meat, chef's hat, knucklebone | `macro-m1-single.html` |
+| M2 | nicht aussagekräftig: die Monster sterben auf Level 23 in einer Runde, `repeat` wurde nie gebraucht (eine `macroaction`) | `macro-m2-repeat.html` |
+| M3 | ohne Befund: `if monstername an undead elbow macaroni;abort;endif;` brach **nicht** ab, der Kampf endete mit einem Sieg | `macro-m3-live-no-abort.html` |
+| M4 | übersprungen (MP zu niedrig) | weiter synthetisch |
+| M5 | bestanden: `macroaction: runaway`, „You run away, like a little coward.“, kein Kampfformular, die Laub-Beute des Familiars steht trotzdem auf der Seite | `macro-m5-runaway.html` |
+| M6 | bestanden: `Invalid macro command encountered:<br/>"frobnicate"`, keine `macroaction`, Kampfformular bleibt | `macro-m6-invalid.html` |
+
+`macro-m3-abort.html`, `macro-m4-skill.html` und `macro-m7-followup.html` bleiben synthetisch, bis ein Abbruch, ein Skill-Makro
+und ein Folgekampf live aufgenommen sind.
+
+Befunde und Folgen:
+
+- **M3, `monstername`:** Die Kampfseite nennt das Monster mit Artikel (`<span id='monname'>an undead elbow macaroni</span>`),
+  KoLs Prädikat `monstername` vergleicht sehr wahrscheinlich mit dem Namen **ohne** Artikel (so führen auch KoLmafias
+  Monsterdaten die Namen; belegt ist das Verhalten von KoL nicht). Die Vorlage in `samples/macro-live-check` setzt deshalb jetzt den Namen ohne führendes `a`/`an`/`the` ein
+  (`if monstername undead elbow macaroni; abort; endif; attack;`). Im nächsten Live-Lauf bestätigen.
+- **Spieler-HP:** Die Kampfseite zeigt keine Spieler-HP. Die Ausgabe `pageHp=8` bzw. `1` (bei 504/504) war eine Zahl aus dem
+  Kampftext, die der Seitenparser für HP hielt. `FightRound.Hp`/`Mp` kommen jetzt nur aus ausdrücklichem HP-Markup der Seite,
+  sonst aus `api.php?what=status` (einmal nach dem Makro bzw. solange der Kampf läuft). Die Test-App gibt `hp=`/`mp=` aus.
+- **`var onturn = N`:** Nach einer Aktion in Runde 1 stand auf M1, M2 und M3 `onturn = 2`. Das spricht dafür, dass `onturn`
+  die **nächste** Runde nennt, nicht die, in der das Makro begann (Annahme oben, KoLmafia `test_fight_lose.html`). KoLibri
+  rechnet `FightRound.Round` noch nach der alten Annahme; vor dem Entfernen von `[Experimental]` mit einem echten
+  Mehrrunden-Makro (M2 auf niedrigerem Level) klären.
+- **`pwd`:** KoLibri schickt es immer mit; alle Fälle liefen damit.
+- **Auto-Attack:** Mit Auto-Attack endet ein Kampf oft schon auf der Seite nach `adventure.php` (`<!--WINWINWIN-->`, kein
+  Formular). Die Library liefert dafür jetzt `FinishedFightEncounter` statt einer NonCombat-Begegnung mit dem Titel
+  „CRITICAL HIT!“. Für die Makro-Fälle selbst bleibt die Regel aus „Vorbereitung“: Auto-Attack aus.
+- **Mehrfach-Beute:** `You acquire <b>2 inflammable leaves</b>` liest die Library heute als ein Stück „2 inflammable leaves“
+  (ohne Item-Id). Eigener Fix, nicht Teil dieses Laufs.
+

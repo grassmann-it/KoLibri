@@ -11,6 +11,8 @@ namespace KoLibri
         private readonly KolibriSession _session;
         private FightEncounter? _fight;
         private CoreSpiel.CombatObservation? _lastObservation;
+        /// <summary>Last trustworthy player HP/MP (api status, or explicit HP markup on the fight page).</summary>
+        private (int Hp, int Mp)? _knownVitals;
 
         internal Adventurer(KolibriSession session) => _session = session;
 
@@ -35,7 +37,9 @@ namespace KoLibri
                 case CoreSpiel.OpenChoiceKind.Fight:
                 {
                     var page = await Get("fight.php", cancellationToken).ConfigureAwait(false);
-                    return page.Kind == PageKind.NotInFight ? null : Remember(ToEncounter(page, _fight?.Location));
+                    if (page.Kind == PageKind.NotInFight) return null;
+                    // A finished fight page is nothing open (and its loot was counted when it was shown).
+                    return ToEncounter(page, _fight?.Location) is FightEncounter open ? Remember(open) : null;
                 }
                 case CoreSpiel.OpenChoiceKind.Choice:
                 {
@@ -200,6 +204,18 @@ namespace KoLibri
                             if (follow is ChoiceEncounter or FightEncounter) { encounter = Remember(follow); continue; }
                             break;
                         }
+                        if (encounter is FinishedFightEncounter finished)
+                        {
+                            // KoL ended the fight on the page that started it (auto-attack): nothing to send.
+                            items.AddRange(finished.Result.Items);
+                            meat += finished.Result.Meat;
+                            if (finished.Result.Outcome == FightOutcome.Lost)
+                            {
+                                last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                                return Finish(RunStopReason.Defeat, $"Lost the fight against {finished.MonsterName}.");
+                            }
+                            break;
+                        }
                         if (encounter is ChoiceEncounter choice)
                         {
                             var decision = request.Choices.Resolve(new ChoiceContext(choice.Location, choice.ChoiceId, choice.Title, choice.Options));
@@ -343,14 +359,41 @@ namespace KoLibri
             if (page.Kind == PageKind.NotInFight)
             {
                 _fight = null;
-                return new FightRound(previous?.Round + 1 ?? 1, action, FightOutcome.Unknown, previous?.PlayerHp ?? 0, previous?.PlayerMp ?? 0, page);
+                return new FightRound(previous?.Round + 1 ?? 1, action, FightOutcome.Unknown, _knownVitals?.Hp ?? 0, _knownVitals?.Mp ?? 0, page);
             }
-            var observation = new CoreSpiel.KoLCombatObservationParser().Parse(page.Html, page.Url);
+            var observation = Observe(page);
             _lastObservation = observation;
 #pragma warning disable KOLIBRI0001
-            if (action.Kind == CombatActionKind.Macro)
+            var isMacro = action.Kind == CombatActionKind.Macro;
 #pragma warning restore KOLIBRI0001
-                return MacroRound(action, page, observation, previous);
+            var result = isMacro ? MacroRound(action, page, observation, previous) : PlainRound(action, page, observation, previous);
+            return await WithPlayerVitalsAsync(result, isMacro, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// The player's HP/MP for a round. KoL's fight.php normally shows none (0.4 #74: HitPointsProvider): then one status read
+        /// while the fight goes on or after a macro (which may hold many rounds), else the last known value. Never a number from
+        /// the combat text.
+        /// </summary>
+        private async Task<FightRound> WithPlayerVitalsAsync(FightRound round, bool isMacro, CancellationToken cancellationToken)
+        {
+            if (HasHp(_lastObservation))
+            {
+                _knownVitals = (round.Hp, round.Mp);
+                return round;
+            }
+            if (round.Outcome == FightOutcome.Ongoing || isMacro && round.Outcome != FightOutcome.Unknown)
+            {
+                var before = _knownVitals?.Hp;
+                var status = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                _knownVitals = (status.Hp, status.Mp);
+                return round with { Hp = status.Hp, Mp = status.Mp, DamageTaken = before is { } b ? Math.Max(0, b - status.Hp) : round.DamageTaken };
+            }
+            return _knownVitals is { } known ? round with { Hp = known.Hp, Mp = known.Mp } : round;
+        }
+
+        private FightRound PlainRound(CombatAction action, Page page, CoreSpiel.CombatObservation observation, CoreSpiel.CombatObservation? previous)
+        {
             var outcome = observation.Outcome switch
             {
                 CoreSpiel.CombatOutcome.Ongoing => FightOutcome.Ongoing,
@@ -444,6 +487,17 @@ namespace KoLibri
         /// <summary>KoL's text from the marker to the end of its sentence, e.g. "Macro Aborted: 37 instructions (In a row?!) executed without any actions being taken."</summary>
         private static string MacroMessage(string html, Regex marker)
         {
+            // KoL puts the message in its own block, e.g. live 2026-11-27: Invalid macro command encountered:<br/>"frobnicate"<table>…
+            var raw = marker.Match(html);
+            if (raw.Success)
+            {
+                var blockEnd = Regex.Match(html[raw.Index..], @"</?(?:table|p|form|center|div|td)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                if (blockEnd.Success && blockEnd.Index is > 0 and < 400)
+                {
+                    var block = Regex.Replace(Plain(html.Substring(raw.Index, blockEnd.Index)), @"\s*:\s*", ": ").Trim();
+                    if (block.Length > raw.Length) return block;
+                }
+            }
             var text = Plain(html);
             var match = marker.Match(text);
             if (!match.Success) return "(no text)";
@@ -463,6 +517,7 @@ namespace KoLibri
             var pageHp = HasHp(_lastObservation);
             var hp = pageHp ? _lastObservation!.PlayerHp!.Value : status.Hp;
             var mp = pageHp && _lastObservation!.PlayerMp is { } pageMp ? pageMp : status.Mp;
+            _knownVitals = (hp, mp);
             var outcome = FightOutcome.Ongoing;
             while (outcome == FightOutcome.Ongoing)
             {
@@ -481,16 +536,8 @@ namespace KoLibri
                 if (isMacro && rounds.Count > 0 && rounds[^1] is { MacroError: not null, Action: var last } && last == action)
                 { outcome = FightOutcome.Stopped; break; }
 #pragma warning restore KOLIBRI0001
+                // FightAsync already carries the player's HP/MP (page markup or one status read, see WithPlayerVitalsAsync).
                 var round = await FightAsync(action, cancellationToken).ConfigureAwait(false);
-                if ((round.Outcome == FightOutcome.Ongoing || isMacro && round.Outcome != FightOutcome.Unknown) && !HasHp(_lastObservation))
-                {
-                    // Only when the page has no HP: one status read, never a guess. Normally only while the fight goes on;
-                    // a macro answer may hold many rounds, so after a macro the HP are read even when the fight ended.
-                    var before = hp;
-                    status = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
-                    round = round with { Hp = status.Hp, Mp = status.Mp };
-                    if (isMacro) round = round with { DamageTaken = Math.Max(0, before - status.Hp) };
-                }
                 rounds.Add(round);
                 hp = round.Hp;
                 mp = round.Mp;
@@ -586,16 +633,26 @@ namespace KoLibri
 
         internal Encounter ToEncounter(Page page, Location? location)
         {
-            if (page.Kind == PageKind.Fight || page.Url.AbsolutePath.EndsWith("fight.php", StringComparison.OrdinalIgnoreCase) && OpenFightForm(page.Html))
+            if (page.Kind == PageKind.Fight || page.Url.AbsolutePath.EndsWith("fight.php", StringComparison.OrdinalIgnoreCase) && OpenFightForm(page.Html)
+                || FinishedFightMarker(page.Html))
             {
-                var observation = new CoreSpiel.KoLCombatObservationParser().Parse(page.Html, page.Url);
-                if (observation.Outcome is CoreSpiel.CombatOutcome.Ongoing || OpenFightForm(page.Html))
+                var observation = Observe(page);
+                var name = observation.MonsterName ?? observation.Monster ?? "unknown monster";
+                var monsterId = int.TryParse(observation.MonsterId, NumberStyles.None, CultureInfo.InvariantCulture, out var mid) ? mid : (int?)null;
+                // KoL's end markers without a fight form beat the parser's "Ongoing" (it says so for any page with "onturn").
+                var ended = FinishedOutcome(page.Html, observation);
+                if (ended is null && (observation.Outcome is CoreSpiel.CombatOutcome.Ongoing || OpenFightForm(page.Html)))
                 {
                     _lastObservation = observation;
-                    var name = observation.MonsterName ?? observation.Monster ?? "unknown monster";
-                    return new FightEncounter(page, location, name, name,
-                        int.TryParse(observation.MonsterId, NumberStyles.None, CultureInfo.InvariantCulture, out var mid) ? mid : null,
-                        Math.Max(1, observation.Round));
+                    return new FightEncounter(page, location, name, name, monsterId, Math.Max(1, observation.Round));
+                }
+                // KoL already ended the fight on this page (auto-attack, live 2026-11-27): a fight, not a NonCombat
+                // titled with combat text such as "CRITICAL HIT!".
+                if (ended is { } && (observation.MonsterName ?? observation.Monster) is not null)
+                {
+                    var (loot, gained) = Loot(page.Html);
+                    var result = new FightResult(ended.Value, name, Array.Empty<FightRound>()) { Items = loot, Meat = gained };
+                    return new FinishedFightEncounter(page, location, name, name, monsterId, result);
                 }
             }
             if (page.Kind == PageKind.Choice)
@@ -612,6 +669,44 @@ namespace KoLibri
             if (page.Kind == PageKind.NotInFight || (items.Length == 0 && meat == 0 && LooksUnknown(page)))
                 return new BlockedEncounter(page, location, FirstTitle(page.Html), BlockReason.UnknownPage);
             return new NonCombatEncounter(page, location, FirstTitle(page.Html), items, meat);
+        }
+
+        private static bool FinishedFightMarker(string html)
+            => html.Contains("<!--WINWINWIN-->", StringComparison.OrdinalIgnoreCase)
+               || html.Contains("<!--LOSELOSELOSE-->", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Outcome of a fight page without a fight form: KoL's end markers first, then the observation parser.</summary>
+        private static FightOutcome? FinishedOutcome(string html, CoreSpiel.CombatObservation observation)
+        {
+            if (OpenFightForm(html)) return null;
+            if (html.Contains("<!--WINWINWIN-->", StringComparison.OrdinalIgnoreCase)) return FightOutcome.Won;
+            if (html.Contains("<!--LOSELOSELOSE-->", StringComparison.OrdinalIgnoreCase)) return FightOutcome.Lost;
+            return observation.Outcome switch
+            {
+                CoreSpiel.CombatOutcome.Victory => FightOutcome.Won,
+                CoreSpiel.CombatOutcome.Defeat => FightOutcome.Lost,
+                CoreSpiel.CombatOutcome.Fled => FightOutcome.RanAway,
+                _ => null
+            };
+        }
+
+        private static readonly Regex PlayerHpMarkup = new(
+            @"\b(?:id|name|class)\s*=\s*['""]?(?:playerhp|player-hp|myhp|currenthp|current-hp|hitpoints)\b|\bdata-player-hp\b|\b(?:playerhp|myhp|currenthp)\s*=\s*\d",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        private static readonly Regex PlayerMpMarkup = new(
+            @"\b(?:id|name|class)\s*=\s*['""]?(?:playermp|player-mp|mymp|currentmp|current-mp|mojopoints)\b|\bdata-player-mp\b|\b(?:playermp|mymp|currentmp)\s*=\s*\d",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Parses a fight page. The player's HP/MP are kept only when the page marks them explicitly: KoL's fight.php has none, and
+        /// the parser's text fallback picks numbers out of the combat text (live 2026-11-27: pageHp 8 and 1 at 504/504 HP).
+        /// </summary>
+        private static CoreSpiel.CombatObservation Observe(Page page)
+        {
+            var observation = new CoreSpiel.KoLCombatObservationParser().Parse(page.Html, page.Url);
+            if (!PlayerHpMarkup.IsMatch(page.Html)) observation = observation with { PlayerHp = null, PlayerMaxHp = null };
+            if (!PlayerMpMarkup.IsMatch(page.Html)) observation = observation with { PlayerMp = null, PlayerMaxMp = null };
+            return observation;
         }
 
         private static BlockReason? Blocked(string text)
@@ -665,6 +760,11 @@ namespace KoLibri
         {
             _fight = encounter as FightEncounter;
             _session.RaiseEncounter(encounter);
+            if (encounter is FinishedFightEncounter finished)
+            {
+                if (finished.Result.Items.Count > 0) _session.RaiseItems(finished.Result.Items, ItemSource.Fight);
+                _session.RaiseFightEnded(finished.Result);
+            }
             return encounter;
         }
 
@@ -782,20 +882,20 @@ namespace KoLibri
                     switch (condition.Kind)
                     {
                         case StopConditionKind.MonsterSeen:
-                            if (encounter is FightEncounter fight && string.Equals(fight.MonsterName.Trim(), condition.Pattern?.Trim(), StringComparison.OrdinalIgnoreCase))
-                                return $"Monster seen: {fight.MonsterName}.";
+                            if (MonsterOf(encounter) is { } seen && string.Equals(seen.Trim(), condition.Pattern?.Trim(), StringComparison.OrdinalIgnoreCase))
+                                return $"Monster seen: {seen}.";
                             break;
                         case StopConditionKind.EncounterTitle:
-                            var title = encounter.Title ?? (encounter as FightEncounter)?.MonsterName;
+                            var title = encounter.Title ?? MonsterOf(encounter);
                             if (title is not null && condition.Pattern is { } pattern
                                 && System.Text.RegularExpressions.Regex.IsMatch(title, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
                                 return $"Encounter '{title}' matches /{pattern}/.";
                             break;
                         case StopConditionKind.TurtleEncounter:
-                            if (encounter is FightEncounter turtleFight
-                                    ? CoreSpiel.TurtleTamerEncounters.IsTurtleMonster(turtleFight.MonsterName) || CoreSpiel.TurtleTamerEncounters.IsTurtleEncounter(turtleFight.Title)
+                            if (MonsterOf(encounter) is { } turtleMonster
+                                    ? CoreSpiel.TurtleTamerEncounters.IsTurtleMonster(turtleMonster) || CoreSpiel.TurtleTamerEncounters.IsTurtleEncounter(encounter.Title)
                                     : CoreSpiel.TurtleTamerEncounters.IsTurtleEncounter(encounter.Title))
-                                return $"Turtle Tamer encounter: {(encounter as FightEncounter)?.MonsterName ?? encounter.Title}"
+                                return $"Turtle Tamer encounter: {MonsterOf(encounter) ?? encounter.Title}"
                                     + (encounter is ChoiceEncounter turtleChoice ? $" (choice {turtleChoice.ChoiceId})." : ".");
                             break;
                     }
@@ -803,6 +903,14 @@ namespace KoLibri
             }
             return null;
         }
+
+        /// <summary>The monster of an open or an already finished fight; null for other encounters.</summary>
+        private static string? MonsterOf(Encounter encounter) => encounter switch
+        {
+            FightEncounter fight => fight.MonsterName,
+            FinishedFightEncounter finished => finished.MonsterName,
+            _ => null
+        };
 
         private void ValidateAction(CombatAction action)
         {
@@ -843,7 +951,14 @@ namespace KoLibri
     }
 
     public abstract record Encounter(Page Page, Location? Location, string? Title);
+    /// <summary>An open fight: send actions with FightAsync/FightToEndAsync.</summary>
     public sealed record FightEncounter(Page Page, Location? Location, string? Title, string MonsterName, int? MonsterId, int Round) : Encounter(Page, Location, Title);
+    /// <summary>
+    /// A fight KoL already ended on the page that started it (auto-attack, or a fight decided before any action of ours): outcome,
+    /// loot and meat of that page in <paramref name="Result"/>. Nothing is open and nothing more is sent; the run counts it like
+    /// a fight (MonsterSeen, FightEnded). <see cref="Encounter.Title"/> is the monster's name, never combat text.
+    /// </summary>
+    public sealed record FinishedFightEncounter(Page Page, Location? Location, string? Title, string MonsterName, int? MonsterId, FightResult Result) : Encounter(Page, Location, Title);
     public sealed record ChoiceEncounter(Page Page, Location? Location, string? Title, int ChoiceId, IReadOnlyList<ChoiceOption> Options) : Encounter(Page, Location, Title);
     public sealed record NonCombatEncounter(Page Page, Location? Location, string? Title, IReadOnlyList<InventoryItem> Items, long Meat) : Encounter(Page, Location, Title);
     /// <summary>Kein Zug möglich: keine Adventures, Ort gesperrt, Organ zu voll, unbekannte Seite.</summary>
@@ -857,6 +972,11 @@ namespace KoLibri
 
     public enum FightOutcome { Ongoing, Won, Lost, RanAway, Stopped, Unknown }
 
+    /// <summary>One answer of fight.php.</summary>
+    /// <param name="Hp">The player's HP after this round. KoL's fight page normally shows none: then they come from
+    /// <c>api.php?what=status</c> (read once after the round while the fight goes on, or after a macro); otherwise the last known value.
+    /// Never a number guessed from the combat text or the monster's HP.</param>
+    /// <param name="Mp">The player's MP, from the same source as <paramref name="Hp"/>.</param>
     public sealed record FightRound(int Round, CombatAction Action, FightOutcome Outcome, int Hp, int Mp, Page Page)
     {
         public int DamageDealt { get; init; }

@@ -242,8 +242,10 @@ public sealed class KoLAdventureEncounterParser : IAdventureEncounterParser
         const RegexOptions o = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline;
         // Script/style/comment bodies are not page content (KoL puts <script> blocks before the title).
         html = Regex.Replace(html, @"<script\b.*?</script\s*>|<style\b.*?</style\s*>|<!--.*?-->", " ", o);
-        var m = Regex.Match(html, @"<td[^>]*bgcolor=['""]?blue['""]?[^>]*>.*?<b>(.*?)</b>", o);
-        if (!m.Success) m = Regex.Match(html, @"<b>(.*?)</b>", o);
+        // Old layout: <td ... bgcolor=blue><b>Title</b>; current KoL: <td style="background-color: blue"><b style="color: white">Title</b>.
+        var m = Regex.Match(html,
+            @"<td\b[^>]*(?:bgcolor\s*=\s*['""]?blue\b|background(?:-color)?\s*:\s*blue\b)[^>]*>\s*(?:<[^b/][^>]*>\s*)*<b\b[^>]*>(.*?)</b>", o);
+        if (!m.Success) m = Regex.Match(html, @"<b\b[^>]*>(.*?)</b>", o);
         if (!m.Success) return null;
         var text = WebUtility.HtmlDecode(Regex.Replace(m.Groups[1].Value, "<[^>]*>", "")).Trim();
         return text.Length == 0 ? null : text;

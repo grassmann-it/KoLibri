@@ -291,6 +291,11 @@ internal static partial class KolibriCli
             case FightEncounter f:
                 var (skills, items) = FightChoices(f.Page.Html);
                 return new { kind = "Fight", monster = f.MonsterName, monsterId = f.MonsterId, round = f.Round, title = f.Title, skills, items };
+            case FinishedFightEncounter d:
+                // KoL ended the fight on the page that started it (auto-attack): nothing is open.
+                return new { kind = "FightFinished", monster = d.MonsterName, monsterId = d.MonsterId, title = d.Title,
+                    outcome = d.Result.Outcome.ToString(), meat = d.Result.Meat,
+                    items = d.Result.Items.Select(i => new { id = i.Item.Id, name = i.Name, quantity = i.Quantity }).ToArray() };
             case ChoiceEncounter c:
                 return new { kind = "Choice", choiceId = c.ChoiceId.ToString(CultureInfo.InvariantCulture), title = c.Title,
                     options = c.Options.Select(o => new { number = o.Option, text = o.Text }).ToArray() };

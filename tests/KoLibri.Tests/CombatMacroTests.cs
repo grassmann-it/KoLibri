@@ -5,8 +5,9 @@ using Xunit;
 namespace KoLibri.Tests;
 
 /// <summary>
-/// Combat macros (KOLIBRI0001) offline against FakeKol. Fixtures M1–M7 under Fixtures/macro are synthetic until the
-/// coordinator records the live answers (docs/macro-live-check.md); the assertions check structure, not exact numbers.
+/// Combat macros (KOLIBRI0001) offline against FakeKol. M1, M2, M5, M6 and macro-m3-live-no-abort are real KoL answers from the
+/// live check on 2026-11-27 (Main account, Haunted Pantry; pwd hash replaced), the numbers below are the ones on those pages.
+/// M3 (abort), M4 and M7 stay synthetic: live M3 did not abort, M4 was skipped (docs/macro-live-check.md).
 /// </summary>
 public sealed class CombatMacroTests
 {
@@ -88,6 +89,8 @@ public sealed class CombatMacroTests
     public async Task M1_single_attack_sends_action_macro_with_macrotext_and_pwd()
     {
         var kol = Kol(Fixture("macro-m1-single.html"));
+        kol.StatusHp = 504;
+        kol.StatusMaxHp = 504;
         await using var client = Client(kol);
         await using var session = await client.OpenAsync("main");
         await session.Adventure.GetOpenEncounterAsync();
@@ -98,13 +101,19 @@ public sealed class CombatMacroTests
         Assert.Equal("macro", form["action"]);
         Assert.Equal("attack;", form["macrotext"]);
         Assert.Equal("0123456789abcdef", form["pwd"]);
-        Assert.Equal(FightOutcome.Ongoing, round.Outcome);
+        // Live: the Knob Goblin Assistant Chef died to the one attack (level 23 main).
+        Assert.Equal(FightOutcome.Won, round.Outcome);
         Assert.Equal(1, round.RoundsInResponse);
         Assert.Null(round.MacroError);
+        Assert.Equal(12, round.Meat);
+        Assert.Contains(round.Items, i => i.Name == "chef's hat");
+        Assert.Contains(round.Items, i => i.Name == "knucklebone");
+        // The page shows no player HP ("You gain 12 Meat" is not HP): they come from api status (live 504/504, page guess was 8).
+        Assert.Equal(504, round.Hp);
     }
 
     [Fact]
-    public async Task M2_repeat_is_one_request_with_several_rounds_loot_and_hp_from_status()
+    public async Task M2_repeat_is_one_request_with_loot_and_hp_from_status()
     {
         var kol = Kol();
         kol.On("POST fight.php", (_, _) => { kol.StatusHp = 90; return FakeKol.Html(Fixture("macro-m2-repeat.html")); });
@@ -118,12 +127,12 @@ public sealed class CombatMacroTests
         Assert.Equal(FightOutcome.Won, result.Outcome);
         Assert.Single(MacroPosts(kol));
         var round = Assert.Single(result.Rounds);
-        Assert.Equal(3, round.RoundsInResponse);
-        Assert.Equal(3, round.Round);
+        // Live M2 was not meaningful for "repeat": the monster died to the first attack (one macroaction on the page).
+        Assert.Equal(1, round.RoundsInResponse);
         Assert.Equal(90, round.Hp);          // fight.php has no player HP: read from api status after the macro
         Assert.Equal(10, round.DamageTaken); // 100 before, 90 after
-        Assert.Equal("seal tooth", Assert.Single(result.Items).Name);
-        Assert.Equal(15, result.Meat);
+        Assert.Equal(new[] { "razor-sharp can lid", "tomato", "inflammable leaf" }, result.Items.Select(i => i.Name));
+        Assert.Equal(6, result.Meat);
         Assert.Single(ended);
     }
 
@@ -141,6 +150,25 @@ public sealed class CombatMacroTests
         var round = Assert.Single(result.Rounds);
         Assert.Equal(FightOutcome.Ongoing, round.Outcome);
         Assert.Contains("Macro Abort", round.MacroError);
+    }
+
+    [Fact]
+    public async Task M3_live_page_without_abort_is_a_plain_win()
+    {
+        // Live 2026-11-27: "if monstername an undead elbow macaroni;abort;endif;attack;" did not abort; KoL compares
+        // monstername with the bare name, the sample now strips the article.
+        var kol = Kol(Fixture("macro-m3-live-no-abort.html"));
+        await using var client = Client(kol);
+        await using var session = await client.OpenAsync("main");
+
+        var result = await session.Adventure.FightToEndAsync(CombatStrategies.Macro("if monstername an undead elbow macaroni; abort; endif; attack;"));
+
+        Assert.Equal(FightOutcome.Won, result.Outcome);
+        var round = Assert.Single(result.Rounds);
+        Assert.Null(round.MacroError);
+        Assert.Equal(1, round.RoundsInResponse);
+        Assert.Equal(8, result.Meat);
+        Assert.Contains(result.Items, i => i.Name == "magicalness-in-a-can");
     }
 
     [Fact]
@@ -188,7 +216,9 @@ public sealed class CombatMacroTests
 
         Assert.Equal(FightOutcome.RanAway, result.Outcome);
         Assert.Single(MacroPosts(kol));
-        Assert.Empty(result.Items);
+        Assert.Equal(1, Assert.Single(result.Rounds).RoundsInResponse);
+        // Live: the familiar still raked a leaf on the runaway page.
+        Assert.Equal("inflammable leaf", Assert.Single(result.Items).Name);
     }
 
     [Fact]
@@ -204,8 +234,7 @@ public sealed class CombatMacroTests
         Assert.Single(MacroPosts(kol));
         var round = Assert.Single(result.Rounds);
         Assert.Equal(0, round.RoundsInResponse);
-        Assert.Contains("invalid", round.MacroError, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Invalid Macro", round.MacroError);
+        Assert.StartsWith("KoL rejected the macro as invalid: Invalid macro command encountered", round.MacroError);
     }
 
     [Fact]

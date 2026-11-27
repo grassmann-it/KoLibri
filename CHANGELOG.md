@@ -15,8 +15,13 @@ auto-combat loop, and write your own tools with `using KoLibri;`. Usable, not st
 - Optional `KoLibri.Safety`: grants, budgets, approval tokens, audit journal.
 - Not in the library on purpose: diet planning, arbitrage, shop CRM. Build them with it.
 - Combat macros (`CombatStrategies.Macro`) are experimental (`KOLIBRI0001`): sent as `fight.php` `action=macro` only
-  with `KolibriOptions.EnableExperimentalMacros = true`, otherwise refused. Not live-tested yet
+  with `KolibriOptions.EnableExperimentalMacros = true`, otherwise refused. First live check on 2026-11-27: single attack,
+  runaway and invalid macro behave as documented; repeat, abort and skill are still open
   ([docs/macro-live-check.md](docs/macro-live-check.md), test app `samples/macro-live-check`).
+- A fight that KoL ends on the page that started it (auto-attack) is a `FinishedFightEncounter` with monster, outcome,
+  loot and meat; the run counts it for `MonsterSeen` and `FightEnded` and sends no fight action.
+- `FightRound.Hp`/`Mp` are always the player's values (page markup or `api.php?what=status`), never a number taken from
+  the combat text. Choice titles are read from KoL's current header layout.
 
 ### Packages and cookbook
 - `scripts/pack-lib.sh` packs `KoLibri` and `KoLibri.Safety` and checks the contents. `KoLibri.Core` is bundled inside

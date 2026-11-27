@@ -150,7 +150,7 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
 
     private static string Kind(Encounter encounter) => encounter switch
     {
-        FightEncounter => "Fight",
+        FightEncounter or FinishedFightEncounter => "Fight",
         ChoiceEncounter => "Choice",
         NonCombatEncounter => "NonCombat",
         BlockedEncounter b => "Blocked:" + b.Reason,
@@ -164,8 +164,8 @@ public sealed class AdventureMcpExecutionBridge : IDisposable
         responseHash = (string?)null,
         abortReason = encounter is BlockedEncounter blocked ? blocked.Reason.ToString() : null,
         requiresRefresh = false,
-        complete = encounter is NonCombatEncounter,
-        monster = (encounter as FightEncounter)?.MonsterName,
+        complete = encounter is NonCombatEncounter or FinishedFightEncounter,
+        monster = encounter switch { FightEncounter f => f.MonsterName, FinishedFightEncounter d => d.MonsterName, _ => null },
         title = encounter.Title
     };
 

@@ -230,6 +230,16 @@ public sealed class CliAdventureFarmTests : IDisposable
         Assert.Equal("Rest", json.GetProperty("recoverySteps")[0].GetProperty("kind").GetString());
         Assert.Equal(1, json.GetProperty("autoChoices").GetArrayLength());
         Assert.Equal("BuiltIn", json.GetProperty("autoChoices")[0].GetProperty("source").GetString());
+        Assert.Equal("Temporarily Out of Skeletons", json.GetProperty("autoChoices")[0].GetProperty("title").GetString());
+        // The output names the stops and the recovery the run used (live 2026-11-27 it printed "conditions": []).
+        var condition = Assert.Single(json.GetProperty("conditions").EnumerateArray());
+        Assert.Equal("ItemCountAtLeast", condition.GetProperty("kind").GetString());
+        Assert.Equal(Knucklebone, condition.GetProperty("itemId").GetInt32());
+        Assert.Equal("knucklebone", condition.GetProperty("item").GetString());
+        Assert.Equal(3, condition.GetProperty("count").GetInt32());
+        var hp = json.GetProperty("recoveryPolicy").GetProperty("hp");
+        Assert.Equal(40, hp.GetProperty("belowPercent").GetInt32());
+        Assert.Equal("Rest", hp.GetProperty("steps")[0].GetProperty("kind").GetString());
     }
 
     [Fact]
@@ -244,6 +254,10 @@ public sealed class CliAdventureFarmTests : IDisposable
         Assert.Equal(0, code);
         Assert.Equal("MonsterSeen", json.GetProperty("stopReason").GetString());
         Assert.Equal(1, json.GetProperty("turnsDone").GetInt32());
+        var condition = Assert.Single(json.GetProperty("conditions").EnumerateArray());
+        Assert.Equal("MonsterSeen", condition.GetProperty("kind").GetString());
+        Assert.Equal("skeleton", condition.GetProperty("monster").GetString());
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("recoveryPolicy").GetProperty("mp").ValueKind);
     }
 
     [Fact]
