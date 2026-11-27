@@ -480,20 +480,32 @@ namespace KoLibri
         public IChoiceResolver Choices { get; init; } = ChoiceResolvers.AlwaysAsk;
         public IReadOnlyList<StopCondition> StopWhen { get; init; } = Array.Empty<StopCondition>();
         public int MaxRoundsPerFight { get; init; } = 30;
+        /// <summary>Erholung und Upkeep vor jedem neuen Zug (nicht mitten in einer Kette). Standard: keine.</summary>
+        public IRecoveryPolicy Recovery { get; init; } = RecoveryPolicies.None;
+        /// <summary>Obergrenze der Erholungsschritte vor einem Zug.</summary>
+        public int MaxRecoveryStepsPerTurn { get; init; } = 5;
     }
 
-    public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost }
+    public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost, MonsterSeen, EncounterTitle, TurtleEncounter }
 
     public sealed record StopCondition(StopConditionKind Kind, int Value, int? Id = null)
     {
+        /// <summary>Monstername (MonsterSeen) bzw. regulärer Ausdruck (EncounterTitle); sonst null.</summary>
+        public string? Pattern { get; init; }
         public static StopCondition HpBelowPercent(int percent) => new(StopConditionKind.HpBelowPercent, percent);
         public static StopCondition MpBelowPercent(int percent) => new(StopConditionKind.MpBelowPercent, percent);
         public static StopCondition AdventuresAtMost(int adventures) => new(StopConditionKind.AdventuresAtMost, adventures);
         public static StopCondition ItemCountAtLeast(ItemRef item, int count) => new(StopConditionKind.ItemCountAtLeast, count, item.Id);
         public static StopCondition EffectMissing(int effectId) => new(StopConditionKind.EffectMissing, 0, effectId);
+        /// <summary>Stoppt nach dem Zug, in dem ein Kampf gegen dieses Monster vorkam.</summary>
+        public static StopCondition MonsterSeen(string name) => throw new NotImplementedException();
+        /// <summary>Stoppt nach dem Zug, dessen Begegnungstitel auf den regulären Ausdruck passt.</summary>
+        public static StopCondition EncounterTitle(string regex) => throw new NotImplementedException();
+        /// <summary>Stoppt nach dem Zug mit einer Turtle-Tamer-Begegnung.</summary>
+        public static StopCondition TurtleEncounter() => throw new NotImplementedException();
     }
 
-    public enum RunStopReason { TurnsDone, Condition, NeedsChoice, NeedsCombat, Defeat, Blocked, Cancelled, Error }
+    public enum RunStopReason { TurnsDone, Condition, NeedsChoice, NeedsCombat, Defeat, Blocked, Cancelled, Error, Recovery }
 
     public sealed record RunResult(RunStopReason StopReason, int TurnsSpent, IReadOnlyList<Encounter> Encounters, string? Detail)
     {
@@ -501,6 +513,35 @@ namespace KoLibri
         public Encounter? Open { get; init; }
         public IReadOnlyList<InventoryItem> Items { get; init; } = Array.Empty<InventoryItem>();
         public long MeatGained { get; init; }
+        /// <summary>Die Erholungs- und Upkeep-Schritte, die der Lauf ausgeführt hat.</summary>
+        public IReadOnlyList<RecoveryStep> RecoverySteps { get; init; } = Array.Empty<RecoveryStep>();
+    }
+
+    public enum RecoveryStepKind { None, Rest, UseItem, Cast, Stop, NeedInventory }
+
+    public sealed record RecoveryStep(RecoveryStepKind Kind, int Id = 0, int Times = 1, string? Reason = null)
+    {
+        public static RecoveryStep None { get; } = null!;
+        public static RecoveryStep Rest { get; } = null!;
+        public static RecoveryStep NeedsInventory { get; } = null!;
+        public static RecoveryStep UseItem(ItemRef item) => throw new NotImplementedException();
+        public static RecoveryStep Cast(SkillRef skill, int times = 1) => throw new NotImplementedException();
+        public static RecoveryStep Stop(string reason) => throw new NotImplementedException();
+    }
+
+    public sealed record RecoveryContext(Status Status, Inventory? Inventory, IReadOnlyList<RecoveryStep> DoneThisTurn);
+
+    public interface IRecoveryPolicy
+    {
+        RecoveryStep Next(RecoveryContext context);
+    }
+
+    public static class RecoveryPolicies
+    {
+        public static IRecoveryPolicy None { get; } = null!;
+        public static IRecoveryPolicy Simple(int hpBelowPercent, int mpBelowPercent, IReadOnlyList<RecoveryStep> hpSteps, IReadOnlyList<RecoveryStep> mpSteps) => throw new NotImplementedException();
+        public static IRecoveryPolicy Upkeep(int effectId, int minTurns, RecoveryStep how) => throw new NotImplementedException();
+        public static IRecoveryPolicy Combine(params IRecoveryPolicy[] policies) => throw new NotImplementedException();
     }
 }
 

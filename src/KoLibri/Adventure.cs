@@ -91,13 +91,18 @@ namespace KoLibri
             long meat = 0;
             Status? start = null;
             Status? last = null;
+            var recoverySteps = new List<RecoveryStep>();
+            var recoveryAdventures = 0;
+            Inventory? baseline = null;
 
             RunResult Finish(RunStopReason reason, string? detail, Encounter? open = null)
             {
-                var spent = start is not null && last is not null ? Math.Max(0, start.Adventures - last.Adventures) : 0;
+                // Costly rests spend adventures that are not turns of the run.
+                var spent = start is not null && last is not null ? Math.Max(0, start.Adventures - last.Adventures - recoveryAdventures) : 0;
                 return new RunResult(reason, spent, encounters.ToArray(), detail)
                 {
                     Open = open,
+                    RecoverySteps = recoverySteps.ToArray(),
                     Items = Merge(items),
                     MeatGained = meat
                 };
@@ -106,12 +111,16 @@ namespace KoLibri
             try
             {
                 start = last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                // One inventory read per run: the starting stock; loot of the run is added from the encounters.
+                if (request.StopWhen.Any(c => c.Kind == StopConditionKind.ItemCountAtLeast))
+                    baseline = await _session.Inventory.GetAsync(true, cancellationToken).ConfigureAwait(false);
                 // An encounter left open (browser click, earlier stop) is finished before a new turn starts.
                 var pending = await GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false);
                 var turnsStarted = 0;
                 while (true)
                 {
                     Encounter encounter;
+                    var chainStart = encounters.Count;
                     if (pending is not null)
                     {
                         encounter = pending;
@@ -121,7 +130,13 @@ namespace KoLibri
                     {
                         if (turnsStarted >= request.MaxTurns)
                             return Finish(RunStopReason.TurnsDone, null);
-                        if (await StopConditionAsync(request.StopWhen, last, cancellationToken).ConfigureAwait(false) is { } why)
+                        // Recovery and upkeep run between turns only, never in the middle of a fight/choice chain.
+                        var recovered = await RecoverAsync(request.Recovery, request.MaxRecoveryStepsPerTurn, last, recoverySteps, cancellationToken).ConfigureAwait(false);
+                        last = recovered.Status;
+                        recoveryAdventures += recovered.AdventuresSpent;
+                        if (recovered.StopDetail is { } recoveryStop)
+                            return Finish(RunStopReason.Recovery, recoveryStop);
+                        if (StopCondition(request.StopWhen, last, baseline, items) is { } why)
                             return Finish(RunStopReason.Condition, why);
                         if (last.Adventures <= 0)
                             return Finish(RunStopReason.Blocked, "No adventures left.");
@@ -219,6 +234,8 @@ namespace KoLibri
 
                     var previous = last;
                     last = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                    if (TurnStop(request.StopWhen, encounters, chainStart) is { } seen)
+                        return Finish(RunStopReason.Condition, seen);
                     if (turnsStarted > 0 && last.Adventures == previous.Adventures && encounters.Count > 0
                         && encounters[^1] is not ChoiceEncounter && !IsFreeEncounter(encounters[^1]))
                     {
@@ -524,9 +541,76 @@ namespace KoLibri
             return encounter;
         }
 
-        private async Task<string?> StopConditionAsync(IReadOnlyList<StopCondition> conditions, Status status, CancellationToken cancellationToken)
+        private const int BeatenUpEffectId = 7;
+
+        private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail);
+
+        /// <summary>
+        /// Asks the policy for steps before a new turn, runs each through <see cref="CharacterActions"/>, re-reads the status
+        /// and repeats until the policy says None or the limit is reached. A step without progress ends the run: no guessing, no endless loop.
+        /// </summary>
+        private async Task<RecoveryOutcome> RecoverAsync(IRecoveryPolicy policy, int limit, Status status, List<RecoveryStep> log, CancellationToken cancellationToken)
         {
+            if (ReferenceEquals(policy, RecoveryPolicies.None) || limit <= 0) return new(status, 0, null);
+            if (status.Effects.Any(e => e.Id == BeatenUpEffectId || e.Name.Equals("Beaten Up", StringComparison.OrdinalIgnoreCase)))
+                return new(status, 0, "You are Beaten Up; KoLibri does not guess a way to heal that. Heal by hand and start again.");
+            var done = new List<RecoveryStep>();
             Inventory? inventory = null;
+            var spent = 0;
+            while (done.Count < limit)
+            {
+                var step = policy.Next(new RecoveryContext(status, inventory, done.ToArray()));
+                if (step.Kind == RecoveryStepKind.NeedInventory)
+                {
+                    if (inventory is not null) break;
+                    inventory = await _session.Inventory.GetAsync(true, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+                if (step.Kind == RecoveryStepKind.None) break;
+                if (step.Kind == RecoveryStepKind.Stop)
+                    return new(status, spent, step.Reason ?? "The recovery policy asked to stop.");
+                var result = step.Kind switch
+                {
+                    RecoveryStepKind.Rest => await _session.Character.RestAsync(1, cancellationToken).ConfigureAwait(false),
+                    RecoveryStepKind.UseItem => await _session.Character.UseAsync(new ItemRef(step.Id), 1, cancellationToken).ConfigureAwait(false),
+                    RecoveryStepKind.Cast => await _session.Character.CastAsync(new SkillRef(step.Id), step.Times, cancellationToken).ConfigureAwait(false),
+                    _ => throw new InvalidOperationException($"Unsupported recovery step {step.Kind}.")
+                };
+                done.Add(step);
+                log.Add(step);
+                if (step.Kind == RecoveryStepKind.UseItem) inventory = null;
+                var after = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
+                spent += Math.Max(0, status.Adventures - after.Adventures);
+                if (result.Status is ActionStatus.Rejected or ActionStatus.Unclear || result.Completed < 1)
+                    return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}");
+                if (!MadeProgress(status, after))
+                    return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.");
+                status = after;
+            }
+            return new(status, spent, null);
+        }
+
+        private static bool MadeProgress(Status before, Status after)
+        {
+            if (after.Hp > before.Hp || after.Mp > before.Mp) return true;
+            foreach (var effect in after.Effects)
+            {
+                var old = before.Effects.Where(e => e.Id == effect.Id && e.Name == effect.Name).Select(e => e.Turns).DefaultIfEmpty(-1).Max();
+                if (effect.Turns > old) return true;
+            }
+            return false;
+        }
+
+        private static string Describe(RecoveryStep step) => step.Kind switch
+        {
+            RecoveryStepKind.UseItem => $"use item {step.Id}",
+            RecoveryStepKind.Cast => $"cast skill {step.Id}",
+            _ => step.Kind.ToString().ToLowerInvariant()
+        };
+
+        /// <summary>Conditions checked before a turn (after recovery). Item counts come from the starting inventory plus the run's loot.</summary>
+        private static string? StopCondition(IReadOnlyList<StopCondition> conditions, Status status, Inventory? baseline, IReadOnlyList<InventoryItem> loot)
+        {
             foreach (var condition in conditions)
             {
                 switch (condition.Kind)
@@ -549,10 +633,45 @@ namespace KoLibri
                         if (status.Effects.All(e => e.Id != condition.Id)) return $"Effect {condition.Id} is missing.";
                         break;
                     case StopConditionKind.ItemCountAtLeast:
-                        inventory ??= await _session.Inventory.GetAsync(true, cancellationToken).ConfigureAwait(false);
-                        var count = inventory.Count(new ItemRef(condition.Id ?? 0));
+                        var item = new ItemRef(condition.Id ?? 0);
+                        var count = (baseline?.Count(item) ?? 0) + loot.Where(i => i.Item == item).Sum(i => i.Quantity);
                         if (count >= condition.Value) return $"Item {condition.Id}: {count} (goal {condition.Value}).";
                         break;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>Conditions on what the turn just showed (monster, title, turtle). Evaluated after the whole chain of the turn.</summary>
+        private static string? TurnStop(IReadOnlyList<StopCondition> conditions, IReadOnlyList<Encounter> encounters, int from)
+        {
+            foreach (var condition in conditions)
+            {
+                if (condition.Kind is not (StopConditionKind.MonsterSeen or StopConditionKind.EncounterTitle or StopConditionKind.TurtleEncounter))
+                    continue;
+                for (var i = from; i < encounters.Count; i++)
+                {
+                    var encounter = encounters[i];
+                    switch (condition.Kind)
+                    {
+                        case StopConditionKind.MonsterSeen:
+                            if (encounter is FightEncounter fight && string.Equals(fight.MonsterName.Trim(), condition.Pattern?.Trim(), StringComparison.OrdinalIgnoreCase))
+                                return $"Monster seen: {fight.MonsterName}.";
+                            break;
+                        case StopConditionKind.EncounterTitle:
+                            var title = encounter.Title ?? (encounter as FightEncounter)?.MonsterName;
+                            if (title is not null && condition.Pattern is { } pattern
+                                && System.Text.RegularExpressions.Regex.IsMatch(title, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
+                                return $"Encounter '{title}' matches /{pattern}/.";
+                            break;
+                        case StopConditionKind.TurtleEncounter:
+                            if (encounter is FightEncounter turtleFight
+                                    ? CoreSpiel.TurtleTamerEncounters.IsTurtleMonster(turtleFight.MonsterName) || CoreSpiel.TurtleTamerEncounters.IsTurtleEncounter(turtleFight.Title)
+                                    : CoreSpiel.TurtleTamerEncounters.IsTurtleEncounter(encounter.Title))
+                                return $"Turtle Tamer encounter: {(encounter as FightEncounter)?.MonsterName ?? encounter.Title}"
+                                    + (encounter is ChoiceEncounter turtleChoice ? $" (choice {turtleChoice.ChoiceId})." : ".");
+                            break;
+                    }
                 }
             }
             return null;
@@ -621,20 +740,42 @@ namespace KoLibri
         public IChoiceResolver Choices { get; init; } = ChoiceResolvers.AlwaysAsk;
         public IReadOnlyList<StopCondition> StopWhen { get; init; } = Array.Empty<StopCondition>();
         public int MaxRoundsPerFight { get; init; } = 30;
+        /// <summary>Erholung und Upkeep vor jedem neuen Zug (nicht mitten in einer Kette). Standard: keine.</summary>
+        public IRecoveryPolicy Recovery { get; init; } = RecoveryPolicies.None;
+        /// <summary>Obergrenze der Erholungsschritte vor einem Zug.</summary>
+        public int MaxRecoveryStepsPerTurn { get; init; } = 5;
     }
 
-    public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost }
+    public enum StopConditionKind { HpBelowPercent, MpBelowPercent, AdventuresAtMost, ItemCountAtLeast, EffectMissing, MeatAtMost, MonsterSeen, EncounterTitle, TurtleEncounter }
 
     public sealed record StopCondition(StopConditionKind Kind, int Value, int? Id = null)
     {
+        /// <summary>Monstername (MonsterSeen) bzw. regulärer Ausdruck (EncounterTitle); sonst null.</summary>
+        public string? Pattern { get; init; }
+
         public static StopCondition HpBelowPercent(int percent) => new(StopConditionKind.HpBelowPercent, percent);
         public static StopCondition MpBelowPercent(int percent) => new(StopConditionKind.MpBelowPercent, percent);
         public static StopCondition AdventuresAtMost(int adventures) => new(StopConditionKind.AdventuresAtMost, adventures);
         public static StopCondition ItemCountAtLeast(ItemRef item, int count) => new(StopConditionKind.ItemCountAtLeast, count, item.Id);
         public static StopCondition EffectMissing(int effectId) => new(StopConditionKind.EffectMissing, 0, effectId);
+        /// <summary>Stoppt nach dem Zug, in dem ein Kampf gegen dieses Monster (Name, ohne Groß-/Kleinschreibung) vorkam.</summary>
+        public static StopCondition MonsterSeen(string name)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            return new(StopConditionKind.MonsterSeen, 0) { Pattern = name };
+        }
+        /// <summary>Stoppt nach dem Zug, dessen Begegnungstitel auf den regulären Ausdruck passt (ohne Groß-/Kleinschreibung).</summary>
+        public static StopCondition EncounterTitle(string regex)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(regex);
+            _ = new Regex(regex); // fail early on a bad pattern
+            return new(StopConditionKind.EncounterTitle, 0) { Pattern = regex };
+        }
+        /// <summary>Stoppt nach dem Zug mit einer Turtle-Tamer-Begegnung (Titel oder Monster, erkannt über den Core).</summary>
+        public static StopCondition TurtleEncounter() => new(StopConditionKind.TurtleEncounter, 0);
     }
 
-    public enum RunStopReason { TurnsDone, Condition, NeedsChoice, NeedsCombat, Defeat, Blocked, Cancelled, Error }
+    public enum RunStopReason { TurnsDone, Condition, NeedsChoice, NeedsCombat, Defeat, Blocked, Cancelled, Error, Recovery }
 
     public sealed record RunResult(RunStopReason StopReason, int TurnsSpent, IReadOnlyList<Encounter> Encounters, string? Detail)
     {
@@ -642,5 +783,7 @@ namespace KoLibri
         public Encounter? Open { get; init; }
         public IReadOnlyList<InventoryItem> Items { get; init; } = Array.Empty<InventoryItem>();
         public long MeatGained { get; init; }
+        /// <summary>Die Erholungs- und Upkeep-Schritte, die der Lauf ausgeführt hat.</summary>
+        public IReadOnlyList<RecoveryStep> RecoverySteps { get; init; } = Array.Empty<RecoveryStep>();
     }
 }
