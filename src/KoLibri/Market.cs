@@ -338,9 +338,9 @@ namespace KoLibri
             }, r => r.Status is ActionStatus.Done or ActionStatus.Partial or ActionStatus.Unclear, cancellationToken);
         }
 
-        /// <summary>Nicht in 0.5-dev: der Core hat dafür noch keinen geprüften Request (siehe docs/lib-api-0.5.md §11).</summary>
+        /// <summary>Nicht in KoLibri 0.5: der Core hat dafür noch keinen geprüften Request (siehe docs/lib-api-0.5.md §11).</summary>
         public Task<ActionResult> TakeBackAsync(ItemRef item, int quantity, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException("Taking items back from the store is not implemented in KoLibri 0.5-dev; use session.PostAsync.");
+            => throw new NotSupportedException("Taking items back from the store is not implemented in KoLibri 0.5; nothing was sent.");
 
         public async Task<IReadOnlyList<ShopSale>> GetSalesAsync(bool refresh = false, CancellationToken cancellationToken = default)
         {
@@ -527,7 +527,7 @@ namespace KoLibri
             MailFolder.Inbox => CoreSpiel.KoLMailFolder.Inbox,
             MailFolder.Saved => CoreSpiel.KoLMailFolder.Saved,
             MailFolder.Outbox => CoreSpiel.KoLMailFolder.Outbox,
-            _ => throw new NotSupportedException($"The {folder} folder is not supported in KoLibri 0.5-dev.")
+            _ => throw new NotSupportedException($"The {folder} folder is not supported in KoLibri 0.5.")
         };
     }
 

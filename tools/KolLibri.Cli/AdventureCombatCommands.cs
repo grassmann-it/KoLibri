@@ -269,7 +269,7 @@ internal static partial class KolibriCli
             else if (kind is "adventuresremaining" or "turnsremaining" && op is "atmost")
                 result.Add(StopCondition.AdventuresAtMost(target));
             else
-                throw new ArgumentException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5-dev (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
+                throw new ArgumentException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5 (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
         }
         return result;
     }

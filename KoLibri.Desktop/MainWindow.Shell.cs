@@ -98,7 +98,7 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Shows or hides the extras outside the 0.4.0 scope (see <see cref="ExperimentalFeatures"/>). Hidden panels are
+    /// Shows or hides the extras outside the 0.5.0 scope (see <see cref="ExperimentalFeatures"/>). Hidden panels are
     /// also collapsed, so nothing behind them loads in the background.
     /// </summary>
     private void ApplyExperimentalVisibility()

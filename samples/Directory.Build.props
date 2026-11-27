@@ -1,7 +1,7 @@
 <Project>
   <!-- Bricht die Vererbung des Repo-Directory.Build.props ab: Cookbook-Apps sind eigenständig und kopierbar. -->
   <PropertyGroup>
-    <KoLibriPackageVersion Condition="'$(KoLibriPackageVersion)' == ''">0.5.0-dev</KoLibriPackageVersion>
+    <KoLibriPackageVersion Condition="'$(KoLibriPackageVersion)' == ''">0.5.0</KoLibriPackageVersion>
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>

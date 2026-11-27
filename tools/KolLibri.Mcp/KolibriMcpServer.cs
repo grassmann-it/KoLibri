@@ -405,8 +405,8 @@ public partial class KolibriMcpServer
         return McpDocuments.PriceSummary(itemId, offers);
     }
 
-    /// <summary>The message of the tools that move onto the new library in a follow-up PR. Nothing is sent.</summary>
-    internal const string NotYetMessage = "not available in 0.5-dev, moves in a follow-up PR, nothing was sent";
+    /// <summary>The message returned by tools unavailable in KoLibri 0.5.</summary>
+    internal const string NotYetMessage = "not available in KoLibri 0.5; nothing was sent";
 
     /// <summary>Handler of a registered tool that is not on the 0.5 library yet (same gate, same consent rights).</summary>
     internal static Func<JsonElement, CancellationToken, Task<object?>> NotYet(string tool)

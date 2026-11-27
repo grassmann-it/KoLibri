@@ -209,7 +209,7 @@ public partial class KolibriMcpServer
             else if (kind is "adventuresremaining" or "turnsremaining" && op is "atmost")
                 result.Add(StopCondition.AdventuresAtMost(target));
             else
-                throw new McpInvalidParamsException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5-dev (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
+                throw new McpInvalidParamsException($"Condition {c.GetRawText()} is not supported in KoLibri 0.5 (supported: ItemCount AtLeast with an item id, AdventuresRemaining AtMost). Nothing was sent.");
         }
         return result;
     }

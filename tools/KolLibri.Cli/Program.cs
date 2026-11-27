@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
@@ -94,7 +95,7 @@ internal static partial class KolibriCli
         }
     }
 
-    /// <summary>Commands that stay out of 0.5-dev until they move onto the new library (follow-up PR). Nothing is sent.</summary>
+    /// <summary>Exit code for commands unavailable in KoLibri 0.5.</summary>
     internal const int NotYetExitCode = 3;
     internal const int RemovedExitCode = 2;
 
@@ -106,7 +107,7 @@ internal static partial class KolibriCli
 
     internal static int NotYet(string command)
     {
-        Console.Error.WriteLine($"'{command}' is not available in KoLibri 0.5-dev: it moves onto the new KoLibri library in a follow-up PR. Nothing was sent.");
+        Console.Error.WriteLine($"'{command}' is not available in KoLibri 0.5; nothing was sent.");
         return NotYetExitCode;
     }
 
@@ -281,7 +282,10 @@ internal static partial class KolibriCli
 
     internal static void PrintHelp(TextWriter w, bool experimental)
     {
-        w.WriteLine("KoLibri CLI 0.5.0-dev (EARLY ALPHA) - previews by default; live actions need --execute and your approval.");
+        var assembly = typeof(KolibriCli).Assembly;
+        var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
+            ?? assembly.GetName().Version?.ToString(3);
+        w.WriteLine($"KoLibri CLI {version} (EARLY ALPHA) - previews by default; live actions need --execute and your approval.");
         w.WriteLine("  Live use needs your own KoL account (one session per account), requests are rate limited (default 2 s), AI agents must get your confirmation.");
         w.WriteLine("  cast --role main|mallbot --skill ID [--times N] [--execute]   cast a skill (Soul Food = 7185)");
         w.WriteLine("  relay --role main|mallbot [--port 8766] [--browser-ua]   local proxy: browse KoL in your own browser via the stored session, logs requests");
@@ -307,7 +311,7 @@ internal static partial class KolibriCli
         if (experimental)
         {
             w.WriteLine();
-            w.WriteLine("Experimental (--experimental or KOLIBRI_EXPERIMENTAL=1; hidden in 0.5.0-dev):");
+            w.WriteLine($"Experimental (--experimental or KOLIBRI_EXPERIMENTAL=1; hidden by default in {version}):");
             w.WriteLine("  crm --role mallbot [--refresh]    own shop: buyer/sales analysis");
             w.WriteLine("  crm-block --key BUYER_KEY [--blocked true|false] [--note TEXT]");
             w.WriteLine("  pricegun --item ITEM_ID [--refresh]");
