@@ -982,3 +982,7 @@ KoLibri.Status.PathId.get -> int?
 KoLibri.Status.PathId.init -> void
 KoLibri.Status.PlayerId.get -> int?
 KoLibri.Status.PlayerId.init -> void
+KoLibri.RelayOptions.SessionCheck.get -> System.Func<System.Threading.Tasks.Task<string?>!>?
+KoLibri.RelayOptions.SessionCheck.init -> void
+KoLibri.LimiterOptions.MaxPerSecond.get -> double
+KoLibri.LimiterOptions.MaxPerSecond.init -> void

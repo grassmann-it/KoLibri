@@ -213,6 +213,8 @@ namespace KoLibri
         /// <summary>Mindestabstand zwischen zwei Lese-Requests. Untergrenze 200 ms.</summary>
         public TimeSpan ReadInterval { get; init; } = TimeSpan.FromSeconds(1);
         public int ReadConcurrency { get; init; } = 2;
+        /// <summary>Höchstens so viele Requests je Sekunde über beide Lanes (1–5; 0 = aus). Ergänzt in Schritt 3 (Desktop-Einstellung).</summary>
+        public double MaxPerSecond { get; init; } = 2;
     }
 
     public sealed class LoginOptions

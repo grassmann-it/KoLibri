@@ -80,8 +80,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     private CancellationTokenSource? _refreshCancellation;
     private string _activeSection = "Adventure";
     private AccountRole _selectedRole = AccountRole.Mallbot;
-    private readonly AccountSessionManager _accounts;
-    private readonly KoLLoginClient _loginClient = new();
+    private readonly DesktopAccounts _accounts;
     private EncounterBrowserPane? _encounterBrowser;
     private ListBox? _encounterLocationsGrid;
     private ListBox? _encounterMonstersGrid;
@@ -136,21 +135,21 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     }
 
     public MainWindow(Func<Action<string>, EncounterBrowserPane>? createEncounterPane, string? tokenDirectory = null,
-        AccountSessionManager? accounts = null, Func<AccountSession, HttpClient>? createAccountHttp = null,
-        DesktopSettingsStore? settingsStore = null, bool applySettingsToLimiters = true)
+        DesktopAccounts? accounts = null, DesktopSettingsStore? settingsStore = null)
     {
-        _accounts = accounts ?? AccountSessionManager.CreateDefault();
         _settingsStore = settingsStore ?? new DesktopSettingsStore();
         _settings = _settingsStore.Load();
-        if (applySettingsToLimiters) _settings.ApplyToLimiters();
+        // One library client for the window. The limiter comes from the settings (and the 0.4 environment knobs);
+        // automatic log-in asks the saved setting before every attempt, so the Settings switch always wins.
+        _accounts = accounts ?? DesktopAccounts.CreateDefault(_settings.ToLimiterOptions(),
+            () => _settingsStore.Load().ReloginAutomatically);
         _log = new SessionLogViewModel(post: action =>
         {
             if (Dispatcher.UIThread.CheckAccess()) action(); else Dispatcher.UIThread.Post(action);
         }, directory: Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_settingsStore.Path))!, "logs"));
         _log.RoleProvider = () => _selectedRole.ToString();
         _spendLedger = new MallSpendLedger(path: MallSpendLedger.PathNextTo(_settingsStore));
-        _live = new DesktopLiveDataProvider(_accounts, createAccountHttp, _settings,
-            () => _settingsStore.Load().ReloginAutomatically);
+        _live = new DesktopLiveDataProvider(_accounts);
         _catalog = TryLoadCatalog();
         InitializeComponent();
         _charpaneView = ControlExtensions.FindControl<CharpaneView>(this, "CharacterPane");
@@ -586,11 +585,10 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         if (_adventureAccountLabel is null || _adventureTurnsLabel is null
             || _adventureKnucklebonesLabel is null || _adventurePlanSummary is null
             || _adventurePlanAdvisories is null) return;
-        await _accounts.InitializeAsync(cancellationToken);
         var role = _selectedRole;
         _adventureAccountLabel.Text = role.ToString();
-        var session = await _accounts.GetSessionAsync(role, cancellationToken: cancellationToken);
-        if (session is null || string.IsNullOrWhiteSpace(session.Credentials.CookieHeader))
+        var session = await _accounts.TryOpenAsync(role, cancellationToken);
+        if (session is null)
         {
             _adventureTurnsLabel.Text = "—";
             _adventureKnucklebonesLabel.Text = $"— / {(int)_settings.Get("dailyKnucklebonesTarget"):N0}";
@@ -605,7 +603,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         var inventory = await _live.LoadInventoryAsync(role, forceRefresh, null, cancellationToken);
         if (status is null) return;
         if (role != _selectedRole) return;
-        if (!status.IsStale && _encounterBrowser?.ObserveAscension(role, session.Profile.Id, status.Ascensions) == true)
+        if (_encounterBrowser?.ObserveAscension(role, session.Account.Id.Value, status.Ascensions) == true)
         {
             UpdateEncounterStatus("New ascension detected. The previous adventure was closed.");
             RefreshEncounterStepLog();
@@ -620,11 +618,11 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         var knucklebones = inventory.Items
             .Where(item => item.ItemId == "12051")
             .Sum(item => item.Quantity);
-        _adventureTurnsLabel.Text = status.IsStale ? $"{status.Adventures:N0} (stale)" : status.Adventures.ToString("N0");
+        _adventureTurnsLabel.Text = status.Adventures.ToString("N0");
         _adventureKnucklebonesLabel.Text = $"{knucklebones:N0} / {(int)_settings.Get("dailyKnucklebonesTarget"):N0}";
         var state = new KoLibri.Core.Spiel.AdventureState
         {
-            IsStale = status.IsStale || inventory.IsStale,
+            IsStale = inventory.IsStale,
             Knucklebones = Math.Max(0, knucklebones),
             AdventureTurnsRemaining = Math.Max(0, status.Adventures),
             SkeletonOfCrimbosPastAvailable = true
@@ -645,7 +643,6 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
     {
         try
         {
-            await _accounts.InitializeAsync(cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Main, cancellationToken);
             await LoadSavedAccountAsync(AccountRole.Mallbot, cancellationToken);
             SetStatus("Account profiles loaded.");
@@ -662,14 +659,11 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
 
     private async Task LoadSavedAccountAsync(AccountRole role, CancellationToken cancellationToken = default)
     {
-        var session = await _accounts.GetSessionAsync(
-            role,
-            includeExpired: true,
-            cancellationToken: cancellationToken);
-        if (session is null)
+        var account = await _accounts.FindAsync(role, cancellationToken);
+        if (account is null)
             return;
 
-        var username = session.Credentials.Username ?? session.Profile.DisplayName;
+        var username = account.PlayerName;
         var usernameBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainUsername" : "MallbotUsername");
         var passwordBox = this.FindControl<TextBox>(role == AccountRole.Main ? "MainPassword" : "MallbotPassword");
         var rememberBox = this.FindControl<CheckBox>(role == AccountRole.Main ? "MainRememberPassword" : "MallbotRememberPassword");
@@ -678,7 +672,7 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             return;
         usernameBox.Text = username;
         passwordBox.Text = string.Empty;
-        rememberBox.IsChecked = !string.IsNullOrEmpty(session.Credentials.Password);
+        rememberBox.IsChecked = account.HasPassword;
         status.Text = rememberBox.IsChecked == true ? "Password saved · Sign in to reconnect" : "Session saved";
         status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
     }
@@ -715,15 +709,15 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
         button.IsEnabled = false;
         try
         {
+            // Empty password with "remember" ticked: log in again with the stored password of the same player.
+            var reuseStored = false;
             if (string.IsNullOrEmpty(password) && rememberBox.IsChecked == true)
             {
-                var saved = await _accounts.GetSessionAsync(role, includeExpired: true);
-                var savedUsername = saved?.Credentials.Username ?? saved?.Profile.DisplayName;
-                if (string.Equals(username, savedUsername, StringComparison.OrdinalIgnoreCase))
-                    password = saved?.Credentials.Password;
+                var saved = await _accounts.FindAsync(role);
+                reuseStored = saved is { HasPassword: true } && string.Equals(username, saved.PlayerName, StringComparison.OrdinalIgnoreCase);
             }
 
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(username) || (string.IsNullOrEmpty(password) && !reuseStored))
             {
                 status.Text = "Enter a username and password.";
                 status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
@@ -732,17 +726,16 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
 
             status.Text = "Logging in…";
             status.Foreground = ThemeBrush("WarningBrush", Brushes.DarkGoldenrod);
-            var login = await _loginClient.LoginAsync(username, password, rememberPassword: rememberBox.IsChecked == true);
-            var id = role == AccountRole.Main ? "main" : "mallbot";
             _browserPanel?.StopForLogin(); // the old relay host still holds the previous login's cookie
-            await _accounts.SetProfileAsync(new AccountProfile
+            if (reuseStored)
             {
-                Id = id,
-                DisplayName = username,
-                Role = role,
-                Enabled = true
-            });
-            await _accounts.SetCredentialsAsync(role, login.Credentials);
+                if (await _accounts.ReconnectAsync(role) is null)
+                    throw new KolibriException("Login failed: no stored password.");
+            }
+            else
+            {
+                await _accounts.LoginAsync(role, username, password!, rememberPassword: rememberBox.IsChecked == true);
+            }
             passwordBox.Text = string.Empty;
             ResetAccountViews();
             status.Text = "Connected";
@@ -750,12 +743,12 @@ public partial class MainWindow : Window, IShellHost, IAdventuresViewHandlers, I
             SetStatus($"{role} is logged in at KoL. Read-only data can be loaded now.");
             await ReturnAfterSignInAsync(role);
         }
-        catch (KoLLoginException exception)
+        catch (KolibriException exception) when (exception.Message.StartsWith("Login failed", StringComparison.Ordinal))
         {
             passwordBox.Text = string.Empty;
             status.Text = "Login failed";
             status.Foreground = ThemeBrush("ErrorBrush", Brushes.IndianRed);
-            SetStatus($"{role}: KoL login failed [{exception.Reason}] ({exception.Message}).");
+            SetStatus($"{role}: KoL login failed ({exception.InnerException?.Message ?? exception.Message}).");
         }
         catch (Exception exception)
         {

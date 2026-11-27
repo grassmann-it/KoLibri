@@ -11,10 +11,10 @@ public sealed record BrowserGateResult(bool CanStart, bool OfferSignIn, string M
 /// </summary>
 public static class BrowserGate
 {
-    public static async Task<BrowserGateResult> CheckAsync(AccountSessionManager accounts, AccountRole role, bool autoLogin,
-        Func<string, string, CancellationToken, Task<KoLLoginResult>>? login = null, CancellationToken cancellationToken = default)
+    public static async Task<BrowserGateResult> CheckAsync(DesktopAccounts accounts, AccountRole role, bool autoLogin,
+        CancellationToken cancellationToken = default)
     {
-        var r = await StartupLogin.RunAsync(accounts, role, autoLogin, login, cancellationToken).ConfigureAwait(false);
+        var r = await StartupLogin.RunAsync(accounts, role, autoLogin, cancellationToken).ConfigureAwait(false);
         if (r.HasSession) return new(true, false, r.Message);
         var text = r.Outcome == StartupLoginOutcome.NothingStored && r.Message.Contains("not signed in", StringComparison.Ordinal)
             ? $"{role} is not signed in. Sign in to adventure in the browser."

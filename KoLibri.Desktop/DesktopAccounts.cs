@@ -84,6 +84,8 @@ public sealed class DesktopAccounts : IAsyncDisposable
             {
                 var session = await Client.OpenAsync(IdOf(role), cancellationToken).ConfigureAwait(false);
                 _sessions[role] = session;
+                // A stored cookie past its expiry opens an expired session: renew it now (only reached when allowed).
+                if (session.IsExpired) await session.ReconnectAsync(cancellationToken).ConfigureAwait(false);
                 return session;
             }
             catch (SessionExpiredException) { return null; }

@@ -2,6 +2,19 @@ using System.Collections.ObjectModel;
 
 namespace KoLibri.Desktop;
 
+/// <summary>The command groups of the shortcut catalog (kept from the 0.4 shell contract).</summary>
+public enum ShellPage
+{
+    Cockpit,
+    Inventory,
+    Arbitrage,
+    Shop,
+    Approvals,
+    Operations,
+    Adventure,
+    Combat
+}
+
 /// <summary>Where a shell destination is shown at the current window density.</summary>
 public enum ShellNavigationPlacement
 {

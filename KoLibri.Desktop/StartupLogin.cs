@@ -23,37 +23,30 @@ public sealed record StartupLoginResult(AccountRole Role, StartupLoginOutcome Ou
 /// <summary>
 /// The decision made once at desktop start for each role: reuse the stored session, log in again from the stored
 /// password (only when the setting is on), or leave it to the Sign in button. One KoL request at most per role,
-/// never retried; the login client itself goes through the global rate limiter.
+/// never retried; the login goes through the library's limiter.
 /// </summary>
 public static class StartupLogin
 {
     public static async Task<StartupLoginResult> RunAsync(
-        AccountSessionManager accounts, AccountRole role, bool autoLogin,
-        Func<string, string, CancellationToken, Task<KoLLoginResult>>? login = null,
+        DesktopAccounts accounts, AccountRole role, bool autoLogin,
         CancellationToken cancellationToken = default)
     {
-        login ??= (user, password, token) => new KoLLoginClient().LoginAsync(user, password, true, token);
         try
         {
-            await accounts.InitializeAsync(cancellationToken).ConfigureAwait(false);
-            var current = await accounts.GetSessionAsync(role, includeExpired: true, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            var current = await accounts.FindAsync(role, cancellationToken).ConfigureAwait(false);
             if (current is null)
                 return new(role, StartupLoginOutcome.NothingStored, $"{role}: not signed in.");
-            var usable = !current.IsExpired() && !string.IsNullOrWhiteSpace(current.Credentials.CookieHeader);
-            if (usable)
+            if (current.HasSession && !await accounts.HasExpiredSessionAsync(role, cancellationToken).ConfigureAwait(false))
                 return new(role, StartupLoginOutcome.AlreadySignedIn, $"{role}: signed in.");
-            var hasPassword = !string.IsNullOrWhiteSpace(current.Credentials.Password)
-                              && !string.IsNullOrWhiteSpace(current.Credentials.Username ?? current.Profile.DisplayName);
-            if (!hasPassword)
+            if (!current.HasPassword || string.IsNullOrWhiteSpace(current.PlayerName))
                 return new(role, StartupLoginOutcome.NothingStored,
                     $"{role}: the saved session has expired and no password is stored. Use Sign in.");
             if (!autoLogin)
                 return new(role, StartupLoginOutcome.AutoLoginOff,
                     $"{role}: the saved session has expired. Use Sign in, or turn on automatic log-in in Settings.");
 
-            var renewed = await accounts.ReconnectAsync(current, login, cancellationToken).ConfigureAwait(false);
-            return renewed is not null && !string.IsNullOrWhiteSpace(renewed.Credentials.CookieHeader)
+            var renewed = await accounts.ReconnectAsync(role, cancellationToken).ConfigureAwait(false);
+            return renewed is not null && !renewed.IsExpired
                 ? new(role, StartupLoginOutcome.LoggedIn, $"{role}: signed in again.")
                 : new(role, StartupLoginOutcome.Failed, $"{role}: automatic log-in did not work. Use Sign in.");
         }
@@ -67,15 +60,14 @@ public static class StartupLogin
 
     /// <summary>Selected role first, then the other one, strictly one after the other.</summary>
     public static async Task<IReadOnlyList<StartupLoginResult>> RunAllAsync(
-        AccountSessionManager accounts, AccountRole selected, bool autoLogin,
-        Func<string, string, CancellationToken, Task<KoLLoginResult>>? login = null,
+        DesktopAccounts accounts, AccountRole selected, bool autoLogin,
         Action<StartupLoginResult>? onEach = null, CancellationToken cancellationToken = default)
     {
         var results = new List<StartupLoginResult>();
         var other = selected == AccountRole.Main ? AccountRole.Mallbot : AccountRole.Main;
         foreach (var role in new[] { selected, other })
         {
-            var r = await RunAsync(accounts, role, autoLogin, login, cancellationToken).ConfigureAwait(false);
+            var r = await RunAsync(accounts, role, autoLogin, cancellationToken).ConfigureAwait(false);
             results.Add(r);
             onEach?.Invoke(r);
         }

@@ -166,7 +166,8 @@ namespace KoLibri
             var host = CoreBasis.RelayHost.Start(session, options.Port, options.LogPath, options.UseBrowserUserAgent, options.Output,
                 upstreamHandler: Client.Options.HttpHandler is null ? null : new NonDisposingHandler(Client.Options.HttpHandler),
                 kolOrigin: Client.Options.BaseUri.GetLeftPart(UriPartial.Authority),
-                limiter: Client.Limiter);
+                limiter: Client.Limiter,
+                sessionCheck: options.SessionCheck);
             return Task.FromResult(new RelayServer(host));
         }
 
@@ -411,6 +412,11 @@ namespace KoLibri
         public bool UseBrowserUserAgent { get; init; }
         /// <summary>Gets one line per relayed request (redacted), e.g. for a console. Ergänzt in 0.5 Schritt 3.</summary>
         public Action<string>? Output { get; init; }
+        /// <summary>
+        /// Vor jeder weitergeleiteten Anfrage gefragt: null leitet weiter, ein Text lehnt mit dieser Meldung ab
+        /// (z. B. "das Konto hat sich neu angemeldet"). Ergänzt in Schritt 3 (Desktop-Browser).
+        /// </summary>
+        public Func<Task<string?>>? SessionCheck { get; init; }
     }
 
     public sealed class RelayServer : IAsyncDisposable

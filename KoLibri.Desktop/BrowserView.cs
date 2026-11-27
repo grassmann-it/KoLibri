@@ -7,7 +7,7 @@ using Avalonia.Threading;
 namespace KoLibri.Desktop;
 
 /// <summary>
-/// KoLmafia-style relay browser inside the window: starts <see cref="RelayHost"/> in-process (127.0.0.1, free port, secret
+/// KoLmafia-style relay browser inside the window: starts the library relay (<see cref="KolibriSession.StartRelayAsync"/>) in-process (127.0.0.1, free port, secret
 /// token, redacted log) and shows it in a native web view (WebView2 / WKWebView / WebKitGTK through WebView.Avalonia).
 /// The web view keeps its own cookie jar, so the per-run relay cookie never reaches other browsers. Without a usable
 /// web view runtime the page explains that and offers the relay URL in the system browser instead.
@@ -16,15 +16,16 @@ public sealed class BrowserView : UserControl, IDisposable
 {
     private static readonly TimeSpan EngineWait = TimeSpan.FromSeconds(8);
 
-    private AccountSessionManager? _accounts;
+    private DesktopAccounts? _accounts;
     private Func<AccountRole> _role = () => AccountRole.Main;
     private Action<string> _status = _ => { };
     private Action<string> _log = _ => { };
     private Action? _signIn;
     private Func<bool> _autoLogin = () => true;
-    private RelayHost? _host;
+    private RelayServer? _host;
+    private string _hostOrigin = "";
     private AccountRole? _hostRole;
-    private string? _hostBinding;
+    private KolibriSession? _hostBinding;
     private Control? _web;
     private bool _engineSeen;
     private bool _navigated;
@@ -53,7 +54,7 @@ public sealed class BrowserView : UserControl, IDisposable
             if (e.Key != Avalonia.Input.Key.Enter) return;
             e.Handled = true;
             if (_host is null) return;
-            if (BrowserNavigationPolicy.ResolveTyped(_host.Origin, _address.Text) is { } path) NavigateToPath(path);
+            if (BrowserNavigationPolicy.ResolveTyped(_hostOrigin, _address.Text) is { } path) NavigateToPath(path);
             else _status("The address bar only opens pages of the relay, for example /main.php.");
         };
         _back.Click += (_, _) => { if (_web is AvaloniaWebView.WebView w) w.GoBack(); };
@@ -107,7 +108,7 @@ public sealed class BrowserView : UserControl, IDisposable
         return b;
     }
 
-    public void Attach(AccountSessionManager accounts, Func<AccountRole> role, Action<string> status, Action<string> log,
+    public void Attach(DesktopAccounts accounts, Func<AccountRole> role, Action<string> status, Action<string> log,
         Action? signIn = null, Func<bool>? autoLogin = null)
     {
         _accounts = accounts; _role = role; _status = status; _log = log;
@@ -125,15 +126,16 @@ public sealed class BrowserView : UserControl, IDisposable
         try
         {
             var accounts = _accounts;
-            var (sessionTimedOut, current) = await BrowserTimeouts.RunAsync(_ => accounts.GetSessionAsync(role, includeExpired: true), BrowserTimeouts.Gate);
+            // The binding is the session object: a new login replaces it in DesktopAccounts (no request here).
+            var (sessionTimedOut, current) = await BrowserTimeouts.RunAsync(_ => CurrentSessionAsync(accounts, role), BrowserTimeouts.Gate);
             if (sessionTimedOut) { ShowTimeout("Reading the stored session"); return; }
-            if (_host is not null && _hostRole == role && _hostBinding is not null && _hostBinding == current?.BindingKey()) return;
+            if (_host is not null && _hostRole == role && _hostBinding is not null && ReferenceEquals(_hostBinding, current)) return;
             StopHost();
             generation = ++_generation;
             ShowMessage($"Checking the {role} session…");
             // Not signed in: renew from the stored password when automatic log-in is on, else offer Sign in.
             var auto = _autoLogin();
-            var (gateTimedOut, gate) = await BrowserTimeouts.RunAsync(ct => BrowserGate.CheckAsync(accounts, role, auto, null, ct), BrowserTimeouts.Gate);
+            var (gateTimedOut, gate) = await BrowserTimeouts.RunAsync(ct => BrowserGate.CheckAsync(accounts, role, auto, ct), BrowserTimeouts.Gate);
             if (generation != _generation || _disposed) return;
             if (gateTimedOut || gate is null) { ShowTimeout("Checking or renewing the session"); return; }
             if (generation != _generation || _disposed) return;
@@ -144,15 +146,18 @@ public sealed class BrowserView : UserControl, IDisposable
                 return;
             }
             ShowMessage($"Starting the relay for {role}…");
-            var (startTimedOut, started) = await BrowserTimeouts.RunAsync(_ => accounts.GetSessionAsync(role), BrowserTimeouts.Gate);
+            var (startTimedOut, started) = await BrowserTimeouts.RunAsync(ct => accounts.TryOpenAsync(role, ct), BrowserTimeouts.Gate);
             if (startTimedOut) { ShowTimeout("Reading the session"); return; }
             if (started is null) throw new InvalidOperationException($"{role} is not logged in. Log in first.");
-            var binding = started.BindingKey();
             var startedSession = started;
-            var host = await Task.Run(() => RelayHost.Start(startedSession, sessionCheck: RelayHost.SessionBindingCheck(accounts, role, binding)));
-            if (generation != _generation || _disposed) { host.Dispose(); return; }
-            _host = host; _hostRole = role; _hostBinding = started.BindingKey();
-            _log($"Relay browser started for {role} on {host.Origin} (token not logged).");
+            var host = await Task.Run(() => startedSession.StartRelayAsync(new RelayOptions
+            {
+                SessionCheck = SessionBindingCheck(accounts, role, startedSession)
+            }));
+            if (generation != _generation || _disposed) { DisposeInBackground(host); return; }
+            _host = host; _hostRole = role; _hostBinding = startedSession;
+            _hostOrigin = host.BaseUri.GetLeftPart(UriPartial.Authority);
+            _log($"Relay browser started for {role} on {_hostOrigin} (token not logged).");
         }
         catch (InvalidOperationException exception)
         {
@@ -199,7 +204,7 @@ public sealed class BrowserView : UserControl, IDisposable
             web.WebViewCreated += (_, _) => Dispatcher.UIThread.Post(() => { _engineSeen = true; });
             web.NavigationStarting += (_, e) =>
             {
-                var origin = _host?.Origin;
+                var origin = (_host is null ? null : _hostOrigin);
                 if (origin is null) { e.Cancel = true; return; }
                 var url = e.Url?.ToString();
                 switch (BrowserNavigationPolicy.Decide(origin, url))
@@ -222,7 +227,7 @@ public sealed class BrowserView : UserControl, IDisposable
             {
                 // A new window is never opened here; same-origin targets load in this view, others ask first.
                 e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.CancelLoad;
-                var origin = _host?.Origin; var url = e.Url?.ToString();
+                var origin = (_host is null ? null : _hostOrigin); var url = e.Url?.ToString();
                 if (origin is null || url is null) return;
                 switch (BrowserNavigationPolicy.Decide(origin, url))
                 {
@@ -274,7 +279,7 @@ public sealed class BrowserView : UserControl, IDisposable
         if (_web is AvaloniaWebView.WebView web)
         {
             // The first load goes through the secret enter URL; after that the cookie is in the view's own jar.
-            web.Url = new Uri(_host.EnterUrl(path));
+            web.Url = _host.EntryUri(path);
             _status($"Browser: {path}");
         }
     }
@@ -317,7 +322,7 @@ public sealed class BrowserView : UserControl, IDisposable
             if (_host is null) await OpenAsync();
             if (_host is null) { _status("Sign in first: the relay needs a KoL session."); return; }
             // The URL carries this run's secret; it goes to the default browser only, never into a log.
-            Process.Start(new ProcessStartInfo(_host.EnterUrl("/main.php")) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(_host.EntryUri("/main.php").ToString()) { UseShellExecute = true });
             _status("The relay was opened in your system browser.");
         }
         catch (Exception exception)
@@ -359,8 +364,8 @@ public sealed class BrowserView : UserControl, IDisposable
     {
         _generation++;
         _web = null;
-        _host?.Dispose();
-        _host = null; _hostRole = null; _hostBinding = null;
+        if (_host is { } host) DisposeInBackground(host);
+        _host = null; _hostRole = null; _hostBinding = null; _hostOrigin = "";
         _address.Text = "";
     }
 
@@ -380,4 +385,33 @@ public sealed class BrowserView : UserControl, IDisposable
         _disposed = true;
         StopHost();
     }
+
+    /// <summary>The cached session of the role without sending anything (null when signed out or expired).</summary>
+    private static async Task<KolibriSession?> CurrentSessionAsync(DesktopAccounts accounts, AccountRole role)
+        => await accounts.HasExpiredSessionAsync(role).ConfigureAwait(false) ? null
+            : await accounts.FindAsync(role).ConfigureAwait(false) is { HasSession: true } ? await accounts.TryOpenAsync(role).ConfigureAwait(false) : null;
+
+    /// <summary>
+    /// Per relayed request: the role must still hold the session the relay started with (a new sign-in replaces it).
+    /// Checked at most once a second; null while it matches, else a clear message.
+    /// </summary>
+    internal static Func<Task<string?>> SessionBindingCheck(DesktopAccounts accounts, AccountRole role, KolibriSession binding)
+    {
+        var gate = new object(); long checkedAt = 0; string? last = null;
+        return async () =>
+        {
+            var now = Environment.TickCount64;
+            lock (gate) { if (checkedAt != 0 && now - checkedAt < 1000) return last; }
+            var account = await accounts.FindAsync(role).ConfigureAwait(false);
+            var current = account is { HasSession: true } ? await accounts.TryOpenAsync(role).ConfigureAwait(false) : null;
+            var msg = current is not null && ReferenceEquals(current, binding) ? null
+                : $"The {role} login changed since this relay started. Close this tab and open the browser again.";
+            lock (gate) { checkedAt = Math.Max(1, now); last = msg; }
+            return msg;
+        };
+    }
+
+    /// <summary>Stopping the relay never blocks the UI thread (the old freeze): it is released on the thread pool.</summary>
+    private static void DisposeInBackground(RelayServer host)
+        => _ = Task.Run(async () => { try { await host.DisposeAsync().ConfigureAwait(false); } catch { /* already gone */ } });
 }
