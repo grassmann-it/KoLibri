@@ -1,17 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Third-party consumer: only packages (from scripts/consumer-smoke.sh's local feed), no project references. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="KoLibri.Core" Version="0.4.0" />
-    <PackageReference Include="KoLibri.LibKolibri" Version="0.4.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)external/**/*" CopyToOutputDirectory="PreserveNewest" LinkBase="external" />
-    <None Include="../KoLibri.Core.Tests/Fixtures/Adventure/combat-round-1.html;../KoLibri.Core.Tests/Fixtures/Adventure/choice-success.html;../KoLibri.Core.Tests/Fixtures/Html/SkeletonOfCrimbosPast/reward.html" CopyToOutputDirectory="PreserveNewest" LinkBase="Replay" />
+    <PackageReference Include="KoLibri" Version="$(KoLibriPackageVersion)" />
+    <PackageReference Include="KoLibri.Safety" Version="$(KoLibriPackageVersion)" />
+    <Compile Include="../../samples/cookbook/*/*Recipe.cs" />
   </ItemGroup>
 </Project>

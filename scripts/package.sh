@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the self-contained single-file programs for one runtime and lays out a release folder:
-#   dist/KoLibri-<version>-<rid>/{kolibri (+kolicli), kolibri-mcp, kolibri-desktop, external/kolmafia-data, README.md, LICENSE, NOTICE.md}
+#   dist/KoLibri-<version>-<rid>/{kolibri (+kolicli), kolibri-mcp, kolibri-desktop, external/kolmafia-data, README.md, CHANGELOG.md, LICENSE, NOTICE.md}
 # Usage: scripts/package.sh <rid> [version]     rid: win-x64 | linux-x64 | osx-arm64 | osx-x64
 set -euo pipefail
 rid="${1:?runtime identifier required, e.g. linux-x64}"
@@ -24,7 +24,7 @@ cp "$tmp/mcp/KolLibri.Mcp$ext"        "$out/kolibri-mcp$ext"
 cp "$tmp/desktop/KoLibri.Desktop$ext" "$out/kolibri-desktop$ext"
 mkdir -p "$out/external"
 cp -R "$root/external/kolmafia-data" "$out/external/kolmafia-data"
-cp "$root/README.md" "$root/LICENSE" "$root/NOTICE.md" "$out/"
+cp "$root/README.md" "$root/CHANGELOG.md" "$root/LICENSE" "$root/NOTICE.md" "$out/"
 mkdir -p "$out/docs" && cp "$root/docs/quickstart.md" "$root/docs/mcp-access.md" "$root/docs/usage.md" "$out/docs/"
 # `kolicli` is a second name for `kolibri` (a shim on Windows, a symlink elsewhere).
 if [[ "$rid" == win-* ]]; then
