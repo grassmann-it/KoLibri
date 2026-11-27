@@ -234,6 +234,15 @@ static void SeedDaily(MainWindow w, bool stale)
             new DailyStepRow(DailyStepKind.Spleen, "Spleen", "Fixture spleen item × 1 · spleen 4", "skipped", "Run", false, "Skipped for today."),
             new DailyStepRow(DailyStepKind.CloverCheck, "Clover check", "No 11-leaf clovers in the inventory", "open", "Check", true),
         }) daily.Steps.Add(r);
+    daily.Rows.Clear();
+    if (!stale)
+        foreach (var (surface, action, detail, state) in new[]
+        {
+            ("Toaster", "Use the cheap toaster", "cheap toaster benutzen: 1x am Tag, gibt toast, kostet nichts", "open"),
+            ("VIP Lounge", "Deluxe Mr. Klaw (3x)", "Deluxe Mr. Klaw im VIP-Raum: noch 3 von 3 Zügen, kostenlos.", "open"),
+            ("Cargo Shorts", "Empty one pocket", "Tasche in dieser Reihenfolge (erste noch volle): 621 (917 Meat), 484 (872 Meat)", "open"),
+            ("Chess set", "Play one game (opt-in)", "nur auf Wunsch (--chess): eine Niederlage kostet 10 Abenteuer; kein Kampf", "skipped"),
+        }) daily.Rows.Add(new DailyBriefingRow { Surface = surface, Description = action, Detail = detail, State = state });
     typeof(DailyBriefingViewModel).GetProperty(nameof(DailyBriefingViewModel.SessionStale))!.SetValue(daily, stale);
 }
 

@@ -21,13 +21,25 @@ public sealed record DailyRunLive
     public bool HermitDoneToday { get; init; }
     public bool BaconMachineUsedToday { get; init; }
     public IReadOnlyList<string> MemeItemsDoneToday { get; init; } = Array.Empty<string>();
+
+    // Daily items (0.5): owned = in the inventory (the Cargo Cultist Shorts also when worn).
+    public int Adventures { get; init; }
+    public bool HasToaster { get; init; }
+    public bool HasFancyChessSet { get; init; }
+    public bool HasCargoShorts { get; init; }
+    public bool HasVipKey { get; init; }
+    public bool ToasterDoneToday { get; init; }
+    public bool FancyChessDoneToday { get; init; }
+    public bool CargoPocketDoneToday { get; init; }
+    /// <summary>Klaw pulls (1..3) confirmed today.</summary>
+    public IReadOnlyList<int> KlawPullsDoneToday { get; init; } = Array.Empty<int>();
 }
 
 /// <summary>What the run should do on top of the live numbers (0.4: CLI flags on DailyRoutineSnapshot).</summary>
 public sealed record DailyRunOptions
 {
     public int HermitCloversWanted { get; init; }
-    /// <summary>"campfire", "hermit", "internet-shop".</summary>
+    /// <summary>"campfire", "hermit", "internet-shop", "toaster", "vip", "cargo", "chess".</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     public int CampfireReserve { get; init; } = 3;
     /// <summary>
@@ -37,6 +49,13 @@ public sealed record DailyRunOptions
     public long AdventureReserveValue { get; init; }
     public long CloverFloorValue { get; init; }
     public long ExpectedCloverSaleValue { get; init; }
+    /// <summary>
+    /// Cargo Cultist Shorts pockets in order of preference; the first one still full this ascension is picked. Empty (the
+    /// default): no pocket is picked. Pockets that start a fight are never picked (<see cref="CargoPockets.FightPockets"/>).
+    /// </summary>
+    public IReadOnlyList<int> CargoPockets { get; init; } = Array.Empty<int>();
+    /// <summary>Opt-in: play the fancy chess set (a lost game costs 10 adventures).</summary>
+    public bool PlayChess { get; init; }
 }
 
 public enum DailyRunCompleteness { None, Complete, Partial, Failed }
@@ -97,7 +116,10 @@ public static class DailyRun
         ArgumentNullException.ThrowIfNull(session);
         var status = await session.Character.GetStatusAsync(refresh: true, cancellationToken).ConfigureAwait(false);
         var inventory = await session.Inventory.GetAsync(refresh: true, cancellationToken).ConfigureAwait(false);
+        // The status read above holds the equipment: no extra request.
+        var equipment = await session.Inventory.GetEquipmentAsync(refresh: false, cancellationToken).ConfigureAwait(false);
         int Count(params int[] ids) => ids.Sum(id => inventory.Count(id));
+        bool Worn(int id) => equipment.Slots.Values.Any(item => item?.Id == id);
         var daily = session.Daily;
         return new DailyRunLive
         {
@@ -112,7 +134,16 @@ public static class DailyRun
             CampfireLeafDoneToday = daily.IsDone(Markers.CampfireLeaf),
             HermitDoneToday = daily.IsDone(Markers.HermitClovers),
             BaconMachineUsedToday = daily.IsDone(Markers.BaconMachine),
-            MemeItemsDoneToday = MemeShopCatalog.DailyItems.Select(i => i.Name).Where(n => daily.IsDone(Markers.MemeBuy(n))).ToArray()
+            MemeItemsDoneToday = MemeShopCatalog.DailyItems.Select(i => i.Name).Where(n => daily.IsDone(Markers.MemeBuy(n))).ToArray(),
+            Adventures = status.Adventures,
+            HasToaster = Count(DailyItems.Ids.Toaster) > 0,
+            HasFancyChessSet = Count(DailyItems.Ids.FancyChessSet) > 0,
+            HasCargoShorts = Count(DailyItems.Ids.CargoCultistShorts) > 0 || Worn(DailyItems.Ids.CargoCultistShorts),
+            HasVipKey = Count(DailyItems.Ids.ClanVipLoungeKey) > 0,
+            ToasterDoneToday = daily.IsDone(DailyItems.Markers.Toaster),
+            FancyChessDoneToday = daily.IsDone(DailyItems.Markers.FancyChess),
+            CargoPocketDoneToday = daily.IsDone(DailyItems.Markers.CargoPocket),
+            KlawPullsDoneToday = Enumerable.Range(1, DailyItems.VipKlawDailyPulls).Where(p => daily.IsDone(DailyItems.Markers.VipKlaw(p))).ToArray()
         };
     }
 
@@ -180,6 +211,9 @@ public static class DailyRun
         });
         foreach (var shopStep in shop.Steps)
             steps.Add(new DailyStep("choice", shopStep.ChoiceId, shopStep.OptionId));
+
+        // 4. Daily items the account owns: toaster, VIP Klaw, Cargo pocket (only when configured), chess (only opt-in).
+        steps.AddRange(DailyItems.Plan(live, options));
         return steps;
     }
 
@@ -243,7 +277,8 @@ public static class DailyRun
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(steps);
         var choiceSteps = steps.Where(s => s.Kind == "choice").ToArray();
-        if (choiceSteps.Length == 0) return new DailyRunResult(false, 0, 0, Array.Empty<string>());
+        var itemSteps = steps.Where(s => s.Kind == "daily").ToArray();
+        if (choiceSteps.Length == 0 && itemSteps.Length == 0) return new DailyRunResult(false, 0, 0, Array.Empty<string>());
         var pulls = new FreePulls(session);
         var failed = new List<string>();
         var executed = 0;
@@ -297,6 +332,25 @@ public static class DailyRun
                     if (step.Id == "choice-campfire") session.Daily.MarkDone(Markers.CampfireLeaf);
                     if (step.Id == "choice-clover") session.Daily.MarkDone(Markers.HermitClovers);
                 }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception exception)
+            {
+                failed.Add($"{step.Id}:{step.Option} ({exception.Message})");
+            }
+        }
+        var klawUsedUp = false;
+        foreach (var step in itemSteps)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (klawUsedUp && step.Id == DailyItems.StepIds.VipKlaw) continue;
+            try
+            {
+                var outcome = await DailyItems.ExecuteAsync(session, step, cancellationToken).ConfigureAwait(false);
+                if (outcome.Confirmed) executed++;
+                else if (!outcome.Already) failed.Add($"{step.Id}:{step.Option} ({outcome.Message})");
+                // Already done today (KoL said so, marker set): neither submitted nor failed; the other Klaw pulls are not sent.
+                if (outcome.Already && step.Id == DailyItems.StepIds.VipKlaw) klawUsedUp = true;
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception exception)

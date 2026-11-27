@@ -66,7 +66,7 @@
               <Grid ColumnDefinitions="140,2*,3*,110" ColumnSpacing="10" Margin="0,3">
                 <TextBlock Grid.Column="0" Text="{Binding Surface}" FontWeight="SemiBold" />
                 <TextBlock Grid.Column="1" Text="{Binding Description}" />
-                <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="muted" />
+                <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="muted" TextWrapping="Wrap" />
                 <TextBlock Grid.Column="3" Text="{Binding State}" Classes="muted" />
               </Grid>
             </DataTemplate>
@@ -93,6 +93,15 @@
           <NumericUpDown x:Name="DailyBaconMaxPrice" Value="1500" Minimum="1" Maximum="100000"
                          Width="110" AutomationProperties.Name="Maximum meat per BACON" />
         </WrapPanel>
+        <WrapPanel>
+          <TextBlock Text="Cargo Cultist Shorts pockets (by preference)" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBox x:Name="DailyCargoPockets" Width="160" Watermark="e.g. 621,484,54"
+                   AutomationProperties.Name="Cargo Cultist Shorts pockets" />
+          <CheckBox x:Name="DailyPlayChess" Content="Play the fancy chess set (a lost game costs 10 adventures)"
+                    IsChecked="False" Margin="16,0,8,0" />
+        </WrapPanel>
+        <TextBlock x:Name="DailyCargoHint" Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="Empty: no pocket is picked. Each pocket works once per ascension; pockets that start a fight are refused." />
         <TextBlock x:Name="DailyStatusText"
                    Text="Nothing executed yet."
                    Classes="muted"

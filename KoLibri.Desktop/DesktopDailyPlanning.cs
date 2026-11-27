@@ -297,3 +297,16 @@ public sealed class DailyAdventurePlanner
         return value >= int.MaxValue ? int.MaxValue : (int)value;
     }
 }
+
+/// <summary>The daily-item options of the desktop (saved Cargo pockets and chess opt-in), shared by the briefing and the run.</summary>
+public static class DesktopDailyItems
+{
+    /// <summary>The saved pockets; a broken list counts as "no pocket" (the run button reports it).</summary>
+    public static DailyRunOptions Options(DesktopSettings settings, int hermitClovers = 0)
+    {
+        IReadOnlyList<int> pockets;
+        try { pockets = CargoPockets.Parse(settings.DailyCargoPockets); }
+        catch (FormatException) { pockets = Array.Empty<int>(); }
+        return new DailyRunOptions { HermitCloversWanted = hermitClovers, CargoPockets = pockets, PlayChess = settings.DailyPlayChess };
+    }
+}
