@@ -2,7 +2,6 @@ using System.Net;
 using Xunit;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Spiel;
-using KoLibri.Desktop;
 
 namespace KoLibri.Core.Tests;
 
@@ -58,12 +57,4 @@ public sealed class WlReviewFixTests
     [Fact]
     public async Task Login_clear_with_role_but_no_value_is_rejected_before_clearing()
         => await Assert.ThrowsAsync<ArgumentException>(() => KolibriCli.LoginClearAsync(new[] { "--role" }));
-
-    [Fact]
-    public void Unknown_catalog_item_is_not_treated_as_cost_free()
-    {
-        var check = InventoryActionPlanner.CheckOverfill(new ItemClassification { ItemId = "999999" }, 1, new OrganState(0, 0, 0, 15, 14, 15));
-        Assert.False(check.Known);
-        Assert.True(InventoryActionPlanner.NeedsConfirmation(check));
-    }
 }

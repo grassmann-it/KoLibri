@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -26,11 +24,11 @@ public sealed record DailyBriefingRow
 /// </summary>
 public sealed class DailyBriefingViewModel : DesktopViewModel
 {
-    private readonly DesktopLiveDataProvider _provider;
+    private readonly DesktopLiveDataProvider? _provider;
     private readonly AccountRole _role;
     private readonly Func<DesktopSettings> _settings;
     private readonly Func<DateOnly> _today;
-    private LiveDailySnapshot? _lastLive;
+    private DesktopDailySnapshot? _lastLive;
     private bool _sessionStale;
 
     public DailyBriefingViewModel(
@@ -40,7 +38,8 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         Func<DateOnly>? today = null)
     {
         _role = role;
-        _provider = provider ?? new DesktopLiveDataProvider();
+        // Without a provider (tests, design time) the briefing behaves as signed out.
+        _provider = provider;
         _settings = settings ?? (() => new DesktopSettings());
         _today = today ?? (() => DailyStepBoard.KolToday());
     }
@@ -60,9 +59,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         : string.Empty;
 
     /// <summary>Lucky Surprise Eggs in the last loaded inventory.</summary>
-    public int EggsOwned => _lastLive?.State.Inventory.Items
-        .Where(i => i.ItemId == DailyStepBoard.LuckySurpriseEggItemId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-        .Sum(i => i.Quantity) ?? 0;
+    public int EggsOwned => _lastLive?.Count(DailyStepBoard.LuckySurpriseEggItemId) ?? 0;
 
     /// <summary>Rebuilds the step list from the last live numbers (after a skip or a settings change).</summary>
     public void RebuildSteps()
@@ -91,11 +88,12 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
         LoadState = DesktopLoadState.Loading;
         try
         {
-            var live = await _provider.LoadDailySnapshotAsync(
-                _role, new DailyRoutineSnapshot(), forceRefresh, cancellationToken);
+            // The daily numbers are always read fresh (the markers decide what is left today).
+            var session = _provider is null ? null : await _provider.SessionAsync(_role, cancellationToken);
+            var live = session is null ? null : await DesktopDailySnapshot.ReadAsync(_role, session, cancellationToken);
             if (live is null)
             {
-                SessionStale = await _provider.HasExpiredSessionAsync(_role, cancellationToken);
+                SessionStale = _provider is not null && await _provider.HasExpiredSessionAsync(_role, cancellationToken);
                 SnapshotText = SessionStale ? "Session expired — please log in." : "No session — please log in.";
                 Rows.Clear();
                 Steps.Clear();
@@ -142,8 +140,7 @@ public sealed class DailyBriefingViewModel : DesktopViewModel
             LoadState = DesktopLoadState.Empty;
             throw;
         }
-        catch (KoLibri.Core.Basis.KoLHtmlResponseException exception)
-            when (exception.Kind == KoLibri.Core.Basis.KoLHtmlResponseKind.LoginPage)
+        catch (SessionExpiredException)
         {
             SessionStale = true;
             Rows.Clear();

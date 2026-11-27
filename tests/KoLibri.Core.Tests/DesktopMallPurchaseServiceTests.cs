@@ -2,11 +2,11 @@ using System.Net;
 using System.Text;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Markt;
-using KoLibri.Desktop;
 using Xunit;
 
 namespace KoLibri.Core.Tests;
 
+/// <summary>Core's price-bound purchase form. The desktop purchase service tests live in KoLibri.Tests/Desktop.</summary>
 public sealed class DesktopMallPurchaseServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
@@ -45,111 +45,6 @@ public sealed class DesktopMallPurchaseServiceTests
             Assert.Contains("buying=1", body);
         }
     }
-
-    [Fact]
-    public async Task BudgetOverrunSendsNothing()
-    {
-        var fixture = Fixture(100, 10_000_000, 5);
-        var svc = Service(fixture, new DesktopMallPurchaseOptions { MaxMeatPerPurchase = 150 });
-        var preview = await svc.PreviewAsync("mallbot", "item-1", "42", 100, 2);
-
-        Assert.False(preview.CanConfirm);
-        Assert.Contains(MallPurchaseAbortReason.PerPurchaseLimitExceeded, preview.Problems);
-        var result = await svc.ConfirmAsync(preview);
-        Assert.Equal(DesktopMallPurchaseStatus.NotSent, result.Status);
-        Assert.Equal(0, fixture.CommitCount);
-
-        // Daily budget: already spent almost everything.
-        var fixture2 = Fixture(100, 10_000_000, 5, dailySpent: 499_900);
-        var svc2 = Service(fixture2);
-        var p2 = await svc2.PreviewAsync("mallbot", "item-1", "42", 100, 2);
-        Assert.Equal(100, p2.RemainingDailyBudget);
-        Assert.Equal(DesktopMallPurchaseStatus.NotSent, (await svc2.ConfirmAsync(p2)).Status);
-        Assert.Equal(0, fixture2.CommitCount);
-    }
-
-    [Fact]
-    public async Task PreviewReportsTotalsAndBudgets()
-    {
-        var svc = Service(Fixture(100, 10_000, 5));
-        var p = await svc.PreviewAsync("mallbot", "item-1", "42", 100, 3);
-        Assert.True(p.CanConfirm);
-        Assert.Equal(300, p.TotalPrice);
-        Assert.Equal(500_000, p.RemainingDailyBudget);
-        Assert.Equal(250_000 - 300, p.RemainingPurchaseBudget);
-    }
-
-    [Fact]
-    public async Task PriceChangeSendsNothingAndAsksForReconfirmation()
-    {
-        var fixture = Fixture(100, 10_000, 5);
-        var svc = Service(fixture);
-        var preview = await svc.PreviewAsync("mallbot", "item-1", "42", 100, 2);
-        fixture.SetState(State("42", "item-1", 150, 10_000, 5, 0, 0, 1_000_000));
-
-        var result = await svc.ConfirmAsync(preview);
-        Assert.Equal(DesktopMallPurchaseStatus.PriceChanged, result.Status);
-        Assert.Equal(0, fixture.CommitCount);
-        Assert.NotNull(result.NewPreview);
-        Assert.Equal(150, result.NewPreview!.UnitPrice);
-        Assert.False(result.NewPreview.PriceChanged);
-    }
-
-    [Fact]
-    public async Task TimeoutSendsAtMostOnePostAndIsUnclear()
-    {
-        var before = State(100, 10_000, 5, 0);
-        var handler = new Handler(_ => throw new TaskCanceledException("timeout"));
-        using var http = new HttpClient(handler);
-        using var transport = new HttpMallPurchaseTransport(http, new HttpMallPurchaseTransportOptions(),
-            (_, _) => Task.FromResult(before), (_, _) => Task.FromResult(before));
-        var svc = Service(transport);
-        var preview = await svc.PreviewAsync("mallbot", "789", "123", 100, 2);
-
-        var result = await svc.ConfirmAsync(preview);
-        Assert.Equal(DesktopMallPurchaseStatus.Unclear, result.Status);
-        Assert.Equal(1, handler.Bodies.Count);
-
-        // The spent preview cannot be confirmed again.
-        var again = await svc.ConfirmAsync(preview);
-        Assert.Equal(DesktopMallPurchaseStatus.NotSent, again.Status);
-        Assert.Equal(1, handler.Bodies.Count);
-    }
-
-    [Fact]
-    public async Task SuccessRequiresMatchingMeatAndInventory()
-    {
-        var before = State(100, 10_000, 5, 0);
-        var good = State(100, 9_800, 3, 2, spent: 200);
-        Assert.Equal(DesktopMallPurchaseStatus.Purchased, await Run(before, good));
-
-        // The item arrived; Meat only has to be plausible (income may cancel the price), so this settles.
-        Assert.Equal(DesktopMallPurchaseStatus.Purchased, await Run(before, State(100, 10_000, 3, 2, spent: 200)));
-        // The item arrived but Meat fell by more than the price: unclear.
-        Assert.Equal(DesktopMallPurchaseStatus.Unclear, await Run(before, State(100, 9_000, 3, 2, spent: 200)));
-        // Meat moved but the item never arrived.
-        Assert.Equal(DesktopMallPurchaseStatus.Unclear, await Run(before, State(100, 9_800, 3, 0, spent: 200)));
-
-        static async Task<DesktopMallPurchaseStatus> Run(MallPurchaseObservation b, MallPurchaseObservation a)
-        {
-            var handler = new Handler(_ => Ok("You bought 2 items."));
-            using var http = new HttpClient(handler);
-            using var transport = new HttpMallPurchaseTransport(http, new HttpMallPurchaseTransportOptions(),
-                (_, _) => Task.FromResult(b), (_, _) => Task.FromResult(a));
-            var svc = Service(transport);
-            var preview = await svc.PreviewAsync("mallbot", "789", "123", 100, 2);
-            var result = await svc.ConfirmAsync(preview);
-            Assert.Equal(1, handler.Bodies.Count);
-            return result.Status;
-        }
-    }
-
-    private static DesktopMallPurchaseService Service(
-        IMallPurchaseTransport transport, DesktopMallPurchaseOptions? options = null)
-        => new(transport, (options ?? new DesktopMallPurchaseOptions()) with { ReconcileDelay = TimeSpan.Zero }, null, new FixedTime());
-
-    private static FixtureMallPurchaseTransport Fixture(long price, long meat, int qty, long dailySpent = 0)
-        => new(State("42", "item-1", price, meat, qty, 0, dailySpent, 1_000_000));
 
     private static MallPurchaseObservation State(long price, long meat, int qty, int inv, long spent = 0)
         => State("123", "789", price, meat, qty, inv, spent);

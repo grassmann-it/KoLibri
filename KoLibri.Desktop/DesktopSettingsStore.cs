@@ -1,7 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 
@@ -128,62 +126,86 @@ public sealed class DesktopSettings
         }
     }
 
-    /// <summary>Settings for the Pricegun read client (interval as configured; the limiter applies the env override).</summary>
-    public PricegunReadPolicy ToPricegunPolicy() => new()
-    {
-        CacheTtl = CacheDuration,
-        MaxStale = MaxStale,
-        MaxSales = (int)Get("resultLimit") is var n && n > 0 ? Math.Max(n, 1) : 100,
-    };
-
-    /// <summary>Settings for the Mall read client: cache duration, maximum age and the "Result / page limit" per item.</summary>
-    public MallReadPolicy ToMallPolicy() => new()
-    {
-        CacheTtl = CacheDuration,
-        MaxStale = MaxStale,
-        MaxListingsPerItem = (int)Get("resultLimit") is var n && n > 0 ? n : 100,
-    };
-
     /// <summary>Effective KoL interval: environment variable wins, then settings; floor 1 s.</summary>
     public EffectiveSetting EffectiveKolInterval(Func<string, string?>? env = null)
-        => Effective("kolIntervalSeconds", KoLRateLimiter.IntervalEnvironmentVariable, env);
+        => Effective("kolIntervalSeconds", LimiterEnv.ActionInterval, env);
 
     public EffectiveSetting EffectivePricegunInterval(Func<string, string?>? env = null)
-        => Effective("pricegunIntervalSeconds", PricegunRateLimit.IntervalEnvironmentVariable, env);
+        => Effective("pricegunIntervalSeconds", LimiterEnv.PricegunInterval, env);
 
     private EffectiveSetting Effective(string key, string variable, Func<string, string?>? env)
     {
         var raw = (env ?? Environment.GetEnvironmentVariable)(variable);
-        var over = KoLRateLimiter.IsEnvironmentOverride(raw);
-        var span = KoLRateLimiter.EffectiveInterval(TimeSpan.FromSeconds(Get(key)), raw);
+        var over = LimiterEnv.IsEnvironmentOverride(raw);
+        var span = LimiterEnv.EffectiveInterval(TimeSpan.FromSeconds(Get(key)), raw);
         return new EffectiveSetting(span.TotalSeconds, over, over ? variable : null);
     }
 
-    /// <summary>Lane limits: preset (environment wins over settings), then explicitly set numbers, then environment values; clamped.</summary>
-    public KoLLimiterOptions ToLimiterOptions(Func<string, string?>? env = null)
+    /// <summary>
+    /// Lane limits for the library: preset (environment wins over settings), then explicitly set numbers, then
+    /// environment values; clamped like 0.4 (actions 1 s .. 60 s, reads at least 200 ms, 1..4 parallel, 1..5 per second).
+    /// The library applies them when the desktop creates its client, so a change takes effect after a restart.
+    /// </summary>
+    public LimiterOptions ToLimiterOptions(Func<string, string?>? env = null)
     {
         env ??= Environment.GetEnvironmentVariable;
-        var options = KoLLimiterOptions.Preset(env(KoLLimiterOptions.PresetEnvironmentVariable) ?? LimiterPreset) with
+        var browserLike = string.Equals((env(LimiterEnv.Preset) ?? LimiterPreset)?.Trim(), "browser-like", StringComparison.OrdinalIgnoreCase);
+        var action = LimiterEnv.EffectiveInterval(TimeSpan.FromSeconds(Get("kolIntervalSeconds")), env(LimiterEnv.ActionInterval));
+        var read = browserLike ? TimeSpan.FromMilliseconds(400) : TimeSpan.FromSeconds(1);
+        var concurrency = browserLike ? 3 : 2;
+        double perSecond = browserLike ? 4 : 2;
+        if (Numbers.ContainsKey("kolReadIntervalSeconds")) read = TimeSpan.FromSeconds(Get("kolReadIntervalSeconds"));
+        if (Numbers.ContainsKey("kolReadConcurrency")) concurrency = (int)Get("kolReadConcurrency");
+        if (Numbers.ContainsKey("kolMaxPerSecond")) perSecond = Get("kolMaxPerSecond");
+        if (LimiterEnv.Number(env(LimiterEnv.ReadInterval)) is { } ms) read = TimeSpan.FromMilliseconds(ms);
+        if (LimiterEnv.Number(env(LimiterEnv.ReadConcurrency)) is { } c) concurrency = (int)c;
+        if (LimiterEnv.Number(env(LimiterEnv.MaxPerSecond)) is { } m) perSecond = Math.Max(m, 1); // the environment cannot switch the cap off
+        return new LimiterOptions
         {
-            ActionInterval = KoLRateLimiter.EffectiveInterval(TimeSpan.FromSeconds(Get("kolIntervalSeconds")), env(KoLRateLimiter.IntervalEnvironmentVariable))
+            ActionInterval = action,
+            ReadInterval = read < LimiterEnv.MinimumReadInterval ? LimiterEnv.MinimumReadInterval : read > LimiterEnv.MaximumInterval ? LimiterEnv.MaximumInterval : read,
+            ReadConcurrency = Math.Clamp(concurrency, 1, 4),
+            MaxPerSecond = double.IsNaN(perSecond) ? 2 : perSecond == 0 ? 0 : Math.Clamp(perSecond, 1, 5)
         };
-        if (Numbers.ContainsKey("kolReadIntervalSeconds")) options = options with { ReadInterval = TimeSpan.FromSeconds(Get("kolReadIntervalSeconds")) };
-        if (Numbers.ContainsKey("kolReadConcurrency")) options = options with { ReadConcurrency = (int)Get("kolReadConcurrency") };
-        if (Numbers.ContainsKey("kolMaxPerSecond")) options = options with { MaxPerSecond = Get("kolMaxPerSecond") };
-        var fromEnv = KoLLimiterOptions.FromEnvironment(env);
-        if (double.TryParse(env(KoLLimiterOptions.ReadIntervalEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { ReadInterval = fromEnv.ReadInterval };
-        if (double.TryParse(env(KoLLimiterOptions.ReadConcurrencyEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { ReadConcurrency = fromEnv.ReadConcurrency };
-        if (double.TryParse(env(KoLLimiterOptions.MaxPerSecondEnvironmentVariable), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _)) options = options with { MaxPerSecond = fromEnv.MaxPerSecond };
-        return options.Clamped();
+    }
+}
+
+/// <summary>The 0.4 limiter environment knobs (the library no longer reads them; the desktop translates them).</summary>
+public static class LimiterEnv
+{
+    public const string Preset = "KOLIBRI_LIMITER_PRESET";
+    public const string ActionInterval = "KOLIBRI_MIN_REQUEST_INTERVAL_MS";
+    public const string ReadInterval = "KOLIBRI_READ_INTERVAL_MS";
+    public const string ReadConcurrency = "KOLIBRI_READ_CONCURRENCY";
+    public const string MaxPerSecond = "KOLIBRI_MAX_REQUESTS_PER_SECOND";
+    public const string PricegunInterval = "KOLIBRI_PRICEGUN_MIN_REQUEST_INTERVAL_MS";
+
+    public static readonly TimeSpan MinimumInterval = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan MaximumInterval = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan MinimumReadInterval = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(2);
+
+    public static bool IsEnvironmentOverride(string? environmentValue)
+        => double.TryParse(environmentValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
+
+    /// <summary>Environment (milliseconds) wins over the configured value; clamped to 1 s .. 60 s.</summary>
+    public static TimeSpan EffectiveInterval(TimeSpan configured, string? environmentValue)
+    {
+        if (IsEnvironmentOverride(environmentValue)) return ResolveInterval(environmentValue);
+        return configured < MinimumInterval ? MinimumInterval : configured > MaximumInterval ? MaximumInterval : configured;
     }
 
-    /// <summary>Hands the configured intervals to the process-wide limiters; call once at startup, before the first request.</summary>
-    public void ApplyToLimiters(Func<string, string?>? env = null)
+    public static TimeSpan ResolveInterval(string? milliseconds)
     {
-        var get = env ?? Environment.GetEnvironmentVariable;
-        KoLRateLimiter.Shared.ApplyOptions(ToLimiterOptions(get));
-        PricegunRateLimit.Shared.ApplyConfigured(TimeSpan.FromSeconds(Get("pricegunIntervalSeconds")), get(PricegunRateLimit.IntervalEnvironmentVariable));
+        if (!double.TryParse(milliseconds, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ms))
+            return DefaultInterval;
+        var value = TimeSpan.FromMilliseconds(ms);
+        return value < MinimumInterval ? MinimumInterval : value > MaximumInterval ? MaximumInterval : value;
     }
+
+    internal static double? Number(string? text)
+        => double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+           && !double.IsNaN(v) && !double.IsInfinity(v) ? v : null;
 }
 
 /// <summary>Reads and writes <see cref="DesktopSettings"/> as JSON; tolerant of missing files and bad values.</summary>

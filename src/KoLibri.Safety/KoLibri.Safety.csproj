@@ -26,5 +26,7 @@
     <InternalsVisibleTo Include="KoLibri.Tests" />
     <!-- Transition: the MCP access layer (Access/) stays internal until it is unified with the guards. -->
     <InternalsVisibleTo Include="KolLibri.Mcp" />
+    <!-- Transition: the desktop "Agents" page reads and revokes the same MCP grants (Access/). -->
+    <InternalsVisibleTo Include="KoLibri.Desktop" />
   </ItemGroup>
 </Project>

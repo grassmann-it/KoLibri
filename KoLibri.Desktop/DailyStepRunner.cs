@@ -1,5 +1,4 @@
 using System.Globalization;
-using KoLibri.Core.Spiel;
 
 namespace KoLibri.Desktop;
 
@@ -27,6 +26,18 @@ public sealed record DailyRunResult(int Done, int Planned, IReadOnlyList<string>
     }
 }
 
+/// <summary>Status and inventory read right before or after one daily action, with what KoL said about the action.</summary>
+public sealed record DailyStepState(Status Status, Inventory Inventory)
+{
+    /// <summary>KoL refused the action (or the library did, before sending it).</summary>
+    public string? RejectionReason { get; init; }
+    public string? ResponseExcerpt { get; init; }
+    /// <summary>A request went out but its effect is unknown; the step stops.</summary>
+    public bool Unclear { get; init; }
+    /// <summary>For a rest: the library confirmed it (changed HP/MP/adventures or KoL's rest answer).</summary>
+    public bool Confirmed { get; init; } = true;
+}
+
 /// <summary>
 /// Runs the explicit actions of a daily step through the same planner and confirmation rules as the inventory:
 /// every organ cost is checked against the state read right before the action, an unknown organ state or size
@@ -37,9 +48,9 @@ public static class DailyStepRunner
 {
     public static async Task<DailyRunResult> RunAsync(
         DailyStepKind kind,
-        IReadOnlyList<CharacterAction> actions,
-        Func<CancellationToken, Task<CharacterActionSnapshot>> read,
-        Func<CharacterAction, CancellationToken, Task<CharacterActionSnapshot>> execute,
+        IReadOnlyList<CharacterCommand> actions,
+        Func<CancellationToken, Task<DailyStepState>> read,
+        Func<CharacterCommand, CancellationToken, Task<DailyStepState>> execute,
         ItemClassifier? classifier,
         Func<string, string, Task<bool>> confirm,
         CancellationToken token)
@@ -53,16 +64,15 @@ public static class DailyStepRunner
             token.ThrowIfCancellationRequested();
             if (action is ConsumeCharacterItem consume)
             {
-                // `current` is the snapshot read right before this action (the initial read or the previous answer).
+                // `current` is the state read right before this action (the initial read or the previous answer).
                 var skipped = await GuardAsync(consume, current, classifier, confirm).ConfigureAwait(false);
                 if (skipped is not null) { problems.Add(skipped); continue; }
             }
 
-            CharacterActionSnapshot after;
-            try { after = await execute(action, token).ConfigureAwait(false); }
-            catch (CharacterActionOutcomeUnknownException unknown)
+            var after = await execute(action, token).ConfigureAwait(false);
+            if (after.Unclear)
             {
-                problems.Add(unknown.Message);
+                problems.Add(after.RejectionReason ?? "the answer was lost, so the action may have happened; refresh before repeating");
                 break;
             }
             if (after.RejectionReason is { } refused) { problems.Add(refused); break; }
@@ -70,18 +80,16 @@ public static class DailyStepRunner
             switch (action)
             {
                 case ConsumeCharacterItem consumed:
-                    var before = HeldOf(current.Inventory, consumed.ItemId);
-                    var now = HeldOf(after.Inventory, consumed.ItemId);
-                    var used = after.Inventory.IsStale ? 0 : Math.Max(0, before - now);
-                    if (after.Inventory.IsStale)
-                        problems.Add($"item {consumed.ItemId}: KoL did not return a fresh inventory, so it may have been used; refresh before repeating");
-                    else if (used != consumed.Quantity)
+                    var before = current.Inventory.Count(consumed.ItemId);
+                    var now = after.Inventory.Count(consumed.ItemId);
+                    var used = Math.Max(0, before - now);
+                    if (used != consumed.Quantity)
                         problems.Add($"item {consumed.ItemId}: stock changed by {used} but {consumed.Quantity} were requested"
                             + (after.ResponseExcerpt is { Length: > 0 } excerpt ? $" ({excerpt})" : ""));
                     done += Math.Min(used, consumed.Quantity);
                     break;
                 case RestAtCampground:
-                    if (!CharacterActionClient.ConfirmsRest(current, after))
+                    if (!after.Confirmed)
                     {
                         problems.Add("KoL did not confirm the rest");
                         break;
@@ -97,24 +105,19 @@ public static class DailyStepRunner
         return new DailyRunResult(done, actions.Count, problems, unit);
     }
 
-    private static int HeldOf(KoLInventorySnapshot inventory, int id)
-        => inventory.Items.Where(i => i.ItemId == id.ToString(CultureInfo.InvariantCulture)).Sum(i => i.Quantity);
-
     /// <summary>Null when the consume may be sent; otherwise the reason it is skipped.</summary>
     private static async Task<string?> GuardAsync(
-        ConsumeCharacterItem consume, CharacterActionSnapshot current, ItemClassifier? classifier,
+        ConsumeCharacterItem consume, DailyStepState current, ItemClassifier? classifier,
         Func<string, string, Task<bool>> confirm)
     {
-        if (current.Inventory.IsStale || current.Status.IsStale)
-            return $"item {consume.ItemId}: KoL did not return a fresh status and inventory, nothing was sent";
-        var held = HeldOf(current.Inventory, consume.ItemId);
+        var held = current.Inventory.Count(consume.ItemId);
         if (held < consume.Quantity)
             return $"item {consume.ItemId}: you hold {held}, {consume.Quantity} needed; nothing was sent";
 
         var wanted = consume.Kind switch
         {
-            CharacterConsumableKind.Food => ItemOrgan.Food,
-            CharacterConsumableKind.Drink => ItemOrgan.Drink,
+            ConsumeKind.Eat => ItemOrgan.Food,
+            ConsumeKind.Drink => ItemOrgan.Drink,
             _ => ItemOrgan.Spleen
         };
         var c = classifier?.Classify(consume.ItemId) ?? new ItemClassification { ItemId = consume.ItemId.ToString(CultureInfo.InvariantCulture) };
@@ -134,17 +137,17 @@ public static class DailyStepRunner
 /// <summary>Plain-language summary of a daily routine run: complete, partial, failed or nothing to do.</summary>
 public static class DailyRunReport
 {
-    public static string Describe(KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeExecutionResult? result)
+    public static string Describe(global::KoLibri.Daily.DailyRunResult? result)
     {
         if (result is null) return "The daily routine could not be completed.";
         var failed = result.FailedSteps.Count == 0 ? "" : " Failed: " + string.Join("; ", result.FailedSteps) + ".";
         return result.Completeness switch
         {
-            KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeCompleteness.None
+            global::KoLibri.Daily.DailyRunCompleteness.None
                 => "Daily routine: nothing to do, no step was sent.",
-            KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeCompleteness.Complete
-                => $"Daily routine executed: {result.SubmittedSteps} step(s). Details are in the audit log.",
-            KoLibri.Core.Spiel.AutoCombatDailyBridge.BridgeCompleteness.Partial
+            global::KoLibri.Daily.DailyRunCompleteness.Complete
+                => $"Daily routine executed: {result.SubmittedSteps} step(s).",
+            global::KoLibri.Daily.DailyRunCompleteness.Partial
                 => $"Daily routine only PARTLY executed: {result.SubmittedSteps} of {result.AttemptedSteps} step(s) went through, the rest failed.{failed}",
             _ => $"Daily routine FAILED: none of {result.AttemptedSteps} step(s) went through.{failed}"
         };

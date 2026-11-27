@@ -3,8 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 
@@ -52,7 +50,7 @@ public partial class MainWindow
         };
 
         var model = new SettingsViewModel(_settingsStore, itemLookup: LookupCatalogItems,
-            classifier: _catalog is null ? null : new KoLibri.Core.Spiel.ItemClassifier(_catalog));
+            classifier: _catalog is null ? null : new ItemClassifier(_catalog));
         _settingsModel = model;
         model.PropertyChanged += (_, args) =>
         {
@@ -192,10 +190,9 @@ public partial class MainWindow
         if (StartupRole.IsSettled(_settings.DefaultAccount, StartupRole.ReadLast(_settingsStore))) return;
         try
         {
-            await _accounts.InitializeAsync(CancellationToken.None);
             var configured = new List<AccountRole>();
             foreach (var role in new[] { AccountRole.Main, AccountRole.Mallbot })
-                if (await _accounts.GetSessionAsync(role, includeExpired: true) is not null) configured.Add(role);
+                if (await _accounts.FindAsync(role) is not null) configured.Add(role);
             var chosen = StartupRole.Resolve(null, null, configured);
             if (chosen == _selectedRole || _accountRoleSelector is null) return;
             _selectedRole = chosen;                       // set first: the selection handler then sees no change
@@ -228,9 +225,8 @@ public partial class MainWindow
         _signInOffered = true;
         try
         {
-            await _accounts.InitializeAsync(CancellationToken.None);
-            var session = await _accounts.GetSessionAsync(_selectedRole);
-            if (session is not null && !string.IsNullOrWhiteSpace(session.Credentials.CookieHeader)) return;
+            // Only the stored account is read here; no request goes to KoL.
+            if (await _accounts.FindAsync(_selectedRole) is { HasSession: true }) return;
             _signInReturnSection = _activeSection == "Settings" ? "Adventure" : _activeSection;
             await OpenSectionAsync("Settings");
             if (this.FindControl<Expander>("AccountsExpander") is { } accounts) accounts.IsExpanded = true;
@@ -300,28 +296,15 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>Buy on a row: preview, confirmation window, one confirmed purchase. Limits come from the settings.</summary>
+    /// <summary>Buy on a row: confirmation window, one price-guarded library purchase. Limits come from the settings.</summary>
     private MallPurchaseCoordinator CreatePurchaseCoordinator()
     {
         var role = _selectedRole;
         return new MallPurchaseCoordinator(
             role.ToString(),
-            async cancellationToken =>
-            {
-                if (await _live.OpenPurchaseSessionAsync(role, cancellationToken) is not { } session) return null;
-                var observer = new MallPurchaseObserver(
-                    new LiveMallPurchaseReads(_live, role), role.ToString(),
-                    () => (long)_settings.Get("meatPerDay"), _spendLedger);
-                var transport = new HttpMallPurchaseTransport(
-                    session.Http,
-                    new HttpMallPurchaseTransportOptions
-                    {
-                        PasswordHashProvider = (_, _) => Task.FromResult(session.PasswordHash)
-                    },
-                    observer.BeforeAsync, observer.AfterAsync);
-                var service = new DesktopMallPurchaseService(transport, DesktopMallPurchaseSettings.ToOptions(_settings));
-                return (service, observer);
-            },
+            async cancellationToken => await _live.SessionAsync(role, cancellationToken) is null
+                ? null
+                : DesktopMallPurchaseService.ForRole(_live, role, DesktopMallPurchaseSettings.ToOptions(_settings)),
             new WindowMallPurchasePrompt(this),
             _log,
             _spendLedger,

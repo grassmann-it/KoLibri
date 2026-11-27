@@ -9,27 +9,26 @@ public sealed record MallAccountReading(long Meat, IReadOnlyDictionary<string, i
 
 public sealed record MallBuyOrder(string ItemId, string ItemName, string ShopId, string ShopName, long ShownUnitPrice, int Quantity);
 
-/// <summary>What the queue needs from the account: a fresh read and one deferred-verification POST.</summary>
+/// <summary>
+/// What the queue needs from the account: a fresh read and one purchase. An engine either verifies the purchase
+/// itself (returns Purchased/Partial/Unclear/...) or defers it (returns Sent; the queue's verifier settles it).
+/// </summary>
 public interface IMallBuyEngine
 {
     Task<MallAccountReading> ReadAccountAsync(CancellationToken cancellationToken);
     Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken cancellationToken);
 }
 
-/// <summary>Production engine: one Mall search per buy, the account read once per batch, verification deferred.</summary>
-public sealed class ServiceMallBuyEngine(string account, DesktopMallPurchaseService service, MallPurchaseObserver observer) : IMallBuyEngine
+/// <summary>
+/// Production engine on the KoLibri library: <see cref="Mall.BuyAsync"/> reads the offer fresh, never pays more than
+/// the price shown, and verifies inventory and Meat itself, so every result is final (no deferred verification).
+/// </summary>
+public sealed class ServiceMallBuyEngine(string account, DesktopMallPurchaseService service) : IMallBuyEngine
 {
-    public Task<MallAccountReading> ReadAccountAsync(CancellationToken cancellationToken) => observer.ReadAccountAsync(cancellationToken);
+    public Task<MallAccountReading> ReadAccountAsync(CancellationToken cancellationToken) => service.ReadAccountAsync(cancellationToken);
 
-    public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken cancellationToken)
-    {
-        observer.Remember(order.ItemId, order.ItemName);
-        var result = await service.BuyAsync(account, order.ItemId, order.ShopId, order.ShownUnitPrice, order.Quantity,
-            cancellationToken, deferVerification: true).ConfigureAwait(false);
-        if (result.Status == DesktopMallPurchaseStatus.Sent)
-            observer.NoteSent(result.UnitPrice * order.Quantity);
-        return result;
-    }
+    public Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken cancellationToken)
+        => service.BuyAsync(account, order.ItemId, order.ShopId, order.ShownUnitPrice, order.Quantity, cancellationToken, order.ShopName);
 }
 
 public enum MallBuyState { Queued, Sending, Verifying, Settled, Partial, Unclear, Rejected, NotSent }
@@ -83,10 +82,12 @@ public sealed class MallBuyTicket : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Background buy queue of one account. Each buy reserves its own budget slice up front; the sender sends the buys
-/// one after another (one POST each, bound to the price just read) without waiting for any inventory check; one
-/// deferred verifier reads the inventory once per batch and settles the sent buys in order. Unproven buys stay
-/// Unclear (counted in the budget) until the user reconciles them; nothing is released silently.
+/// Background buy queue of one account. Each buy reserves its own budget slice up front. Buys of different items run
+/// in parallel (one lane per item; the library's limiter serializes the requests themselves); buys of the same item
+/// run one after another, so each purchase can be matched to its own inventory change. Engines that verify the
+/// purchase themselves (the library engine) settle each ticket at once; for engines that defer verification one
+/// verifier reads the inventory once per batch and settles the sent buys in order. Unproven buys stay Unclear
+/// (counted in the budget) until the user reconciles them; nothing is released silently.
 /// </summary>
 public sealed class MallBuyQueue : IDisposable
 {
@@ -99,12 +100,13 @@ public sealed class MallBuyQueue : IDisposable
     private readonly TimeSpan _batchWait;
     private readonly CancellationTokenSource _stop = new();
     private readonly object _gate = new();
-    private readonly Queue<(MallBuyTicket Ticket, IMallBuyEngine Engine, DesktopMallPurchaseOptions Options)> _queued = new();
+    private readonly Dictionary<string, Queue<(MallBuyTicket Ticket, IMallBuyEngine Engine)>> _queued = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task> _senders = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _baselineGate = new(1, 1);
     private readonly List<MallBuyTicket> _pending = new();
     private Dictionary<string, int>? _baseline;
     private long _lastMeat;
     private long _sentSinceRead;
-    private Task? _sender;
     private Task? _verifier;
     private int _counter;
 
@@ -163,8 +165,10 @@ public sealed class MallBuyQueue : IDisposable
             $"Queued #{ticket.Number}: {order.Quantity} x {order.ItemName} at up to {order.ShownUnitPrice:N0}, total up to {max:N0}."));
         lock (_gate)
         {
-            _queued.Enqueue((ticket, engine, options));
-            _sender ??= Task.Run(SendLoopAsync);
+            var lane = order.ItemId;
+            if (!_queued.TryGetValue(lane, out var queue)) _queued[lane] = queue = new();
+            queue.Enqueue((ticket, engine));
+            if (!_senders.ContainsKey(lane)) _senders[lane] = Task.Run(() => SendLoopAsync(lane));
         }
         Notify();
         return ticket;
@@ -175,25 +179,31 @@ public sealed class MallBuyQueue : IDisposable
     {
         while (true)
         {
-            Task? s, v;
-            lock (_gate) { s = _sender; v = _verifier; }
-            if (s is null && v is null) return;
-            await Task.WhenAll(s ?? Task.CompletedTask, v ?? Task.CompletedTask).ConfigureAwait(false);
+            Task[] running;
+            lock (_gate) running = _senders.Values.Append(_verifier).OfType<Task>().ToArray();
+            if (running.Length == 0) return;
+            await Task.WhenAll(running).ConfigureAwait(false);
         }
     }
 
     // ---- sender -------------------------------------------------------------------------------------
 
-    private async Task SendLoopAsync()
+    /// <summary>One lane per item: its buys go out one after another; other items' lanes run at the same time.</summary>
+    private async Task SendLoopAsync(string lane)
     {
         try
         {
             while (!_stop.IsCancellationRequested)
             {
-                (MallBuyTicket Ticket, IMallBuyEngine Engine, DesktopMallPurchaseOptions Options) next;
+                (MallBuyTicket Ticket, IMallBuyEngine Engine) next;
                 lock (_gate)
                 {
-                    if (!_queued.TryDequeue(out next)) { _sender = null; return; }
+                    if (!_queued.TryGetValue(lane, out var queue) || !queue.TryDequeue(out next))
+                    {
+                        _queued.Remove(lane);
+                        _senders.Remove(lane);
+                        return;
+                    }
                 }
                 await SendOneAsync(next.Ticket, next.Engine).ConfigureAwait(false);
             }
@@ -201,7 +211,7 @@ public sealed class MallBuyQueue : IDisposable
         catch (Exception exception)
         {
             _log.Error($"Buy queue stopped: {MallPurchaseMessages.Describe(exception)}");
-            lock (_gate) _sender = null;
+            lock (_gate) _senders.Remove(lane);
         }
     }
 
@@ -210,8 +220,13 @@ public sealed class MallBuyQueue : IDisposable
         var token = _stop.Token;
         Ui(() => { ticket.State = MallBuyState.Sending; ticket.Message = "Sending"; });
         Notify();
+        // The first buy reads the account once (the lanes share that read): it proves the session works and is the
+        // baseline a deferring engine is verified against.
+        var gateTaken = false;
         try
         {
+            await _baselineGate.WaitAsync(token).ConfigureAwait(false);
+            gateTaken = true;
             if (_baseline is null)
             {
                 var reading = await engine.ReadAccountAsync(token).ConfigureAwait(false);
@@ -227,6 +242,15 @@ public sealed class MallBuyQueue : IDisposable
         {
             Finish(ticket, MallBuyState.NotSent, $"the account could not be read ({MallPurchaseMessages.Describe(exception)}). Nothing was sent.", release: true);
             return;
+        }
+        catch (OperationCanceledException)
+        {
+            Finish(ticket, MallBuyState.NotSent, "cancelled before sending. Nothing was sent.", release: true);
+            return;
+        }
+        finally
+        {
+            if (gateTaken) _baselineGate.Release();
         }
 
         DesktopMallPurchaseResult result;
@@ -248,6 +272,15 @@ public sealed class MallBuyQueue : IDisposable
 
         switch (result.Status)
         {
+            case DesktopMallPurchaseStatus.Purchased:
+            case DesktopMallPurchaseStatus.Partial:
+                // Verified by the engine itself (the library checks inventory and Meat after the purchase).
+                ticket.UnitPrice = result.UnitPrice;
+                ticket.Received = result.ReceivedQuantity;
+                ticket.Confirmed = true;
+                Finish(ticket, result.Status == DesktopMallPurchaseStatus.Purchased ? MallBuyState.Settled : MallBuyState.Partial,
+                    result.Message, release: false);
+                break;
             case DesktopMallPurchaseStatus.Sent:
                 ticket.UnitPrice = result.UnitPrice;
                 ticket.Confirmed = result.Confirmed;
@@ -405,5 +438,5 @@ public sealed class MallBuyQueue : IDisposable
 
     private void Notify() => Ui(() => Changed?.Invoke());
 
-    public void Dispose() { _stop.Cancel(); _stop.Dispose(); }
+    public void Dispose() { _stop.Cancel(); _stop.Dispose(); _baselineGate.Dispose(); }
 }

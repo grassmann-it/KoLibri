@@ -4,7 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
-using KoLibri.Core.Spiel;
 
 
 namespace KoLibri.Desktop;
@@ -528,5 +527,5 @@ public partial class MainWindow
     }
 
     private int _koLmailPage = 1;
-    private KoLMailFolder _koLmailFolder;
+    private MailFolder _koLmailFolder;
 }

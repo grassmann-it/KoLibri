@@ -1,4 +1,3 @@
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 
@@ -32,6 +31,12 @@ public static class DailyBaconBudget
             return new(false, 0, 0, 0, 0, "BACON top-up skipped: " + error);
         return new(true, units, ceiling, cap, Math.Min(meat, meatReserve + cap), "");
     }
+
+    /// <summary>Units a purchase may ask for so that units × max unit price stays within the reserved spend cap
+    /// (the library caps a purchase by quantity and unit price, not by a meat amount).</summary>
+    public static int AffordableUnits(BaconTopUpBudget budget)
+        => !budget.Allowed || budget.MaxUnitPrice <= 0 ? 0
+            : (int)Math.Min(budget.Units, budget.SpendCap / budget.MaxUnitPrice);
 
     /// <summary>Books the real spend and releases the rest of the reservation. An unclear outcome stays counted.</summary>
     public static void Finish(MallSpendLedger ledger, string account, BaconTopUpBudget budget, long spent, bool unclear)

@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using KoLibri.Core.Markt;
 
 namespace KoLibri.Desktop;
 
@@ -10,7 +9,7 @@ public sealed record PricegunInfo(long? Median, DateTimeOffset FetchedAt, bool I
 /// <summary>Everything the search view model needs from the outside world.</summary>
 public interface IMallSearchBackend
 {
-    Task<MallSearchPage> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken);
+    Task<global::KoLibri.MallSearchResult> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken);
     Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken);
     /// <summary>Pricegun median; <paramref name="forceRefresh"/> skips the cache (explicit refresh).</summary>
     Task<PricegunInfo> LoadPricegunAsync(string itemId, bool forceRefresh, CancellationToken cancellationToken)
@@ -81,7 +80,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
     private readonly Dictionary<string, Task<PricegunInfo?>> _pricegun = new();
     private CancellationTokenSource? _cancellation;
     private long _generation;
-    private MallSearchPage? _page;
+    private global::KoLibri.MallSearchResult? _page;
     private string _lastTerm = string.Empty;
     private string _searchText = string.Empty;
     private string _status = "Enter an item name or ID.";
@@ -335,13 +334,13 @@ public sealed class MallSearchViewModel : DesktopViewModel
         {
             var page = await _backend.SearchAsync(term, forceRefresh, cancellation.Token).ConfigureAwait(true);
             if (generation != _generation) return;
-            var preferred = _preferredItemId is { } p && page.Items.Any(i => i.ItemId == p) ? p : null;
+            var preferred = _preferredItemId is { } p && page.Items.Any(i => IdOf(i) == p) ? p : null;
             _page = page;
             _lastTerm = typed.Trim();
             Choices.Clear();
             foreach (var group in page.Items)
-                Choices.Add(new MallItemChoice(group.ItemId, group.ItemName ?? $"Item #{group.ItemId}",
-                    group.TotalOffers, group.Listings.Count > 0 ? group.Listings[0].Price : null));
+                Choices.Add(new MallItemChoice(IdOf(group), NameOf(group), group.Listings.Count,
+                    group.Listings.Count > 0 ? group.Listings.Min(l => l.UnitPrice) : null));
             OnPropertyChanged(nameof(HasSearched));
             OnPropertyChanged(nameof(CanRefresh));
 
@@ -350,7 +349,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
             Offers.Clear();
             if (page.Items.Count == 0)
             {
-                Notice = page.IsStale ? "Showing cached data (stale)." : null;
+                Notice = null;
                 StatusText = $"No offers for {typed.Trim()}.";
                 PricegunNote = null;
             }
@@ -358,14 +357,14 @@ public sealed class MallSearchViewModel : DesktopViewModel
                 await ShowItemAsync(page, preferred, cancellation.Token, forceRefresh).ConfigureAwait(true);
             else if (page.Items.Count == 1)
             {
-                await ShowItemAsync(page, page.Items[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
+                await ShowItemAsync(page, IdOf(page.Items[0]), cancellation.Token, forceRefresh).ConfigureAwait(true);
             }
             else
             {
                 var bare = term.Trim('"');
-                var exact = page.Items.Where(i => string.Equals(i.ItemName, bare, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var exact = page.Items.Where(i => string.Equals(i.Name, bare, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (exact.Length == 1)
-                    await ShowItemAsync(page, exact[0].ItemId, cancellation.Token, forceRefresh).ConfigureAwait(true);
+                    await ShowItemAsync(page, IdOf(exact[0]), cancellation.Token, forceRefresh).ConfigureAwait(true);
                 else
                 {
                     Notice = $"“{typed.Trim()}” matches {page.Items.Count} items. Pick one.";
@@ -392,20 +391,24 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private async Task ShowItemAsync(MallSearchPage page, string itemId, CancellationToken cancellationToken, bool forceRefresh = false)
+    private static string IdOf(MallOffers group) => group.Item.Id.ToString(CultureInfo.InvariantCulture);
+
+    private static string NameOf(MallOffers group) => string.IsNullOrWhiteSpace(group.Name) ? $"Item #{IdOf(group)}" : group.Name;
+
+    private async Task ShowItemAsync(global::KoLibri.MallSearchResult page, string itemId, CancellationToken cancellationToken, bool forceRefresh = false)
     {
-        var group = page.Items.First(i => i.ItemId == itemId);
+        var group = page.Items.First(i => IdOf(i) == itemId);
         _selectedItemId = itemId;
-        var name = group.ItemName ?? $"Item #{itemId}";
-        FillOffers(group, name, median: null, page.IsStale);
+        var name = NameOf(group);
+        // The library never serves an old copy: it throws instead, so a shown page is always fresh.
+        const bool stale = false;
+        FillOffers(group, name, median: null, stale);
         var notes = new List<string>();
         if (page.Items.Count > 1) notes.Add($"One of {page.Items.Count} matching items.");
-        if (group.IsTruncated) notes.Add($"Showing the cheapest {group.Listings.Count:N0} of {group.TotalOffers:N0} offers.");
-        if (page.IsStale) notes.Add("Cached data (stale).");
         Notice = notes.Count == 0 ? null : string.Join(" ", notes);
         StatusText = group.Listings.Count == 0
             ? $"No offers for {name}."
-            : $"{name} · {group.TotalOffers:N0} offers · {page.FetchedAt.ToLocalTime():HH:mm}";
+            : $"{name} · {group.Listings.Count:N0} offers · {page.FetchedAt.ToLocalTime():HH:mm}";
         OnPropertyChanged(nameof(NeedsPick));
         OnPropertyChanged(nameof(HasOffers));
 
@@ -421,7 +424,7 @@ public sealed class MallSearchViewModel : DesktopViewModel
         if (_selectedItemId != itemId) return;
         if (info is not null)
         {
-            FillOffers(group, name, info.Median, page.IsStale);
+            FillOffers(group, name, info.Median, stale);
             var age = DateTimeOffset.UtcNow - info.FetchedAt;
             PricegunNote = info.Median is null
                 ? "Pricegun has no sales for this item."
@@ -440,27 +443,27 @@ public sealed class MallSearchViewModel : DesktopViewModel
         }
     }
 
-    private void FillOffers(MallItemOffers group, string name, long? median, bool stale)
+    private void FillOffers(MallOffers group, string name, long? median, bool stale)
     {
         _allOffers.Clear();
         var rank = 0;
-        foreach (var l in group.Listings.OrderBy(l => l.Price))
+        foreach (var l in group.Listings.OrderBy(l => l.UnitPrice))
         {
+            var shopId = l.StoreId.ToString(CultureInfo.InvariantCulture);
             var row = new MallOfferRow
             {
                 Rank = ++rank,
-                ItemId = l.ItemId,
+                ItemId = l.Item.Id.ToString(CultureInfo.InvariantCulture),
                 ItemName = name,
-                ShopId = l.StoreId,
-                ShopName = l.StoreName ?? $"Store #{l.StoreId}",
-                UnitPrice = l.Price,
+                ShopId = shopId,
+                ShopName = string.IsNullOrWhiteSpace(l.StoreName) ? $"Store #{shopId}" : l.StoreName,
+                UnitPrice = l.UnitPrice,
                 Stock = l.QuantityKnown ? l.Quantity : null,
-                LimitKind = l.LimitKind,
-                DailyLimit = l.PurchaseLimit,
+                LimitKind = l.LimitPerDay is > 0 ? MallLimitKind.Limited : l.LimitKnown ? MallLimitKind.Unlimited : MallLimitKind.Unknown,
+                DailyLimit = l.LimitPerDay,
                 PricegunMedian = median,
-                SellerName = l.SellerName,
                 IsStale = stale,
-                UnderThreshold = _threshold is { } limit && l.Price <= limit
+                UnderThreshold = _threshold is { } limit && l.UnitPrice <= limit
             };
             _allOffers.Add(row with { CanBuy = !stale && (PurchaseRequest?.CanRequest(row) ?? false) });
         }
@@ -479,16 +482,18 @@ public static class MallSearchErrors
 {
     public static string Describe(Exception exception) => exception switch
     {
-        MallSearchParseException e => $"The mall page could not be read: {e.Message}",
+        UnexpectedPageException e => $"Mall search failed: {e.Message}",
+        SessionExpiredException => "Mall search failed: the session expired. Sign in again under Accounts.",
+        InvalidOperationException e when e.Message.StartsWith("Sign in", StringComparison.Ordinal) => e.Message,
         HttpRequestException => "Mall search failed: KoL could not be reached. Check your connection and that you are logged in.",
         _ => $"Mall search failed: {exception.Message}"
     };
 }
 
 /// <summary>Adapter from the live data provider to the search view model.</summary>
-public sealed class LiveMallSearchBackend(DesktopLiveDataProvider provider, KoLibri.Core.Basis.AccountRole role) : IMallSearchBackend
+public sealed class LiveMallSearchBackend(DesktopLiveDataProvider provider, AccountRole role) : IMallSearchBackend
 {
-    public Task<MallSearchPage> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken)
+    public Task<global::KoLibri.MallSearchResult> SearchAsync(string term, bool forceRefresh, CancellationToken cancellationToken)
         => provider.SearchMallItemsAsync(role, term, forceRefresh, cancellationToken);
 
     public Task<PricegunInfo> LoadPricegunAsync(string itemId, CancellationToken cancellationToken)

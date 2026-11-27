@@ -10,12 +10,22 @@
     <AvaloniaResource Include="Assets/**" />
     <PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
     <PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
-    <ProjectReference Include="../src/KoLibri.Core/KoLibri.Core.csproj" />
-    <ProjectReference Include="../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
+    <ProjectReference Include="../src/KoLibri/KoLibri.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../src/KoLibri.Safety/KoLibri.Safety.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../src/KoLibri.Daily/KoLibri.Daily.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../src/KoLibri.Extras/KoLibri.Extras.csproj" PrivateAssets="all" />
     <PackageReference Include="Avalonia" Version="11.3.11" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 0.5: the desktop is built on the public KoLibri API (no KoLibri.Core, no LibKolibri). The references above are
+         PrivateAssets="all" (like the CLI): projects that reference the desktop (UiQa, tests) add KoLibri themselves, so the
+         KoLibri.* types never shadow KoLibri.Core types in the Core test suite.
+         KoLibri.Extras carries the KoLmafia catalog and the market extras that are not part of the library promise. -->
+    <Using Include="KoLibri.Extras" />
+    <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- The KoLmafia catalog travels with the app so the inventory browser
