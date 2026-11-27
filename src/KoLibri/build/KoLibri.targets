@@ -1,0 +1,12 @@
+<Project>
+  <!-- Ships with the KoLibri package (build/ and buildTransitive/).
+       Copies the bundled KoLmafia data to <output>/external/kolmafia-data/ (build and publish), where
+       KolibriClient looks for it. Switch off with <KoLibriCopyGameData>false</KoLibriCopyGameData>,
+       or point KolibriOptions.DataDirectory at your own folder. -->
+  <ItemGroup Condition="'$(KoLibriCopyGameData)' != 'false'">
+    <Content Include="$(MSBuildThisFileDirectory)../data/kolmafia-data/*"
+             Link="external/kolmafia-data/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             Visible="false" />
+  </ItemGroup>
+</Project>

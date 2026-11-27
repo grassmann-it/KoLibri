@@ -1016,3 +1016,51 @@ Der HTTP-Host entfernt wie in 0.4 `kol_plan_daily_adventures_execute`, `kol_logi
   - `McpOldFormatTests`: siehe 13.1.
 - In Core.Tests bleiben nur die reinen Core- und LibKolibri-Tests (`McpLoginToolsTests` testet den
   `AccountSessionManager`, `McpRoleRuntimeTests` die `LibKolibriRuntime`).
+
+## 14. Pakete
+
+Zwei NuGet-Pakete gehören zur Bibliothek: `KoLibri` und `KoLibri.Safety` (hängt von `KoLibri` mit derselben Version ab).
+`KoLibri.Core`, `KoLibri.LibKolibri`, `KoLibri.Daily` und `KoLibri.Extras` sind `IsPackable=false`. Gepackt und
+geprüft wird mit `scripts/pack-lib.sh <outdir> [version]`: genau zwei nupkgs, Pflichtdateien vorhanden, kein
+`ref/net8.0/KoLibri.Core.dll`, Abhängigkeiten stimmen.
+
+### 14.1 Bündel-Layout von `KoLibri`
+
+```
+lib/net8.0/KoLibri.dll, KoLibri.Core.dll, KoLibri.xml   Laufzeit: Core liegt dabei
+ref/net8.0/KoLibri.dll, KoLibri.xml                      Kompilierzeit: nur die Fassade
+data/kolmafia-data/*.jsonl, LICENSE                      KoLmafia-Daten (~7,5 MB)
+build/KoLibri.targets, buildTransitive/KoLibri.targets   kopiert die Daten in die Ausgabe
+README.md, icon.png
+Abhängigkeit: System.Security.Cryptography.ProtectedData 8.0.0 (kommt sonst von Core, das nicht als Paket existiert)
+```
+
+`ref/` gewinnt beim Kompilieren: Konsumenten sehen nur `KoLibri.dll`, `using KoLibri.Core.*;` ergibt CS0234. Die
+öffentliche Fläche bleibt damit genau die in `PublicAPI.*.txt` eingefrorene. Umgesetzt in `src/KoLibri/KoLibri.csproj`
+(Target `KolibriBundleCore`, `TargetsForTfmSpecificBuildOutput`).
+
+### 14.2 Spieldaten
+
+Die Daten liegen im Paket unter `data/kolmafia-data/`. `KoLibri.targets` fügt sie als `Content` mit
+`CopyToOutputDirectory` ein; sie landen so bei `build` und `publish` in `<Ausgabe>/external/kolmafia-data/`, wo
+`GameData` sie ohne Konfiguration findet. Abschalten: `<KoLibriCopyGameData>false</KoLibriCopyGameData>` (dann
+`KolibriOptions.DataDirectory` setzen, sonst bleibt der Katalog still leer). Innerhalb dieses Repos greift das Target
+nicht, weil Projekte `KoLibri` per `ProjectReference` einbinden und ihre Daten selbst kopieren.
+
+### 14.3 Release-Schritt: PublicAPI Unshipped → Shipped
+
+Beim Tag (Koordinator), für `src/KoLibri` und `src/KoLibri.Safety` getrennt:
+
+1. Inhalt von `PublicAPI.Unshipped.txt` an `PublicAPI.Shipped.txt` anhängen (sortiert, `#nullable enable` nur einmal oben).
+2. `PublicAPI.Unshipped.txt` auf `#nullable enable` zurücksetzen.
+3. `dotnet build KoLibri.slnx -c Release` und `docs/lib-api-0.5/check-api.sh` laufen lassen.
+4. Dazu im selben Commit die `<Version>0.5.0-dev</Version>`-Überschreibungen in den csproj entfernen und
+   `KoLibriVersion` in `Directory.Build.props` auf `0.5.0` setzen.
+
+### 14.4 Ausblick
+
+- Schritt (b): Die ~40 erreichbaren Core-Dateien (~11.000 Zeilen, 17 % von `KoLibri.Core.dll`) wandern nach
+  `src/KoLibri/Internal`, `KoLibri.Core` entfällt, das Target `KolibriBundleCore` wird entfernt. Für Nutzer unsichtbar,
+  weil `ref/` die Fläche bestimmt. Voraussetzung: Desktop umgezogen, `LibKolibri` und `OfflineDemo` gelöscht.
+- Ab 0.5.1: ApiCompat gegen 0.5.0 (`EnablePackageValidation`, `PackageValidationBaselineVersion=0.5.0`).
+- Daten später als eingebettete Ressource oder Paket `KoLibri.Data`, mit lauter Diagnose bei fehlenden Daten.

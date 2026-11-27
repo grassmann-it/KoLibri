@@ -26,6 +26,32 @@
          KoLibri.Core.dll is still copied next to them at run time. -->
     <ProjectReference Include="../KoLibri.Core/KoLibri.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
+  <!-- 0.5.0 packaging, block 1/2 (planning/0.5-p1-paket.md §2a): bundle KoLibri.Core into lib/net8.0, expose only
+       KoLibri.dll in ref/net8.0. Consumers compile against the KoLibri API alone (using KoLibri.Core.* is CS0234).
+       Later (step b) Core moves into this project and the bundling goes away. -->
+  <PropertyGroup>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);KolibriBundleCore</TargetsForTfmSpecificBuildOutput>
+    <!-- NU5131: harmless with a ref/ folder that only holds KoLibri.dll. -->
+    <NoWarn>$(NoWarn);NU5131</NoWarn>
+  </PropertyGroup>
+  <Target Name="KolibriBundleCore" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)"
+        Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'KoLibri.Core' and '%(ReferenceCopyLocalPaths.Extension)' == '.dll'" />
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
+    <None Include="$(OutputPath)$(AssemblyName).dll;$(OutputPath)$(AssemblyName).xml" Pack="true" PackagePath="ref/net8.0/" Visible="false" />
+    <!-- Transitive dependency of Core; PrivateAssets="all" on the Core reference would cut it off. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- 0.5.0 packaging, block 2/2: KoLmafia data and MSBuild targets inside the package (data/ -> output/external/kolmafia-data). -->
+  <ItemGroup>
+    <None Include="../../external/kolmafia-data/*.jsonl;../../external/kolmafia-data/LICENSE" Pack="true" PackagePath="data/kolmafia-data/" Visible="false" />
+    <None Include="build/KoLibri.targets" Pack="true" PackagePath="build/;buildTransitive/" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>

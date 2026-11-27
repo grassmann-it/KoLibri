@@ -13,6 +13,7 @@
     <Description>Optional guards for KoLibri: grants, budgets with a usage ledger, approval tokens and a hash-chained audit journal, all as IActionGuard.</Description>
     <PackageTags>kol;kingdom-of-loathing;kolibri;safety;net8</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt;PublicAPI.Unshipped.txt" />
@@ -21,6 +22,9 @@
   <ItemGroup>
     <!-- Only the public KoLibri API; no KoLibri.Core. -->
     <ProjectReference Include="../KoLibri/KoLibri.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="KoLibri.Tests" />

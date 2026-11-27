@@ -68,3 +68,13 @@ from the API.
 
 `KolibriOptions.HttpHandler` replaces the network transport (allowlist and limiter stay in front of it) and
 `KolibriOptions.AccountStore` replaces the account files. `tests/KoLibri.Tests` uses both.
+
+## Game data
+
+The KoLmafia data (items, effects, monsters, organ sizes, ...; about 7.5 MB, with its licence) ships inside the
+package under `data/kolmafia-data/`. Building or publishing a project that references KoLibri copies it to
+`<output>/external/kolmafia-data/`, where `KolibriClient` finds it without configuration.
+
+- Your own data folder: `KolibriOptions.DataDirectory`.
+- Do not copy the bundled data: `<KoLibriCopyGameData>false</KoLibriCopyGameData>` in your project file
+  (then set `DataDirectory`, otherwise the catalogue stays empty).

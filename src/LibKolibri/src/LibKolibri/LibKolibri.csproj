@@ -12,7 +12,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <TargetPackOnBuild>false</TargetPackOnBuild>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!-- Old 0.4 package; not published in 0.5. -->
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Inside the KoLibri repository the core is a project reference, so a
