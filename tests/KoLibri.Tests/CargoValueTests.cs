@@ -139,17 +139,87 @@ public sealed class CargoValueTests
         Assert.Empty(result.FailedSteps);
         var pick = Assert.Single(kol.Requests, r => r.Method == "POST" && r.Path.Contains("choice.php", StringComparison.Ordinal));
         Assert.Contains("pocket=4", pick.Form);
-        // Price requests (here the mall search for the oyster egg without a price) happen before the pocket page opens the choice.
-        var pageAt = kol.Requests.FindIndex(r => r.Path.Contains("inventory.php", StringComparison.Ordinal));
-        Assert.True(kol.Requests.FindLastIndex(r => r.Path.Contains("mall.php", StringComparison.Ordinal)) < pageAt);
+        // While choice 1420 is open no KoL page other than choice.php is asked (no mall search).
+        Assert.DoesNotContain(kol.Requests, r => r.Path.Contains("mall.php", StringComparison.Ordinal));
         var report = Assert.Single(result.Steps);
         Assert.Equal("done", report.State);
         Assert.Equal(new[] { "onyx knight" }, report.Gains);
         Assert.Contains("25,000", report.Message);
         Assert.True(session.Daily.IsDone(DailyItems.Markers.CargoPocket));
-        // The page read is kept for the next preview (no choice opened there).
-        Assert.Contains(4, CargoPocketState.Load(Path.Combine(state, "cargo-pockets.json"), "main")!);
+        // The live list is kept for the next preview, without the pocket just emptied.
+        var saved = CargoPocketState.Load(Path.Combine(state, "cargo-pockets.json"), "main")!;
+        Assert.Equal(session.Daily.GameDay, saved.Day);
+        Assert.DoesNotContain(4, saved.Pockets);
+        Assert.Contains(621, saved.Pockets);
         Assert.DoesNotContain(kol.Requests, r => r.Path.Contains("item/", StringComparison.Ordinal));
+    }
+
+    // Live bug after #111: a stale list of 7 pockets (written by a test into the real folder) was ranked, prices were only read
+    // for those, and after the live page the onyx knight had no price, so the oyster egg (1,351) won.
+    [Fact]
+    public async Task Execute_ranks_the_live_list_with_prices_for_it_and_ignores_a_stale_list()
+    {
+        var state = Directory.CreateTempSubdirectory("kolibri-cargo-live-").FullName;
+        File.WriteAllText(Path.Combine(state, "cargo-pockets.json"), """{"main":[1,2,3,54,139,565,621]}""");
+        var kol = new FakeKol()
+            .On("GET inventory.php", PocketPage(4))
+            .On("GET item/10627", "<html><head><title>onyx knight - Pricegun</title></head><body><ol><li><span>11/26/26, 3:02 AM</span>1 @ 25,000</li></ol></body></html>")
+            .On("POST choice.php", "<html><body>You acquire an item: <b>onyx knight</b></body></html>");
+        await using var client = TestClient.Create(kol, state: state);
+        await using var session = await client.OpenAsync("main");
+        File.WriteAllText(Path.Combine(state, "cargo-prices.json"), PriceJson(session.Daily.GameDay, (1058, 1_351)));
+        var options = new DailyRunOptions { StateDirectory = state, CargoPriceLookups = 3 };
+
+        var result = await DailyRun.ExecuteAsync(session, DailyRun.Plan(new DailyRunLive { HasCargoShorts = true }, options), options);
+        Assert.Empty(result.FailedSteps);
+        Assert.Contains("pocket=4", Assert.Single(kol.Requests, r => r.Method == "POST" && r.Path.Contains("choice.php", StringComparison.Ordinal)).Form);
+        // Pricegun was asked after the live page (it is not KoL), the mall never.
+        var pageAt = kol.Requests.FindIndex(r => r.Path.Contains("inventory.php", StringComparison.Ordinal));
+        Assert.True(kol.Requests.FindIndex(r => r.Path.Contains("item/10627", StringComparison.Ordinal)) > pageAt);
+        Assert.DoesNotContain(kol.Requests, r => r.Path.Contains("mall.php", StringComparison.Ordinal));
+        Assert.Contains("25,000", result.Steps.Single().Message);
+    }
+
+    [Fact]
+    public async Task Preview_uses_a_list_from_today_or_yesterday_and_reports_its_source()
+    {
+        var state = Directory.CreateTempSubdirectory("kolibri-cargo-preview-").FullName;
+        var file = Path.Combine(state, "cargo-pockets.json");
+        await using var client = TestClient.Create(new FakeKol(), state: state);
+        await using var session = await client.OpenAsync("main");
+        var today = session.Daily.GameDay;
+        var options = new DailyRunOptions { StateDirectory = state, CargoPriceLookups = 0 };
+
+        CargoPocketState.Save(file, "main", today.AddDays(-1), new HashSet<int> { 54, 621 });
+        var yesterday = await DailyItems.RankCargoAsync(session, options);
+        Assert.Equal($"cache {today.AddDays(-1):yyyy-MM-dd}", yesterday.PocketsSource);
+        Assert.Equal(new[] { 621, 54 }, yesterday.Top.Select(c => c.Pocket));
+
+        CargoPocketState.Save(file, "main", today.AddDays(-3), new HashSet<int> { 54, 621 });
+        var old = await DailyItems.RankCargoAsync(session, options);
+        Assert.Equal(CargoPocketState.UnknownSource, old.PocketsSource);
+        Assert.False(old.PocketsKnown);
+
+        File.WriteAllText(file, """{"main":[1,2,3,54,139,565,621]}"""); // format of #111, no day
+        Assert.Equal(CargoPocketState.UnknownSource, (await DailyItems.RankCargoAsync(session, options)).PocketsSource);
+        // Without a folder nothing is read: unknown.
+        Assert.Equal(CargoPocketState.UnknownSource, (await DailyItems.RankCargoAsync(session, priceLookups: 0)).PocketsSource);
+    }
+
+    [Fact]
+    public async Task A_run_without_a_state_folder_writes_nothing_to_the_real_KoLibri_folder()
+    {
+        var real = Path.Combine(DailyItems.DefaultStateDirectory(), "cargo-pockets.json");
+        var before = File.Exists(real) ? File.GetLastWriteTimeUtc(real) : (DateTime?)null;
+        var kol = new FakeKol()
+            .On("GET inventory.php", Fixture("cargo_pockets.html"))
+            .On("POST choice.php", Fixture("cargo_pick_meat.html"));
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+
+        var result = await DailyRun.ExecuteAsync(session, new[] { new DailyStep("daily", DailyItems.StepIds.CargoPocket, "621") });
+        Assert.Empty(result.FailedSteps);
+        Assert.Equal(before, File.Exists(real) ? File.GetLastWriteTimeUtc(real) : (DateTime?)null);
     }
 
     [Fact]
@@ -160,8 +230,9 @@ public sealed class CargoValueTests
         await using var client = TestClient.Create(kol);
         await using var session = await client.OpenAsync("main");
         var book = DailyItems.PriceBook(session, null, 1);
-        var path = DailyItems.StateFile(null, DailyItems.PriceCacheFile);
-        Assert.EndsWith(Path.Combine("KoLibri", "cargo-prices.json"), path);
+        // Without an explicit folder nothing is read or written.
+        Assert.Null(DailyItems.StateFile(null, DailyItems.PriceCacheFile));
+        Assert.EndsWith("KoLibri", DailyItems.DefaultStateDirectory());
 
         await book.PriceAsync(new[] { 10627 }, CancellationToken.None);
         Assert.Equal(40_000, book.Get(10627)!.UnitPrice);
@@ -196,12 +267,13 @@ public sealed class CargoValueTests
 
         var chosen = new CargoCandidate(4, "onyx knight", 1, 25_000, 25_000, "Pricegun", false);
         var ranking = new CargoRanking(new[] { chosen, new CargoCandidate(621, "917 Meat", 917, 1, 917, "Meat (fest)", true) }, chosen, true, 3, null);
-        var rows = DailyBriefingViewModel.CargoRows(ranking).ToArray();
-        Assert.Equal(2, rows.Length);
-        Assert.Equal("chosen", rows[0].State);
-        Assert.Contains("Tasche 4: onyx knight", rows[0].Description);
-        Assert.Contains("1 × 25,000 = 25,000 Meat (Pricegun)", rows[0].Detail);
-        Assert.Equal("candidate", rows[1].State);
+        var rows = DailyBriefingViewModel.CargoRows(ranking with { PocketsSource = "cache 2026-11-26" }).ToArray();
+        Assert.Equal(3, rows.Length);
+        Assert.Equal("cache 2026-11-26", rows[0].Detail);
+        Assert.Equal("chosen", rows[1].State);
+        Assert.Contains("Tasche 4: onyx knight", rows[1].Description);
+        Assert.Contains("1 × 25,000 = 25,000 Meat (Pricegun)", rows[1].Detail);
+        Assert.Equal("candidate", rows[2].State);
     }
 
     [Fact]
@@ -265,7 +337,7 @@ public sealed class CliCargoValueTests : IDisposable
         var day = KolDay.Of(DateTimeOffset.UtcNow);
         File.WriteAllText(Path.Combine(_state, "cargo-prices.json"),
             CargoValueTests.PriceJson(day, (10627, 25_000), (10623, 12_000)));
-        CargoPocketState.Save(Path.Combine(_state, "cargo-pockets.json"), "main", new HashSet<int> { 4, 88, 54, 139, 621, 577, 565, 1 });
+        CargoPocketState.Save(Path.Combine(_state, "cargo-pockets.json"), "main", day, new HashSet<int> { 4, 88, 54, 139, 621, 577, 565, 1 });
 
         var (code, json, _) = await Run("run", "--only", "cargo", "--cargo-price-lookups", "0");
         Assert.Equal(0, code);
@@ -273,6 +345,7 @@ public sealed class CliCargoValueTests : IDisposable
         Assert.Equal("auto", step.GetProperty("option").GetString());
         var cargo = json.GetProperty("cargo");
         Assert.True(cargo.GetProperty("pocketsKnown").GetBoolean());
+        Assert.Equal($"cache {day:yyyy-MM-dd}", cargo.GetProperty("pocketsSource").GetString());
         Assert.Equal(4, cargo.GetProperty("chosen").GetProperty("pocket").GetInt32());
         var top = cargo.GetProperty("top").EnumerateArray().Select(t => t.GetProperty("pocket").GetInt32()).ToArray();
         Assert.Equal(new[] { 4, 88, 621, 54, 139 }, top);

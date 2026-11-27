@@ -283,7 +283,7 @@ public partial class MainWindow
                 }
             }
         }
-        var options = DesktopDailyItems.Options(_settings, hermitClovers);
+        var options = DesktopDailyItems.Options(_settings, hermitClovers, DesktopDailyItems.StateDirectoryOf(_live));
         var steps = DailyRun.Plan(live, options);
         return await DailyRun.ExecuteAsync(session, steps, options, cancellationToken);
     }

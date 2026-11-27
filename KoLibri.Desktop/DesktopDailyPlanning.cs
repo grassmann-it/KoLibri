@@ -301,8 +301,12 @@ public sealed class DailyAdventurePlanner
 /// <summary>The daily-item options of the desktop (saved Cargo pockets and chess opt-in), shared by the briefing and the run.</summary>
 public static class DesktopDailyItems
 {
+    /// <summary>The folder of the client's daily markers (the default KoLibri folder when the client has none configured).</summary>
+    public static string StateDirectoryOf(DesktopLiveDataProvider provider)
+        => provider.Accounts.Client.Options.StateDirectory ?? DailyItems.DefaultStateDirectory();
+
     /// <summary>The saved pockets; a broken list counts as "no pocket" (the run button reports it).</summary>
-    public static DailyRunOptions Options(DesktopSettings settings, int hermitClovers = 0)
+    public static DailyRunOptions Options(DesktopSettings settings, int hermitClovers = 0, string? stateDirectory = null)
     {
         IReadOnlyList<int> pockets;
         try { pockets = CargoPockets.Parse(settings.DailyCargoPockets); }
@@ -314,7 +318,8 @@ public static class DesktopDailyItems
             // "Nach Wert" ignores a saved list; "Liste" uses it (empty = nothing picked).
             CargoPockets = mode == CargoPocketMode.List ? pockets : Array.Empty<int>(),
             CargoMode = mode,
-            PlayChess = settings.DailyPlayChess
+            PlayChess = settings.DailyPlayChess,
+            StateDirectory = stateDirectory
         };
     }
 }

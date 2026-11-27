@@ -170,6 +170,7 @@ internal static partial class KolibriCli
             mode = "auto",
             planned = true,
             pocketsKnown = ranking.PocketsKnown,
+            pocketsSource = ranking.PocketsSource,
             priceLookups = ranking.PriceLookups,
             chosen = ranking.Chosen is { } c ? CandidateDocument(c) : null,
             top = ranking.Top.Select(CandidateDocument).ToArray(),
@@ -189,7 +190,8 @@ internal static partial class KolibriCli
         var (client, session) = await OpenAsync(role);
         await using var _ = client;
         await using var __ = session;
-        options = options with { StateDirectory = client.Options.StateDirectory };
+        // The Cargo price cache and pocket list live next to the daily markers (explicit folder: without one nothing is written).
+        options = options with { StateDirectory = client.Options.StateDirectory ?? DailyItems.DefaultStateDirectory() };
         var live = await DailyRun.ReadAsync(session);
         var steps = DailyRun.Plan(live, options);
         object Step(DailyStep s) => new { kind = s.Kind, id = s.Id, option = s.Option };
