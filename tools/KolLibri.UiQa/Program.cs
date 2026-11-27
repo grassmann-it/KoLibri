@@ -6,9 +6,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using KoLibri.Core.Basis;
-using KoLibri.Core.Markt;
+using KoLibri;
 using KoLibri.Desktop;
+using KoLibri.Extras;
 
 // Offline: in-memory accounts (no stored session, no network), a temp settings file, fixture data.
 if (Environment.GetEnvironmentVariable("KOLIBRI_QA_XVFB") != "1")
@@ -51,9 +51,15 @@ async Task RunAsync()
         {
             var theme = dark ? "dark" : "light";
             var settings = new DesktopSettingsStore(Path.Combine(tmp.FullName, $"s-{w}-{theme}.json"));
-            var window = new MainWindow(null, tmp.FullName,
-                new AccountSessionManager(new InMemoryAccountStore(), new InMemorySecretStore()),
-                null, settings, applySettingsToLimiters: false)
+            // No stored account and a handler that refuses everything: the window can never reach KoL.
+            var accounts = new DesktopAccounts(new KolibriOptions
+            {
+                AccountStore = new InMemoryAccountStore(),
+                StateDirectory = tmp.FullName,
+                HttpHandler = new NoNetwork(),
+                AutoReconnect = () => false
+            });
+            var window = new MainWindow(null, tmp.FullName, accounts, settings)
             { Width = w, Height = h };
             Application.Current!.RequestedThemeVariant = dark ? ThemeVariant.Dark : ThemeVariant.Light;
             window.Show();
@@ -132,11 +138,12 @@ async Task RunAsync()
 static void SeedCharpane(MainWindow w)
 {
     var now = DateTimeOffset.UtcNow;
-    var status = new KoLibri.Core.Spiel.KoLStatusSnapshot("QA Tester", 87, 2345678, 13, now)
+    var status = new Status("QA Tester", 87, 2345678, 13, now)
     {
-        CurrentHp = 120, MaximumHp = 200, CurrentMp = 85, MaximumMp = 150,
-        Fullness = 5, Inebriety = 3, Spleen = 7, FamiliarId = "9", FamiliarWeight = 20,
-        TimedEffects = [new("Ode to Booze", 14), new("Ur-Kel's Aria of Annoyance", 120), new("Polka of Plenty", 1)]
+        Hp = 120, MaxHp = 200, Mp = 85, MaxMp = 150,
+        Fullness = new global::KoLibri.OrganState(5, null), Inebriety = new global::KoLibri.OrganState(3, null), Spleen = new global::KoLibri.OrganState(7, null),
+        FamiliarId = 9, FamiliarWeight = 20,
+        Effects = [new(71, "Ode to Booze", 14), new(0, "Ur-Kel's Aria of Annoyance", 120), new(0, "Polka of Plenty", 1)]
     };
     w.FindControl<CharpaneView>("CharacterPane")!.Show(CharpaneState.FromStatus(status, "Main", now));
 }
@@ -192,7 +199,7 @@ static void SeedFixtures(MainWindow w)
         ItemId = i.Id, Name = i.Name, Quantity = i.Qty, AccessFlags = i.Flags,
         Uses = new[] { "Use", "Autosell" }, CheapestMallPrice = 100 * (n + 1)
     }).ToList(), DateTimeOffset.Now);
-    inv.Organs = new OrganState(3, 2, 5);
+    inv.Organs = new KoLibri.Desktop.OrganState(3, 2, 5);
     inv.SelectedItem = inv.Items.First(i => i.Name == "hot wing");
     inv.ActionResult = "Ate 2 × hot wing; 10 left. " + inv.OrganSummary;
 }
@@ -330,4 +337,11 @@ sealed class InMemorySecretStore : ISecretStore
     { _secrets[accountId] = credentials; return Task.CompletedTask; }
     public Task RemoveAsync(string accountId, CancellationToken cancellationToken = default)
     { _secrets.Remove(accountId); return Task.CompletedTask; }
+}
+
+/// <summary>Offline guard for the screenshots: every request fails before it leaves the process.</summary>
+sealed class NoNetwork : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        => throw new HttpRequestException("UiQa is offline; no request leaves the process.");
 }
