@@ -3,18 +3,17 @@ namespace KoLibri.Desktop;
 public enum BrowserMode { Embedded, SystemBrowser }
 
 /// <summary>
-/// Chooses how the Browser tab shows the relay. WebKitGTK inside Avalonia runs its own GTK loop and is known to hang on
-/// Linux, so Linux defaults to the system browser; Windows/macOS embed. KOLIBRI_EMBED_WEBVIEW=1 opts Linux in,
-/// KOLIBRI_NO_WEBVIEW=1 always forces the system browser (and wins over the opt-in).
+/// Chooses how the Browser tab shows the relay. Embedded on every platform (Linux: own WebKitGTK host, see
+/// <see cref="WebKitGtkView"/>). KOLIBRI_NO_WEBVIEW=1 or KOLIBRI_EMBED_WEBVIEW=0 force the system browser
+/// (KOLIBRI_NO_WEBVIEW wins over KOLIBRI_EMBED_WEBVIEW=1).
 /// </summary>
 public static class BrowserModePolicy
 {
     public static BrowserMode Decide(bool isLinux, string? embedEnv, string? noWebViewEnv)
     {
         if (noWebViewEnv == "1") return BrowserMode.SystemBrowser;
-        if (embedEnv == "1") return BrowserMode.Embedded;
         if (embedEnv == "0") return BrowserMode.SystemBrowser;
-        return isLinux ? BrowserMode.SystemBrowser : BrowserMode.Embedded;
+        return BrowserMode.Embedded;
     }
 
     public static BrowserMode Current() => Decide(OperatingSystem.IsLinux(),
