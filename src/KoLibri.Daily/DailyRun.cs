@@ -41,6 +41,10 @@ public sealed record DailyRunOptions
     public int HermitCloversWanted { get; init; }
     /// <summary>"campfire", "hermit", "internet-shop", "toaster", "vip", "cargo", "chess".</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    internal IReadOnlySet<string> Only { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    internal bool IsExcludedByOnly(string step) => Only.Count > 0 && !Only.Contains(step);
+    internal bool IsExcluded(string step) => Skip.Contains(step) || IsExcludedByOnly(step);
     public int CampfireReserve { get; init; } = 3;
     /// <summary>
     /// 0.4 DailyRoutineSnapshot values for the "sell clovers" branch. Since the 0.5 review the plan trades with the Hermit
@@ -170,7 +174,7 @@ public static class DailyRun
     {
         ArgumentNullException.ThrowIfNull(live);
         options ??= new DailyRunOptions();
-        if (options.Skip.Contains("campfire") || live.DayShortenerDoneToday) return null;
+        if (options.IsExcluded("campfire") || live.DayShortenerDoneToday) return null;
         if (live.Leaves < CampfireMinUsefulLeaves)
             return $"zu wenige Blätter (n<{CampfireMinUsefulLeaves}), Verbrennen lohnt nicht";
         if (live.Leaves < DayShortenerLeafCost + options.CampfireReserve)
@@ -183,9 +187,9 @@ public static class DailyRun
     {
         ArgumentNullException.ThrowIfNull(live);
         options ??= new DailyRunOptions();
-        var skipCampfire = options.Skip.Contains("campfire");
-        var skipHermit = options.Skip.Contains("hermit");
-        var skipShop = options.Skip.Contains("internet-shop");
+        var skipCampfire = options.IsExcluded("campfire");
+        var skipHermit = options.IsExcluded("hermit");
+        var skipShop = options.IsExcluded("internet-shop");
         var leaves = skipCampfire ? 0 : live.Leaves;
         var steps = new List<DailyStep>();
 

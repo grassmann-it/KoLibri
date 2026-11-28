@@ -125,13 +125,11 @@ internal static partial class KolibriCli
             return Fail($"--cargo-pocket {CargoPockets.Describe(fightPocket)} starts a fight; daily run only picks pockets without a fight.");
         if (execute && !await AgentGuard.ApprovalTokenValidAsync(token).ConfigureAwait(false))
             throw new ArgumentException("The supplied approval token is missing or does not match the stored approval token. Nothing was sent.");
-        var skipSet = only.Count > 0
-            ? DailyKnownSteps.Where(k => !only.Contains(k)).ToHashSet(StringComparer.OrdinalIgnoreCase)
-            : skip.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var options = new DailyRunOptions
         {
             HermitCloversWanted = Math.Max(0, ReadInt(args, "--hermit-clovers", 0)),
-            Skip = skipSet,
+            Skip = skip.ToHashSet(StringComparer.OrdinalIgnoreCase),
+            Only = only.ToHashSet(StringComparer.OrdinalIgnoreCase),
             CargoPockets = cargoPockets,
             CargoMode = cargoMode,
             CargoPriceLookups = Math.Max(0, ReadInt(args, "--cargo-price-lookups", CargoPocketValue.DefaultPriceLookups)),
