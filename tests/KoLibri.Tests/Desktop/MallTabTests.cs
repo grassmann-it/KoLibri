@@ -111,7 +111,7 @@ public sealed class MallTabTests
             Assert.Equal(1_200, b.SpentToday("Mallbot"));
             Assert.Equal(700, b.UnclearToday("Mallbot"));
 
-            b.Reconcile("Mallbot", 0); // verified: not spent
+            Assert.True(b.Reconcile("Mallbot", b.ReadUnclear("Mallbot"), 0)); // verified: not spent
             Assert.Equal(500, new MallSpendLedger(clock, path).SpentToday("Mallbot"));
 
             clock.Value = Now.AddDays(1); // next KoL day: clean

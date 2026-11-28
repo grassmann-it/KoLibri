@@ -7,7 +7,7 @@ namespace KoLibri.Desktop;
 /// the settings (never credentials). It shares the cross-process, fail-closed transaction rules of
 /// <see cref="FileSpendLedger"/>: a purchase is reserved (limit checked, reservation saved) before the POST,
 /// settled once meat and inventory are verified, released when nothing was sent, and stays counted
-/// ("unclear") until <see cref="FileSpendLedger.Reconcile"/> when the outcome is not proven.
+/// ("unclear") until <see cref="FileSpendLedger.ResolveUnclear"/> when the outcome is not proven.
 /// Without a path the ledger is in memory only.
 /// </summary>
 public sealed class MallSpendLedger(TimeProvider? clock = null, string? path = null) : FileSpendLedger(path, clock)
@@ -127,8 +127,11 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
 
     public bool IsBusy => Volatile.Read(ref _busy) != 0;
 
-    /// <summary>Meat of today still counted as unclear for this account (0 when none or unreadable).</summary>
-    public long UnclearAmount => Math.Max(0, _ledger.UnclearAmount(_account));
+    /// <summary>
+    /// Meat of today still counted as unclear for this account: unclear purchases plus reservations of other
+    /// processes or a crashed run (0 when none or unreadable).
+    /// </summary>
+    public long UnclearAmount => _ledger.TryReadUnclear(_account, out var snapshot) ? snapshot.Total : 0;
 
     /// <summary>
     /// Resolves unclear meat by explicit user action: shows the amount and fresh Meat/inventory, then either
@@ -140,12 +143,13 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
         if (Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return MallUnclearDecision.Cancel;
         try
         {
-            var amount = _ledger.UnclearAmount(_account);
-            if (amount < 0)
+            // One snapshot (KoL day, revision, unclear and foreign meat): the confirmation applies to exactly that.
+            if (!_ledger.TryReadUnclear(_account, out var snapshot))
             {
                 Say(SessionLogKind.Error, $"Reconcile: the spend ledger cannot be read ({_ledger.Problem}). Nothing was changed.");
                 return MallUnclearDecision.Cancel;
             }
+            var amount = snapshot.Total;
             if (amount == 0)
             {
                 Say(SessionLogKind.Purchase, "Reconcile: no unclear purchases for today.");
@@ -161,7 +165,7 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
                 return decision;
             }
             var spent = decision == MallUnclearDecision.WasSpent;
-            if (!_ledger.ResolveUnclear(_account, amount, spent))
+            if (!_ledger.Reconcile(_account, snapshot, spent ? amount : 0))
             {
                 Say(SessionLogKind.Error, "Reconcile: the unclear amount changed meanwhile. Nothing was changed; try again.");
                 return MallUnclearDecision.Cancel;
@@ -235,8 +239,8 @@ public sealed class MallPurchaseCoordinator : IMallPurchaseRequest
             int? chosen = quantity;
             if (chosen is null)
             {
-                // Open reservations of queued buys are already counted, so the budget shown is what is really left.
-                var remaining = Math.Max(0, options.MaxDailySpend - _ledger.SpentToday(_account) - _ledger.ReservedAmount(_account));
+                // Everything counted today (settled, unclear, every open reservation once), so the budget shown is what is really left.
+                var remaining = Math.Max(0, options.MaxDailySpend - _ledger.CountedToday(_account));
                 try
                 {
                     chosen = await _prompt.AskAsync(

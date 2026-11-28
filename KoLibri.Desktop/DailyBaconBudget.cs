@@ -2,7 +2,11 @@
 namespace KoLibri.Desktop;
 
 /// <summary>What a BACON top-up in the daily routine may spend, derived from the mall limits in the settings.</summary>
-public sealed record BaconTopUpBudget(bool Allowed, int Units, long MaxUnitPrice, long SpendCap, long MeatToOffer, string Note);
+public sealed record BaconTopUpBudget(bool Allowed, int Units, long MaxUnitPrice, long SpendCap, long MeatToOffer, string Note)
+{
+    /// <summary>The ledger reservation of <see cref="SpendCap"/> (account, KoL day, meat); empty when nothing was reserved.</summary>
+    public SpendReservation Reservation { get; init; }
+}
 
 /// <summary>
 /// The daily BACON top-up goes through the same limits as the Buy button: meat per day (checked against and booked in
@@ -27,9 +31,9 @@ public static class DailyBaconBudget
         var cap = Math.Min(units * ceiling, perPurchase);
         if (cap <= 0)
             return new(false, 0, 0, 0, 0, "BACON top-up skipped: Meat per purchase is 0 in Settings.");
-        if (!ledger.TryReserve(account, cap, perDay, out var error))
+        if (!ledger.TryReserve(account, cap, perDay, out var reservation, out var error))
             return new(false, 0, 0, 0, 0, "BACON top-up skipped: " + error);
-        return new(true, units, ceiling, cap, Math.Min(meat, meatReserve + cap), "");
+        return new(true, units, ceiling, cap, Math.Min(meat, meatReserve + cap), "") { Reservation = reservation };
     }
 
     /// <summary>Units a purchase may ask for so that units × max unit price stays within the reserved spend cap
@@ -42,9 +46,18 @@ public static class DailyBaconBudget
     public static void Finish(MallSpendLedger ledger, string account, BaconTopUpBudget budget, long spent, bool unclear)
     {
         if (!budget.Allowed) return;
-        if (unclear) { ledger.MarkUnclear(account, budget.SpendCap); return; }
-        var settled = Math.Clamp(spent, 0, budget.SpendCap);
-        ledger.Settle(account, settled);
-        ledger.Release(account, budget.SpendCap - settled);
+        // Booked on the KoL day of the reservation, so a top-up that ends after the rollover never touches the new day's reservations.
+        var reservation = budget.Reservation;
+        if (reservation.IsEmpty)
+        {
+            // A budget built without a ledger reservation (tests, older callers): book by account, in one call, so
+            // the spend and the released rest come out of the same open reservation.
+            if (unclear) { ledger.MarkUnclear(account, budget.SpendCap); return; }
+            ledger.SettlePartial(account, budget.SpendCap, Math.Clamp(spent, 0, budget.SpendCap));
+            return;
+        }
+        // Finishing the same reservation twice changes nothing: the ledger only finishes reservations it still holds.
+        if (unclear) { ledger.MarkUnclear(reservation); return; }
+        ledger.SettlePartial(reservation, Math.Clamp(spent, 0, reservation.Amount));   // the rest is released
     }
 }

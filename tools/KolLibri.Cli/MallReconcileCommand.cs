@@ -15,8 +15,10 @@ internal static partial class KolibriCli
         if (settle && release) return Fail("Use either --settle or --release, not both.");
         var ledger = new SharedMallSpendLedger();
         var account = role.ToString();
-        var amount = ledger.UnclearAmount(account);
-        if (amount < 0) return Fail($"The spend ledger cannot be read: {ledger.Problem}");
+        // One snapshot (KoL day, revision, unclear meat and reservations of other or crashed processes): the
+        // confirmation below applies to exactly that state.
+        if (!ledger.TryReadUnclear(account, out var snapshot)) return Fail($"The spend ledger cannot be read: {ledger.Problem}");
+        var amount = snapshot.Total;
 
         long? meat = null;
         try
@@ -50,7 +52,7 @@ internal static partial class KolibriCli
             answer = line is "y" or "yes" or "j" or "ja";
         }
         if (answer is not true) { Console.Error.WriteLine("Cancelled. Nothing was changed."); return 3; }
-        if (!ledger.ResolveUnclear(account, amount, settle))
+        if (!ledger.Reconcile(account, snapshot, settle ? amount : 0))
             return Fail("The unclear amount changed meanwhile. Nothing was changed; run the command again.");
         Console.Error.WriteLine(settle ? $"{amount:N0} Meat counted as spent." : $"{amount:N0} Meat released.");
         return 0;

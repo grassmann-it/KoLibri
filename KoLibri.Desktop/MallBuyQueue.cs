@@ -46,6 +46,10 @@ public sealed class MallBuyTicket : INotifyPropertyChanged
     public int Number { get; }
     public MallBuyOrder Order { get; }
     public long Reserved { get; internal set; }
+    /// <summary>The ledger reservation behind <see cref="Reserved"/> (account, KoL day, meat).</summary>
+    internal SpendReservation Reservation { get; set; }
+    /// <summary>The daily limit the ticket was queued under; a reservation renewed after the day change checks it again.</summary>
+    internal long MaxDailySpend { get; set; }
     public long UnitPrice { get; internal set; }
     public int Received { get; internal set; }
     public bool Confirmed { get; internal set; }
@@ -155,12 +159,14 @@ public sealed class MallBuyQueue : IDisposable
             Finish(ticket, MallBuyState.NotSent, "the quantity or total is above your per-purchase limit in Settings.", release: false);
             return ticket;
         }
-        if (!_ledger.TryReserve(_account, max, options.MaxDailySpend, out var error))
+        if (!_ledger.TryReserve(_account, max, options.MaxDailySpend, out var reservation, out var error))
         {
             Finish(ticket, MallBuyState.NotSent, error ?? "the daily budget is used up.", release: false);
             return ticket;
         }
+        ticket.Reservation = reservation;
         ticket.Reserved = max;
+        ticket.MaxDailySpend = options.MaxDailySpend;
         _log.Purchase(string.Create(CultureInfo.InvariantCulture,
             $"Queued #{ticket.Number}: {order.Quantity} x {order.ItemName} at up to {order.ShownUnitPrice:N0}, total up to {max:N0}."));
         lock (_gate)
@@ -251,6 +257,20 @@ public sealed class MallBuyQueue : IDisposable
         finally
         {
             if (gateTaken) _baselineGate.Release();
+        }
+
+        // Recheck the reservation after the baseline read in case the day changed or it was reconciled elsewhere.
+        if (ticket.Reserved > 0)
+        {
+            var reservation = ticket.Reservation;
+            if (!_ledger.EnsureActiveOrRenew(ref reservation, ticket.MaxDailySpend, out var error))
+            {
+                ticket.Reserved = 0;
+                ticket.Reservation = default;
+                Finish(ticket, MallBuyState.NotSent, error ?? "the daily budget is used up.", release: false);
+                return;
+            }
+            ticket.Reservation = reservation;
         }
 
         DesktopMallPurchaseResult result;
@@ -426,11 +446,14 @@ public sealed class MallBuyQueue : IDisposable
     {
         if (ticket.Reserved > 0)
         {
+            // Booked on the KoL day of the reservation, so a buy that ends after the rollover never touches the new day's reservations.
+            var reservation = ticket.Reservation;
             if (state is MallBuyState.Settled or MallBuyState.Partial)
-                _ledger.SettlePartial(_account, ticket.Reserved, ticket.UnitPrice * ticket.Received);
-            else if (unclear) _ledger.MarkUnclear(_account, ticket.Reserved);
-            else _ledger.Release(_account, ticket.Reserved);   // nothing was sent (not sent / refused by KoL)
+                _ledger.SettlePartial(reservation, ticket.UnitPrice * ticket.Received);
+            else if (unclear) _ledger.MarkUnclear(reservation);
+            else _ledger.Release(reservation);   // nothing was sent (not sent / refused by KoL)
             ticket.Reserved = 0;
+            ticket.Reservation = default;
         }
         var label = state switch { MallBuyState.Settled => "Settled", MallBuyState.NotSent => "Not sent", _ => state.ToString() };
         var line = $"#{ticket.Number} {label}: {message}";

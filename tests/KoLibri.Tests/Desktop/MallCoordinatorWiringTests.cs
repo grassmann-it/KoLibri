@@ -132,6 +132,30 @@ public sealed class MallCoordinatorWiringTests
     private static string TempLedger() => Path.Combine(Path.GetTempPath(), "kolibri-ledger-" + Guid.NewGuid().ToString("N"), "ledger.json");
 
     [Fact]
+    public async Task TheBudgetShownCountsAForeignReservationOnce()   // review #10
+    {
+        var dir = Directory.CreateTempSubdirectory("money-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "ledger.json");
+            Assert.True(new MallSpendLedger(new FixedTime(), path).TryReserve("Mallbot", 40, null, out _, out _));   // another process
+            var ledger = new MallSpendLedger(new FixedTime(), path);
+            var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
+            var service = new DesktopMallPurchaseService(FakeMall.Delivering().BuyAsync, new FakeReads(10_000, 0),
+                new DesktopMallPurchaseOptions { MaxDailySpend = 100, MaxMeatPerPurchase = 1_000, MaxQuantityPerPurchase = 5 });
+            var prompt = new Prompt(false);
+            var coordinator = new MallPurchaseCoordinator("Mallbot",
+                _ => Task.FromResult<DesktopMallPurchaseService?>(service), prompt, log, ledger,
+                queue: new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero));
+
+            await coordinator.RequestAsync(Row(), default);
+            Assert.Equal(1, prompt.Asked);
+            Assert.Equal(60, prompt.Remaining.Budget);   // 100 - 40, not 100 - 40 - 40
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public async Task StaleRowIsRefusedWithoutAskingOrBuying()
     {
         // The library never serves an old page, but a row the view marked stale is still never bought.
@@ -163,7 +187,9 @@ public sealed class MallCoordinatorWiringTests
 
             var nextDay = new MallSpendLedger(new OffsetTime(TimeSpan.FromDays(1)), path);
             Assert.Equal(0, nextDay.SpentToday("Mallbot"));
-            second.Reconcile("Mallbot", 0);
+            var snapshot = second.ReadUnclear("Mallbot");
+            Assert.Equal(50, snapshot.Total);
+            Assert.True(second.Reconcile("Mallbot", snapshot, 0));
             Assert.Equal(300, new MallSpendLedger(new FixedTime(), path).SpentToday("Mallbot"));
         }
         finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
