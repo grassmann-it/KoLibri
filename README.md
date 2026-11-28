@@ -119,7 +119,7 @@ dotnet run --project tools/KolLibri.Cli -- --help
 
 ## CLI
 
-Previews by default: nothing is sent without `--execute` (and `--approval-token` where it spends Meat or turns).
+Previews by default: nothing is sent without `--execute` (`--commit` for `apply-prices`). No token is needed for `consume`, `rest` and `cast` (`--execute` is enough) or for the experimental `apply-prices --commit` (changes prices in your own store, never buys). These act only on your own account and run exactly what the command line names; use the preview first. Adventures, fights, purchases, `keys`, `choice submit` and the daily run need `--approval-token`.
 
 ```bash
 # Accounts
@@ -155,8 +155,8 @@ stored session). Commands that were removed in 0.5 (`daily-audit`, `combat`, `au
 `mafia-script`, `repl`) exit with code 2 and send nothing; the message names the replacement. `kolibri --help` is the
 authoritative list.
 
-Planned, not merged yet: `adventure run` farm flags (`--combat-rules`, `--recover-hp`, `--stop-item`, ...) and
-`reprice` as an experimental command. <P2-W5/P3-W2: update when merged>
+Farm flags for `adventure run`: `--combat-rules`, `--recover-hp PCT:STEP`, `--upkeep`, `--stop-item`, `--stop-monster`,
+`--stop-title`, `--stop-on-turtle`, `--no-choice-defaults`. `reprice` and `compare` are experimental.
 
 ## Desktop
 
