@@ -294,14 +294,9 @@ namespace KoLibri.Safety
 
         private static string Key(string day, AccountId account) => $"{day}|{account.Value.ToLowerInvariant()}";
 
-        /// <summary>The KoL day: rollover at about 03:30 US Eastern, same as the daily markers of the core.</summary>
+        /// <summary>The KoL day rolls over at 03:30 UTC (20:30 Arizona).</summary>
         internal static string KolDay(DateTimeOffset now)
-        {
-            TimeZoneInfo zone;
-            try { zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York"); }
-            catch (TimeZoneNotFoundException) { zone = TimeZoneInfo.CreateCustomTimeZone("EST", TimeSpan.FromHours(-5), "EST", "EST"); }
-            return TimeZoneInfo.ConvertTime(now, zone).AddHours(-3.5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        }
+            => now.UtcDateTime.AddMinutes(-210).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public sealed class BudgetGuard : IActionGuard

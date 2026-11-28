@@ -124,20 +124,9 @@ public class FileSpendLedger
         }
     }
 
-    /// <summary>The KoL day rolls over at 03:30 Eastern time (fixed UTC-5 where the zone is unknown).</summary>
+    /// <summary>The KoL day rolls over at 03:30 UTC (20:30 Arizona).</summary>
     private string Today
-    {
-        get
-        {
-            var utc = _clock.GetUtcNow();
-            TimeSpan offset;
-            try { offset = TimeZoneInfo.FindSystemTimeZoneById("America/New_York").GetUtcOffset(utc); }
-            catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException)
-            { offset = TimeSpan.FromHours(-5); }
-            return DateOnly.FromDateTime((utc + offset - TimeSpan.FromHours(3.5)).DateTime)
-                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        }
-    }
+        => _clock.GetUtcNow().UtcDateTime.AddMinutes(-210).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>True when <paramref name="reservation"/> was made on the current KoL day (no lock, no file access).</summary>
     public bool IsCurrentDay(SpendReservation reservation) => !reservation.IsEmpty && reservation.Day == Today;

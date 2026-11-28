@@ -1,3 +1,4 @@
+using System.Globalization;
 using KoLibri.Daily;
 using KoLibri.Safety;
 using Xunit;
@@ -292,6 +293,30 @@ public sealed class SafetyAndDailyTests
 
         public ValueTask CompletedAsync(GuardedAction action, bool succeeded, CancellationToken cancellationToken)
             => ValueTask.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData("2026-11-22T03:30:00Z", "2026-11-21", "2026-11-22")]
+    [InlineData("2026-07-01T03:30:00Z", "2026-06-30", "2026-07-01")]
+    public void Usage_resets_at_0330_utc_year_round(string rolloverUtc, string previousDay, string nextDay)
+    {
+        var rollover = DateTimeOffset.Parse(rolloverUtc, CultureInfo.InvariantCulture);
+        var now = rollover.AddSeconds(-1);
+        var directory = Directory.CreateTempSubdirectory("kolibri-safety-");
+        try
+        {
+            var ledger = new UsageLedger(Path.Combine(directory.FullName, "usage.json"), () => now);
+            Assert.Equal(previousDay, UsageLedger.KolDay(now));
+            ledger.Record(Main, 500, 3);
+            Assert.Equal(500, ledger.MeatSpentToday(Main));
+            Assert.Equal(3, ledger.TurnsSpentToday(Main));
+
+            now = rollover;
+            Assert.Equal(nextDay, UsageLedger.KolDay(now));
+            Assert.Equal(0, ledger.MeatSpentToday(Main));
+            Assert.Equal(0, ledger.TurnsSpentToday(Main));
+        }
+        finally { directory.Delete(recursive: true); }
     }
 
     [Fact]

@@ -6,7 +6,7 @@ namespace KoLibri.Core.Spiel;
 /// <summary>
 /// Remembers which once-per-day actions (for example the Day Shortener from
 /// the pile of burning leaves) were already submitted today for an account.
-/// The day rolls over at KoL's rollover, about 03:30 US Eastern. State lives in
+/// The day rolls over at 03:30 UTC (20:30 Arizona). State lives in
 /// a small JSON file so CLI, MCP and Desktop agree.
 /// </summary>
 public sealed class DailyDoneStore
@@ -31,13 +31,7 @@ public sealed class DailyDoneStore
 
     /// <summary>The KoL day an instant belongs to (rollover shifted to midnight).</summary>
     public static string KolDay(DateTimeOffset now)
-    {
-        TimeZoneInfo zone;
-        try { zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York"); }
-        catch (TimeZoneNotFoundException) { zone = TimeZoneInfo.CreateCustomTimeZone("EST", TimeSpan.FromHours(-5), "EST", "EST"); }
-        var local = TimeZoneInfo.ConvertTime(now, zone);
-        return local.AddHours(-3.5).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    }
+        => now.UtcDateTime.AddMinutes(-210).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>The marker key for one player: the role plus the player id (or name) the status page reported,
     /// so a role that is switched to another character does not inherit the old character's markers.

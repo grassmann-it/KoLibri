@@ -37,18 +37,12 @@ public sealed record DesktopDailySnapshot
     }
 }
 
-/// <summary>The KoL day (rollover 03:30 Arizona) without a session. Same rule as <see cref="DailyMarkers.GameDay"/>.</summary>
+/// <summary>The KoL day (rollover 03:30 UTC, 20:30 Arizona) without a session. Same rule as <see cref="DailyMarkers.GameDay"/>.</summary>
 public static class KolDay
 {
     /// <summary>Copied from KoLibri.Core (0.5 step 3) DailyDoneStore.KolDay.</summary>
     public static DateOnly Of(DateTimeOffset now)
-    {
-        TimeZoneInfo zone;
-        try { zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York"); }
-        catch (TimeZoneNotFoundException) { zone = TimeZoneInfo.CreateCustomTimeZone("EST", TimeSpan.FromHours(-5), "EST", "EST"); }
-        var local = TimeZoneInfo.ConvertTime(now, zone);
-        return DateOnly.FromDateTime(local.AddHours(-3.5).DateTime);
-    }
+        => DateOnly.FromDateTime(now.UtcDateTime.AddMinutes(-210));
 }
 
 // ------------------------------------------------------------------------------------------------

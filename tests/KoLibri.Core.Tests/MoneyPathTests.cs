@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using KoLibri.Core.Markt;
 using KoLibri.Core.Spiel;
@@ -36,6 +37,21 @@ public sealed class MoneyPathTests
         : KoLibri.Extras.FileSpendLedger(path, clock, isOwnerAlive: isOwnerAlive);
 
     [Theory]
+    [InlineData("2026-11-22T03:29:59Z", "2026-11-21")]
+    [InlineData("2026-11-22T03:30:00Z", "2026-11-22")]
+    [InlineData("2026-07-01T03:29:59Z", "2026-06-30")]
+    [InlineData("2026-07-01T03:30:00Z", "2026-07-01")]
+    public void Core_and_Extras_ledger_days_change_at_0330_utc_year_round(string instant, string expectedDay)
+    {
+        var clock = new MovableClock(DateTimeOffset.Parse(instant, CultureInfo.InvariantCulture));
+        var core = new ArbitrageSpendLedger(clock: clock);
+        var extras = new KoLibri.Extras.ArbitrageSpendLedger(clock: clock);
+
+        Assert.Equal(expectedDay, core.ReadUnclear("Mallbot").Day);
+        Assert.Equal(expectedDay, extras.ReadUnclear("Mallbot").Day);
+    }
+
+    [Theory]
     [InlineData("settle", 300, 0)]
     [InlineData("unclear", 500, 500)]
     [InlineData("release", 0, 0)]
@@ -46,7 +62,8 @@ public sealed class MoneyPathTests
         try
         {
             var path = Path.Combine(dir.FullName, "mall.json");
-            var clock = new MovableClock(Now);
+            var rollover = new DateTimeOffset(2026, 11, 22, 3, 30, 0, TimeSpan.Zero);
+            var clock = new MovableClock(rollover.AddSeconds(-1));
             var owner = new ExtrasLedger(path, clock);
             var core = new SharedMallSpendLedger(path, clock);
             owner.Add("Mallbot", 100);
@@ -57,15 +74,17 @@ public sealed class MoneyPathTests
             Assert.True(owner.BeginSend(ref sending, 1_000, out _));
 
             var before = core.ReadUnclear("Mallbot");
+            Assert.Equal("2026-11-21", before.Day);
+            Assert.Equal("2026-11-21", sending.Day);
             Assert.Equal(queued.Id, Assert.Single(before.ForeignIds!));
             core.Add("Other", 1);
             CheckSendingFile(730);
 
-            clock.Value = Now.AddDays(1);
+            clock.Value = rollover;
             Assert.Equal(500, core.CountedToday("Mallbot"));
             var current = core.ReadUnclear("Mallbot");
             Assert.Equal(before.Revision, current.Revision);
-            Assert.NotEqual(before.Day, current.Day);
+            Assert.Equal("2026-11-22", current.Day);
             Assert.Equal(0, current.Total);
             Assert.False(core.TryReserve("Mallbot", 501, 1_000, out _, out _));
             core.Add("Other", 1);

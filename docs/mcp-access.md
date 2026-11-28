@@ -63,8 +63,8 @@ A client may suggest limits with the extra authorize parameters `kolibri_limits`
 | `message.send`, `item.use` | count per day (`item.use` also covers `kol_consume` and `kol_rest`) |
 | `shop.reprice` | changes per day, max change in percent |
 
-Usage is counted per KoL day (rollover about 03:30 US Eastern), held while an action runs and booked only
-when the action went through, in a hash-chained journal (`usage.jsonl`). A refused call returns a stable code
+Usage is counted per KoL day, with rollover at 03:30 UTC (20:30 Arizona). It is held while an action runs and booked
+only when the action went through, in a hash-chained journal (`usage.jsonl`). A refused call returns a stable code
 (`BudgetExhausted`, `RightNotGranted`, `AccountNotGranted`, `PriceAboveLimit`, `BelowMeatReserve`,
 `Expired`, `Revoked`) so the AI can tell you what to approve next.
 

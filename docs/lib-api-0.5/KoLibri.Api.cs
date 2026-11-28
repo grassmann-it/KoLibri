@@ -752,7 +752,7 @@ namespace KoLibri
     public sealed record MailEntry(string Id, string From, DateTimeOffset? At, string Text, IReadOnlyList<InventoryItem> Items, long Meat);
     public sealed record MailPage(MailFolder Folder, int Page, int PageCount, IReadOnlyList<MailEntry> Entries);
 
-    /// <summary>Einmal-pro-KoL-Tag-Marker (Rollover 03:30 Arizona) je Konto. Baustein für eigene Daily-Routinen.</summary>
+    /// <summary>Einmal-pro-KoL-Tag-Marker je Konto mit Rollover um 03:30 UTC (20:30 Arizona). Baustein für eigene Daily-Routinen.</summary>
     public sealed class DailyMarkers
     {
         private DailyMarkers() { }
