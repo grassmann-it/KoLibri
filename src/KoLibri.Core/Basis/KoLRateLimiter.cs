@@ -310,6 +310,9 @@ public sealed class KoLRateLimitedHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         using var lease = await _limiter.AcquireAsync(KoLRequestLanes.Classify(request), cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.Options.TryGetValue(KoLAllowlistHandler.DispatchedKey, out var dispatched))
+            dispatched.Value = true;
         return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 }

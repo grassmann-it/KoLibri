@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using Xunit;
 
@@ -157,6 +158,62 @@ public sealed class ClientAndSessionTests
         Assert.Equal(1, kol.Count("POST", "adventure.php"));
         Assert.Equal(0, kol.Count("POST", "login.php"));
         Assert.True(session.IsExpired);
+    }
+
+    [Fact]
+    public async Task Mail_uses_the_configured_host_and_the_session_blocks_official_hosts()
+    {
+        Uri? recipientUri = null;
+        var kol = new FakeKol().On("POST sendmessage.php", (request, _) =>
+        {
+            recipientUri = request.RequestUri;
+            return FakeKol.Html("<center>Message sent.");
+        });
+        await using var client = KolibriClient.Create(new KolibriOptions
+        {
+            BaseUri = new Uri("https://kol.test/"),
+            HttpHandler = kol,
+            AccountStore = MemoryAccountStore.WithMain(),
+            StateDirectory = Directory.CreateTempSubdirectory("kolibri-mail-").FullName,
+            DisableLimiterForTests = true
+        });
+        await using var session = await client.OpenAsync("main");
+
+        var result = await session.Mail.SendAsync(new MailMessage("Other", "hello"));
+        Assert.Equal(MailSendStatus.Sent, result.Status);
+        Assert.Equal(new Uri("https://kol.test/sendmessage.php"), recipientUri);
+        var requests = kol.Requests.Count;
+
+        var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(
+            () => session.GetPageAsync("https://kingdomofloathing.com/main.php"));
+        Assert.Contains("outside the KoL host allowlist", error.Message);
+        Assert.Equal(requests, kol.Requests.Count);
+
+        kol.On("POST sendmessage.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/sendmessage.php"));
+        var mailError = await Assert.ThrowsAnyAsync<InvalidOperationException>(
+            () => session.Mail.SendAsync(new MailMessage("Other", "hello again")));
+        Assert.Contains("outside the KoL host allowlist", mailError.Message);
+        Assert.Equal(2, kol.Count("POST", "sendmessage.php"));
+        Assert.Equal(0, kol.Count("GET", "sendmessage.php"));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK)]
+    [InlineData(HttpStatusCode.Found)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task Mail_login_page_or_redirect_expires_the_session_without_retry(HttpStatusCode code)
+    {
+        var kol = new FakeKol().On("POST sendmessage.php", (_, _) => code == HttpStatusCode.Found
+            ? FakeKol.Redirect("login.php")
+            : FakeKol.Html("<form action=\"login.php\"><input name=\"loginname\"></form>", code));
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+
+        await Assert.ThrowsAsync<SessionExpiredException>(() => session.Mail.SendAsync(new MailMessage("Other", "hello")));
+
+        Assert.True(session.IsExpired);
+        Assert.Equal(1, kol.Count("POST", "sendmessage.php"));
+        Assert.Equal(0, kol.Count("GET", "login.php"));
     }
 
     [Fact]

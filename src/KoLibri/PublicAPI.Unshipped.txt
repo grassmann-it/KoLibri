@@ -575,6 +575,7 @@ KoLibri.MailSendStatus.Sent = 0 -> KoLibri.MailSendStatus
 KoLibri.MailSendStatus.Unclear = 2 -> KoLibri.MailSendStatus
 KoLibri.Mall
 KoLibri.Mall.BuyAsync(KoLibri.PurchaseQuote! quote, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PurchaseResult!>!
+KoLibri.Mall.BuyAsync(KoLibri.PurchaseQuote! quote, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<KoLibri.GuardDecision!>>! beforeEachSend, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<KoLibri.PurchaseResult!>!
 KoLibri.Mall.GetOffersAsync(KoLibri.ItemRef item, bool refresh = false, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.MallOffers!>!
 KoLibri.Mall.GetPriceHistoryAsync(KoLibri.ItemRef item, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PriceHistory?>!
 KoLibri.Mall.QuoteAndBuyAsync(KoLibri.PurchaseOrder! order, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.PurchaseResult!>!

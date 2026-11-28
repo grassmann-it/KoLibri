@@ -36,7 +36,20 @@ public sealed class MallBuyQueueTests
                 Status = DesktopMallPurchaseStatus.Sent, Confirmed = true, UnitPrice = order.ShownUnitPrice, Message = "ok"
             });
         }
+
+        public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+            Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken ct)
+        {
+            var decision = await beforeEachSend(ct);
+            return decision.Allowed ? await SendAsync(order, ct) : Refused(decision);
+        }
     }
+
+    internal static DesktopMallPurchaseResult Refused(GuardDecision decision) => new()
+    {
+        Status = DesktopMallPurchaseStatus.NotSent,
+        Message = decision.Reason ?? "Blocked before send."
+    };
 
     private static MallBuyOrder Order(int qty = 1, long price = 100) => new("789", "Thing", "42", "Shop", price, qty);
 
@@ -55,6 +68,83 @@ public sealed class MallBuyQueueTests
         var log = new SessionLogViewModel(now: () => Now, post: SerialPost());
         var ledger = new MallSpendLedger(new Fixed());
         return (new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero), ledger, log);
+    }
+
+    private sealed class UngatedEngine : IMallBuyEngine
+    {
+        public int Sends { get; private set; }
+        public Task<MallAccountReading> ReadAccountAsync(CancellationToken ct)
+            => Task.FromResult(new MallAccountReading(100_000, new Dictionary<string, int>(), true));
+
+        public Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken ct)
+        {
+            Sends++;
+            return Task.FromResult(new DesktopMallPurchaseResult { Status = DesktopMallPurchaseStatus.Purchased, Message = "ok" });
+        }
+    }
+
+    [Fact]
+    public async Task A_two_argument_engine_cannot_send_a_queued_purchase()
+    {
+        var (queue, ledger, _) = Make();
+        using var cleanup = queue;
+        var engine = new UngatedEngine();
+        var ticket = queue.Enqueue(Order(), engine, Options);
+        await queue.WhenIdleAsync();
+
+        Assert.Equal(MallBuyState.NotSent, ticket.State);
+        Assert.Contains("does not verify pre-send gates at transport time.", ticket.Message);
+        Assert.Equal(0, engine.Sends);
+        Assert.Equal(0, ledger.CountedToday("Mallbot"));
+        Assert.True(ticket.Reservation.IsEmpty);
+    }
+
+    [Fact]
+    public async Task A_failed_ledger_finish_keeps_the_handle_and_dispose_retries_without_sending()
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            var log = new SessionLogViewModel(now: () => Now, post: SerialPost());
+            var ledger = new MallSpendLedger(new Fixed(), path);
+            using var queue = new MallBuyQueue("Mallbot", ledger, log);
+            var engine = new Engine
+            {
+                OnSend = _ => Directory.CreateDirectory(path + ".tmp"),
+                Respond = order => new DesktopMallPurchaseResult
+                {
+                    Status = DesktopMallPurchaseStatus.Purchased, ReceivedQuantity = order.Quantity,
+                    UnitPrice = order.ShownUnitPrice, Message = "Bought."
+                }
+            };
+
+            var ticket = queue.Enqueue(Order(), engine, Options);
+            await queue.WhenIdleAsync();
+
+            Assert.Equal(MallBuyState.Settled, ticket.State);
+            Assert.Contains("Spend ledger update pending", ticket.Message);
+            Assert.Contains(log.Entries, entry => entry.Kind == SessionLogKind.Error && entry.Message.Contains("Spend ledger update pending"));
+            Assert.NotNull(ledger.Problem);
+            Assert.False(ticket.Reservation.IsEmpty);
+            Assert.Equal(100, ticket.Reserved);
+            var reader = new MallSpendLedger(new Fixed(), path);
+            Assert.Equal(100, reader.ReservedAmount("Mallbot"));
+            Assert.Empty(reader.ReadUnclear("Mallbot").ForeignIds!);
+
+            Directory.Delete(path + ".tmp");
+            queue.Dispose();
+
+            Assert.Null(ledger.Problem);
+            Assert.True(ticket.Reservation.IsEmpty);
+            Assert.Equal(0, ticket.Reserved);
+            Assert.Equal("Bought.", ticket.Message);
+            Assert.Equal(1, engine.Sends);
+            Assert.Equal(0, reader.ReservedAmount("Mallbot"));
+            Assert.Equal(100, reader.SpentToday("Mallbot"));
+            Assert.DoesNotContain("\"sending\"", File.ReadAllText(path));
+        }
+        finally { dir.Delete(recursive: true); }
     }
 
     [Fact]
@@ -260,6 +350,13 @@ public sealed class MallBuyQueueTests
             {
                 Status = DesktopMallPurchaseStatus.Purchased, ReceivedQuantity = order.Quantity, UnitPrice = order.ShownUnitPrice, Message = "ok"
             };
+        }
+
+        public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+            Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken ct)
+        {
+            var decision = await beforeEachSend(ct);
+            return decision.Allowed ? await SendAsync(order, ct) : Refused(decision);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using KoLibri.Core.Basis;
 using KoLibri.Core.Markt;
 using KoLibri.Core.Spiel;
@@ -81,7 +82,7 @@ public sealed class MoneyPathBlockerTests
     [InlineData(HttpStatusCode.BadRequest, "", KoLMailSendOutcome.NotSent)]
     public async Task Mail_outcome_distinguishes_lost_replies_from_refusals(HttpStatusCode code, string body, KoLMailSendOutcome expected)
     {
-        using var http = new HttpClient(new Handler(_ => Page(body, code)));
+        using var http = KoLMailbox.CreateTrustedClient(new Handler(_ => Page(body, code)));
         var outcome = await KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [new KoLMailAttachment(5, 1)], 0);
         Assert.Equal(expected, outcome);
     }
@@ -89,9 +90,61 @@ public sealed class MoneyPathBlockerTests
     [Fact]
     public async Task Mail_reply_lost_after_the_post_is_unconfirmed()
     {
-        using var http = new HttpClient(new LostReply());
+        using var http = KoLMailbox.CreateTrustedClient(new LostReply());
         Assert.Equal(KoLMailSendOutcome.Unconfirmed,
             await KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100));
+    }
+
+    [Fact]
+    public async Task Mail_rejects_an_untrusted_client_and_a_handler_with_automatic_redirects()
+    {
+        var transport = new Handler(_ => Page("<center>Message sent."));
+        using var http = new HttpClient(transport);
+        await Assert.ThrowsAsync<KoLSecurityException>(() => KoLMailbox.SendAsync(http, "hash", "Other", "hi", [], 100));
+        await Assert.ThrowsAsync<KoLSecurityException>(() => KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100));
+        Assert.Equal(0, transport.Posts);
+
+        using var autoRedirect = new HttpClientHandler { AllowAutoRedirect = true };
+        Assert.Throws<KoLSecurityException>(() => KoLMailbox.CreateTrustedClient(autoRedirect));
+    }
+
+    [Fact]
+    public void MarkTrusted_is_internal()
+    {
+        var handler = typeof(KoLAllowlistHandler);
+        Assert.Null(handler.GetMethod("MarkTrusted", BindingFlags.Static | BindingFlags.Public));
+        Assert.True(handler.GetMethod("MarkTrusted", BindingFlags.Static | BindingFlags.NonPublic)?.IsAssembly);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TemporaryRedirect)]
+    [InlineData(HttpStatusCode.PermanentRedirect)]
+    public async Task Mail_blocks_cross_origin_redirects_even_when_both_hosts_are_allowed(HttpStatusCode code)
+    {
+        var transport = new Handler(request =>
+        {
+            Assert.Equal("kol.test", request.RequestUri!.Host);
+            var response = Page("", code);
+            response.Headers.Location = new Uri("https://www.kingdomofloathing.com/sendmessage.php");
+            return response;
+        });
+        var policy = new KoLSecurityPolicy { AllowedHosts = ["kol.test", "www.kingdomofloathing.com"] };
+        using var http = KoLMailbox.CreateTrustedClient(transport, policy, new Uri("https://kol.test/"));
+        await Assert.ThrowsAsync<KoLSecurityException>(() => KoLMailbox.SendAsync(http, "hash", "Other", "hi", [], 100));
+        Assert.Equal(0, transport.Posts); // the default policy rejects this base address
+        await Assert.ThrowsAsync<KoLSecurityException>(() => KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100, policy, default));
+        Assert.Equal(1, transport.Posts);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task Mail_classifies_login_html_before_the_error_status(HttpStatusCode code)
+    {
+        using var http = KoLMailbox.CreateTrustedClient(new Handler(_ => Page("<form action=\"login.php\"><input name=\"loginname\"></form>", code)));
+        var login = await Assert.ThrowsAsync<KoLHtmlResponseException>(() =>
+            KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100));
+        Assert.Equal(KoLHtmlResponseKind.LoginPage, login.Kind);
     }
 
     private sealed class LostReply : HttpMessageHandler
@@ -157,16 +210,19 @@ public sealed class MoneyPathBlockerTests
     }
 
     [Fact]
-    public async Task Mail_cancelled_after_the_post_started_is_unconfirmed_but_before_it_is_a_cancellation()
+    public async Task Mail_propagates_caller_cancellation_before_and_after_the_post_starts()
     {
         using var cts = new CancellationTokenSource();
-        using var http = new HttpClient(new CancelAfterPost(cts));
-        Assert.Equal(KoLMailSendOutcome.Unconfirmed,
-            await KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [new KoLMailAttachment(5, 1)], 0, cts.Token));
+        using var http = KoLMailbox.CreateTrustedClient(new CancelAfterPost(cts));
+        var after = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [new KoLMailAttachment(5, 1)], 0, cts.Token));
+        Assert.IsType<KoLMailCanceledAfterSendException>(after);
+        Assert.Equal(cts.Token, after.CancellationToken);
         using var pre = new CancellationTokenSource();
         pre.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var before = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             KoLMailbox.SendWithOutcomeAsync(http, "hash", "Other", "hi", [], 100, pre.Token));
+        Assert.IsNotType<KoLMailCanceledAfterSendException>(before);
     }
 
     private sealed class CancelAfterPost(CancellationTokenSource cts) : HttpMessageHandler

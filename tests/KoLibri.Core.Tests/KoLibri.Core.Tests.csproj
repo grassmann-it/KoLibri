@@ -8,6 +8,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/KoLibri.Core/KoLibri.Core.csproj" />
+    <ProjectReference Include="../../src/KoLibri.Extras/KoLibri.Extras.csproj" />
+    <!-- Extras brings in the facade. Keep its types out of Core test name lookup. -->
+    <ProjectReference Include="../../src/KoLibri/KoLibri.csproj" Aliases="Facade" />
     <ProjectReference Include="../../src/LibKolibri/src/LibKolibri/LibKolibri.csproj" />
     <ProjectReference Include="../../tools/KolLibri.Cli/KolLibri.Cli.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />

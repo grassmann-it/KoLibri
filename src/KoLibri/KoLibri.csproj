@@ -53,6 +53,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="KoLibri.Tests" />
+    <InternalsVisibleTo Include="KoLibri.Safety" />
+    <InternalsVisibleTo Include="KoLibri.Desktop" />
+    <InternalsVisibleTo Include="KolLibri.Mcp" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Data/choices.json" LogicalName="KoLibri.Data.choices.json" />

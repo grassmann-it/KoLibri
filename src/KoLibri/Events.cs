@@ -107,6 +107,7 @@ namespace KoLibri
         /// <summary>Höchster Stückpreis einer Zeile der Aktion (MallBuy); null, wenn unbekannt.</summary>
         public long? MaxUnitPrice { get; init; }
         public string? Path { get; init; }
+        internal string? Binding { get; init; }
     }
 
     public sealed record GuardDecision(bool Allowed, string? Reason)

@@ -129,6 +129,50 @@ public sealed class DesktopMallPurchaseServiceTests
         Assert.Contains("no budget left", result.Message);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Method_group_and_role_adapter_check_the_gate_at_the_session_transport(bool forRole)
+    {
+        var kol = MallKit.Kol(100);
+        await using var accounts = MallKit.Accounts(kol);
+        var live = new DesktopLiveDataProvider(accounts);
+        var session = await live.RequireSessionAsync(AccountRole.Mallbot, "buy in the mall");
+        var service = forRole ? MallKit.Service(accounts) : new DesktopMallPurchaseService(session.Mall.BuyAsync, new NoReads());
+        var checks = 0;
+
+        var result = await service.BuyAsync("Mallbot", "10881", "56226", 100, 1, default, null, _ =>
+        {
+            checks++;
+            Assert.Equal(1, kol.Count("POST", "mall.php"));
+            Assert.Empty(MallKit.Purchases(kol));
+            return ValueTask.FromResult(GuardDecision.Deny("Budget changed."));
+        });
+
+        Assert.Equal(1, checks);
+        Assert.Equal(DesktopMallPurchaseStatus.NotSent, result.Status);
+        Assert.Contains("Budget changed.", result.Message);
+        Assert.Empty(MallKit.Purchases(kol));
+    }
+
+    [Fact]
+    public async Task A_two_argument_delegate_cannot_send_with_a_gate()
+    {
+        var buys = 0;
+        var service = new DesktopMallPurchaseService((_, _) =>
+        {
+            buys++;
+            return Task.FromResult(new PurchaseResult(PurchaseStatus.Bought, 1, 100, []));
+        }, new NoReads());
+
+        var result = await service.BuyAsync("Mallbot", "10881", "56226", 100, 1, default, null,
+            _ => ValueTask.FromResult(GuardDecision.Allow));
+
+        Assert.Equal(DesktopMallPurchaseStatus.NotSent, result.Status);
+        Assert.Contains("The buy delegate cannot verify pre-send gates at transport time.", result.Message);
+        Assert.Equal(0, buys);
+    }
+
     [Fact]
     public void Library_statuses_map_onto_the_desktop_states()
     {

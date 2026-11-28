@@ -10,8 +10,20 @@ namespace KoLibri.Desktop;
 /// ("unclear") until <see cref="FileSpendLedger.ResolveUnclear"/> when the outcome is not proven.
 /// Without a path the ledger is in memory only.
 /// </summary>
-public sealed class MallSpendLedger(TimeProvider? clock = null, string? path = null) : FileSpendLedger(path, clock)
+public sealed class MallSpendLedger(TimeProvider? clock = null, string? path = null, Func<int, bool>? isOwnerAlive = null)
+    : FileSpendLedger(path, clock, isOwnerAlive: isOwnerAlive)
 {
+    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
+    internal bool IsNearRollover()
+    {
+        var now = _clock.GetUtcNow();
+        return KolDay.Of(now) != KolDay.Of(now.AddSeconds(30));
+    }
+
+    internal string? FinishPurchase(SpendReservation reservation, long? spent, bool unclear)
+        => FinishReservation(reservation, spent, unclear);
+
     /// <summary>The ledger file that sits next to the given settings file.</summary>
     public static string PathNextTo(DesktopSettingsStore store)
         => System.IO.Path.Combine(

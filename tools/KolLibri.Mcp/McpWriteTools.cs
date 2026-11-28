@@ -286,6 +286,13 @@ public partial class KolibriMcpServer
         var held = AuthorizeAll(gate, token, requests);
         var unreconciled = false;
         try { return await execute(held).ConfigureAwait(false); }
+        catch (OperationCanceledException exception) when (Mailbox.MayHaveDispatched(exception))
+        {
+            unreconciled = true;
+            foreach (var reservation in held)
+                reservation.CommitUnclear(0, reservation.Amount, "unclear: cancelled while sending KMail; delivery is unknown");
+            throw;
+        }
         catch (UnreconciledPurchaseException e)
         {
             // The POST may have gone through: keep the budget held instead of freeing it.

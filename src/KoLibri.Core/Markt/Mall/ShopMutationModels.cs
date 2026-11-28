@@ -134,7 +134,7 @@ public sealed class KoLShopMutationClient
                 throw new InvalidOperationException("KoL did not acknowledge the shop price update.");
 
             var after = await GetStorePageAsync(cancellationToken).ConfigureAwait(false);
-            var verified = VerifyResults(requested, ready, after.Listings);
+            var verified = VerifyResults(requested, results, ready, after.Listings);
             return new ShopMutationResult(
                 Committed: true,
                 Succeeded: verified.All(x => x.Status is ShopPriceUpdateStatus.Updated or ShopPriceUpdateStatus.Hold),
@@ -177,21 +177,23 @@ public sealed class KoLShopMutationClient
 
     private static IReadOnlyList<ShopPriceUpdateResult> VerifyResults(
         IReadOnlyList<ShopPriceUpdate> requested,
+        IReadOnlyList<ShopPriceUpdateResult> results,
         IReadOnlyList<ShopPriceUpdateResult> ready,
         IReadOnlyDictionary<string, ShopInventoryState> observed)
     {
         var readyIds = ready.Select(x => x.ItemId).ToHashSet(StringComparer.Ordinal);
         return requested.Select(update =>
         {
-            if (!readyIds.Contains(update.ItemId)) return ready.Single(x => x.ItemId == update.ItemId);
+            var previous = results.Single(x => x.ItemId == update.ItemId);
+            if (!readyIds.Contains(update.ItemId)) return previous;
             if (!observed.TryGetValue(update.ItemId, out var current))
-                return ready.Single(x => x.ItemId == update.ItemId) with
+                return previous with
                 {
                     ObservedCurrentPrice = null,
                     Status = ShopPriceUpdateStatus.VerificationFailed,
                     Message = "Item disappeared after the update."
                 };
-            return ready.Single(x => x.ItemId == update.ItemId) with
+            return previous with
             {
                 ObservedCurrentPrice = current.Price,
                 ObservedPurchaseLimit = current.Limit,

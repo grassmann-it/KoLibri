@@ -26,6 +26,21 @@ public sealed record KoLMailAttachment(int ItemId, int Quantity);
 
 public static partial class KoLMailbox
 {
+    private static readonly KoLSecurityPolicy DefaultSecurityPolicy = new();
+
+    /// <summary>Creates an allowlisted KMail client that owns the supplied handler and never follows redirects.</summary>
+    public static HttpClient CreateTrustedClient(HttpMessageHandler inner, KoLSecurityPolicy? policy = null, Uri? baseAddress = null)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        policy ??= DefaultSecurityPolicy;
+        policy.Validate();
+        if (baseAddress is not null) policy.EnsureAllowed(baseAddress, "KMail send");
+        KoLAllowlistHandler.EnsureNoAutoRedirect(inner);
+        var http = new HttpClient(new KoLAllowlistHandler(inner, policy)) { BaseAddress = baseAddress };
+        KoLAllowlistHandler.MarkTrusted(http);
+        return http;
+    }
+
     public static KoLMailboxSnapshot ParseInbox(string html) => ParseFolder(html, KoLMailFolder.Inbox);
 
     internal static KoLMailboxSnapshot ParseFolder(string html, KoLMailFolder folder)
@@ -77,11 +92,17 @@ public static partial class KoLMailbox
         CancellationToken cancellationToken = default)
         => SendAsync(http, sessionHash, recipient, message, [], 0, cancellationToken);
 
-    public static async Task<bool> SendAsync(
+    public static Task<bool> SendAsync(
         HttpClient http, string sessionHash, string recipient, string message,
         IReadOnlyList<KoLMailAttachment> attachments, long meat, CancellationToken cancellationToken = default)
+        => SendAsync(http, sessionHash, recipient, message, attachments, meat, DefaultSecurityPolicy, cancellationToken);
+
+    public static async Task<bool> SendAsync(
+        HttpClient http, string sessionHash, string recipient, string message,
+        IReadOnlyList<KoLMailAttachment> attachments, long meat, KoLSecurityPolicy securityPolicy, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(securityPolicy);
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
         ArgumentNullException.ThrowIfNull(attachments);
@@ -92,8 +113,11 @@ public static partial class KoLMailbox
         if (attachments.Count == 0 && meat == 0)
             ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        var endpoint = new Uri("https://www.kingdomofloathing.com/sendmessage.php");
-        var security = new KoLSecurityPolicy();
+        if (!KoLAllowlistHandler.IsTrusted(http))
+            throw new KoLSecurityException("KMail requires an allowlisted client with automatic redirects disabled.");
+        if (http.BaseAddress is { } baseAddress) securityPolicy.EnsureAllowed(baseAddress, "KMail send");
+        var endpoint = new Uri(http.BaseAddress ?? new Uri("https://www.kingdomofloathing.com/"), "sendmessage.php");
+        securityPolicy.EnsureAllowed(endpoint, "KMail send");
         var fields = new Dictionary<string, string>
         {
             ["action"] = "send",
@@ -111,34 +135,57 @@ public static partial class KoLMailbox
         if (meat > 0)
             fields["sendmeat"] = meat.ToString(CultureInfo.InvariantCulture);
 
-        using var form = new FormUrlEncodedContent(fields);
-        using var response = await http.PostAsync(endpoint, form, cancellationToken).ConfigureAwait(false);
-        security.EnsureResponseUri(endpoint, response.RequestMessage?.RequestUri);
-        response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        return SentConfirmation().IsMatch(html);
-    }
-
-    /// <summary>
-    /// Like <see cref="SendAsync"/> but typed: once the POST is on its way, a lost reply, a timeout, a 5xx or an
-    /// unreadable answer is <see cref="KoLMailSendOutcome.Unconfirmed"/> (the mail may have arrived), never "not sent".
-    /// Only a clear refusal (4xx, or a page naming a known refusal) is <see cref="KoLMailSendOutcome.NotSent"/>.
-    /// Argument errors still throw before anything is sent.
-    /// </summary>
-    public static async Task<KoLMailSendOutcome> SendWithOutcomeAsync(
-        HttpClient http, string sessionHash, string recipient, string message,
-        IReadOnlyList<KoLMailAttachment> attachments, long meat, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(http);
-        // Cancelled before anything went out: nothing was sent, so this is a plain cancellation.
+        var dispatched = new System.Runtime.CompilerServices.StrongBox<bool>();
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new FormUrlEncodedContent(fields) };
+        request.Options.Set(KoLAllowlistHandler.DispatchedKey, dispatched);
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            return await SendAsync(http, sessionHash, recipient, message, attachments, meat, cancellationToken).ConfigureAwait(false)
+            using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            var responseUri = response.RequestMessage?.RequestUri ?? endpoint;
+            securityPolicy.EnsureResponseUri(endpoint, responseUri);
+            if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
+                responseUri = securityPolicy.ResolveRedirect(endpoint, location.OriginalString);
+            if (responseUri.AbsolutePath.EndsWith("/login.php", StringComparison.OrdinalIgnoreCase))
+                throw new KoLHtmlResponseException(KoLHtmlResponseKind.LoginPage, "KoL redirected the KMail send to login.");
+            var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (KoLHtmlResponseClassifier.Classify(html) == KoLHtmlResponseKind.LoginPage)
+                throw new KoLHtmlResponseException(KoLHtmlResponseKind.LoginPage, "KoL returned a login page for the KMail send.");
+            response.EnsureSuccessStatusCode();
+            return SentConfirmation().IsMatch(html);
+        }
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested && dispatched.Value)
+        {
+            throw new KoLMailCanceledAfterSendException(exception, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Once the POST is on its way, a lost reply, a timeout, a 5xx or an
+    /// unreadable answer is <see cref="KoLMailSendOutcome.Unconfirmed"/> (the mail may have arrived), never "not sent".
+    /// Only a clear refusal (4xx, or a page naming a known refusal) is <see cref="KoLMailSendOutcome.NotSent"/>.
+    /// Argument errors, caller cancellation, login pages and security violations propagate to the caller.
+    /// </summary>
+    public static Task<KoLMailSendOutcome> SendWithOutcomeAsync(
+        HttpClient http, string sessionHash, string recipient, string message,
+        IReadOnlyList<KoLMailAttachment> attachments, long meat, CancellationToken cancellationToken = default)
+        => SendWithOutcomeAsync(http, sessionHash, recipient, message, attachments, meat, DefaultSecurityPolicy, cancellationToken);
+
+    public static async Task<KoLMailSendOutcome> SendWithOutcomeAsync(
+        HttpClient http, string sessionHash, string recipient, string message,
+        IReadOnlyList<KoLMailAttachment> attachments, long meat, KoLSecurityPolicy securityPolicy, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await SendAsync(http, sessionHash, recipient, message, attachments, meat, securityPolicy, cancellationToken).ConfigureAwait(false)
                 ? KoLMailSendOutcome.Sent : KoLMailSendOutcome.Unconfirmed;
         }
-        catch (ArgumentException) { throw; }                       // nothing was sent
-        // A cancel after the POST started is not "not sent": the mail may have arrived, so it falls through to Unconfirmed.
+        catch (ArgumentException) { throw; }
+        catch (KoLHtmlResponseException) { throw; }
+        catch (KoLSecurityException) { throw; }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (HttpRequestException e) when (e.StatusCode is { } code && (int)code is >= 400 and < 500 && (int)code != 408 && (int)code != 429)
         {
             return KoLMailSendOutcome.NotSent;                      // KoL answered with a client-error status: refused
@@ -178,6 +225,10 @@ public static partial class KoLMailbox
     [GeneratedRegex("""<[^>]+>""")]
     private static partial Regex Tags();
 }
+
+/// <summary>The caller cancelled after starting the KMail POST. Delivery may have occurred.</summary>
+public sealed class KoLMailCanceledAfterSendException(OperationCanceledException inner, CancellationToken cancellationToken)
+    : OperationCanceledException("KMail delivery is unknown because the send was cancelled.", inner, cancellationToken);
 
 /// <summary>Result of a KMail send whose POST may have reached KoL.</summary>
 public enum KoLMailSendOutcome

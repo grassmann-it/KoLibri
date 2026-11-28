@@ -34,11 +34,18 @@ public sealed class MallCoordinatorWiringTests
     {
         public int Buys;
         public PurchaseQuote? Last;
-        public Task<PurchaseResult> BuyAsync(PurchaseQuote quote, CancellationToken ct)
+        public async Task<PurchaseResult> BuyAsync(PurchaseQuote quote,
+            Func<CancellationToken, ValueTask<GuardDecision>>? beforeEachSend, CancellationToken ct)
         {
+            if (beforeEachSend is not null && await beforeEachSend(ct) is { Allowed: false } denied)
+            {
+                var line = quote.Plan[0];
+                return new PurchaseResult(PurchaseStatus.Refused, 0, 0,
+                    [new PurchaseLine(line.StoreId, line.UnitPrice, line.Quantity, 0, denied.Reason)]);
+            }
             Buys++;
             Last = quote;
-            return Task.FromResult(respond(quote));
+            return respond(quote);
         }
 
         public static FakeMall Delivering() => new(q => new PurchaseResult(PurchaseStatus.Bought, q.PlannedQuantity,
@@ -48,7 +55,7 @@ public sealed class MallCoordinatorWiringTests
     [Fact]
     public async Task ServiceReadsMeatAndInventoryFresh()
     {
-        var service = new DesktopMallPurchaseService(FakeMall.Delivering().BuyAsync, new FakeReads(10_000, 2));
+        var service = new DesktopMallPurchaseService(new FakeReads(10_000, 2), FakeMall.Delivering().BuyAsync);
         var reading = await service.ReadAccountAsync(default);
         Assert.True(reading.Fresh);
         Assert.Equal(10_000, reading.Meat);
@@ -83,7 +90,7 @@ public sealed class MallCoordinatorWiringTests
         mall ??= FakeMall.Delivering();
         var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost()); // log writes serialized like the UI thread
         ledger ??= new MallSpendLedger(new FixedTime());
-        var service = new DesktopMallPurchaseService(mall.BuyAsync, new FakeReads(10_000, 0));
+        var service = new DesktopMallPurchaseService(new FakeReads(10_000, 0), mall.BuyAsync);
         var queue = new MallBuyQueue("Mallbot", ledger, log, verifyDelay: TimeSpan.Zero, batchWait: TimeSpan.Zero);
         var coordinator = new MallPurchaseCoordinator("Mallbot",
             _ => Task.FromResult<DesktopMallPurchaseService?>(signedIn ? service : null),
@@ -141,7 +148,7 @@ public sealed class MallCoordinatorWiringTests
             Assert.True(new MallSpendLedger(new FixedTime(), path).TryReserve("Mallbot", 40, null, out _, out _));   // another process
             var ledger = new MallSpendLedger(new FixedTime(), path);
             var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
-            var service = new DesktopMallPurchaseService(FakeMall.Delivering().BuyAsync, new FakeReads(10_000, 0),
+            var service = new DesktopMallPurchaseService(new FakeReads(10_000, 0), FakeMall.Delivering().BuyAsync,
                 new DesktopMallPurchaseOptions { MaxDailySpend = 100, MaxMeatPerPurchase = 1_000, MaxQuantityPerPurchase = 5 });
             var prompt = new Prompt(false);
             var coordinator = new MallPurchaseCoordinator("Mallbot",

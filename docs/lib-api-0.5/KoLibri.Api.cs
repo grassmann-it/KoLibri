@@ -631,8 +631,15 @@ namespace KoLibri
         public Task<MallOffers> GetOffersAsync(ItemRef item, bool refresh = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         /// <summary>Plant einen Kauf gegen frische Angebote; kein Request an einen Shop.</summary>
         public Task<PurchaseQuote> QuoteAsync(PurchaseOrder order, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+#pragma warning disable RS0027 // Preserve the existing optional token. The gated overload requires all three arguments.
         /// <summary>Kauft laut Quote. Liest Preise neu, kauft nie über MaxUnitPrice, prüft danach Inventar und Meat.</summary>
         public Task<PurchaseResult> BuyAsync(PurchaseQuote quote, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+#pragma warning restore RS0027
+
+        /// <summary>Prüft unmittelbar vor jedem Kauf-POST, ob er gesendet werden darf.</summary>
+        public Task<PurchaseResult> BuyAsync(PurchaseQuote quote, Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend,
+            CancellationToken cancellationToken) => throw new NotImplementedException();
+
         /// <summary>Quote und Kauf in einem Schritt.</summary>
         public Task<PurchaseResult> QuoteAndBuyAsync(PurchaseOrder order, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         /// <summary>Preisverlauf von pricegun.loathers.net (gecacht, gedrosselt). Null bei Fehler.</summary>

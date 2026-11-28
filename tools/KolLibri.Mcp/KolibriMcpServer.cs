@@ -48,9 +48,13 @@ public partial class KolibriMcpServer
     public McpToolRegistry Tools => _registry;
 
     /// <summary>Handles one already parsed JSON-RPC request and returns a response.</summary>
-    public async Task<JsonElement?> HandleAsync(
+    public Task<JsonElement?> HandleAsync(
         JsonElement request,
         CancellationToken cancellationToken = default)
+        => HandleAsync(request, cancellationToken, cancellationToken);
+
+    private async Task<JsonElement?> HandleAsync(
+        JsonElement request, CancellationToken cancellationToken, CancellationToken hostCancellationToken)
     {
         if (request.ValueKind != JsonValueKind.Object)
             return ErrorResponse(null, -32600, "JSON-RPC request must be an object.");
@@ -99,7 +103,7 @@ public partial class KolibriMcpServer
                     return isNotification ? null : ErrorResponse(id, -32601, $"Method '{method}' is not supported.");
             }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!hostCancellationToken.IsCancellationRequested)
         {
             return isNotification ? null : ErrorResponse(id, -32000, "Request timed out.");
         }
@@ -107,7 +111,7 @@ public partial class KolibriMcpServer
         {
             return isNotification ? null : ErrorResponse(id, -32602, exception.Message);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             return isNotification ? null : ErrorResponse(id, -32001, SanitizeError(exception));
         }
@@ -148,7 +152,7 @@ public partial class KolibriMcpServer
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(_options.RequestTimeout);
-                response = await HandleAsync(inbound.Document.RootElement, timeout.Token).ConfigureAwait(false);
+                response = await HandleAsync(inbound.Document.RootElement, timeout.Token, cancellationToken).ConfigureAwait(false);
             }
 
             if (response is { } value)
@@ -229,7 +233,8 @@ public partial class KolibriMcpServer
                 }));
             }
             catch (McpInvalidParamsException exception) { return ToolErrorResponse(id, exception.Message); }
-            catch (Exception exception) { return ToolErrorResponse(id, SanitizeError(exception)); }
+            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            { return ToolErrorResponse(id, SanitizeError(exception)); }
         }
 
         var confirmed = false;
@@ -254,7 +259,7 @@ public partial class KolibriMcpServer
         {
             return ToolErrorResponse(id, exception.Message);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return ToolErrorResponse(id, SanitizeError(exception));
         }

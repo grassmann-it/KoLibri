@@ -76,6 +76,23 @@ internal sealed class FakeKol : HttpMessageHandler
     }
 }
 
+/// <summary>Keeps the session action lane occupied until the test releases the hold request.</summary>
+internal sealed class HeldActionLane(HttpMessageHandler inner) : DelegatingHandler(inner)
+{
+    public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (request.RequestUri?.AbsolutePath != "/hold.php")
+            return await base.SendAsync(request, cancellationToken);
+
+        Started.TrySetResult();
+        await Release.Task.WaitAsync(cancellationToken);
+        return FakeKol.Html("ok");
+    }
+}
+
 internal sealed class MemoryAccountStore : IAccountStore
 {
     private readonly Dictionary<string, AccountRecord> _records = new(StringComparer.OrdinalIgnoreCase);
@@ -127,7 +144,7 @@ internal sealed class RecordingGuard : IActionGuard
 
 internal static class TestClient
 {
-    public static KolibriClient Create(FakeKol kol, IAccountStore? store = null, IActionGuard? guard = null, string? state = null)
+    public static KolibriClient Create(HttpMessageHandler kol, IAccountStore? store = null, IActionGuard? guard = null, string? state = null)
         => KolibriClient.Create(new KolibriOptions
         {
             HttpHandler = kol,
