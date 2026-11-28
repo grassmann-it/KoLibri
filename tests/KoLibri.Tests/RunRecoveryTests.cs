@@ -36,6 +36,9 @@ public sealed class RunRecoveryTests
                 Inventory[2] = Inventory.GetValueOrDefault(2) + 1;
                 return FakeKol.Html(ActionTests.FightWon);
             });
+            Kol.On("GET campground.php", (_, _) => FakeKol.Html(RestCost == 0
+                ? "<a href='campground.php?action=rest'><img src='/otherimages/campground/rest4tp_free.gif'></a>"
+                : "<a href='campground.php?action=rest'><img src='/otherimages/campground/rest4tp.gif'></a>"));
             Kol.On("POST campground.php", (_, _) =>
             {
                 if (RestWorks) { Hp = MaxHp; Mp = MaxMp; Adventures -= RestCost; return FakeKol.Html("<html><body>You rest and feel much better.</body></html>"); }
@@ -111,17 +114,19 @@ public sealed class RunRecoveryTests
     [Fact]
     public async Task Paid_rests_are_reported_and_bounded_by_max_recovery_adventures()
     {
-        // Free rests are used up: every rest costs an adventure. Default budget 0: the first paid rest is seen in the
-        // answer and reported, then the run stops instead of resting on.
+        // A fresh session with zero budget must stop before the first paid rest.
         var farm = new Farm { Hp = 40, RestCost = 1 };
         var policy = RecoveryPolicies.Simple(50, 0, new[] { RecoveryStep.Rest }, Array.Empty<RecoveryStep>());
 
         var result = await farm.RunAsync(new RunRequest(113, 5) { Recovery = policy });
 
         Assert.Equal(RunStopReason.Recovery, result.StopReason);
-        Assert.Equal(1, result.RecoveryAdventuresSpent);
+        Assert.Contains("MaxRecoveryAdventures budget is used up", result.Detail);
+        Assert.Equal(0, result.RecoveryAdventuresSpent);
         Assert.Equal(0, result.TurnsSpent);
-        Assert.Equal(1, farm.Kol.Count("POST", "campground.php"));
+        Assert.Equal(0, farm.Kol.Count("POST", "campground.php"));
+        Assert.Equal(0, farm.Kol.Count("POST", "adventure.php"));
+        Assert.Equal(50, farm.Adventures);
 
         // With a budget of 2, two paid rests are allowed; the third is refused before it is sent.
         var budgeted = new Farm { Hp = 40, RestCost = 1, Damage = 70 };

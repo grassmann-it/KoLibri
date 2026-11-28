@@ -707,7 +707,7 @@ internal static partial class KolibriCli
         Console.WriteLine("      choices: --choice-action CHOICE:OPTION plus the defaults of `choice policy`; an unknown choice stops with needsDecision (exit 4)");
         Console.WriteLine("      farm flags: --combat-rules \"TEXT\" | --combat-rules-file PATH (instead of --fight-action; --min-hp-percent still applies),");
         Console.WriteLine("      --recover-hp PCT:STEP[,STEP] --recover-mp PCT:STEP[,STEP] --upkeep EFFECT_ID:MINTURNS:STEP (repeatable); STEP = rest | item:ID|NAME | skill:ID|NAME,");
-        Console.WriteLine("      --max-recovery-adventures N (0): adventures paid rests may cost on top of --max-turns (the first paid rest is seen in KoL's answer, then the run stops),");
+        Console.WriteLine("      --max-recovery-adventures N (0): paid-rest budget on top of --max-turns. With no budget left, only rests shown as free are sent.");
         Console.WriteLine("      --stop-item ID|NAME:N --stop-monster NAME --stop-title REGEX (repeatable), --stop-on-turtle (Turtle Tamer encounters are clicked through by default),");
         Console.WriteLine("      --no-choice-defaults (built-in farm choices such as 1060 -> 2 are on by default)");
         Console.WriteLine("      farm recipe: kolibri adventure run --location 439 --max-turns 50 --combat-rules \"attack\" --recover-hp 40:rest --stop-item knucklebone:200 --execute --approval-token TOKEN");

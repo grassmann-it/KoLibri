@@ -194,6 +194,40 @@ public sealed class CombatStrategyTests
         Assert.All(posts.Skip(1), r => Assert.Equal("action=attack", r.Form));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Single_round_history_counts_item_uses_from_the_rule_that_selected_them(bool sharedBudget)
+    {
+        var limit = sharedBudget ? 2 : 1;
+        var budget = sharedBudget ? "\"budget\": { \"maxItemUses\": 1 }," : "";
+        var strategy = CombatStrategies.FromRules($$"""
+            { {{budget}} "rules": [
+                { "id": "A", "when": { "minRound": 1 }, "action": "item 2", "maxUses": {{limit}} },
+                { "id": "B", "when": { "minRound": 99 }, "action": "item 2" }
+            ], "default": "attack" }
+            """);
+        var kol = new FakeKol()
+            .On("GET main.php", (_, _) => FakeKol.Redirect("fight.php"))
+            .On("GET fight.php", ActionTests.FightRound1)
+            .On("POST fight.php", ActionTests.FightRound1)
+            .On("POST fight.php", ActionTests.FightWon);
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+        var fight = Assert.IsType<FightEncounter>(await session.Adventure.GetOpenEncounterAsync());
+        var first = new CombatContext(fight, 1, 100, 100, 40, 50, Array.Empty<FightRound>());
+
+        var round = await session.Adventure.FightAsync(strategy.Next(first));
+        var next = strategy.Next(first with { Round = 2, History = new[] { round } });
+
+        Assert.Equal(CombatAction.Item(2), round.Action);
+        Assert.Equal(sharedBudget ? CombatAction.Stop : CombatAction.Attack, next);
+        if (!sharedBudget) await session.Adventure.FightAsync(next);
+        var expected = sharedBudget ? new[] { "action=useitem&whichitem=2" } : new[] { "action=useitem&whichitem=2", "action=attack" };
+        Assert.Equal(expected,
+            kol.Requests.Where(r => r.Method == "POST" && r.Path == "/fight.php").Select(r => r.Form));
+    }
+
     [Fact]
     public async Task A_turtle_fight_is_handed_back_without_a_request()
     {

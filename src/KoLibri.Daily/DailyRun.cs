@@ -4,7 +4,10 @@ using System.Text.RegularExpressions;
 namespace KoLibri.Daily;
 
 /// <summary>One planned daily step, as the 0.4 CLI printed it: kind ("choice"/"item"), id, option.</summary>
-public sealed record DailyStep(string Kind, string Id, string? Option);
+public sealed record DailyStep(string Kind, string Id, string? Option)
+{
+    internal int? HermitCloverTarget { get; init; }
+}
 
 /// <summary>The live numbers behind a daily run (0.4: LiveDailySnapshot).</summary>
 public sealed record DailyRunLive
@@ -204,9 +207,10 @@ public static class DailyRun
         // 2. Hermit: count trades confirmed today towards the requested daily total.
         if (!skipHermit && !live.HermitDoneToday)
         {
-            var remaining = Math.Clamp(options.HermitCloversWanted, 0, HermitDailyStock) - live.HermitCloversDoneToday;
+            var target = Math.Clamp(options.HermitCloversWanted, 0, HermitDailyStock);
+            var remaining = target - live.HermitCloversDoneToday;
             for (var i = 0; i < Math.Min(remaining, live.WorthlessItems); i++)
-                steps.Add(new DailyStep("choice", "choice-clover", "1"));
+                steps.Add(new DailyStep("choice", "choice-clover", "1") { HermitCloverTarget = target });
         }
 
         // 3. Internet Meme Shop: push the machine once, then the once-per-day items while BACON lasts.
@@ -284,7 +288,7 @@ public static class DailyRun
     public static Task<DailyRunResult> ExecuteAsync(KolibriSession session, IReadOnlyList<DailyStep> steps, CancellationToken cancellationToken = default)
         => ExecuteAsync(session, steps, null, cancellationToken);
 
-    /// <summary>Sends the planned steps; <paramref name="options"/> gives the Cargo price lookups for an "auto" pocket.</summary>
+    /// <summary>Sends the planned steps. <paramref name="options"/> provides the Hermit daily target and Cargo price lookups.</summary>
     public static async Task<DailyRunResult> ExecuteAsync(KolibriSession session, IReadOnlyList<DailyStep> steps, DailyRunOptions? options,
         CancellationToken cancellationToken = default)
     {
@@ -296,8 +300,6 @@ public static class DailyRun
         var pulls = new FreePulls(session);
         var failed = new List<string>();
         var executed = 0;
-
-        int? cloversDone = null;
 
         foreach (var step in choiceSteps)
         {
@@ -317,10 +319,15 @@ public static class DailyRun
             {
                 var clover = step.Id == "choice-clover";
                 var leaves = step.Id == "choice-day-shortner" ? DayShortenerLeafCost : 1;
+                using var tradeLock = clover
+                    ? await session.Daily.LockActionAsync(Markers.HermitClovers, cancellationToken).ConfigureAwait(false)
+                    : null;
+                var cloversDone = 0;
                 if (clover)
                 {
-                    cloversDone ??= session.Daily.IsDone(Markers.HermitClovers) ? HermitDailyStock : ConfirmedClovers(session.Daily);
-                    if (cloversDone >= HermitDailyStock) continue;
+                    var target = Math.Clamp(options?.HermitCloversWanted ?? step.HermitCloverTarget ?? HermitDailyStock, 0, HermitDailyStock);
+                    cloversDone = ConfirmedClovers(session.Daily);
+                    if (cloversDone >= target) continue;
                     if (step.Option is not (null or "1"))
                         throw new InvalidOperationException("Pro Schritt ist genau ein Kleeblatt vorgesehen.");
                 }
@@ -343,9 +350,9 @@ public static class DailyRun
                     executed++;
                     if (step.Id == "choice-day-shortner") session.Daily.MarkDone(Markers.DayShortener);
                     if (step.Id == "choice-campfire") session.Daily.MarkDone(Markers.CampfireLeaf);
-                    if (cloversDone is { } count && clover)
+                    if (clover)
                     {
-                        cloversDone = ++count;
+                        var count = cloversDone + 1;
                         session.Daily.MarkDone(Markers.HermitClover(count));
                         if (count == HermitDailyStock) session.Daily.MarkDone(Markers.HermitClovers);
                     }
@@ -383,16 +390,14 @@ public static class DailyRun
         return new DailyRunResult(executed > 0, executed + failed.Count, executed, failed) { Steps = reports };
     }
 
-    /// <summary>
-    /// Whether KoL's answer shows the step's result: the Hermit trade gives "You acquire" an 11-leaf clover, the leaf
-    /// burn gives "You acquire" (Day Shortener, campfire reward). Anything else is unclear, not a success.
-    /// </summary>
     private static int ConfirmedClovers(DailyMarkers daily)
     {
         var done = daily.DoneToday();
+        if (done.Contains(Markers.HermitClovers)) return HermitDailyStock;
         return Enumerable.Range(1, HermitDailyStock).Count(trade => done.Contains(Markers.HermitClover(trade)));
     }
 
+    /// <summary>Whether KoL's answer shows the clover, Day Shortener or campfire reward.</summary>
     private static bool Confirmed(string stepId, string body)
     {
         var item = stepId switch
@@ -425,17 +430,8 @@ public static class DailyRun
             {
                 sent = true;
                 var pushed = await pulls.UseBaconMachineAsync(pwd, cancellationToken).ConfigureAwait(false);
-                var spent = pushed.BodySnippet.Contains("nothing happens", StringComparison.OrdinalIgnoreCase)
-                    || pushed.BodySnippet.Contains("no more bacon", StringComparison.OrdinalIgnoreCase)
-                    || pushed.BodySnippet.Contains("regenerate", StringComparison.OrdinalIgnoreCase)
-                    || pushed.BodySnippet.Contains("until tomorrow", StringComparison.OrdinalIgnoreCase)
-                    || pushed.BodySnippet.Contains("fill back up", StringComparison.OrdinalIgnoreCase);
-                // KoL answers a successful push with a redirect to the inventory message page.
-                var redirected = pushed.StatusCode is >= 200 and < 300
-                    && (pushed.Location?.Contains("inventory.php", StringComparison.OrdinalIgnoreCase) ?? false);
-                var ok = pushed.Accepted || redirected;
-                if (ok || spent) session.Daily.MarkDone(Markers.BaconMachine);
-                return (ok, pushed.BodySnippet, !ok && !spent && pushed.StatusCode >= 500);
+                if (pushed.Accepted || pushed.AlreadyUsed) session.Daily.MarkDone(Markers.BaconMachine);
+                return (pushed.Accepted, pushed.BodySnippet, !pushed.Accepted && !pushed.AlreadyUsed && pushed.StatusCode >= 500);
             }
 
             var item = step.Option ?? "";
@@ -469,7 +465,7 @@ internal sealed record RawAnswer(int StatusCode, string Body, string? Location)
     public bool IsSuccess => StatusCode is >= 200 and < 300;
 }
 
-internal sealed record FreePullResult(int StatusCode, bool Accepted, string BodySnippet, string? Location);
+internal sealed record FreePullResult(int StatusCode, bool Accepted, string BodySnippet, bool AlreadyUsed = false);
 
 /// <summary>
 /// The daily requests of 0.4's FreePullDispatcher on the public session API.
@@ -521,8 +517,20 @@ internal sealed class FreePulls(KolibriSession session)
         return await PostAsync("choice.php", form, ct).ConfigureAwait(false);
     }
 
-    public Task<FreePullResult> UseBaconMachineAsync(string pwd, CancellationToken ct)
-        => GetResultAsync($"inv_use.php?which=3&whichitem={MemeShopCatalog.InfiniteBaconMachineItemId}&pwd={pwd}", ct);
+    public async Task<FreePullResult> UseBaconMachineAsync(string pwd, CancellationToken ct)
+    {
+        var answer = await GetAsync($"inv_use.php?which=3&whichitem={MemeShopCatalog.InfiniteBaconMachineItemId}&pwd={pwd}", ct)
+            .ConfigureAwait(false);
+        var gained = answer.IsSuccess && DailyGains.Parse(answer.Body).Any(gain =>
+            gain.Equals("BACON", StringComparison.OrdinalIgnoreCase) || gain.EndsWith("× BACON", StringComparison.OrdinalIgnoreCase));
+        var text = System.Net.WebUtility.HtmlDecode(Regex.Replace(answer.Body, "<[^>]+>", " "));
+        var spent = answer.IsSuccess && BaconMachineEmpty.IsMatch(text);
+        return new FreePullResult(answer.StatusCode, gained, Snippet(answer), spent);
+    }
+
+    private static readonly Regex BaconMachineEmpty = new(
+        @"\bno\s+more\s+bacon\b|\b(?:push|press)\s+the\s+button\b[^.!?]{0,100}\bnothing\s+happens\b|\b(?:bacon|machine)\b[^.!?]{0,100}\b(?:regenerate|until\s+tomorrow|fill\s+back\s+up)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public async Task<MemeShopPage> ReadMemeShopAsync(CancellationToken ct)
         => MemeShopPage.Parse((await GetAsync("shop.php?whichshop=" + MemeShopCatalog.ShopId, ct).ConfigureAwait(false)).Body);
@@ -533,13 +541,14 @@ internal sealed class FreePulls(KolibriSession session)
     private async Task<FreePullResult> GetResultAsync(string path, CancellationToken ct)
     {
         var answer = await GetAsync(path, ct).ConfigureAwait(false);
-        var snippet = string.IsNullOrWhiteSpace(answer.Body)
-            ? $"(empty body, HTTP {answer.StatusCode}, location {answer.Location ?? "none"})"
-            : Snippet(answer.Body);
         // A real change shows "You acquire ..."; an empty or error page is not success.
         return new FreePullResult(answer.StatusCode, answer.IsSuccess && answer.Location is null
-            && answer.Body.Contains("acquire", StringComparison.OrdinalIgnoreCase), snippet, answer.Location);
+            && answer.Body.Contains("acquire", StringComparison.OrdinalIgnoreCase), Snippet(answer));
     }
+
+    private static string Snippet(RawAnswer answer) => string.IsNullOrWhiteSpace(answer.Body)
+        ? $"(empty body, HTTP {answer.StatusCode}, location {answer.Location ?? "none"})"
+        : Snippet(answer.Body);
 
     private static readonly string[] Markers =
     {

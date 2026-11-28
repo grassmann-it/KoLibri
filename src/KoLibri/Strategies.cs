@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using CoreSpiel = KoLibri.Core.Spiel;
 
@@ -29,6 +30,17 @@ namespace KoLibri
 
     public sealed record CombatAction(CombatActionKind Kind, int? Id = null, int? SecondId = null, string? Macro = null)
     {
+        // Keep the decision context on this action instance without changing record equality.
+        private static readonly ConditionalWeakTable<CombatAction, CombatContext> DecisionContexts = new();
+        internal CombatContext? Before => DecisionContexts.TryGetValue(this, out var context) ? context : null;
+
+        internal CombatAction WithContext(CombatContext context)
+        {
+            var action = this with { };
+            DecisionContexts.Add(action, context with { History = Array.Empty<FightRound>() });
+            return action;
+        }
+
         public static CombatAction Attack { get; } = new(CombatActionKind.Attack);
         public static CombatAction RunAway { get; } = new(CombatActionKind.RunAway);
         /// <summary>Kampf an den Menschen zurückgeben (Browser/Encounter-Ansicht).</summary>
@@ -210,7 +222,7 @@ namespace KoLibri
                     };
                     usage = usage.After(new CoreSpiel.AutoCombatDecision { Action = new(kind), RuleId = ruleId });
                 }
-                return ToAction(Decide(context, Context(context), usage).Action);
+                return ToAction(Decide(context, Context(context), usage).Action).WithContext(context);
             }
 
             private string? RuleFor(FightRound round, CoreSpiel.AutoCombatUsage usage)

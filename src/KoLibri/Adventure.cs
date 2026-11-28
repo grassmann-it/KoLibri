@@ -11,8 +11,6 @@ namespace KoLibri
         private readonly KolibriSession _session;
         private FightEncounter? _fight;
         private CoreSpiel.CombatObservation? _lastObservation;
-        // Free rests stay exhausted for the KoL day, including when the CLI runs one turn at a time.
-        private DateOnly? _paidRestDay;
         /// <summary>Last trustworthy player HP/MP (api status, or explicit HP markup on the fight page).</summary>
         private (int Hp, int Mp)? _knownVitals;
 
@@ -70,7 +68,12 @@ namespace KoLibri
                 Path = "fight.php"
             };
             ValidateAction(action);
-            return _session.GuardAsync(guarded, () => FightCoreAsync(action, cancellationToken), r => r.Outcome != FightOutcome.Unknown, cancellationToken);
+            var before = action.Before;
+            return _session.GuardAsync(guarded, async () =>
+            {
+                var round = await FightCoreAsync(action, cancellationToken).ConfigureAwait(false);
+                return round with { Before = before };
+            }, r => r.Outcome != FightOutcome.Unknown, cancellationToken);
         }
 
         /// <summary>Kämpft mit der Strategie bis Sieg, Niederlage, Flucht oder CombatAction.Stop.</summary>
@@ -552,7 +555,7 @@ namespace KoLibri
 #pragma warning restore KOLIBRI0001
                 // FightAsync already carries the player's HP/MP (page markup or one status read, see WithPlayerVitalsAsync).
                 var round = await FightAsync(action, cancellationToken).ConfigureAwait(false);
-                rounds.Add(round with { Before = context with { History = Array.Empty<FightRound>() } });
+                rounds.Add(round.Before is null ? round with { Before = context with { History = Array.Empty<FightRound>() } } : round);
                 hp = round.Hp;
                 mp = round.Mp;
                 outcome = round.Outcome;
@@ -789,12 +792,16 @@ namespace KoLibri
 
         private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail);
 
+        // KoL marks the dwelling icon with _free when the next campground rest is free.
+        private static readonly Regex FreeRestIcon = new(
+            @"<img\b[^>]*\s+src\s*=\s*['""]?[^\s'""<>]*/rest[\da-z](?:tp)?_free\.gif(?=[\s'"">])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
         /// <summary>
         /// Asks the policy for steps before a new turn, runs each through <see cref="CharacterActions"/>, re-reads the status
         /// and repeats until the policy says None or the limit is reached. A step without progress ends the run: no guessing, no endless loop.
         /// Steps that cost adventures (a rest once the free rests are used up) are bounded by <paramref name="adventureBudget"/>:
-        /// KoL only shows that a rest was paid in its answer, so the first paid rest is seen afterwards; from then on every
-        /// further rest is known to cost one and is refused before it is sent when the budget is used up.
+        /// With no budget left, a rest requires a free-rest icon on the current campground page.
         /// </summary>
         private async Task<RecoveryOutcome> RecoverAsync(IRecoveryPolicy policy, int limit, Status status, List<RecoveryStep> log,
             int adventureBudget, CancellationToken cancellationToken)
@@ -817,9 +824,16 @@ namespace KoLibri
                 if (step.Kind == RecoveryStepKind.None) break;
                 if (step.Kind == RecoveryStepKind.Stop)
                     return new(status, spent, step.Reason ?? "The recovery policy asked to stop.");
-                var restDay = step.Kind == RecoveryStepKind.Rest ? _session.Daily.GameDay : (DateOnly?)null;
-                if (restDay is { } day && _paidRestDay == day && spent >= adventureBudget)
-                    return new(status, spent, PaidRestStop(adventureBudget, spent));
+                using var restLock = step.Kind == RecoveryStepKind.Rest
+                    ? await _session.Daily.LockActionAsync("recovery-rest", cancellationToken).ConfigureAwait(false)
+                    : null;
+                if (restLock is not null && spent >= adventureBudget)
+                {
+                    var campground = await Get("campground.php", cancellationToken).ConfigureAwait(false);
+                    if (!campground.Url.AbsolutePath.EndsWith("/campground.php", StringComparison.OrdinalIgnoreCase)
+                        || !FreeRestIcon.IsMatch(campground.Html))
+                        return new(status, spent, "The MaxRecoveryAdventures budget is used up and KoL does not show a free campground rest. Stopping before resting.");
+                }
                 var result = step.Kind switch
                 {
                     RecoveryStepKind.Rest => await _session.Character.RestAsync(1, cancellationToken).ConfigureAwait(false),
@@ -833,22 +847,16 @@ namespace KoLibri
                 var after = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
                 var cost = Math.Max(0, status.Adventures - after.Adventures);
                 spent += cost;
-                if (cost > 0 && restDay is not null) _paidRestDay = restDay;
                 if (result.Status is ActionStatus.Rejected or ActionStatus.Unclear || result.Completed < 1)
                     return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}");
                 if (!MadeProgress(status, after))
                     return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.");
                 if (spent > adventureBudget)
-                    return new(after, spent, PaidRestStop(adventureBudget, spent));
+                    return new(after, spent, "Recovery cost more adventures than the remaining MaxRecoveryAdventures budget. Stopping recovery.");
                 status = after;
             }
             return new(status, spent, null);
         }
-
-        private static string PaidRestStop(int budget, int spent)
-            => spent > budget
-                ? "A rest cost an adventure (the free rests are used up), more than MaxRecoveryAdventures allows; no further paid rest is sent."
-                : "Rests are no longer free and the MaxRecoveryAdventures budget is used up; stopping before a paid rest.";
 
         private static bool MadeProgress(Status before, Status after)
         {
@@ -1045,8 +1053,8 @@ namespace KoLibri
         public int MaxRecoveryStepsPerTurn { get; init; } = 5;
         /// <summary>
         /// Adventures, die die Erholung über den ganzen Lauf höchstens kosten darf (bezahlte Rasten, sobald die freien
-        /// verbraucht sind); sie zählen nicht zu MaxTurns. Standard 0: keine bezahlten Rasten. KoL zeigt erst an der
-        /// Antwort, dass eine Rast bezahlt war; diese eine wird gemeldet (RecoveryAdventuresSpent), danach stoppt der Lauf.
+        /// verbraucht sind); sie zählen nicht zu MaxTurns. Standard 0: Rasten sind nur erlaubt, wenn der Campingplatz
+        /// die nächste Rast als frei ausweist. Das gilt auch, sobald ein positives Budget verbraucht ist.
         /// </summary>
         public int MaxRecoveryAdventures { get; init; }
     }

@@ -77,19 +77,20 @@ internal sealed class FakeKol : HttpMessageHandler
 }
 
 /// <summary>Keeps the session action lane occupied until the test releases the hold request.</summary>
-internal sealed class HeldActionLane(HttpMessageHandler inner) : DelegatingHandler(inner)
+internal sealed class HeldActionLane(HttpMessageHandler inner, string heldPath = "/hold.php") : DelegatingHandler(inner)
 {
     public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.RequestUri?.AbsolutePath != "/hold.php")
-            return await base.SendAsync(request, cancellationToken);
-
-        Started.TrySetResult();
-        await Release.Task.WaitAsync(cancellationToken);
-        return FakeKol.Html("ok");
+        if (request.RequestUri?.AbsolutePath == heldPath)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            if (heldPath == "/hold.php") return FakeKol.Html("ok");
+        }
+        return await base.SendAsync(request, cancellationToken);
     }
 }
 

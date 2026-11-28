@@ -191,7 +191,7 @@ internal static partial class KolibriCli
         var choice = stopped || unknown ? null : await OpenAfterFightAsync(session);
         WriteJson(new
         {
-            command = "adventure fight", readOnly = false, executed = true, role = role.ToString(), action = actionText, untilEnd = true,
+            command = "adventure fight", readOnly = false, executed = result.Rounds.Count > 0, role = role.ToString(), action = actionText, untilEnd = true,
             monster = result.MonsterName, outcome = result.Outcome.ToString(), stopReason, rounds = result.Rounds.Select(RoundDocument).ToArray(),
             openFight = unknown ? (bool?)null : stopped,
             openChoice = choice is null ? null : OpenChoiceDocument(choice, role), items = ItemsDocument(result.Items), meat = result.Meat,

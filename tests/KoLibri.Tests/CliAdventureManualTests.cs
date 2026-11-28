@@ -266,6 +266,7 @@ public sealed class CliAdventureManualTests : IDisposable
 
         Assert.Equal(3, code);
         Assert.Equal("Unknown", json.GetProperty("outcome").GetString());
+        Assert.Equal(startsOpen, json.GetProperty("executed").GetBoolean());
         Assert.Equal(startsOpen ? 1 : 0, _kol.Count("POST", "fight.php"));
     }
 

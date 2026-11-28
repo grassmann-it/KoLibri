@@ -224,6 +224,9 @@ public sealed class CliAdventureFarmTests : IDisposable
                 Adventures--; Choices.Add(form);
                 return FakeKol.Html("<html><body><b>Bone Store</b><p>You leave.</p></body></html>");
             });
+            kol.On("GET campground.php", restCost == 0
+                ? "<a href=campground.php?action=rest><img src=/otherimages/campground/rest1_free.gif></a>"
+                : "<a href=campground.php?action=rest><img src=/otherimages/campground/rest1.gif></a>");
             kol.On("POST campground.php", (_, _) =>
             {
                 Hp = 100; Rests++; Adventures -= restCost;
@@ -233,24 +236,28 @@ public sealed class CliAdventureFarmTests : IDisposable
     }
 
     [Theory]
-    [InlineData(0, 2, "Complete")]
-    [InlineData(1, 1, "Recovery")]
+    [InlineData(0, 0, 2, "Complete")]
+    [InlineData(1, 0, 0, "Recovery")]
+    [InlineData(1, 1, 1, "Recovery")]
     public async Task Recovery_runs_before_the_hp_floor_and_respects_the_paid_budget_across_turns(
-        int restCost, int expectedRests, string expectedStop)
+        int restCost, int budget, int expectedRests, string expectedStop)
     {
         var token = await MintTokenAsync();
         _ = new Farm(_kol, damage: 85, restCost: restCost, skeletonStore: false);
 
         var (code, json, error) = await Run("run", "--location", "439", "--max-turns", "3", "--recover-hp", "40:rest",
-            "--max-recovery-adventures", "1", "--execute", "--approval-token", token);
+            "--max-recovery-adventures", budget.ToString(CultureInfo.InvariantCulture), "--execute", "--approval-token", token);
 
         Assert.True(code == 0, error + json);
         Assert.Equal(expectedStop, json.GetProperty("stopReason").GetString());
-        Assert.Equal(restCost, json.GetProperty("recoveryAdventuresSpent").GetInt32());
+        Assert.Equal(restCost * expectedRests, json.GetProperty("recoveryAdventuresSpent").GetInt32());
         Assert.Equal(expectedRests, _kol.Count("POST", "campground.php"));
         Assert.Equal(expectedRests + 1, _kol.Count("POST", "adventure.php"));
-        Assert.Equal(new[] { "/adventure.php", "/fight.php", "/campground.php", "/adventure.php", "/fight.php" },
-            _kol.Requests.Where(r => r.Method == "POST").Take(5).Select(r => r.Path.Split('?')[0]));
+        if (expectedStop == "Recovery")
+            Assert.Contains("MaxRecoveryAdventures budget is used up", json.GetProperty("detail").GetString());
+        var firstPosts = expectedRests == 0 ? new[] { "/adventure.php", "/fight.php" }
+            : new[] { "/adventure.php", "/fight.php", "/campground.php", "/adventure.php", "/fight.php" };
+        Assert.Equal(firstPosts, _kol.Requests.Where(r => r.Method == "POST").Take(5).Select(r => r.Path.Split('?')[0]));
     }
 
     [Theory]

@@ -156,7 +156,9 @@ stored session). Commands that were removed in 0.5 (`daily-audit`, `combat`, `au
 authoritative list.
 
 Farm flags for `adventure run`: `--combat-rules`, `--recover-hp PCT:STEP`, `--upkeep`, `--stop-item`, `--stop-monster`,
-`--stop-title`, `--stop-on-turtle`, `--no-choice-defaults`. `reprice` and `compare` are experimental.
+`--stop-title`, `--stop-on-turtle`, `--no-choice-defaults`. `--max-recovery-adventures N` budgets paid rests for the
+whole run. With the default of zero, the run rests only when the campground shows a free rest and stops with
+`Recovery` if it needs a rest and the campground shows none as free. `reprice` and `compare` are experimental.
 
 ## Desktop
 

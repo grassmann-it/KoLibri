@@ -11,13 +11,6 @@ namespace KoLibri.Tests;
 /// </summary>
 public sealed class McpAdventureToolsTests : IDisposable
 {
-    static McpAdventureToolsTests()
-    {
-        // Never read the user's real choice policy in tests.
-        Environment.SetEnvironmentVariable("KOLIBRI_CHOICE_POLICY",
-            Path.Combine(Path.GetTempPath(), "kolibri-no-policy-" + Guid.NewGuid().ToString("N") + ".json"));
-    }
-
     private readonly string _dir = Directory.CreateTempSubdirectory("kolibri-mcp-adv-").FullName;
     private readonly FakeKol _kol = new();
     private readonly McpAccounts _accounts;
@@ -52,7 +45,20 @@ public sealed class McpAdventureToolsTests : IDisposable
         return result.GetProperty("content")[0].GetProperty("text").GetString()!;
     }
 
-    private Task<JsonElement> Call(string tool, string arguments) => McpReadToolsTests.CallAsync(_server, tool, arguments);
+    private async Task<JsonElement> Call(string tool, string arguments)
+    {
+        const string variable = "KOLIBRI_CHOICE_POLICY";
+        var previous = Environment.GetEnvironmentVariable(variable);
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, Path.Combine(_dir, "choice-policy.json"));
+            return await McpReadToolsTests.CallAsync(_server, tool, arguments);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, previous);
+        }
+    }
 
     private void FightThenWin()
         => _kol.On("POST adventure.php", (_, _) => FakeKol.Redirect("https://www.kingdomofloathing.com/fight.php"))

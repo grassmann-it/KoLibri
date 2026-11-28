@@ -555,7 +555,7 @@ namespace KoLibri
         public IRecoveryPolicy Recovery { get; init; } = RecoveryPolicies.None;
         /// <summary>Obergrenze der Erholungsschritte vor einem Zug.</summary>
         public int MaxRecoveryStepsPerTurn { get; init; } = 5;
-        /// <summary>Adventures, die Erholung (bezahlte Rasten) höchstens kosten darf; 0 = keine bezahlten Rasten. Ergänzt im Review 0.5.</summary>
+        /// <summary>Zusätzliche Adventures für Erholung. Ohne Restbudget sind nur Rasten erlaubt, die KoL als frei ausweist. Standard: 0.</summary>
         public int MaxRecoveryAdventures { get; init; }
     }
 

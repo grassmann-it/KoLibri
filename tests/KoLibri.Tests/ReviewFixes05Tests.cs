@@ -312,6 +312,70 @@ public sealed class ReviewFixes05Tests
         });
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    public async Task Daily_hermit_overlapping_plans_share_the_requested_daily_target(int target, bool passOptions)
+    {
+        var state = Directory.CreateTempSubdirectory("kolibri-hermit-");
+        var firstKol = Hermit();
+        var secondKol = Hermit();
+        using var heldTrade = new HeldActionLane(firstKol, "/hermit.php");
+        await using var firstClient = TestClient.Create(heldTrade, state: state.FullName);
+        await using var secondClient = TestClient.Create(secondKol, state: state.FullName);
+        await using var first = await firstClient.OpenAsync("main");
+        await using var second = await secondClient.OpenAsync("main");
+        var options = new DailyRunOptions { HermitCloversWanted = target };
+        var firstPlan = DailyRun.Plan(await DailyRun.ReadAsync(first), options);
+        var secondPlan = DailyRun.Plan(await DailyRun.ReadAsync(second), options);
+        Assert.Equal(target, firstPlan.Count);
+        Assert.Equal(target, secondPlan.Count);
+
+        var firstRun = DailyRun.ExecuteAsync(first, firstPlan, passOptions ? options : null);
+        Task<DailyRunResult> secondRun;
+        try
+        {
+            await heldTrade.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            secondRun = DailyRun.ExecuteAsync(second, secondPlan, passOptions ? options : null);
+            Assert.False(secondRun.IsCompleted);
+            Assert.Equal(0, secondKol.Count("POST", "hermit.php"));
+        }
+        finally
+        {
+            heldTrade.Release.TrySetResult();
+        }
+        var runs = await Task.WhenAll(firstRun, secondRun);
+
+        Assert.All(runs, result => Assert.Empty(result.FailedSteps));
+        Assert.Equal(target, runs.Sum(result => result.SubmittedSteps));
+        Assert.Equal(target, firstKol.Count("POST", "hermit.php") + secondKol.Count("POST", "hermit.php"));
+        Assert.Empty(DailyRun.Plan(await DailyRun.ReadAsync(second), options));
+
+        static FakeKol Hermit() => new FakeKol().On("GET api.php?what=inventory", """{"43":3}""")
+            .On("POST hermit.php", "<html><body>You acquire an item: <b>11-leaf clover</b></body></html>");
+    }
+
+    [Theory]
+    [InlineData("<p>Ordinary inventory</p>", false, false)]
+    [InlineData("<p>You acquire an item: <b>seal tooth</b></p>", false, false)]
+    [InlineData("<p>You acquire <b>100 BACON</b></p>", true, true)]
+    [InlineData("<p>There's no more BACON.</p>", true, false)]
+    public async Task Daily_bacon_marker_requires_a_gain_or_exhaustion(string inventory, bool marked, bool gained)
+    {
+        var kol = new FakeKol().On("GET inv_use.php", (_, _) => FakeKol.Redirect("inventory.php?which=3"))
+            .On("GET inventory.php", $"<html><body>{inventory}</body></html>");
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+        var plan = new[] { new DailyStep("choice", DailyInternetShopPlanner.MachineChoiceId, null) };
+
+        var result = await DailyRun.ExecuteAsync(session, plan);
+
+        Assert.Equal(gained ? 1 : 0, result.SubmittedSteps);
+        Assert.Equal(marked, session.Daily.IsDone(DailyRun.Markers.BaconMachine));
+        Assert.Equal(1, kol.Count("GET", "inv_use.php"));
+        Assert.Equal(1, kol.Count("GET", "inventory.php"));
+    }
+
     private static string ShopPage(long price) => string.Create(CultureInfo.InvariantCulture, $$"""
         <table><tr class="deets"><td><input type="text" name="price[10881]" value="{{price}}"></td>
         <td><b>11-leaf clover</b></td><td>3</td>
