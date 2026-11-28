@@ -12,6 +12,7 @@
     <ProjectReference Include="../KoLibri/KoLibri.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="KolLibri.Cli" />
     <InternalsVisibleTo Include="KoLibri.Tests" />
   </ItemGroup>
 </Project>

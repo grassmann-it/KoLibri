@@ -315,6 +315,10 @@ public sealed class CliDailyItemsTests : IDisposable
     private static string[] Ids(JsonElement json)
         => json.GetProperty("steps").EnumerateArray().Select(s => s.GetProperty("id").GetString() + ":" + s.GetProperty("option").GetString()).ToArray();
 
+    private static string? Note(JsonElement json, string step)
+        => json.GetProperty("itemNotes").EnumerateArray().Single(n => n.GetProperty("step").GetString() == step)
+            .GetProperty("note").GetString();
+
     [Fact]
     public async Task Preview_lists_the_item_steps_and_notes()
     {
@@ -337,15 +341,20 @@ public sealed class CliDailyItemsTests : IDisposable
         var (code, json, _) = await Run("run", "--only", "cargo", "--cargo-pocket", "621");
         Assert.Equal(0, code);
         Assert.Equal(new[] { "cargo-pocket:621" }, Ids(json));
+        foreach (var step in new[] { "toaster", "vip", "chess" })
+            Assert.Equal("nicht ausgewählt (--only)", Note(json, step));
 
         var (c2, j2, err) = await Run("toaster");
         Assert.Equal(0, c2);
         Assert.Contains("daily run --only toaster", err);
         Assert.Equal(new[] { "toaster:1" }, Ids(j2));
+        Assert.Equal("nicht ausgewählt (--only)", Note(j2, "cargo"));
 
         var (c3, j3, _) = await Run("run", "--skip", "vip", "--skip", "toaster", "--cargo-pocket", "none");
         Assert.Equal(0, c3);
         Assert.DoesNotContain(Ids(j3), i => i.StartsWith("vip", StringComparison.Ordinal) || i.StartsWith("toaster", StringComparison.Ordinal));
+        Assert.Equal("übersprungen (--skip toaster)", Note(j3, "toaster"));
+        Assert.Equal("übersprungen (--skip vip)", Note(j3, "vip"));
     }
 
     [Fact]

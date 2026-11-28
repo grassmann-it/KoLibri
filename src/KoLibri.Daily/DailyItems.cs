@@ -80,21 +80,21 @@ public static class DailyItems
     /// <summary>The planned item steps, in order: toaster, Klaw, Cargo pocket, chess. Pure.</summary>
     internal static IEnumerable<DailyStep> Plan(DailyRunLive live, DailyRunOptions options)
     {
-        if (!options.Skip.Contains(StepNames.Toaster) && live.HasToaster && !live.ToasterDoneToday)
+        if (!options.IsExcluded(StepNames.Toaster) && live.HasToaster && !live.ToasterDoneToday)
             yield return new DailyStep("daily", StepIds.Toaster, "1");
 
-        if (!options.Skip.Contains(StepNames.Vip) && live.HasVipKey)
+        if (!options.IsExcluded(StepNames.Vip) && live.HasVipKey)
             for (var pull = 1; pull <= VipKlawDailyPulls; pull++)
                 if (!live.KlawPullsDoneToday.Contains(pull))
                     yield return new DailyStep("daily", StepIds.VipKlaw, pull.ToString(CultureInfo.InvariantCulture));
 
         var mode = CargoModeOf(options);
-        if (!options.Skip.Contains(StepNames.Cargo) && live.HasCargoShorts && !live.CargoPocketDoneToday && mode != CargoPocketMode.Off)
+        if (!options.IsExcluded(StepNames.Cargo) && live.HasCargoShorts && !live.CargoPocketDoneToday && mode != CargoPocketMode.Off)
             yield return new DailyStep("daily", StepIds.CargoPocket, mode == CargoPocketMode.Auto
                 ? CargoAuto
                 : string.Join(",", CargoPockets.Usable(options.CargoPockets).Select(p => p.ToString(CultureInfo.InvariantCulture))));
 
-        if (!options.Skip.Contains(StepNames.Chess) && options.PlayChess && live.HasFancyChessSet && !live.FancyChessDoneToday
+        if (!options.IsExcluded(StepNames.Chess) && options.PlayChess && live.HasFancyChessSet && !live.FancyChessDoneToday
             && live.Adventures >= ChessAdventuresNeeded)
             yield return new DailyStep("daily", StepIds.FancyChess, "1");
     }
@@ -106,17 +106,19 @@ public static class DailyItems
         options ??= new DailyRunOptions();
         var notes = new List<DailyItemNote>();
         void Add(string step, string text) => notes.Add(new DailyItemNote(step, text));
+        void AddExclusion(string step) => Add(step, options.Skip.Contains(step)
+            ? $"übersprungen (--skip {step})" : "nicht ausgewählt (--only)");
 
         if (live.HasToaster)
         {
-            if (options.Skip.Contains(StepNames.Toaster)) Add(StepNames.Toaster, "übersprungen (--skip toaster)");
+            if (options.IsExcluded(StepNames.Toaster)) AddExclusion(StepNames.Toaster);
             else if (live.ToasterDoneToday) Add(StepNames.Toaster, "heute schon getoastet");
             else Add(StepNames.Toaster, "cheap toaster benutzen: 1x am Tag, gibt toast, kostet nichts");
         }
         if (live.HasVipKey)
         {
             var done = live.KlawPullsDoneToday.Count;
-            if (options.Skip.Contains(StepNames.Vip)) Add(StepNames.Vip, "übersprungen (--skip vip)");
+            if (options.IsExcluded(StepNames.Vip)) AddExclusion(StepNames.Vip);
             else if (done >= VipKlawDailyPulls) Add(StepNames.Vip, "Deluxe Mr. Klaw: heute schon 3x gezogen");
             else Add(StepNames.Vip, $"Deluxe Mr. Klaw im VIP-Raum: noch {VipKlawDailyPulls - done} von {VipKlawDailyPulls} Zügen, kostenlos. "
                 + "Hot Tub, Pool, Wahrsagerin und Fotoautomat bleiben manuell.");
@@ -125,7 +127,7 @@ public static class DailyItems
         {
             var configured = options.CargoPockets ?? Array.Empty<int>();
             var refused = configured.Where(CargoPockets.StartsFight).ToArray();
-            if (options.Skip.Contains(StepNames.Cargo)) Add(StepNames.Cargo, "übersprungen (--skip cargo)");
+            if (options.IsExcluded(StepNames.Cargo)) AddExclusion(StepNames.Cargo);
             else if (live.CargoPocketDoneToday) Add(StepNames.Cargo, "heute schon eine Tasche geleert");
             else if (CargoModeOf(options) == CargoPocketMode.Off)
                 Add(StepNames.Cargo, "aus (--cargo-pocket none): es wird keine Tasche gewählt");
@@ -139,7 +141,7 @@ public static class DailyItems
         }
         if (live.HasFancyChessSet)
         {
-            if (options.Skip.Contains(StepNames.Chess)) Add(StepNames.Chess, "übersprungen (--skip chess)");
+            if (options.IsExcluded(StepNames.Chess)) AddExclusion(StepNames.Chess);
             else if (live.FancyChessDoneToday) Add(StepNames.Chess, "heute schon gespielt");
             else if (!options.PlayChess)
                 Add(StepNames.Chess, "nur auf Wunsch (--chess): Sieg gibt Yeg's Glory (100 Züge), eine Niederlage kostet 10 Abenteuer; kein Kampf");
