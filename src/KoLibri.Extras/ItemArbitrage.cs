@@ -108,19 +108,32 @@ public sealed class ItemArbitrageExecutor
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
-    /// <summary>Checks every step against fresh reads. Sends nothing.</summary>
+    /// <summary>
+    /// Checks every step against fresh reads. Sends nothing. The steps of one run are counted together: a later
+    /// step is checked against the budget as if the earlier ready steps were bought.
+    /// </summary>
     public async Task<ArbitrageRunResult> PreviewAsync(ItemArbitragePlan plan, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
         var results = new List<ArbitrageStepResult>();
+        long plannedInRun = 0;
         foreach (var step in plan.Steps)
         {
-            var problem = await CheckAsync(step, cancellationToken).ConfigureAwait(false);
+            var problem = await CheckAsync(step, plannedInRun, cancellationToken).ConfigureAwait(false);
+            if (problem is null) plannedInRun += step.Total;
             results.Add(problem is null
                 ? new(step, ArbitrageStepStatus.Previewed, step.Quantity, 0, "Ready; nothing sent.", Array.Empty<string>())
                 : new(step, ArbitrageStepStatus.NotSent, 0, 0, problem.Value.Message, new[] { problem.Value.Reason }));
         }
         return new ArbitrageRunResult(false, results);
+    }
+
+    /// <summary>Quantity, unit price and total of a step must be positive and add up.</summary>
+    private static bool IsConsistent(ArbitrageStep step)
+    {
+        if (step.Quantity <= 0 || step.UnitPrice < 0) return false;
+        try { return checked(step.UnitPrice * step.Quantity) == step.Total; }
+        catch (OverflowException) { return false; }
     }
 
     /// <summary>Buys the planned steps, one verified purchase per step.</summary>
@@ -143,8 +156,10 @@ public sealed class ItemArbitrageExecutor
         return new ArbitrageRunResult(true, results);
     }
 
-    private async Task<(string Reason, string Message)?> CheckAsync(ArbitrageStep step, CancellationToken ct)
+    private async Task<(string Reason, string Message)?> CheckAsync(ArbitrageStep step, long plannedInRun, CancellationToken ct)
     {
+        if (!IsConsistent(step))
+            return ("InvalidRequest", "The step is not consistent (quantity, unit price and total do not match); nothing was sent.");
         var itemId = int.Parse(step.ItemId, CultureInfo.InvariantCulture);
         var storeId = int.Parse(step.StoreId, CultureInfo.InvariantCulture);
         var offers = await _session.Mall.GetOffersAsync(itemId, refresh: true, ct).ConfigureAwait(false);
@@ -156,18 +171,21 @@ public sealed class ItemArbitrageExecutor
         var status = await _session.Character.GetStatusAsync(refresh: true, ct).ConfigureAwait(false);
         if (status.Meat - step.Total < _settings.MeatReserve)
             return ("MeatReserve", string.Create(CultureInfo.InvariantCulture, $"Buying would leave less than the reserve of {_settings.MeatReserve:N0} meat."));
-        if (_ledger.SpentToday(_account) + step.Total > _settings.Budget)
+        bool fits;   // own open reservations and the earlier steps of this preview count too
+        try { fits = checked(_ledger.CountedToday(_account) + plannedInRun + step.Total) <= _settings.Budget; }
+        catch (OverflowException) { fits = false; }
+        if (!fits)
             return ("DailyLimitExceeded", string.Create(CultureInfo.InvariantCulture, $"The daily budget of {_settings.Budget:N0} would be exceeded."));
         return null;
     }
 
     private async Task<ArbitrageStepResult> ExecuteStepAsync(ArbitrageStep step, CancellationToken ct)
     {
-        var problem = await CheckAsync(step, ct).ConfigureAwait(false);
+        var problem = await CheckAsync(step, 0, ct).ConfigureAwait(false);
         if (problem is { } p) return new(step, ArbitrageStepStatus.NotSent, 0, 0, p.Message, new[] { p.Reason });
 
         // Reserved (and written to disk) before the purchase; settled only once KoL and the inventory prove it.
-        if (!_ledger.TryReserve(_account, step.Total, _settings.Budget, out var ledgerError))
+        if (!_ledger.TryReserve(_account, step.Total, _settings.Budget, out var reservation, out var ledgerError))
             return new(step, ArbitrageStepStatus.NotSent, 0, 0, ledgerError ?? "The spend ledger refused the reservation.", new[] { "DailyLimitExceeded" });
 
         var itemId = int.Parse(step.ItemId, CultureInfo.InvariantCulture);
@@ -183,7 +201,7 @@ public sealed class ItemArbitrageExecutor
         }
         catch
         {
-            _ledger.MarkUnclear(_account, step.Total);   // unknown whether the POST went out
+            _ledger.MarkUnclear(reservation);   // unknown whether the POST went out
             throw;
         }
 
@@ -192,17 +210,17 @@ public sealed class ItemArbitrageExecutor
         {
             case PurchaseStatus.Bought:
             case PurchaseStatus.Partial:
-                _ledger.SettlePartial(_account, step.Total, result.MeatSpent);
+                _ledger.SettlePartial(reservation, result.MeatSpent);
                 return new(step, ArbitrageStepStatus.Purchased, result.QuantityBought, result.MeatSpent,
                     string.Create(CultureInfo.InvariantCulture,
                         $"Bought {result.QuantityBought} for {result.MeatSpent:N0} meat; KoL and the inventory confirmed it."), Array.Empty<string>());
             case PurchaseStatus.Unclear:
-                _ledger.MarkUnclear(_account, step.Total);
+                _ledger.MarkUnclear(reservation);
                 return new(step, ArbitrageStepStatus.Unclear, 0, 0,
                     "KoL's answer could not be matched to an inventory change. Check the inventory and meat before buying again. " + message,
                     new[] { "Unclear" });
             default:
-                _ledger.Release(_account, step.Total);
+                _ledger.Release(reservation);
                 return new(step, result.Status == PurchaseStatus.NothingBought ? ArbitrageStepStatus.Rejected : ArbitrageStepStatus.NotSent, 0, 0,
                     string.IsNullOrWhiteSpace(message) ? "KoL refused the purchase." : message, new[] { result.Status.ToString() });
         }
