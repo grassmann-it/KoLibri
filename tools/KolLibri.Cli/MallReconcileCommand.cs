@@ -13,7 +13,9 @@ internal static partial class KolibriCli
         var settle = HasFlag(args, "--settle");
         var release = HasFlag(args, "--release");
         if (settle && release) return Fail("Use either --settle or --release, not both.");
-        var ledger = new SharedMallSpendLedger();
+        var ledgerPath = ConfiguredStateDirectory is { } state
+            ? Path.Combine(state, "mall-spend-ledger.json") : SharedMallSpendLedger.DefaultPath();
+        var ledger = new SharedMallSpendLedger(ledgerPath);
         var account = role.ToString();
         // One snapshot (KoL day, revision, unclear meat and reservations of other or crashed processes): the
         // confirmation below applies to exactly that state.
@@ -33,7 +35,7 @@ internal static partial class KolibriCli
             Console.Error.WriteLine($"Fresh Meat could not be read: {exception.Message}");
         }
 
-        WriteJson(new { account, unclearMeat = amount, meatNow = meat, ledger = SharedMallSpendLedger.DefaultPath() });
+        WriteJson(new { account, unclearMeat = amount, meatNow = meat, ledger = ledgerPath });
         if (amount == 0) { Console.Error.WriteLine("No unclear Mall purchases today."); return 0; }
         if (!settle && !release)
         {

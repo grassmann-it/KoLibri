@@ -341,13 +341,13 @@ public sealed class AdventureChoiceHardeningTests
         var args = new[]
         {
             "--location", "adventure=543:Your Mushroom Garden", "--snarfblat", "543", "--fight-action", "attack",
-            "--choice-action", "9001:2", "--max-steps", "7", "--conditions-file", "my conditions.json", "--execute"
+            "--choice-action", "9001:2", "--max-turns", "7", "--conditions-file", "my conditions.json", "--execute"
         };
         var command = KolibriCli.BuildContinueCommand(args, "adventure=543:Your Mushroom Garden", KoLibri.Cli.AccountRole.Main, 543);
         Assert.Contains("--snarfblat 543", command);
         Assert.Contains("--fight-action attack", command);
         Assert.Contains("--choice-action 9001:2", command);
-        Assert.Contains("--max-steps 7", command);
+        Assert.Contains("--max-turns 7", command);
         Assert.Contains("--conditions-file \"my conditions.json\"", command);
         Assert.EndsWith("--execute --approval-token <token>", command);
     }

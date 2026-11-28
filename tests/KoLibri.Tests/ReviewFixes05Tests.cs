@@ -263,37 +263,53 @@ public sealed class ReviewFixes05Tests
 
     // 7. Hermit steps only when asked for: --only campfire (hermit skipped) and the wanted count hold in every branch.
     [Fact]
-    public void Hermit_steps_respect_skip_and_the_wanted_count_without_permits()
+    public void Daily_hermit_steps_use_worthless_items_without_planning_permit_purchases()
     {
-        var live = new DailyRunLive { Permits = 0, Clovers = 3, WorthlessItems = 3 };
+        var live = new DailyRunLive { Permits = 0, Clovers = 0, WorthlessItems = 3 };
         var skipped = new DailyRunOptions { HermitCloversWanted = 3, Skip = new HashSet<string>(new[] { "hermit", "internet-shop" }) };
         var none = new DailyRunOptions();
-        var one = new DailyRunOptions { HermitCloversWanted = 1 };
+        var two = new DailyRunOptions { HermitCloversWanted = 2 };
 
         Assert.DoesNotContain(DailyRun.Plan(live, skipped), s => s.Id is "choice-clover" or "worthless-item");
         Assert.DoesNotContain(DailyRun.Plan(live, none), s => s.Id is "choice-clover" or "worthless-item");
-        var planned = DailyRun.Plan(live, one);
-        Assert.Single(planned, s => s.Id == "choice-clover");
-        Assert.Single(planned, s => s.Id == "worthless-item");
+        Assert.Equal(new[] { "choice-clover", "choice-clover" }, DailyRun.Plan(live, two).Select(s => s.Id));
+        Assert.Empty(DailyRun.Plan(live with { Permits = 3, WorthlessItems = 0 }, two));
     }
 
     // 8. HTTP 200 alone is not a Hermit trade: no daily marker without the clover on the page.
     [Fact]
-    public async Task A_hermit_answer_without_the_clover_sets_no_daily_marker()
+    public async Task Daily_hermit_retries_only_unconfirmed_trades_and_sends_no_permit_purchase()
     {
-        var kol = new FakeKol().On("POST hermit.php", "<html><body>The Hermit is busy right now.</body></html>")
+        var kol = new FakeKol().On("GET api.php?what=inventory", """{"43":3}""")
+            .On("POST hermit.php", "<html><body>You acquire an item: <b>11-leaf clover</b></body></html>")
+            .On("POST hermit.php", "<html><body>You acquire an item: <b>seal tooth</b>. No clover today.</body></html>")
             .On("POST hermit.php", "<html><body>You acquire an item: <b>11-leaf clover</b></body></html>");
         await using var client = TestClient.Create(kol);
         await using var session = await client.OpenAsync("main");
-        var step = new[] { new DailyStep("choice", "choice-clover", "1") };
+        var options = new DailyRunOptions { HermitCloversWanted = 2 };
+        async Task<IReadOnlyList<DailyStep>> Plan() => DailyRun.Plan(await DailyRun.ReadAsync(session), options);
 
-        var unclear = await DailyRun.ExecuteAsync(session, step);
+        var unclear = await DailyRun.ExecuteAsync(session, await Plan());
+        Assert.Equal(DailyRunCompleteness.Partial, unclear.Completeness);
+        Assert.Equal(1, unclear.SubmittedSteps);
         Assert.False(session.Daily.IsDone(DailyRun.Markers.HermitClovers));
+        Assert.Equal(new[] { "hermit-clovers:1" }, session.Daily.DoneToday());
         Assert.Contains(unclear.FailedSteps, f => f.Contains("unklar", StringComparison.Ordinal));
 
-        var done = await DailyRun.ExecuteAsync(session, step);
+        var retry = await Plan();
+        Assert.Single(retry);
+        var done = await DailyRun.ExecuteAsync(session, retry);
         Assert.Empty(done.FailedSteps);
-        Assert.True(session.Daily.IsDone(DailyRun.Markers.HermitClovers));
+        Assert.Empty(await Plan());
+        Assert.Equal(3, kol.Count("POST", "hermit.php"));
+        Assert.All(kol.Requests.Where(r => r.Method == "POST"), r =>
+        {
+            Assert.Equal("/hermit.php", r.Path);
+            Assert.Contains("action=trade", r.Form);
+            Assert.Contains("whichitem=10881", r.Form);
+            Assert.Contains("quantity=1", r.Form);
+            Assert.DoesNotContain("autopermit", r.Form);
+        });
     }
 
     private static string ShopPage(long price) => string.Create(CultureInfo.InvariantCulture, $$"""

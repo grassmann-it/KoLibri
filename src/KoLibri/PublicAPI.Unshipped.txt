@@ -79,6 +79,7 @@ KoLibri.Adventurer.AdventureAsync(KoLibri.Location location, System.Threading.Ca
 KoLibri.Adventurer.ChooseAsync(int choiceId, int option, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Encounter!>!
 KoLibri.Adventurer.FightAsync(KoLibri.CombatAction! action, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.FightRound!>!
 KoLibri.Adventurer.FightToEndAsync(KoLibri.ICombatStrategy! strategy, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.FightResult!>!
+KoLibri.Adventurer.FightToEndAsync(KoLibri.ICombatStrategy! strategy, int maxRounds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<KoLibri.FightResult!>!
 KoLibri.Adventurer.GetLocationAccessAsync(KoLibri.Location location, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.LocationAccess!>!
 KoLibri.Adventurer.GetOpenEncounterAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.Encounter?>!
 KoLibri.Adventurer.RunAsync(KoLibri.RunRequest! request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<KoLibri.RunResult!>!

@@ -11,6 +11,8 @@ namespace KoLibri
         private readonly KolibriSession _session;
         private FightEncounter? _fight;
         private CoreSpiel.CombatObservation? _lastObservation;
+        // Free rests stay exhausted for the KoL day, including when the CLI runs one turn at a time.
+        private DateOnly? _paidRestDay;
         /// <summary>Last trustworthy player HP/MP (api status, or explicit HP markup on the fight page).</summary>
         private (int Hp, int Mp)? _knownVitals;
 
@@ -98,7 +100,6 @@ namespace KoLibri
             Status? last = null;
             var recoverySteps = new List<RecoveryStep>();
             var recoveryAdventures = 0;
-            var restsArePaid = false;
             Inventory? baseline = null;
 
             RunResult Finish(RunStopReason reason, string? detail, Encounter? open = null)
@@ -139,10 +140,9 @@ namespace KoLibri
                             return Finish(RunStopReason.TurnsDone, null);
                         // Recovery and upkeep run between turns only, never in the middle of a fight/choice chain.
                         var recovered = await RecoverAsync(request.Recovery, request.MaxRecoveryStepsPerTurn, last, recoverySteps,
-                            request.MaxRecoveryAdventures - recoveryAdventures, restsArePaid, cancellationToken).ConfigureAwait(false);
+                            request.MaxRecoveryAdventures - recoveryAdventures, cancellationToken).ConfigureAwait(false);
                         last = recovered.Status;
                         recoveryAdventures += recovered.AdventuresSpent;
-                        restsArePaid = recovered.RestsArePaid;
                         if (recovered.StopDetail is { } recoveryStop)
                             return Finish(RunStopReason.Recovery, recoveryStop);
                         if (StopCondition(request.StopWhen, last, baseline, items) is { } why)
@@ -518,9 +518,11 @@ namespace KoLibri
             return sentence;
         }
 
-        internal async Task<FightResult> FightToEndAsync(ICombatStrategy strategy, int maxRounds, CancellationToken cancellationToken)
+        /// <summary>Resolves at most <paramref name="maxRounds"/> actions, leaving the fight open if the limit is reached.</summary>
+        public async Task<FightResult> FightToEndAsync(ICombatStrategy strategy, int maxRounds, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(strategy);
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxRounds, 1);
             var fight = _fight ?? await GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false) as FightEncounter
                 ?? throw new KolibriException("No fight is open.");
             // KoL's fight.php usually shows no player HP: then the HP come from a fresh status (0.4 #74: HitPointsProvider).
@@ -550,7 +552,7 @@ namespace KoLibri
 #pragma warning restore KOLIBRI0001
                 // FightAsync already carries the player's HP/MP (page markup or one status read, see WithPlayerVitalsAsync).
                 var round = await FightAsync(action, cancellationToken).ConfigureAwait(false);
-                rounds.Add(round);
+                rounds.Add(round with { Before = context with { History = Array.Empty<FightRound>() } });
                 hp = round.Hp;
                 mp = round.Mp;
                 outcome = round.Outcome;
@@ -785,7 +787,7 @@ namespace KoLibri
         /// <summary>Choice transitions allowed within one turn before the run stops (a resolver loop, or KoL chaining choices).</summary>
         internal const int MaxChoicesPerTurn = 10;
 
-        private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail, bool RestsArePaid);
+        private readonly record struct RecoveryOutcome(Status Status, int AdventuresSpent, string? StopDetail);
 
         /// <summary>
         /// Asks the policy for steps before a new turn, runs each through <see cref="CharacterActions"/>, re-reads the status
@@ -795,11 +797,11 @@ namespace KoLibri
         /// further rest is known to cost one and is refused before it is sent when the budget is used up.
         /// </summary>
         private async Task<RecoveryOutcome> RecoverAsync(IRecoveryPolicy policy, int limit, Status status, List<RecoveryStep> log,
-            int adventureBudget, bool restsArePaid, CancellationToken cancellationToken)
+            int adventureBudget, CancellationToken cancellationToken)
         {
-            if (ReferenceEquals(policy, RecoveryPolicies.None) || limit <= 0) return new(status, 0, null, restsArePaid);
+            if (ReferenceEquals(policy, RecoveryPolicies.None) || limit <= 0) return new(status, 0, null);
             if (status.Effects.Any(e => e.Id == BeatenUpEffectId || e.Name.Equals("Beaten Up", StringComparison.OrdinalIgnoreCase)))
-                return new(status, 0, "You are Beaten Up; KoLibri does not guess a way to heal that. Heal by hand and start again.", restsArePaid);
+                return new(status, 0, "You are Beaten Up; KoLibri does not guess a way to heal that. Heal by hand and start again.");
             var done = new List<RecoveryStep>();
             Inventory? inventory = null;
             var spent = 0;
@@ -814,9 +816,10 @@ namespace KoLibri
                 }
                 if (step.Kind == RecoveryStepKind.None) break;
                 if (step.Kind == RecoveryStepKind.Stop)
-                    return new(status, spent, step.Reason ?? "The recovery policy asked to stop.", restsArePaid);
-                if (step.Kind == RecoveryStepKind.Rest && restsArePaid && spent + 1 > adventureBudget)
-                    return new(status, spent, PaidRestStop(adventureBudget, spent), restsArePaid);
+                    return new(status, spent, step.Reason ?? "The recovery policy asked to stop.");
+                var restDay = step.Kind == RecoveryStepKind.Rest ? _session.Daily.GameDay : (DateOnly?)null;
+                if (restDay is { } day && _paidRestDay == day && spent >= adventureBudget)
+                    return new(status, spent, PaidRestStop(adventureBudget, spent));
                 var result = step.Kind switch
                 {
                     RecoveryStepKind.Rest => await _session.Character.RestAsync(1, cancellationToken).ConfigureAwait(false),
@@ -830,16 +833,16 @@ namespace KoLibri
                 var after = await _session.StatusAsync(cancellationToken).ConfigureAwait(false);
                 var cost = Math.Max(0, status.Adventures - after.Adventures);
                 spent += cost;
-                if (cost > 0 && step.Kind == RecoveryStepKind.Rest) restsArePaid = true;
+                if (cost > 0 && restDay is not null) _paidRestDay = restDay;
                 if (result.Status is ActionStatus.Rejected or ActionStatus.Unclear || result.Completed < 1)
-                    return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}", restsArePaid);
+                    return new(after, spent, $"Recovery step {Describe(step)} failed: {result.Rejection ?? result.Status.ToString()}");
                 if (!MadeProgress(status, after))
-                    return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.", restsArePaid);
+                    return new(after, spent, $"Recovery step {Describe(step)} brought no progress (HP, MP and effects unchanged); stopping instead of repeating it.");
                 if (spent > adventureBudget)
-                    return new(after, spent, PaidRestStop(adventureBudget, spent), restsArePaid);
+                    return new(after, spent, PaidRestStop(adventureBudget, spent));
                 status = after;
             }
-            return new(status, spent, null, restsArePaid);
+            return new(status, spent, null);
         }
 
         private static string PaidRestStop(int budget, int spent)
@@ -1009,6 +1012,7 @@ namespace KoLibri
     /// <param name="Mp">The player's MP, from the same source as <paramref name="Hp"/>.</param>
     public sealed record FightRound(int Round, CombatAction Action, FightOutcome Outcome, int Hp, int Mp, Page Page)
     {
+        internal CombatContext? Before { get; init; }
         public int DamageDealt { get; init; }
         public int DamageTaken { get; init; }
         public IReadOnlyList<InventoryItem> Items { get; init; } = Array.Empty<InventoryItem>();

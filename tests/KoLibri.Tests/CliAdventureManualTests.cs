@@ -237,17 +237,36 @@ public sealed class CliAdventureManualTests : IDisposable
         Assert.Equal(0, _kol.Count("POST", "fight.php"));
     }
 
-    [Fact]
-    public async Task Fight_until_end_stops_at_the_round_limit()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(32)]
+    public async Task Fight_until_end_stops_at_the_round_limit(int limit)
     {
         var token = await MintTokenAsync();
         OpenFight().On("POST fight.php", ActionTests.FightRound1);
 
-        var (code, json, _) = await Run("fight", "--action", "attack", "--until-end", "--max-rounds", "2", "--execute", "--approval-token", token);
+        var (code, json, _) = await Run("fight", "--action", "attack", "--until-end", "--max-rounds",
+            limit.ToString(System.Globalization.CultureInfo.InvariantCulture), "--execute", "--approval-token", token);
 
         Assert.Equal(4, code);
         Assert.Equal("FightRoundLimitReached", json.GetProperty("stopReason").GetString());
-        Assert.Equal(2, _kol.Count("POST", "fight.php"));
+        Assert.Equal(limit, _kol.Count("POST", "fight.php"));
+        Assert.Equal(limit, json.GetProperty("rounds").GetArrayLength());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fight_until_end_with_no_open_fight_or_an_unreadable_answer_exits_3(bool startsOpen)
+    {
+        var token = await MintTokenAsync();
+        if (startsOpen) OpenFight().On("POST fight.php", "<html><body>Not in a Fight</body></html>");
+
+        var (code, json, _) = await Run("fight", "--action", "attack", "--until-end", "--execute", "--approval-token", token);
+
+        Assert.Equal(3, code);
+        Assert.Equal("Unknown", json.GetProperty("outcome").GetString());
+        Assert.Equal(startsOpen ? 1 : 0, _kol.Count("POST", "fight.php"));
     }
 
     [Fact]

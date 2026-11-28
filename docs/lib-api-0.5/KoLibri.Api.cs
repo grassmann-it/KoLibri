@@ -354,6 +354,7 @@ namespace KoLibri
         public Task<FightRound> FightAsync(CombatAction action, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         /// <summary>Kämpft mit der Strategie bis Sieg, Niederlage, Flucht oder CombatAction.Stop.</summary>
         public Task<FightResult> FightToEndAsync(ICombatStrategy strategy, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<FightResult> FightToEndAsync(ICombatStrategy strategy, int maxRounds, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<Encounter> ChooseAsync(int choiceId, int option, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         /// <summary>Der eine Adventure-Läufer: N Züge, Strategie, Resolver, Stopp-Regeln.</summary>
         public Task<RunResult> RunAsync(RunRequest request, CancellationToken cancellationToken = default) => throw new NotImplementedException();

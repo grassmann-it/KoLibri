@@ -89,6 +89,45 @@ public sealed class CliTests : IDisposable
         Assert.Equal(3, item.GetProperty("quantity").GetInt32());
     }
 
+    [Theory]
+    [InlineData("--probe")]
+    [InlineData("--full")]
+    public async Task Removed_inventory_flags_exit_2_without_requests(string flag)
+    {
+        var (code, _, error) = await Cli("inventory", "--role", "main", flag);
+
+        Assert.Equal(2, code);
+        Assert.Contains($"Unknown argument '{flag}'", error);
+        Assert.Empty(_kol.Requests);
+    }
+
+    [Fact]
+    public async Task Agent_guard_reads_injected_environment_and_state()
+    {
+        var path = Path.Combine(_state, "agent-mode.json");
+        File.WriteAllText(path, """{"allowUnattended":true}""");
+        var status = new StringWriter();
+        var oldOut = Console.Out;
+        Console.SetOut(status);
+        try { Assert.Equal(0, await KolibriCli.RunAsync(["agent-mode", "status"], _ => null)); }
+        finally { Console.SetOut(oldOut); }
+        Assert.Contains("Agent mode off", status.ToString());
+
+        File.WriteAllText(path, """{"allowUnattended":false}""");
+        var previous = Environment.GetEnvironmentVariable("CLAUDECODE");
+        Environment.SetEnvironmentVariable("CLAUDECODE", "1");
+        try
+        {
+            var (code, _, error) = await Run(args => KolibriCli.RunAsync(args,
+                name => name == "CLAUDECODE" ? throw new ArgumentException("Injected CLAUDECODE lookup.") : null),
+                "rest", "--times", "0", "--execute");
+            Assert.Equal(2, code);
+            Assert.Contains("Injected CLAUDECODE lookup.", error);
+        }
+        finally { Environment.SetEnvironmentVariable("CLAUDECODE", previous); }
+        Assert.Empty(_kol.Requests);
+    }
+
     [Fact]
     public async Task An_unknown_role_account_says_how_to_log_in()
     {
@@ -438,7 +477,8 @@ public sealed class CliTests : IDisposable
         var ids = json.GetProperty("steps").EnumerateArray().Select(s => s.GetProperty("id").GetString()).ToArray();
         Assert.DoesNotContain("choice-campfire", ids);
         Assert.Contains("choice-day-shortner", ids);
-        Assert.Single(ids, id => id == "worthless-item");  // capped by --hermit-clovers 1
+        Assert.Single(ids, id => id == "choice-clover");
+        Assert.DoesNotContain("worthless-item", ids);
         Assert.Contains(DailyInternetShopPlanner.MachineChoiceId, ids);
         Assert.Equal(230, json.GetProperty("live").GetProperty("leaves").GetInt32());
         Assert.DoesNotContain(_kol.Requests, r => r.Method == "POST");
@@ -477,21 +517,63 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
-    public async Task Daily_run_execute_burns_222_leaves_for_the_day_shortener_and_marks_the_day()
+    public async Task Daily_run_execute_confirms_the_day_shortener_after_redirects_and_marks_the_day()
     {
         var token = await MintTokenAsync();
         _kol.On("GET api.php?what=inventory", """{"11341":230}""")
-            .On("GET campground.php", "<html><body>Pile of Burning Leaves <form><input type=hidden name=whichchoice value=1510></form> You have 230 leaves</body></html>")
-            .On("POST choice.php", (_, form) => { Assert.Contains("leaves=222", form); return FakeKol.Html("<html><body>You burn 222 leaves. You acquire an item: <b>day shortener</b></body></html>"); });
+            .On("GET campground.php", (_, _) => FakeKol.Redirect("choice.php?whichchoice=1510"))
+            .On("GET choice.php", """
+                <html><body>You have <b>230</b> leaves.
+                <form method="post" action="choice.php"><input type="hidden" name="whichchoice" value="1510">
+                <input type="hidden" name="option" value="2"><input type="hidden" name="pwd" value="other-form"></form>
+                <form method="post" action="choice.php"><input type=hidden name=whichchoice value=1510>
+                <input type=hidden name=option value=1><input type=number name=leaves><input type=submit value="Burn Them!"></form>
+                </body></html>
+                """)
+            .On("POST choice.php", (_, form) =>
+            {
+                Assert.Contains("leaves=222", form);
+                Assert.Contains("whichchoice=1510", form);
+                Assert.Contains("option=1", form);
+                Assert.DoesNotContain("other-form", form);
+                return FakeKol.Redirect("campground.php");
+            })
+            .On("GET campground.php", "<html><body>You acquire an item: <b>day shortener</b></body></html>");
 
         var (code, json, _) = await Run(KolibriCli.DailyCommandAsync, "run", "--role", "main", "--execute", "--approval-token", token);
 
         Assert.Equal(0, code);
         Assert.Equal("Complete", json.GetProperty("completeness").GetString());
         Assert.Equal(1, json.GetProperty("submitted").GetInt32());
+        Assert.Equal(2, _kol.Count("GET", "campground.php"));
+        Assert.Equal(1, _kol.Count("GET", "choice.php"));
+        Assert.Equal(1, _kol.Count("POST", "choice.php"));
         await using var client = KolibriCli.CreateClient();
         await using var session = await client.OpenAsync("main");
         Assert.True(session.Daily.IsDone(DailyRun.Markers.DayShortener));
+    }
+
+    [Fact]
+    public async Task Daily_run_sends_no_choice_post_when_the_burn_form_is_missing()
+    {
+        var token = await MintTokenAsync();
+        _kol.On("GET api.php?what=inventory", """{"11341":230}""")
+            .On("GET campground.php", """
+                <html><body>You have <b>230</b> leaves.
+                <form method=post action=choice.php><input type=hidden name=whichchoice value=1510>
+                <input type=hidden name=option value=2><input type=submit value="Jump in the Flames!"></form>
+                </body></html>
+                """);
+
+        var (code, json, _) = await Run(KolibriCli.DailyCommandAsync, "run", "--execute", "--approval-token", token);
+
+        Assert.Equal(3, code);
+        Assert.Contains("kein Formular", json.GetProperty("failed")[0].GetString());
+        Assert.Equal(1, _kol.Count("GET", "campground.php"));
+        Assert.Equal(0, _kol.Count("POST", "choice.php"));
+        await using var client = KolibriCli.CreateClient();
+        await using var session = await client.OpenAsync("main");
+        Assert.False(session.Daily.IsDone(DailyRun.Markers.DayShortener));
     }
 
     [Theory]

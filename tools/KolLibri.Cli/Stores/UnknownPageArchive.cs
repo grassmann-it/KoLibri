@@ -42,9 +42,10 @@ internal static class UnknownPageArchive
     /// main.php after a redirect) goes, redacted, to the same name with <c>.prev.html</c>.
     /// </remarks>
     /// <summary>Saves the page redacted as &lt;utc&gt;-&lt;reason&gt;-&lt;hash8&gt;.html (trail in a comment on top, the page before as .prev.html).</summary>
-    public static string? TrySave(string reason, string? html, DateTimeOffset now, IReadOnlyList<string>? trail = null, string? precedingHtml = null)
+    public static string? TrySave(string reason, string? html, DateTimeOffset now, IReadOnlyList<string>? trail = null,
+        string? precedingHtml = null, string? stateDirectory = null)
     {
-        var directory = DirectoryOverride ?? DefaultDirectory;
+        var directory = DirectoryOverride ?? (stateDirectory is { } state ? Path.Combine(state, "logs", "unknown-pages") : DefaultDirectory);
         if (string.IsNullOrEmpty(html)) return null;
         try
         {

@@ -33,16 +33,19 @@ internal static partial class KolibriCli
         // Before the agent guard and before any session is read: a hidden command sends nothing.
         if (ExperimentalGate.Check(args[0], _experimental, Console.Error) is { } hidden) return hidden;
 
-        if (args[0].Equals("agent-mode", StringComparison.OrdinalIgnoreCase))
-            return AgentGuard.Command(args[1..]);
-        var blocked = AgentGuard.Check(args, Environment.GetEnvironmentVariable,
-            Console.IsInputRedirected, Console.IsOutputRedirected, AgentGuard.UnattendedAllowed(),
-            AgentGuard.ConfirmOnTerminal, Console.Error);
-        if (blocked is { } code) return code;
-
         try
         {
-            return args[0].ToLowerInvariant() switch
+            int? CheckAgent() => AgentGuard.IsWrite(args) ? AgentGuard.Check(args, env,
+                Console.IsInputRedirected, Console.IsOutputRedirected, AgentGuard.UnattendedAllowed(AgentConfigPath()),
+                AgentGuard.ConfirmOnTerminal, Console.Error) : null;
+
+            var command = args[0].ToLowerInvariant();
+            if (command == "agent-mode") return AgentGuard.Command(args[1..], AgentConfigPath());
+            if (command == "adventure" && args.Length > 1 && IsAdventureRun(args[1]))
+                return await AdventureCommandAsync(args[1..], env, CheckAgent);
+            if (command != "inventory" && CheckAgent() is { } code) return code;
+
+            return command switch
             {
                 "login" => await LoginDispatchAsync(args[1..]),
                 "token" => await TokenDispatchAsync(args[1..]),
@@ -65,8 +68,8 @@ internal static partial class KolibriCli
                 "history" => await PricegunAsync(args[1..]),
                 "bribe-rank" or "bribe-plan" or "workflow-plan" => Removed(args[0], "no replacement (the foreign-bribe workflow is gone)"),
                 "adventure-plan" => Removed(args[0], "'adventure run --max-turns N' (preview without --execute)"),
-                "adventure" => await AdventureCommandAsync(args[1..]),
-                "choice" => await ChoiceCommandAsync(args[1..]),
+                "adventure" => await AdventureCommandAsync(args[1..], env),
+                "choice" => await ChoiceCommandAsync(args[1..], env),
                 "daily" => await DailyCommandAsync(args[1..]),
                 "market-scan" or "market" => Removed(args[0], "'arbitrage plan|buy' or 'keys ...'"),
                 "daily-audit" => await DailyCommandAsync(["audit", .. args[1..]]),
@@ -85,6 +88,11 @@ internal static partial class KolibriCli
         {
             Console.Error.WriteLine("Abgebrochen.");
             return 130;
+        }
+        catch (ArgumentException exception)
+        {
+            Console.Error.WriteLine($"Error: {exception.Message}");
+            return 2;
         }
         catch (Exception exception)
         {
@@ -162,56 +170,11 @@ internal static partial class KolibriCli
 
     private static async Task<int> InventoryAsync(string[] args)
     {
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        StrictOptions.Only(args, ["--role"], ["--refresh"]);
+        var role = StrictOptions.Role(args);
         var (client, session) = await OpenAsync(role);
         await using var _ = client;
         await using var __ = session;
-        if (HasFlag(args, "--probe"))
-        {
-            foreach (var path in new[] {
-                "api.php?what=inventory",
-                "api.php?what=inventory&for=KoLibri",
-                "inventory.php",
-                "inventory.php?which=1",
-                "inventory.php?which=2",
-                "inventory.php?which=3",
-                "api.php?what=inv_easy",
-                "api.php?what=item&itemid=10881&for=KoLibri",
-                "api.php?what=item&itemid=42&for=KoLibri",
-                "api.php?what=item&itemid=9025&for=KoLibri",
-                "api.php?what=item&itemid=995&for=KoLibri",
-                "campground.php",
-                "campground.php?preaction=leaves",
-                "campground.php?preaction=leaves&whichchoice=1510&option=1&leaves=1",
-                "storage.php",
-                "campaway.php",
-                "place.php?whichplace=campaway",
-                "hermit.php",
-                "hermit.php?action=trade&whichitem=10881&quantity=1"
-            })
-            {
-                try
-                {
-                    var page = await session.GetPageAsync(path);
-                    var body = page.Html;
-                    Console.Error.WriteLine($"--- {path} [{(System.Net.HttpStatusCode)page.StatusCode}] len={body.Length} ---");
-                    if (body.Length > 0)
-                        Console.Error.WriteLine(body.Substring(0, Math.Min(600, body.Length)));
-                    if (HasFlag(args, "--full"))
-                    {
-                        var outPath = Path.Combine(
-                            Path.GetTempPath(), $"kolprobe-{path.GetHashCode():X}.html");
-                        await File.WriteAllTextAsync(outPath, body);
-                        Console.Error.WriteLine($"[saved {outPath}]");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"{path}: {ex.Message}");
-                }
-            }
-            return 0;
-        }
         var inventory = await session.Inventory.GetAsync(refresh: HasFlag(args, "--refresh"));
         WriteJson(InventoryDocument(inventory));
         return 0;

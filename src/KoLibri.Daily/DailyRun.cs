@@ -19,6 +19,7 @@ public sealed record DailyRunLive
     public bool DayShortenerDoneToday { get; init; }
     public bool CampfireLeafDoneToday { get; init; }
     public bool HermitDoneToday { get; init; }
+    internal int HermitCloversDoneToday { get; init; }
     public bool BaconMachineUsedToday { get; init; }
     public IReadOnlyList<string> MemeItemsDoneToday { get; init; } = Array.Empty<string>();
 
@@ -111,6 +112,7 @@ public static class DailyRun
         public const string BaconMachine = "bacon-machine";
         public const string CampfireLeaf = "campfire-leaf";
         public const string HermitClovers = "hermit-clovers";
+        internal static string HermitClover(int trade) => $"{HermitClovers}:{trade}";
         public static string MemeBuy(string itemName) => "meme-buy:" + itemName.ToLowerInvariant();
     }
 
@@ -152,6 +154,7 @@ public static class DailyRun
             DayShortenerDoneToday = daily.IsDone(Markers.DayShortener),
             CampfireLeafDoneToday = daily.IsDone(Markers.CampfireLeaf),
             HermitDoneToday = daily.IsDone(Markers.HermitClovers),
+            HermitCloversDoneToday = ConfirmedClovers(daily),
             BaconMachineUsedToday = daily.IsDone(Markers.BaconMachine),
             MemeItemsDoneToday = MemeShopCatalog.DailyItems.Select(i => i.Name).Where(n => daily.IsDone(Markers.MemeBuy(n))).ToArray(),
             Adventures = status.Adventures,
@@ -198,24 +201,11 @@ public static class DailyRun
         if (!(skipCampfire || live.DayShortenerDoneToday) && leaves >= DayShortenerLeafCost + options.CampfireReserve)
             steps.Add(new DailyStep("choice", "choice-day-shortner", DayShortenerLeafCost.ToString(CultureInfo.InvariantCulture)));
 
-        // 2. Hermit: clovers for worthless items, only when asked for (--hermit-clovers N, not skipped) and capped by the
-        //    request and the daily stock of 3. Every branch below honours both.
-        var wanted = skipHermit ? 0 : Math.Min(Math.Max(0, options.HermitCloversWanted), HermitDailyStock);
-        if (live.HermitDoneToday || wanted <= 0)
+        // 2. Hermit: count trades confirmed today towards the requested daily total.
+        if (!skipHermit && !live.HermitDoneToday)
         {
-            // Already bought today, skipped, or no clovers requested: no Hermit step.
-        }
-        else if (live.Permits > 0)
-        {
-            for (var i = 0; i < wanted; i++)
-                steps.Add(new DailyStep("choice", "choice-clover", "1"));
-        }
-        else if (live.Clovers > 0 && live.WorthlessItems >= 1)
-        {
-            var tradeRuns = Math.Min(Math.Min(live.Clovers, live.WorthlessItems), wanted);
-            for (var i = 0; i < tradeRuns; i++)
-                steps.Add(new DailyStep("item", "worthless-item", "1"));
-            for (var i = 0; i < tradeRuns; i++)
+            var remaining = Math.Clamp(options.HermitCloversWanted, 0, HermitDailyStock) - live.HermitCloversDoneToday;
+            for (var i = 0; i < Math.Min(remaining, live.WorthlessItems); i++)
                 steps.Add(new DailyStep("choice", "choice-clover", "1"));
         }
 
@@ -307,19 +297,7 @@ public static class DailyRun
         var failed = new List<string>();
         var executed = 0;
 
-        foreach (var permit in steps.Where(s => s.Kind == "item" && s.Id == "worthless-item"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                var result = await pulls.BuyPermitAsync(int.TryParse(permit.Option, out var q) ? q : 1, cancellationToken).ConfigureAwait(false);
-                if (result.Accepted) executed++;
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException and not ActionDeniedException)
-            {
-                // As in 0.4: a failed permit purchase shows up through the clover steps that follow.
-            }
-        }
+        int? cloversDone = null;
 
         foreach (var step in choiceSteps)
         {
@@ -330,31 +308,47 @@ public static class DailyRun
                 if (meme.Accepted) executed++;
                 continue;
             }
-            var whichChoice = FreePulls.WhichChoiceFor(step.Id);
-            if (whichChoice <= 0)
+            if (step.Id is not ("choice-clover" or "choice-campfire" or "choice-day-shortner"))
             {
-                failed.Add($"{step.Id}:{step.Option} (unknown step)");
+                failed.Add($"{step.Id}:{step.Option} (unbekannter Schritt)");
                 continue;
             }
             try
             {
-                var option = int.TryParse(step.Option, out var parsed) ? parsed : 1;
-                var result = step.Id is "choice-campfire" or "choice-day-shortner"
-                    ? await pulls.BurnLeavesAsync(option, cancellationToken).ConfigureAwait(false)
-                    : await pulls.PullAsync(whichChoice, option, cancellationToken).ConfigureAwait(false);
-                if (!result.Accepted)
+                var clover = step.Id == "choice-clover";
+                var leaves = step.Id == "choice-day-shortner" ? DayShortenerLeafCost : 1;
+                if (clover)
+                {
+                    cloversDone ??= session.Daily.IsDone(Markers.HermitClovers) ? HermitDailyStock : ConfirmedClovers(session.Daily);
+                    if (cloversDone >= HermitDailyStock) continue;
+                    if (step.Option is not (null or "1"))
+                        throw new InvalidOperationException("Pro Schritt ist genau ein Kleeblatt vorgesehen.");
+                }
+                else if (step.Option is { } amount && (!int.TryParse(amount, out var parsed) || parsed != leaves))
+                    throw new InvalidOperationException($"Dieser Schritt erfordert genau {leaves} Blätter.");
+                var result = clover ? await pulls.TradeCloverAsync(cancellationToken).ConfigureAwait(false)
+                    : await pulls.BurnLeavesAsync(leaves, cancellationToken).ConfigureAwait(false);
+                if (!result.IsSuccess)
                     failed.Add($"{step.Id}:{step.Option} (http-{result.StatusCode})");
-                else if (!Confirmed(step.Id, result.BodySnippet))
+                else if (!Confirmed(step.Id, result.Body))
                 {
                     // HTTP success alone is not the reward: without it on the page no daily marker is set.
-                    failed.Add($"{step.Id}:{step.Option} (unklar: KoL's answer does not show the result; no daily marker set)");
+                    var reason = clover && result.Body.Contains("Hermit Permit", StringComparison.OrdinalIgnoreCase)
+                        ? "KoL verlangt eine Hermit Permit."
+                        : "unklar: KoLs Antwort bestätigt den Erhalt nicht. Kein Tagesmarker gesetzt.";
+                    failed.Add($"{step.Id}:{step.Option} ({reason})");
                 }
                 else
                 {
                     executed++;
                     if (step.Id == "choice-day-shortner") session.Daily.MarkDone(Markers.DayShortener);
                     if (step.Id == "choice-campfire") session.Daily.MarkDone(Markers.CampfireLeaf);
-                    if (step.Id == "choice-clover") session.Daily.MarkDone(Markers.HermitClovers);
+                    if (cloversDone is { } count && clover)
+                    {
+                        cloversDone = ++count;
+                        session.Daily.MarkDone(Markers.HermitClover(count));
+                        if (count == HermitDailyStock) session.Daily.MarkDone(Markers.HermitClovers);
+                    }
                 }
             }
             catch (OperationCanceledException) { throw; }
@@ -393,10 +387,23 @@ public static class DailyRun
     /// Whether KoL's answer shows the step's result: the Hermit trade gives "You acquire" an 11-leaf clover, the leaf
     /// burn gives "You acquire" (Day Shortener, campfire reward). Anything else is unclear, not a success.
     /// </summary>
-    internal static bool Confirmed(string stepId, string body)
+    private static int ConfirmedClovers(DailyMarkers daily)
     {
-        if (string.IsNullOrEmpty(body) || body.IndexOf("You acquire", StringComparison.OrdinalIgnoreCase) < 0) return false;
-        return stepId is not ("choice-clover" or "choice-hermit-wish") || body.Contains("clover", StringComparison.OrdinalIgnoreCase);
+        var done = daily.DoneToday();
+        return Enumerable.Range(1, HermitDailyStock).Count(trade => done.Contains(Markers.HermitClover(trade)));
+    }
+
+    private static bool Confirmed(string stepId, string body)
+    {
+        var item = stepId switch
+        {
+            "choice-clover" => "11-leaf clover",
+            "choice-day-shortner" => "day shortener",
+            _ => null
+        };
+        return item is not null
+            ? DailyGains.Parse(body).Any(gain => gain.Equals(item, StringComparison.OrdinalIgnoreCase))
+            : body.Contains("You acquire", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>One meme shop step (0.4: AutoCombatDailyBridge.ExecuteMemeStepDetailedAsync).</summary>
@@ -424,7 +431,7 @@ public static class DailyRun
                     || pushed.BodySnippet.Contains("until tomorrow", StringComparison.OrdinalIgnoreCase)
                     || pushed.BodySnippet.Contains("fill back up", StringComparison.OrdinalIgnoreCase);
                 // KoL answers a successful push with a redirect to the inventory message page.
-                var redirected = pushed.StatusCode is >= 300 and < 400
+                var redirected = pushed.StatusCode is >= 200 and < 300
                     && (pushed.Location?.Contains("inventory.php", StringComparison.OrdinalIgnoreCase) ?? false);
                 var ok = pushed.Accepted || redirected;
                 if (ok || spent) session.Daily.MarkDone(Markers.BaconMachine);
@@ -456,7 +463,7 @@ public static class DailyRun
     }
 }
 
-/// <summary>One raw KoL answer: a redirect shows as 3xx with the target, exactly like the 0.4 dispatcher saw it.</summary>
+/// <summary>The final KoL answer and the destination, if the session followed a redirect.</summary>
 internal sealed record RawAnswer(int StatusCode, string Body, string? Location)
 {
     public bool IsSuccess => StatusCode is >= 200 and < 300;
@@ -465,33 +472,17 @@ internal sealed record RawAnswer(int StatusCode, string Body, string? Location)
 internal sealed record FreePullResult(int StatusCode, bool Accepted, string BodySnippet, string? Location);
 
 /// <summary>
-/// The daily requests of 0.4's FreePullDispatcher on the public session API. The session follows redirects by
-/// itself; when the final page differs from the requested one the answer is reported as a 302 to that page, so the
-/// 0.4 success rules (a redirected POST is not a success, a redirected machine push is) stay as they were.
+/// The daily requests of 0.4's FreePullDispatcher on the public session API.
 /// </summary>
 internal sealed class FreePulls(KolibriSession session)
 {
-    public const int ChoiceCampfire = 1106;
-    public const int ChoiceDayShortner = 1110;
-    public const int ChoiceClover = 1100;
-    public const int ChoiceHermitWish = 1107;
-
-    public static int WhichChoiceFor(string choiceId) => choiceId.ToLowerInvariant() switch
-    {
-        "choice-campfire" => ChoiceCampfire,
-        "choice-day-shortner" => ChoiceDayShortner,
-        "choice-clover" => ChoiceClover,
-        "choice-hermit-wish" => ChoiceHermitWish,
-        _ => 0
-    };
-
-    public async Task<RawAnswer> GetAsync(string pathAndQuery, CancellationToken ct)
+    private async Task<RawAnswer> GetAsync(string pathAndQuery, CancellationToken ct)
     {
         try { return Answer(pathAndQuery, await session.GetPageAsync(pathAndQuery, cancellationToken: ct).ConfigureAwait(false)); }
         catch (UnexpectedPageException e) when (e.Page.Kind == PageKind.Error) { return new RawAnswer(e.Page.StatusCode, e.Page.Html, null); }
     }
 
-    public async Task<RawAnswer> PostAsync(string pathAndQuery, IReadOnlyDictionary<string, string> form, CancellationToken ct)
+    private async Task<RawAnswer> PostAsync(string pathAndQuery, IReadOnlyDictionary<string, string> form, CancellationToken ct)
     {
         try { return Answer(pathAndQuery, await session.PostAsync(pathAndQuery, form, cancellationToken: ct).ConfigureAwait(false)); }
         catch (UnexpectedPageException e) when (e.Page.Kind == PageKind.Error) { return new RawAnswer(e.Page.StatusCode, e.Page.Html, null); }
@@ -500,62 +491,34 @@ internal sealed class FreePulls(KolibriSession session)
     private static RawAnswer Answer(string requested, Page page)
     {
         var asked = "/" + requested.TrimStart('/');
-        return string.Equals(page.Url.PathAndQuery, asked, StringComparison.OrdinalIgnoreCase)
-            ? new RawAnswer(page.StatusCode, page.Html, null)
-            : new RawAnswer(302, string.Empty, page.Url.PathAndQuery.TrimStart('/'));
+        var location = string.Equals(page.Url.PathAndQuery, asked, StringComparison.OrdinalIgnoreCase)
+            ? null : page.Url.PathAndQuery.TrimStart('/');
+        return new RawAnswer(page.StatusCode, page.Html, location);
     }
 
-    public Task<FreePullResult> PullAsync(int whichChoice, int option, CancellationToken ct)
-    {
-        var form = new Dictionary<string, string>(StringComparer.Ordinal);
-        string path;
-        switch (whichChoice)
+    public Task<RawAnswer> TradeCloverAsync(CancellationToken ct)
+        => PostAsync("hermit.php", new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            case ChoiceCampfire:
-                form["whichchoice"] = "1510"; form["option"] = "1"; form["leaves"] = option.ToString(CultureInfo.InvariantCulture);
-                path = "choice.php";
-                break;
-            case ChoiceDayShortner:
-                form["whichchoice"] = "1510"; form["option"] = "1"; form["leaves"] = DailyRun.DayShortenerLeafCost.ToString(CultureInfo.InvariantCulture);
-                path = "choice.php";
-                break;
-            case ChoiceClover:
-                form["action"] = "trade"; form["whichitem"] = DailyRun.Ids.ElevenLeafClover.ToString(CultureInfo.InvariantCulture);
-                form["quantity"] = option.ToString(CultureInfo.InvariantCulture); form["autopermit"] = "on";
-                path = "hermit.php?autopermit=on";
-                break;
-            case ChoiceHermitWish:
-                form["action"] = "trade"; form["whichitem"] = DailyRun.Ids.ElevenLeafClover.ToString(CultureInfo.InvariantCulture);
-                form["quantity"] = "1"; form["autopermit"] = "on";
-                path = "hermit.php?autopermit=on";
-                break;
-            default:
-                form["whichchoice"] = whichChoice.ToString(CultureInfo.InvariantCulture); form["option"] = option.ToString(CultureInfo.InvariantCulture);
-                path = $"choice.php?whichchoice={whichChoice}";
-                break;
-        }
-        return PostResultAsync(path, form, ct);
-    }
+            ["action"] = "trade",
+            ["whichitem"] = DailyRun.Ids.ElevenLeafClover.ToString(CultureInfo.InvariantCulture),
+            ["quantity"] = "1"
+        }, ct);
 
     /// <summary>Visits the pile of burning leaves first (KoL only accepts the choice there), then burns 1 or 222 leaves.</summary>
-    public async Task<FreePullResult> BurnLeavesAsync(int leaves, CancellationToken ct)
+    public async Task<RawAnswer> BurnLeavesAsync(int leaves, CancellationToken ct)
     {
         if (leaves != DailyRun.DayShortenerLeafCost && leaves != 1)
             throw new ArgumentOutOfRangeException(nameof(leaves), "KoL burns either one leaf (one day) or 222 leaves (one Day Shortener).");
         var visit = await GetAsync("campground.php?preaction=leaves", ct).ConfigureAwait(false);
-        var body = visit.Body;
-        if (!visit.IsSuccess && visit.Location is { } location)
-            body = (await GetAsync(location, ct).ConfigureAwait(false)).Body;
-        var page = BurningLeavesPage.Parse(body);
-        if (page is not null && page.Leaves > 0 && leaves > page.Leaves)
-            throw new InvalidOperationException($"Cannot burn {leaves} leaves; the pile only holds {page.Leaves}.");
-        var form = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (page is not null)
-            foreach (var field in page.Fields) form[field.Key] = field.Value;
-        form["whichchoice"] = "1510";
-        form["option"] = "1";
-        form["leaves"] = leaves.ToString(CultureInfo.InvariantCulture);
-        return await PostResultAsync("choice.php", form, ct).ConfigureAwait(false);
+        if (!visit.IsSuccess) return visit;
+        var amount = leaves.ToString(CultureInfo.InvariantCulture);
+        var form = BurningLeavesPage.BurnForm(visit.Body, amount)
+            ?? throw new InvalidOperationException("KoL zeigt kein Formular zum Verbrennen von Blättern.");
+        var page = BurningLeavesPage.Parse(visit.Body);
+        if (leaves > page.Leaves)
+            throw new InvalidOperationException($"Für den Brand sind {leaves} Blätter nötig. KoL zeigt {page.Leaves} an.");
+        form["leaves"] = amount;
+        return await PostAsync("choice.php", form, ct).ConfigureAwait(false);
     }
 
     public Task<FreePullResult> UseBaconMachineAsync(string pwd, CancellationToken ct)
@@ -567,23 +530,6 @@ internal sealed class FreePulls(KolibriSession session)
     public Task<FreePullResult> BuyMemeShopRowAsync(int rowId, string pwd, CancellationToken ct)
         => GetResultAsync($"shop.php?whichshop={MemeShopCatalog.ShopId}&action=buyitem&quantity=1&whichrow={rowId.ToString(CultureInfo.InvariantCulture)}&pwd={pwd}", ct);
 
-    /// <summary>One permit per worthless item (autopermit=on, as KoLmafia does).</summary>
-    public async Task<FreePullResult> BuyPermitAsync(int quantity, CancellationToken ct)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
-        var form = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["action"] = "trade",
-            ["whichitem"] = DailyRun.Ids.HermitPermit.ToString(CultureInfo.InvariantCulture),
-            ["quantity"] = quantity.ToString(CultureInfo.InvariantCulture),
-            ["autopermit"] = "on"
-        };
-        var answer = await PostAsync("hermit.php?autopermit=on", form, ct).ConfigureAwait(false);
-        var snippet = Snippet(answer.Body);
-        return new FreePullResult(answer.StatusCode, answer.IsSuccess,
-            answer.Location is { } loc ? $"[{answer.StatusCode}] -> {loc} | {snippet}" : snippet, answer.Location);
-    }
-
     private async Task<FreePullResult> GetResultAsync(string path, CancellationToken ct)
     {
         var answer = await GetAsync(path, ct).ConfigureAwait(false);
@@ -591,16 +537,8 @@ internal sealed class FreePulls(KolibriSession session)
             ? $"(empty body, HTTP {answer.StatusCode}, location {answer.Location ?? "none"})"
             : Snippet(answer.Body);
         // A real change shows "You acquire ..."; an empty or error page is not success.
-        return new FreePullResult(answer.StatusCode, answer.IsSuccess && answer.Body.Contains("acquire", StringComparison.OrdinalIgnoreCase), snippet, answer.Location);
-    }
-
-    private async Task<FreePullResult> PostResultAsync(string path, Dictionary<string, string> form, CancellationToken ct)
-    {
-        var answer = await PostAsync(path, form, ct).ConfigureAwait(false);
-        var snippet = string.IsNullOrWhiteSpace(answer.Body)
-            ? $"(empty body, HTTP {answer.StatusCode}, location {answer.Location ?? "none"})"
-            : Snippet(answer.Body);
-        return new FreePullResult(answer.StatusCode, answer.IsSuccess, snippet, answer.Location);
+        return new FreePullResult(answer.StatusCode, answer.IsSuccess && answer.Location is null
+            && answer.Body.Contains("acquire", StringComparison.OrdinalIgnoreCase), snippet, answer.Location);
     }
 
     private static readonly string[] Markers =

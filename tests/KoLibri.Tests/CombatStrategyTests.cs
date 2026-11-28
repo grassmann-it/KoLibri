@@ -164,6 +164,36 @@ public sealed class CombatStrategyTests
         Assert.Contains(kol.Requests, r => r.Method == "POST" && r.Path == "/fight.php" && r.Form.StartsWith("action=skill") && r.Form.Contains("whichskill=2023"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Combat_rules_count_the_skill_actually_used_before_mp_and_dropdowns_changed(bool sharedBudget)
+    {
+        const string perRule = """
+            { "rules": [{ "when": { "minMp": 10, "minRound": 4 }, "action": "skill 3004", "maxUses": 1 }], "default": "attack" }
+            """;
+        const string global = "budget maxSkillUses=1; if mp >= 10 then skill 3004; attack";
+        var fight = Fixture("skeleton-with-skills.html");
+        var lowMp = fight.Replace("40/50", "5/50").Replace("<option value=\"3004\">Entangling Noodles (4 mp)</option>", "");
+        var kol = new FakeKol()
+            .On("GET main.php", (_, _) => FakeKol.Redirect("fight.php"))
+            .On("GET fight.php", fight.Replace("name=\"onturn\" value=\"1\"", "name=\"onturn\" value=\"4\""))
+            .On("POST fight.php", lowMp)
+            .On("POST fight.php", fight)
+            .On("POST fight.php", ActionTests.FightWon);
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+
+        var result = await session.Adventure.FightToEndAsync(CombatStrategies.FromRules(sharedBudget ? global : perRule));
+
+        Assert.Equal(sharedBudget ? FightOutcome.Stopped : FightOutcome.Won, result.Outcome);
+        var posts = kol.Requests.Where(r => r.Method == "POST").ToArray();
+        Assert.Equal(sharedBudget ? 2 : 3, posts.Length);
+        Assert.All(posts, r => Assert.Equal("/fight.php", r.Path));
+        Assert.Contains("whichskill=3004", posts[0].Form);
+        Assert.All(posts.Skip(1), r => Assert.Equal("action=attack", r.Form));
+    }
+
     [Fact]
     public async Task A_turtle_fight_is_handed_back_without_a_request()
     {

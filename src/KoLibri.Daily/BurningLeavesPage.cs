@@ -33,15 +33,18 @@ public sealed class BurningLeavesPage
     private static readonly Regex StokedPattern = new(
         @"stoked the fire with <b>(?<count>[\d,]+)</b>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex FormPattern = new(
-        @"<form[^>]*action\s*=\s*(?:[""'](?<action>[^""']+)[""']|(?<action2>[a-zA-Z0-9_./?=&-]+))",
+        @"<form\b[^>]*\saction\s*=\s*(?:[""'](?<action>[^""']+)[""']|(?<action2>[a-zA-Z0-9_./?=&-]+))",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex Forms = new(@"<form\b[^>]*>.*?</form\s*>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    private static readonly Regex Inputs = new(@"<input\b[^>]*>", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex HiddenPattern = new(
-        @"<input[^>]*type\s*=\s*[""']?hidden[""']?[^>]*>",
+        @"<input\b[^>]*\stype\s*=\s*[""']?hidden[""']?(?=[\s/>])[^>]*>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex NamePattern = new(
-        @"name\s*=\s*[""'](?<name>[^""']+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        @"\sname\s*=\s*(?:""(?<name>[^""]+)""|'(?<name>[^']+)'|(?<name>[^\s/>]+))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ValuePattern = new(
-        @"value\s*=\s*[""'](?<value>[^""']*)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        @"\svalue\s*=\s*(?:""(?<value>[^""]*)""|'(?<value>[^']*)'|(?<value>[^\s/>]+))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>Parses the burning-leaves page.</summary>
     public static BurningLeavesPage Parse(string html)
@@ -57,33 +60,50 @@ public sealed class BurningLeavesPage
         if (stokedMatch.Success)
             burned = ParseNumber(stokedMatch.Groups["count"].Value);
 
-        var formMatch = FormPattern.Match(html);
-        var action = formMatch.Success
-            ? (formMatch.Groups["action"].Success
-                ? formMatch.Groups["action"].Value
-                : formMatch.Groups["action2"].Value)
-            : null;
-
-        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match hidden in HiddenPattern.Matches(html))
-        {
-            var tag = hidden.Value;
-            var nameMatch = NamePattern.Match(tag);
-            if (!nameMatch.Success) continue;
-            var valueMatch = ValuePattern.Match(tag);
-            var name = nameMatch.Groups["name"].Value;
-            // whichchoice/option/leaves are supplied by the caller.
-            if (name is "whichchoice" or "option" or "leaves") continue;
-            fields[name] = valueMatch.Success ? valueMatch.Groups["value"].Value : string.Empty;
-        }
+        var fields = HiddenFields(html);
+        foreach (var name in new[] { "whichchoice", "option", "leaves" }) fields.Remove(name);
 
         return new BurningLeavesPage
         {
             Leaves = leaves,
             BurnedToday = burned,
-            FormAction = action,
+            FormAction = FormActionOf(html),
             Fields = fields
         };
+    }
+
+    internal static Dictionary<string, string>? BurnForm(string html, string leaves)
+    {
+        foreach (Match match in Forms.Matches(html))
+        {
+            var form = match.Value;
+            if (!string.Equals(FormActionOf(form)?.TrimStart('/'), "choice.php", StringComparison.OrdinalIgnoreCase)) continue;
+            var fields = HiddenFields(form);
+            if (fields.GetValueOrDefault("whichchoice") != "1510" || fields.GetValueOrDefault("option") != "1") continue;
+            if (fields.TryGetValue("leaves", out var fixedAmount) && fixedAmount != leaves) continue;
+            if (Inputs.Matches(form).Cast<Match>().Any(input => InputName(input).Equals("leaves", StringComparison.OrdinalIgnoreCase)))
+                return fields;
+        }
+        return null;
+    }
+
+    private static string? FormActionOf(string html)
+    {
+        var form = FormPattern.Match(html);
+        return form.Success ? (form.Groups["action"].Success ? form.Groups["action"].Value : form.Groups["action2"].Value) : null;
+    }
+
+    private static string InputName(Match input) => NamePattern.Match(input.Value).Groups["name"].Value;
+
+    private static Dictionary<string, string> HiddenFields(string html)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match hidden in HiddenPattern.Matches(html))
+        {
+            var name = InputName(hidden);
+            if (name.Length > 0) fields[name] = ValuePattern.Match(hidden.Value).Groups["value"].Value;
+        }
+        return fields;
     }
 
     private static int ParseNumber(string value)
