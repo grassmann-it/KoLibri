@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using AccountRole = KolLibri.Mcp.AccountRole;
 using KolLibri.Mcp;
@@ -97,11 +98,12 @@ public sealed class McpWriteToolsTests : IDisposable
         return done.Body;
     }
 
-    private async Task<(bool Error, JsonElement Body)> CallAsync(string? token, string tool, string argsJson)
+    private async Task<(bool Error, JsonElement Body)> CallAsync(string? token, string tool, string argsJson,
+        CancellationToken cancellationToken = default, KolibriMcpServer? server = null)
     {
         McpRequestContext.Token = token;
         var req = JsonDocument.Parse($"{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{{\"name\":\"{tool}\",\"arguments\":{argsJson}}}}}").RootElement;
-        var res = (await _server.HandleAsync(req))!.Value.GetProperty("result");
+        var res = (await (server ?? _server).HandleAsync(req, cancellationToken))!.Value.GetProperty("result");
         var text = res.GetProperty("content")[0].GetProperty("text").GetString()!;
         var body = text.TrimStart().StartsWith('{') ? JsonDocument.Parse(text).RootElement.Clone() : JsonDocument.Parse(JsonSerializer.Serialize(new { message = text })).RootElement.Clone();
         return (res.GetProperty("isError").GetBoolean(), body);
@@ -149,6 +151,141 @@ public sealed class McpWriteToolsTests : IDisposable
             { [Rights.AccountRead] = new(), [Rights.TransferItems] = new() { DailyBudget = 10 } }, TimeSpan.FromDays(1)).Token;
         Assert.True((await CallAsync(noMeat, "kol_transfer", "{\"meat\":100}")).Error);
         Assert.Equal(0, _actions.MeatCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Transfer_cancellation_retains_holds_only_after_the_KMail_POST_starts(bool afterPost)
+    {
+        using var cts = new CancellationTokenSource();
+        var token = Token();
+        var grantId = _grants.FindByToken(token)!.Id;
+        var kol = new FakeKol();
+        kol.On("GET api.php?what=status", (request, _) =>
+        {
+            if (!afterPost && request.Headers.GetValues("Cookie").Contains("PHPSESSID=def")) CancelWithHolds();
+            return FakeKol.Html(kol.StatusJson());
+        });
+        kol.On("POST sendmessage.php", (_, _) =>
+        {
+            CancelWithHolds();
+            return FakeKol.Html("<center>Message sent.");
+        });
+        await using var accounts = McpTest.Accounts(kol, McpTest.BothRoles(), _dir);
+        var server = new KolibriMcpServer(accounts, new KolibriMcpServerOptions { ExperimentalTools = true });
+        server.EnableWriteTools(_gate, new KolibriClientActions(accounts));
+        server.Authorizer = McpAccessPolicy.ForToken(_gate, () => McpRequestContext.Token, "Main");
+        const string args = "{\"itemId\":7,\"quantity\":2,\"meat\":100";
+        var preview = await CallAsync(token, "kol_transfer", args + "}", server: server);
+        Assert.False(preview.Error);
+        var plan = preview.Body.GetProperty("planId").GetString();
+
+        var cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CallAsync(token, "kol_transfer", args + $",\"planId\":\"{plan}\"}}", cts.Token, server));
+
+        Assert.Equal(afterPost, Mailbox.MayHaveDispatched(cancelled));
+        Assert.Equal(afterPost ? 1 : 0, kol.Count("POST", "sendmessage.php"));
+        var restarted = new UsageLedger(Path.Combine(_dir, "u.jsonl"));
+        Assert.Equal(afterPost ? 100 : 0, restarted.UsedToday(grantId, Rights.TransferMeat));
+        Assert.Equal(afterPost ? 2 : 0, restarted.UsedToday(grantId, Rights.TransferItems));
+        var unclear = restarted.Unreconciled(grantId);
+        Assert.Equal(afterPost ? 2 : 0, unclear.Count);
+        Assert.All(unclear, entry => Assert.Contains("cancelled while sending KMail", entry.Detail));
+
+        void CancelWithHolds()
+        {
+            Assert.Equal(100, _ledger.UsedToday(grantId, Rights.TransferMeat));
+            Assert.Equal(2, _ledger.UsedToday(grantId, Rights.TransferItems));
+            cts.Cancel();
+            cts.Token.ThrowIfCancellationRequested();
+        }
+    }
+
+    [Fact]
+    public async Task Transfer_cancellation_waiting_for_the_action_lane_releases_both_holds()
+    {
+        using var cts = new CancellationTokenSource();
+        var token = Token();
+        var grantId = _grants.FindByToken(token)!.Id;
+        var kol = new FakeKol().On("POST sendmessage.php", "<center>Message sent.");
+        var mailApproved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var guard = new RecordingGuard
+        {
+            Decide = action =>
+            {
+                if (action.Kind == GuardedActionKind.SendMail) mailApproved.TrySetResult();
+                return GuardDecision.Allow;
+            }
+        };
+        using var transport = new HeldActionLane(kol);
+        await using var accounts = new McpAccounts(TestClient.Create(transport, McpTest.BothRoles(), guard, _dir));
+        var server = new KolibriMcpServer(accounts, new KolibriMcpServerOptions { ExperimentalTools = true });
+        server.EnableWriteTools(_gate, new KolibriClientActions(accounts));
+        server.Authorizer = McpAccessPolicy.ForToken(_gate, () => McpRequestContext.Token, "Main");
+        const string args = "{\"itemId\":7,\"quantity\":2,\"meat\":100";
+        var preview = await CallAsync(token, "kol_transfer", args + "}", server: server);
+        Assert.False(preview.Error);
+        var plan = preview.Body.GetProperty("planId").GetString();
+
+        await using var session = await accounts.OpenAsync(AccountRole.Main);
+        var occupyingLane = session.Http.PostAsync("hold.php", null);
+        OperationCanceledException cancelled;
+        try
+        {
+            await transport.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var execute = CallAsync(token, "kol_transfer", args + $",\"planId\":\"{plan}\"}}", cts.Token, server);
+            await mailApproved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(execute.IsCompleted);
+            Assert.Equal(100, _ledger.UsedToday(grantId, Rights.TransferMeat));
+            Assert.Equal(2, _ledger.UsedToday(grantId, Rights.TransferItems));
+            cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+            cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execute.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally
+        {
+            transport.Release.TrySetResult();
+            using var held = await occupyingLane;
+        }
+
+        Assert.False(Mailbox.MayHaveDispatched(cancelled));
+        Assert.Equal(0, kol.Count("POST", "sendmessage.php"));
+        var restarted = new UsageLedger(Path.Combine(_dir, "u.jsonl"));
+        Assert.Equal(0, restarted.UsedToday(grantId, Rights.TransferMeat));
+        Assert.Equal(0, restarted.UsedToday(grantId, Rights.TransferItems));
+        Assert.Empty(restarted.Unreconciled(grantId));
+    }
+
+    [Fact]
+    public async Task Stdio_replies_to_a_timed_out_request_and_processes_the_next_request()
+    {
+        await using var accounts = McpTest.Accounts(state: _dir);
+        var server = new KolibriMcpServer(accounts, new KolibriMcpServerOptions { RequestTimeout = TimeSpan.FromMilliseconds(150) });
+        server.Tools.Register(new McpToolDefinition("slow", "Waits for cancellation.", default, async (_, ct) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return null;
+        }));
+        const string requests = """
+            {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slow"}}
+            {"jsonrpc":"2.0","id":2,"method":"ping"}
+            """;
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(requests + "\n"));
+        using var output = new MemoryStream();
+        using var host = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        await server.RunAsync(input, output, host.Token);
+
+        var replies = Encoding.UTF8.GetString(output.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, replies.Length);
+        using var timeout = JsonDocument.Parse(replies[0]);
+        Assert.Equal(1, timeout.RootElement.GetProperty("id").GetInt32());
+        var error = timeout.RootElement.GetProperty("error");
+        Assert.Equal(-32000, error.GetProperty("code").GetInt32());
+        Assert.Equal("Request timed out.", error.GetProperty("message").GetString());
+        using var ping = JsonDocument.Parse(replies[1]);
+        Assert.Equal(2, ping.RootElement.GetProperty("id").GetInt32());
+        Assert.Equal(JsonValueKind.Object, ping.RootElement.GetProperty("result").ValueKind);
     }
 
     [Fact]

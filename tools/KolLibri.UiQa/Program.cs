@@ -351,6 +351,17 @@ sealed class QaEngine : IMallBuyEngine
         if (n == 2) _items[order.ItemId] = _items.GetValueOrDefault(order.ItemId) + order.Quantity;
         return new DesktopMallPurchaseResult { Status = DesktopMallPurchaseStatus.Sent, Confirmed = true, UnitPrice = order.ShownUnitPrice, Message = "ok" };
     }
+
+    public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+        Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken ct)
+    {
+        var decision = await beforeEachSend(ct);
+        return decision.Allowed ? await SendAsync(order, ct) : new DesktopMallPurchaseResult
+        {
+            Status = DesktopMallPurchaseStatus.NotSent,
+            Message = decision.Reason ?? "Blocked before send."
+        };
+    }
 }
 
 sealed class AllowAll : IMallPurchaseRequest

@@ -17,6 +17,17 @@ public interface IMallBuyEngine
 {
     Task<MallAccountReading> ReadAccountAsync(CancellationToken cancellationToken);
     Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// An engine that supports gated sends must check the gate immediately before dispatching each send.
+    /// </summary>
+    Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+        Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken cancellationToken)
+        => Task.FromResult(new DesktopMallPurchaseResult
+        {
+            Status = DesktopMallPurchaseStatus.NotSent,
+            Message = "The purchase engine does not verify pre-send gates at transport time. Nothing was sent."
+        });
 }
 
 /// <summary>
@@ -29,6 +40,11 @@ public sealed class ServiceMallBuyEngine(string account, DesktopMallPurchaseServ
 
     public Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order, CancellationToken cancellationToken)
         => service.BuyAsync(account, order.ItemId, order.ShopId, order.ShownUnitPrice, order.Quantity, cancellationToken, order.ShopName);
+
+    public Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+        Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken cancellationToken)
+        => service.BuyAsync(account, order.ItemId, order.ShopId, order.ShownUnitPrice, order.Quantity,
+            cancellationToken, order.ShopName, beforeEachSend);
 }
 
 public enum MallBuyState { Queued, Sending, Verifying, Settled, Partial, Unclear, Rejected, NotSent }
@@ -108,11 +124,14 @@ public sealed class MallBuyQueue : IDisposable
     private readonly Dictionary<string, Task> _senders = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _baselineGate = new(1, 1);
     private readonly List<MallBuyTicket> _pending = new();
+    private readonly object _finishGate = new();
+    private readonly Dictionary<MallBuyTicket, (MallBuyState State, string Message)> _ledgerFinishes = new();
     private Dictionary<string, int>? _baseline;
     private long _lastMeat;
     private long _sentSinceRead;
     private Task? _verifier;
     private int _counter;
+    private int _disposed;
 
     public MallBuyQueue(string account, MallSpendLedger ledger, SessionLogViewModel log, Action<Action>? ui = null,
         int verifyReads = 2, TimeSpan? verifyDelay = null, TimeSpan? batchWait = null)
@@ -151,17 +170,18 @@ public sealed class MallBuyQueue : IDisposable
     /// </summary>
     public MallBuyTicket Enqueue(MallBuyOrder order, IMallBuyEngine engine, DesktopMallPurchaseOptions options)
     {
+        RetryLedgerFinishes();
         var ticket = new MallBuyTicket(Interlocked.Increment(ref _counter), order);
         Ui(() => Tickets.Add(ticket));
         var max = checked(order.ShownUnitPrice * order.Quantity);
         if (order.Quantity <= 0 || order.Quantity > options.MaxQuantityPerPurchase || max > options.MaxMeatPerPurchase)
         {
-            Finish(ticket, MallBuyState.NotSent, "the quantity or total is above your per-purchase limit in Settings.", release: false);
+            Finish(ticket, MallBuyState.NotSent, "the quantity or total is above your per-purchase limit in Settings.");
             return ticket;
         }
         if (!_ledger.TryReserve(_account, max, options.MaxDailySpend, out var reservation, out var error))
         {
-            Finish(ticket, MallBuyState.NotSent, error ?? "the daily budget is used up.", release: false);
+            Finish(ticket, MallBuyState.NotSent, error ?? "the daily budget is used up.");
             return ticket;
         }
         ticket.Reservation = reservation;
@@ -238,7 +258,7 @@ public sealed class MallBuyQueue : IDisposable
                 var reading = await engine.ReadAccountAsync(token).ConfigureAwait(false);
                 if (!reading.Fresh)
                 {
-                    Finish(ticket, MallBuyState.NotSent, "the inventory could not be read fresh. Nothing was sent.", release: true);
+                    Finish(ticket, MallBuyState.NotSent, "the inventory could not be read fresh. Nothing was sent.");
                     return;
                 }
                 lock (_gate) { _baseline = new Dictionary<string, int>(reading.Items, StringComparer.Ordinal); _lastMeat = reading.Meat; _sentSinceRead = 0; }
@@ -246,12 +266,12 @@ public sealed class MallBuyQueue : IDisposable
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            Finish(ticket, MallBuyState.NotSent, $"the account could not be read ({MallPurchaseMessages.Describe(exception)}). Nothing was sent.", release: true);
+            Finish(ticket, MallBuyState.NotSent, $"the account could not be read ({MallPurchaseMessages.Describe(exception)}). Nothing was sent.");
             return;
         }
         catch (OperationCanceledException)
         {
-            Finish(ticket, MallBuyState.NotSent, "cancelled before sending. Nothing was sent.", release: true);
+            Finish(ticket, MallBuyState.NotSent, "cancelled before sending. Nothing was sent.");
             return;
         }
         finally
@@ -260,33 +280,27 @@ public sealed class MallBuyQueue : IDisposable
         }
 
         // Recheck the reservation after the baseline read in case the day changed or it was reconciled elsewhere.
-        if (ticket.Reserved > 0)
+        var earlyDecision = CheckReservation();
+        if (!earlyDecision.Allowed)
         {
-            var reservation = ticket.Reservation;
-            if (!_ledger.EnsureActiveOrRenew(ref reservation, ticket.MaxDailySpend, out var error))
-            {
-                ticket.Reserved = 0;
-                ticket.Reservation = default;
-                Finish(ticket, MallBuyState.NotSent, error ?? "the daily budget is used up.", release: false);
-                return;
-            }
-            ticket.Reservation = reservation;
+            Finish(ticket, MallBuyState.NotSent, earlyDecision.Reason!);
+            return;
         }
 
         DesktopMallPurchaseResult result;
         try
         {
-            result = await engine.SendAsync(ticket.Order, token).ConfigureAwait(false);
+            result = await engine.SendAsync(ticket.Order, BeforeSend, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            Finish(ticket, MallBuyState.Unclear, "cancelled while sending; it may or may not have gone through. Check your inventory.", release: false, unclear: true);
+            Finish(ticket, MallBuyState.Unclear, "cancelled while sending; it may or may not have gone through. Check your inventory.");
             return;
         }
         catch (Exception exception)
         {
             // Unknown whether a POST went out.
-            Finish(ticket, MallBuyState.Unclear, $"the purchase failed ({MallPurchaseMessages.Describe(exception)}); it may or may not have gone through. Check your inventory.", release: false, unclear: true);
+            Finish(ticket, MallBuyState.Unclear, $"the purchase failed ({MallPurchaseMessages.Describe(exception)}); it may or may not have gone through. Check your inventory.");
             return;
         }
 
@@ -299,7 +313,7 @@ public sealed class MallBuyQueue : IDisposable
                 ticket.Received = result.ReceivedQuantity;
                 ticket.Confirmed = true;
                 Finish(ticket, result.Status == DesktopMallPurchaseStatus.Purchased ? MallBuyState.Settled : MallBuyState.Partial,
-                    result.Message, release: false);
+                    result.Message);
                 break;
             case DesktopMallPurchaseStatus.Sent:
                 ticket.UnitPrice = result.UnitPrice;
@@ -316,14 +330,41 @@ public sealed class MallBuyQueue : IDisposable
                 Notify();
                 break;
             case DesktopMallPurchaseStatus.Unclear:
-                Finish(ticket, MallBuyState.Unclear, result.Message, release: false, unclear: true);
+                Finish(ticket, MallBuyState.Unclear, result.Message);
                 break;
             case DesktopMallPurchaseStatus.Rejected:
-                Finish(ticket, MallBuyState.Rejected, result.Message, release: true);
+                Finish(ticket, MallBuyState.Rejected, result.Message);
                 break;
             default:   // NotSent, PriceChanged
-                Finish(ticket, MallBuyState.NotSent, result.Message, release: true);
+                Finish(ticket, MallBuyState.NotSent, result.Message);
                 break;
+        }
+
+        GuardDecision CheckReservation(bool beginSend = false)
+        {
+            if (ticket.Reserved <= 0) return GuardDecision.Allow;
+            var reservation = ticket.Reservation;
+            var active = beginSend
+                ? _ledger.BeginSend(ref reservation, ticket.MaxDailySpend, out var error)
+                : _ledger.EnsureActiveOrRenew(ref reservation, ticket.MaxDailySpend, out error);
+            lock (_gate)
+            {
+                ticket.Reservation = reservation;
+                if (reservation.IsEmpty) ticket.Reserved = 0;
+            }
+            return active ? GuardDecision.Allow : GuardDecision.Deny(error ?? "the daily budget is used up.");
+        }
+
+        ValueTask<GuardDecision> BeforeSend(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_ledger.IsNearRollover())
+                return ValueTask.FromResult(GuardDecision.Deny("KoL rollover is imminent. Try again after rollover."));
+            var decision = CheckReservation(beginSend: true);
+            if (decision.Allowed && (_ledger.IsNearRollover()
+                || (ticket.Reserved > 0 && !_ledger.IsCurrentDay(ticket.Reservation))))
+                decision = GuardDecision.Deny("KoL rollover is imminent. Try again after rollover.");
+            return ValueTask.FromResult(decision);
         }
     }
 
@@ -439,32 +480,57 @@ public sealed class MallBuyQueue : IDisposable
     {
         ticket.Received = received;
         lock (_gate) _pending.Remove(ticket);
-        Finish(ticket, state, message, release: false, unclear: state == MallBuyState.Unclear);
+        Finish(ticket, state, message);
     }
 
-    private void Finish(MallBuyTicket ticket, MallBuyState state, string message, bool release = false, bool unclear = false)
+    private void Finish(MallBuyTicket ticket, MallBuyState state, string message, bool retry = false)
     {
-        if (ticket.Reserved > 0)
+        var settled = state is MallBuyState.Settled or MallBuyState.Partial;
+        string? error = null;
+        lock (_finishGate)
         {
-            // Booked on the KoL day of the reservation, so a buy that ends after the rollover never touches the new day's reservations.
-            var reservation = ticket.Reservation;
-            if (state is MallBuyState.Settled or MallBuyState.Partial)
-                _ledger.SettlePartial(reservation, ticket.UnitPrice * ticket.Received);
-            else if (unclear) _ledger.MarkUnclear(reservation);
-            else _ledger.Release(reservation);   // nothing was sent (not sent / refused by KoL)
-            ticket.Reserved = 0;
-            ticket.Reservation = default;
+            if (retry && !_ledgerFinishes.ContainsKey(ticket)) return;
+            if (ticket.Reserved > 0)
+            {
+                error = _ledger.FinishPurchase(ticket.Reservation, settled ? ticket.UnitPrice * ticket.Received : null,
+                    state == MallBuyState.Unclear);
+                if (error is null)
+                {
+                    ticket.Reserved = 0;
+                    ticket.Reservation = default;
+                    _ledgerFinishes.Remove(ticket);
+                }
+                else _ledgerFinishes[ticket] = (state, message);
+            }
         }
+        var pendingMessage = error is null ? message : $"{message} Spend ledger update pending; the reservation is still held. {error}";
         var label = state switch { MallBuyState.Settled => "Settled", MallBuyState.NotSent => "Not sent", _ => state.ToString() };
-        var line = $"#{ticket.Number} {label}: {message}";
-        if (state is MallBuyState.Settled or MallBuyState.Partial) _log.Purchase(line); else _log.Error(line);
-        Ui(() => { ticket.State = state; ticket.Message = message; });
+        var line = $"#{ticket.Number} {label}: {pendingMessage}";
+        if (settled && error is null) _log.Purchase(line); else _log.Error(line);
+        Ui(() => { ticket.State = state; ticket.Message = ticket.Reservation.IsEmpty ? message : pendingMessage; });
         Notify();
+    }
+
+    private void RetryLedgerFinishes()
+    {
+        KeyValuePair<MallBuyTicket, (MallBuyState State, string Message)>[] pending;
+        lock (_finishGate) pending = _ledgerFinishes.ToArray();
+        foreach (var (ticket, outcome) in pending)
+            Finish(ticket, outcome.State, outcome.Message, retry: true);
     }
 
     private void Ui(Action action) => _ui(action);
 
     private void Notify() => Ui(() => Changed?.Invoke());
 
-    public void Dispose() { _stop.Cancel(); _stop.Dispose(); _baselineGate.Dispose(); }
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _stop.Cancel();
+            _stop.Dispose();
+            _baselineGate.Dispose();
+        }
+        RetryLedgerFinishes();
+    }
 }

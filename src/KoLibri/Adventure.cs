@@ -315,7 +315,7 @@ namespace KoLibri
 
         private async Task<Encounter> AdventureCoreAsync(Location location, CancellationToken cancellationToken)
         {
-            var form = new Dictionary<string, string> { ["snarfblat"] = location.Snarfblat.ToString(CultureInfo.InvariantCulture) };
+            KeyValuePair<string, string>[] form = [new("snarfblat", location.Snarfblat.ToString(CultureInfo.InvariantCulture))];
             var page = await _session.SendAsync(HttpMethod.Post, _session.BuildUri("adventure.php", null), form, RequestLane.Action, cancellationToken)
                 .ConfigureAwait(false);
             Encounter encounter;
@@ -366,7 +366,7 @@ namespace KoLibri
                 default: throw new NotSupportedException($"Combat action {action.Kind} cannot be sent.");
             }
             var previous = _lastObservation;
-            var page = await _session.SendAsync(HttpMethod.Post, _session.BuildUri("fight.php", null), form, RequestLane.Action, cancellationToken)
+            var page = await _session.SendAsync(HttpMethod.Post, _session.BuildUri("fight.php", null), form.ToArray(), RequestLane.Action, cancellationToken)
                 .ConfigureAwait(false);
             if (page.Kind == PageKind.NotInFight)
             {
@@ -609,7 +609,7 @@ namespace KoLibri
                 ["whichchoice"] = state.ChoiceId,
                 ["option"] = option.ToString(CultureInfo.InvariantCulture)
             };
-            var page = await _session.SendAsync(HttpMethod.Post, _session.BuildUri("choice.php", null), form, RequestLane.Action, cancellationToken)
+            var page = await _session.SendAsync(HttpMethod.Post, _session.BuildUri("choice.php", null), form.ToArray(), RequestLane.Action, cancellationToken)
                 .ConfigureAwait(false);
             Encounter next = IsMainPage(page)
                 ? await GetOpenEncounterAsync(cancellationToken).ConfigureAwait(false) ?? new NonCombatEncounter(page, null, state.Title, Array.Empty<InventoryItem>(), 0)

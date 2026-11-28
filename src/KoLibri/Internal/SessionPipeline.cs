@@ -11,11 +11,36 @@ internal static class SessionPipeline
 {
     internal static readonly HttpRequestOptionsKey<RequestLane> LaneKey = new("kolibri.lane");
     internal static readonly HttpRequestOptionsKey<TimeSpan> WaitedKey = new("kolibri.waited");
+    private static readonly AsyncLocal<MallSendScope?> MallSend = new();
+
+    private sealed record MallSendScope(
+        Func<CancellationToken, ValueTask<GuardDecision>>? Gate, Action? OnDispatch, MallSendScope? Parent)
+    {
+        public async ValueTask<GuardDecision> CheckAsync(CancellationToken cancellationToken)
+        {
+            if (Gate is not null)
+            {
+                var decision = await Gate(cancellationToken).ConfigureAwait(false);
+                if (!decision.Allowed) return decision;
+            }
+            return Parent is null ? GuardDecision.Allow : await Parent.CheckAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    internal static async Task<T> WithMallSendGateAsync<T>(Func<Task<T>> send,
+        Func<CancellationToken, ValueTask<GuardDecision>>? gate, Action? onDispatch = null)
+    {
+        var previous = MallSend.Value;
+        MallSend.Value = new MallSendScope(gate, onDispatch, previous);
+        try { return await send().ConfigureAwait(false); }
+        finally { MallSend.Value = previous; }
+    }
 
     public static CoreBasis.KoLSecurityPolicy CreatePolicy(Uri baseUri)
     {
         ArgumentNullException.ThrowIfNull(baseUri);
-        var hosts = new HashSet<string>(CoreBasis.KoLHostAllowlist.OfficialHosts, StringComparer.OrdinalIgnoreCase) { baseUri.Host };
+        var officialHosts = CoreBasis.KoLHostAllowlist.OfficialHosts;
+        IReadOnlyCollection<string> hosts = officialHosts.Contains(baseUri.Host) ? officialHosts : [baseUri.Host];
         var policy = new CoreBasis.KoLSecurityPolicy { AllowedHosts = hosts };
         policy.Validate();
         policy.EnsureAllowed(baseUri, "KoLibri base");
@@ -65,7 +90,7 @@ internal static class SessionPipeline
         }
         HttpMessageHandler chain = new LaneHandler(client.Limiter, transport);
         if (events is not null) chain = new RequestEventsHandler(events, chain);
-        var http = new HttpClient(new CoreBasis.KoLAllowlistHandler(chain, client.Policy))
+        var http = new HttpClient(new CoreBasis.KoLAllowlistHandler(chain, client.Policy, markDispatched: false))
         {
             BaseAddress = client.Options.BaseUri,
             Timeout = client.Options.RequestTimeout
@@ -118,11 +143,25 @@ internal static class SessionPipeline
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            request.Options.TryGetValue(CoreBasis.KoLAllowlistHandler.DispatchedKey, out var dispatched);
+            if (dispatched is not null) dispatched.Value = false;
             var lane = EffectiveLane(request);
             var started = Stopwatch.GetTimestamp();
             using var lease = await limiter.AcquireAsync(
                 lane == RequestLane.Read ? CoreBasis.KoLRequestLane.Read : CoreBasis.KoLRequestLane.Action, cancellationToken).ConfigureAwait(false);
             request.Options.Set(WaitedKey, Stopwatch.GetElapsedTime(started));
+            Action? onDispatch = null;
+            if (MallSend.Value is { } scope && request.Method == HttpMethod.Post
+                && request.RequestUri?.AbsolutePath.EndsWith("/mallstore.php", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var decision = await scope.CheckAsync(cancellationToken).ConfigureAwait(false);
+                if (!decision.Allowed) throw new PreSendBlockedException(decision.Reason);
+                onDispatch = scope.OnDispatch;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            onDispatch?.Invoke();
+            if (dispatched is not null) dispatched.Value = true;
             return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -168,6 +207,8 @@ internal static class SessionPipeline
         }
     }
 }
+
+internal sealed class PreSendBlockedException(string? reason) : Exception(reason ?? "Blocked before send.");
 
 /// <summary>Sorts a KoL answer into <see cref="PageKind"/>.</summary>
 internal static class PageClassifier

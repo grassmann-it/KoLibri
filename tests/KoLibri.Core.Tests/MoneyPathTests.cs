@@ -1,3 +1,4 @@
+using System.Text.Json;
 using KoLibri.Core.Markt;
 using KoLibri.Core.Spiel;
 using Xunit;
@@ -30,6 +31,103 @@ public sealed class MoneyPathTests
         }), ledger, "mallbot", budget, gatewayDailySpentIncludesLedger);
 
     private static string TempDir() => Directory.CreateTempSubdirectory("money-").FullName;
+
+    private sealed class ExtrasLedger(string path, TimeProvider clock, Func<int, bool>? isOwnerAlive = null)
+        : KoLibri.Extras.FileSpendLedger(path, clock, isOwnerAlive: isOwnerAlive);
+
+    [Theory]
+    [InlineData("settle", 300, 0)]
+    [InlineData("unclear", 500, 500)]
+    [InlineData("release", 0, 0)]
+    [InlineData("reconcile", 200, 0)]
+    public void Core_and_Extras_preserve_in_flight_reservations_across_rollover(string finish, long counted, long unclear)
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            var clock = new MovableClock(Now);
+            var owner = new ExtrasLedger(path, clock);
+            var core = new SharedMallSpendLedger(path, clock);
+            owner.Add("Mallbot", 100);
+            Assert.True(owner.TryReserve("Mallbot", 60, 1_000, out var oldUnclear, out _));
+            owner.MarkUnclear(oldUnclear);
+            Assert.True(owner.TryReserve("Mallbot", 70, 1_000, out var queued, out _));
+            Assert.True(owner.TryReserve("Mallbot", 500, 1_000, out var sending, out _));
+            Assert.True(owner.BeginSend(ref sending, 1_000, out _));
+
+            var before = core.ReadUnclear("Mallbot");
+            Assert.Equal(queued.Id, Assert.Single(before.ForeignIds!));
+            core.Add("Other", 1);
+            CheckSendingFile(730);
+
+            clock.Value = Now.AddDays(1);
+            Assert.Equal(500, core.CountedToday("Mallbot"));
+            var current = core.ReadUnclear("Mallbot");
+            Assert.Equal(before.Revision, current.Revision);
+            Assert.NotEqual(before.Day, current.Day);
+            Assert.Equal(0, current.Total);
+            Assert.False(core.TryReserve("Mallbot", 501, 1_000, out _, out _));
+            core.Add("Other", 1);
+            CheckSendingFile(500);
+
+            if (finish == "reconcile")
+            {
+                var orphanReader = new ExtrasLedger(path, clock, _ => false);
+                var orphan = orphanReader.ReadUnclear("Mallbot");
+                Assert.Equal(sending.Id, Assert.Single(orphan.ForeignIds!));
+                Assert.Equal(500, orphan.Foreign);
+                Assert.True(orphanReader.Reconcile("Mallbot", orphan, 200));
+            }
+
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                if (finish == "release") owner.Release(sending);
+                else if (finish == "unclear") owner.MarkUnclear(sending);
+                else owner.SettlePartial(sending, 300);
+            }
+            Assert.Equal(counted, core.CountedToday("Mallbot"));
+            Assert.Equal(unclear, core.UnclearAmount("Mallbot"));
+            Assert.Equal(0, core.ReservedAmount("Mallbot"));
+            using var completed = JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal(1, completed.RootElement.GetProperty("version").GetInt32());
+            Assert.False(completed.RootElement.GetProperty("accounts").GetProperty("Mallbot").TryGetProperty("sending", out _));
+
+            void CheckSendingFile(long expectedCounted)
+            {
+                using var file = JsonDocument.Parse(File.ReadAllText(path));
+                var root = file.RootElement;
+                Assert.Equal(2, root.GetProperty("version").GetInt32());
+                var mallbot = root.GetProperty("accounts").GetProperty("Mallbot");
+                Assert.Equal(Environment.ProcessId, mallbot.GetProperty("sending").GetProperty(sending.Id).GetInt32());
+                Assert.Equal(500, mallbot.GetProperty("reservations").GetProperty(sending.Id).GetInt64());
+                Assert.Equal(expectedCounted, core.CountedToday("Mallbot"));
+            }
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void Core_and_Extras_fail_closed_on_a_future_ledger_format()
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            const string contents = """{"version":3,"accounts":{}}""";
+            File.WriteAllText(path, contents);
+            var clock = new MovableClock(Now);
+            var extras = new ExtrasLedger(path, clock);
+            var core = new SharedMallSpendLedger(path, clock);
+
+            Assert.IsType<FormatException>(Assert.Throws<KoLibri.Extras.SpendLedgerException>(() => extras.ReadUnclear("Mallbot")).InnerException);
+            Assert.IsType<FormatException>(Assert.Throws<SpendLedgerException>(() => core.ReadUnclear("Mallbot")).InnerException);
+            Assert.False(extras.TryReserve("Mallbot", 100, 1_000, out _, out _));
+            Assert.False(core.TryReserve("Mallbot", 100, 1_000, out _, out _));
+            Assert.Equal(contents, File.ReadAllText(path));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
 
     [Fact]
     public async Task Meat_drop_between_plan_and_commit_cannot_go_below_the_reserve()

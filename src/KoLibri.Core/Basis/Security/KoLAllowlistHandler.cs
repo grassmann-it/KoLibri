@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace KoLibri.Core.Basis;
 
 /// <summary>
@@ -7,14 +9,21 @@ namespace KoLibri.Core.Basis;
 public sealed class KoLAllowlistHandler : DelegatingHandler
 {
     private readonly KoLSecurityPolicy _policy;
+    private readonly bool _markDispatched;
 
-    public KoLAllowlistHandler(HttpMessageHandler inner, KoLSecurityPolicy policy) : base(inner)
-        => _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+    public KoLAllowlistHandler(HttpMessageHandler inner, KoLSecurityPolicy policy) : this(inner, policy, markDispatched: true) { }
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HttpClient, object> Trusted = new();
+    internal KoLAllowlistHandler(HttpMessageHandler inner, KoLSecurityPolicy policy, bool markDispatched) : base(inner)
+    {
+        _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+        _markDispatched = markDispatched;
+    }
+
+    private static readonly ConditionalWeakTable<HttpClient, object> Trusted = new();
+    internal static readonly HttpRequestOptionsKey<StrongBox<bool>> DispatchedKey = new("kolibri.dispatched");
 
     /// <summary>Marks a client built by this library (allowlist handler, no auto-redirect) as safe for cookies.</summary>
-    public static void MarkTrusted(HttpClient client) => Trusted.AddOrUpdate(client, new object());
+    internal static void MarkTrusted(HttpClient client) => Trusted.AddOrUpdate(client, new object());
 
     /// <summary>True when the client was produced by <see cref="MarkTrusted"/>.</summary>
     public static bool IsTrusted(HttpClient client) => Trusted.TryGetValue(client, out _);
@@ -48,19 +57,12 @@ public sealed class KoLAllowlistHandler : DelegatingHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.RequestUri is null || !request.RequestUri.IsAbsoluteUri)
-            throw new KoLSecurityException("Authenticated KoL request has no absolute URI.");
-        _policy.EnsureAllowed(request.RequestUri, "Authenticated KoL request");
+        EnsureDestination(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_markDispatched && request.Options.TryGetValue(DispatchedKey, out var dispatched))
+            dispatched.Value = true;
         var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        var finalUri = response.RequestMessage?.RequestUri;
-        if (finalUri is not null && finalUri != request.RequestUri)
-        {
-            // An inner handler followed a redirect by itself; the cookie may
-            // already have travelled. Refuse to hand the response on.
-            response.Dispose();
-            throw new KoLSecurityException("An inner handler followed a redirect automatically; authenticated KoL transports must not auto-redirect.");
-        }
+        EnsureNotRedirected(request, response);
         return response;
     }
 

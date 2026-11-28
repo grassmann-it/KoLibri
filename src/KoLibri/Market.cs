@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using KoLibri.Internal;
 using CoreMarkt = KoLibri.Core.Markt;
 using CoreSpiel = KoLibri.Core.Spiel;
@@ -43,24 +45,40 @@ namespace KoLibri
             return Plan(order, offers, status.Meat);
         }
 
+#pragma warning disable RS0027 // Preserve the existing optional token. The gated overload requires all three arguments.
         /// <summary>
         /// Kauft laut Quote. Liest Preise neu, kauft nie über MaxUnitPrice und nie über den Preis der Quote (den der Guard
         /// freigegeben hat): ist ein Angebot teurer geworden, wird diese Zeile nicht gekauft (PriceChanged). Prüft danach Inventar und Meat.
         /// </summary>
         public Task<PurchaseResult> BuyAsync(PurchaseQuote quote, CancellationToken cancellationToken = default)
+            => BuyApprovedAsync(quote, beforeEachSend: null, cancellationToken);
+#pragma warning restore RS0027
+
+        /// <summary>Prüft unmittelbar vor jedem Kauf-POST, ob er gesendet werden darf.</summary>
+        public Task<PurchaseResult> BuyAsync(
+            PurchaseQuote quote,
+            Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(beforeEachSend);
+            return BuyApprovedAsync(quote, beforeEachSend, cancellationToken);
+        }
+
+        private Task<PurchaseResult> BuyApprovedAsync(PurchaseQuote quote,
+            Func<CancellationToken, ValueTask<GuardDecision>>? beforeEachSend, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(quote);
-            Validate(quote.Order);
+            var (plan, quantity, total, maxUnitPrice) = Approved(quote);
             var action = new GuardedAction(_session.Account.Id, GuardedActionKind.MallBuy,
-                $"buy {quote.PlannedQuantity} x item {quote.Order.Item.Id} at most {quote.Order.MaxUnitPrice} each")
+                $"buy {quantity} x item {quote.Order.Item.Id} at most {maxUnitPrice ?? 0} each")
             {
                 Item = quote.Order.Item,
-                Quantity = quote.PlannedQuantity,
-                Meat = quote.TotalCost,
-                MaxUnitPrice = quote.Plan.Count == 0 ? null : quote.Plan.Max(l => l.UnitPrice),
+                Quantity = quantity,
+                Meat = total,
+                MaxUnitPrice = maxUnitPrice,
                 Path = "mallstore.php"
             };
-            return _session.GuardAsync(action, () => BuyCoreAsync(quote, cancellationToken),
+            return _session.GuardAsync(action, () => BuyCoreAsync(quote.Order, plan, total, beforeEachSend, cancellationToken),
                 r => r.Status is PurchaseStatus.Bought or PurchaseStatus.Partial or PurchaseStatus.Unclear, cancellationToken);
         }
 
@@ -105,6 +123,34 @@ namespace KoLibri
             if (order.MeatReserve < 0) throw new ArgumentOutOfRangeException(nameof(order), "MeatReserve must not be negative.");
         }
 
+        private static (IReadOnlyList<MallListing> Plan, int Quantity, long Total, long? MaxUnitPrice) Approved(PurchaseQuote quote)
+        {
+            var order = quote.Order;
+            Validate(order);
+            ArgumentNullException.ThrowIfNull(quote.Plan);
+            var plan = quote.Plan.ToArray();
+            var stores = new HashSet<int>();
+            var excluded = order.ExcludedStoreIds.ToHashSet();
+            int quantity = 0;
+            long total = 0;
+            long maxUnitPrice = 0;
+            foreach (var line in plan)
+            {
+                if (line is null || line.StoreId <= 0 || line.Quantity <= 0 || line.UnitPrice <= 0
+                    || line.UnitPrice > order.MaxUnitPrice || line.UnitPrice > CoreMarkt.MallBuyClient.MaxBindablePrice
+                    || line.Item != order.Item || excluded.Contains(line.StoreId) || !stores.Add(line.StoreId))
+                    throw new ArgumentException("The purchase plan contains an invalid listing.", nameof(quote));
+                if (line.Quantity > order.Quantity - quantity)
+                    throw new ArgumentException("The purchase plan exceeds the ordered quantity.", nameof(quote));
+                quantity += line.Quantity;
+                total = checked(total + (long)line.Quantity * line.UnitPrice);
+                maxUnitPrice = Math.Max(maxUnitPrice, line.UnitPrice);
+            }
+            if (quote.TotalCost != total || quote.PlannedQuantity != quantity)
+                throw new ArgumentException("The quote's total cost or quantity does not match its purchase plan.", nameof(quote));
+            return (plan, quantity, total, plan.Length == 0 ? null : maxUnitPrice);
+        }
+
         internal static PurchaseQuote Plan(PurchaseOrder order, MallOffers offers, long meat)
         {
             var excluded = order.ExcludedStoreIds.ToHashSet();
@@ -113,10 +159,12 @@ namespace KoLibri
             var budget = meat - order.MeatReserve;
             long total = 0;
             string? shortfall = null;
-            foreach (var listing in offers.Listings.Where(l => l.Quantity > 0 && !excluded.Contains(l.StoreId)).OrderBy(l => l.UnitPrice))
+            var maxPrice = Math.Min(order.MaxUnitPrice, CoreMarkt.MallBuyClient.MaxBindablePrice);
+            foreach (var listing in offers.Listings.Where(l => l.StoreId > 0 && l.Quantity > 0 && l.UnitPrice > 0 && l.Item == order.Item).OrderBy(l => l.UnitPrice))
             {
                 if (remaining <= 0) break;
-                if (listing.UnitPrice > order.MaxUnitPrice) break;
+                if (listing.UnitPrice > maxPrice) break;
+                if (!excluded.Add(listing.StoreId)) continue;
                 var take = Math.Min(remaining, listing.Quantity);
                 if (listing.LimitPerDay is > 0 and var limit) take = Math.Min(take, limit);
                 var affordable = budget - total <= 0 ? 0 : (int)Math.Min(take, (budget - total) / listing.UnitPrice);
@@ -131,7 +179,7 @@ namespace KoLibri
                 remaining -= take;
             }
             if (remaining > 0)
-                shortfall ??= $"Only {order.Quantity - remaining} of {order.Quantity} are offered at or below {order.MaxUnitPrice} Meat.";
+                shortfall ??= $"Only {order.Quantity - remaining} of {order.Quantity} are offered at or below {maxPrice} Meat.";
             return new PurchaseQuote(order, plan, total, DateTimeOffset.UtcNow)
             {
                 PlannedQuantity = order.Quantity - remaining,
@@ -139,11 +187,11 @@ namespace KoLibri
             };
         }
 
-        private async Task<PurchaseResult> BuyCoreAsync(PurchaseQuote quote, CancellationToken cancellationToken)
+        private async Task<PurchaseResult> BuyCoreAsync(PurchaseOrder order, IReadOnlyList<MallListing> plan, long approvedTotal,
+            Func<CancellationToken, ValueTask<GuardDecision>>? beforeEachSend, CancellationToken cancellationToken)
         {
-            var order = quote.Order;
             var lines = new List<PurchaseLine>();
-            if (quote.Plan.Count == 0)
+            if (plan.Count == 0)
                 return new PurchaseResult(PurchaseStatus.NothingBought, 0, 0, lines);
 
             // Read again: prices and stock may have moved since the quote.
@@ -157,11 +205,13 @@ namespace KoLibri
             long spent = 0;
             var priceMoved = false;
             var unclear = false;
-            foreach (var planned in quote.Plan)
+            var refused = false;
+            var attemptedPost = false;
+            foreach (var planned in plan)
             {
                 if (bought >= order.Quantity) break;
                 var current = fresh.Listings.FirstOrDefault(l => l.StoreId == planned.StoreId);
-                if (current is null || current.Quantity <= 0)
+                if (current is null || current.Quantity <= 0 || current.UnitPrice <= 0)
                 {
                     lines.Add(new PurchaseLine(planned.StoreId, planned.UnitPrice, planned.Quantity, 0, "The listing is gone."));
                     continue;
@@ -183,13 +233,32 @@ namespace KoLibri
                 }
                 var quantity = Math.Min(Math.Min(planned.Quantity, current.Quantity), order.Quantity - bought);
                 var cost = quantity * current.UnitPrice;
+                if (cost > approvedTotal - spent)
+                {
+                    lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, quantity, 0, "The approved total would be exceeded."));
+                    refused = true;
+                    break;
+                }
                 if (status.Meat - spent - cost < order.MeatReserve)
                 {
                     lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, quantity, 0, $"The meat reserve of {order.MeatReserve} would be broken."));
+                    refused = true;
                     continue;
                 }
-                var result = await _session.ActAsync(() => buyer.BuyAsync(_session.Credentials, planned.StoreId, order.Item.Id,
-                    current.UnitPrice, quantity, hash, cancellationToken)).ConfigureAwait(false);
+                CoreMarkt.MallBuyResult result;
+                try
+                {
+                    result = await SessionPipeline.WithMallSendGateAsync(
+                        () => _session.ActAsync(() => buyer.BuyAsync(_session.Credentials, planned.StoreId, order.Item.Id,
+                            current.UnitPrice, quantity, hash, cancellationToken)),
+                        beforeEachSend, () => attemptedPost = true).ConfigureAwait(false);
+                }
+                catch (PreSendBlockedException exception)
+                {
+                    lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, quantity, 0, exception.Message));
+                    refused = true;
+                    break;
+                }
                 if (result.Unverified)
                 {
                     unclear = true;
@@ -202,6 +271,10 @@ namespace KoLibri
                 lines.Add(new PurchaseLine(planned.StoreId, current.UnitPrice, quantity, got, result.Message));
             }
 
+            var noPurchase = refused ? PurchaseStatus.Refused : priceMoved ? PurchaseStatus.PriceChanged : PurchaseStatus.NothingBought;
+            if (!attemptedPost)
+                return new PurchaseResult(noPurchase, 0, 0, lines);
+
             // Check afterwards: the inventory must show what the receipts claim.
             try
             {
@@ -213,14 +286,24 @@ namespace KoLibri
             }
             catch (KolibriException)
             {
-                unclear = unclear || bought > 0;
+                unclear |= bought > 0;
+            }
+            // Shop sales can offset the debit. Only a larger debit contradicts the receipts.
+            try
+            {
+                var after = await _session.Character.GetStatusAsync(true, cancellationToken).ConfigureAwait(false);
+                var meatDelta = status.Meat - after.Meat;
+                unclear |= meatDelta > spent;
+                spent = Math.Max(spent, meatDelta);
+            }
+            catch (KolibriException)
+            {
+                unclear |= bought > 0;
             }
             var statusOut = unclear ? PurchaseStatus.Unclear
                 : bought >= order.Quantity ? PurchaseStatus.Bought
                 : bought > 0 ? PurchaseStatus.Partial
-                : priceMoved ? PurchaseStatus.PriceChanged
-                : lines.Count > 0 && lines.All(l => l.Message?.Contains("meat reserve", StringComparison.OrdinalIgnoreCase) == true) ? PurchaseStatus.Refused
-                : PurchaseStatus.NothingBought;
+                : noPurchase;
             return new PurchaseResult(statusOut, bought, spent, lines);
         }
 
@@ -297,7 +380,8 @@ namespace KoLibri
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(price);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(price, int.MaxValue);
             ArgumentOutOfRangeException.ThrowIfNegative(limitPerDay);
-            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.ShopChange, $"list {quantity} x item {item.Id} at {price}")
+            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.ShopChange,
+                FormattableString.Invariant($"list {quantity} x item {item.Id} at {price}, limit {limitPerDay}"))
             {
                 Item = item,
                 Quantity = quantity,
@@ -318,11 +402,18 @@ namespace KoLibri
         public Task<ActionResult> RepriceAsync(IReadOnlyList<ShopPriceChange> changes, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(changes);
+            changes = changes.ToArray();
             if (changes.Count == 0) throw new ArgumentException("No price changes given.", nameof(changes));
-            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.ShopChange, $"reprice {changes.Count} item(s)")
+            var sorted = changes.OrderBy(c => c.Item.Id).Select(c => (Change: c, Price: FormattableString.Invariant(
+                $"{c.Item.Id}@{c.ExpectedPrice?.ToString(CultureInfo.InvariantCulture) ?? "*"}->{c.Price}"))).ToArray();
+            var summary = string.Join(", ", sorted.Select(c => c.Price));
+            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.ShopChange, $"reprice: {summary}")
             {
+                Item = changes.Count == 1 ? changes[0].Item : null,
                 Quantity = changes.Count,
-                Path = "backoffice.php"
+                Path = "backoffice.php",
+                Binding = string.Join(", ", sorted.Select(c =>
+                    $"{c.Price};limit={c.Change.LimitPerDay?.ToString(CultureInfo.InvariantCulture) ?? "*"}"))
             };
             return _session.GuardAsync(action, async () =>
             {
@@ -346,9 +437,10 @@ namespace KoLibri
                 var result = await _session.ActAsync(() => new CoreMarkt.KoLShopMutationClient(_session.Http, _session.Client.Options.BaseUri)
                     .ApplyPriceUpdatesAsync(updates, commit: true, cancellationToken)).ConfigureAwait(false);
                 var done = result.Results.Count(r => r.Status == CoreMarkt.ShopPriceUpdateStatus.Updated);
-                var failed = result.Results.Where(r => r.Status != CoreMarkt.ShopPriceUpdateStatus.Updated)
+                var ok = done + result.Results.Count(r => r.Status == CoreMarkt.ShopPriceUpdateStatus.Hold);
+                var failed = result.Results.Where(r => r.Status is not (CoreMarkt.ShopPriceUpdateStatus.Updated or CoreMarkt.ShopPriceUpdateStatus.Hold))
                     .Select(r => $"{r.ItemId}: {r.Status}{(r.Message is null ? "" : " (" + r.Message + ")")}").ToArray();
-                var status = done == changes.Count && result.Succeeded ? ActionStatus.Done
+                var status = ok == changes.Count && result.Succeeded ? ActionStatus.Done
                     : result.Results.Any(r => r.Status == CoreMarkt.ShopPriceUpdateStatus.VerificationFailed) ? ActionStatus.Unclear
                     : done > 0 ? ActionStatus.Partial : ActionStatus.Rejected;
                 return new ActionResult(status, done, status == ActionStatus.Done ? null : string.Join("; ", failed), null);
@@ -500,18 +592,26 @@ namespace KoLibri
             ArgumentNullException.ThrowIfNull(message);
             ArgumentException.ThrowIfNullOrWhiteSpace(message.Recipient);
             ArgumentOutOfRangeException.ThrowIfNegative(message.Meat);
-            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.SendMail, $"kmail to {message.Recipient}")
+            var recipient = message.Recipient.Trim();
+            var attachments = message.Items.OrderBy(i => i.Item.Id)
+                .Select(i => new CoreSpiel.KoLMailAttachment(i.Item.Id, i.Quantity)).ToArray();
+            var items = attachments.Length == 0 ? "none"
+                : string.Join(",", attachments.Select(i => FormattableString.Invariant($"{i.ItemId}x{i.Quantity}")));
+            var summary = FormattableString.Invariant($"kmail to {recipient.ToLowerInvariant()}: items {items}; meat {message.Meat}");
+            var text = message.Text ?? string.Empty;
+            var textHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+            var action = new GuardedAction(_session.Account.Id, GuardedActionKind.SendMail, summary)
             {
-                Quantity = message.Items.Sum(i => i.Quantity),
+                Quantity = attachments.Sum(i => i.Quantity),
                 Meat = message.Meat,
-                Path = "sendmessage.php"
+                Path = "sendmessage.php",
+                Binding = $"{textHash}:{summary}"
             };
             return _session.GuardAsync(action, async () =>
             {
                 var hash = await _session.GetPasswordHashAsync(cancellationToken).ConfigureAwait(false);
-                var attachments = message.Items.Select(i => new CoreSpiel.KoLMailAttachment(i.Item.Id, i.Quantity)).ToArray();
                 var outcome = await _session.ActAsync(() => CoreSpiel.KoLMailbox.SendWithOutcomeAsync(
-                    _session.Http, hash, message.Recipient, message.Text, attachments, message.Meat, cancellationToken)).ConfigureAwait(false);
+                    _session.Http, hash, recipient, text, attachments, message.Meat, _session.Client.Policy, cancellationToken)).ConfigureAwait(false);
                 return outcome switch
                 {
                     CoreSpiel.KoLMailSendOutcome.Sent => new MailSendResult(MailSendStatus.Sent, null),
@@ -521,6 +621,9 @@ namespace KoLibri
             }, r => r.Status is MailSendStatus.Sent or MailSendStatus.Unclear, cancellationToken);
         }
 
+        internal static bool MayHaveDispatched(OperationCanceledException exception)
+            => exception is CoreSpiel.KoLMailCanceledAfterSendException;
+
         public Task SaveAsync(string messageId, CancellationToken cancellationToken = default)
             => ChangeAsync(GuardedActionKind.Other, $"save kmail {messageId}", hash =>
                 _session.Reader.SaveInboxMessageAsync(messageId, hash, cancellationToken), cancellationToken);
@@ -529,12 +632,14 @@ namespace KoLibri
         {
             var core = CoreFolder(folder);
             return ChangeAsync(GuardedActionKind.Other, $"delete kmail {messageId}", hash =>
-                _session.Reader.DeleteMailboxMessageAsync(core, messageId, hash, cancellationToken), cancellationToken);
+                _session.Reader.DeleteMailboxMessageAsync(core, messageId, hash, cancellationToken), cancellationToken,
+                binding: $"{core}:{messageId}");
         }
 
-        private Task ChangeAsync(GuardedActionKind kind, string summary, Func<string, Task> change, CancellationToken cancellationToken)
+        private Task ChangeAsync(GuardedActionKind kind, string summary, Func<string, Task> change, CancellationToken cancellationToken,
+            string? binding = null)
         {
-            var action = new GuardedAction(_session.Account.Id, kind, summary) { Path = "messages.php" };
+            var action = new GuardedAction(_session.Account.Id, kind, summary) { Path = "messages.php", Binding = binding };
             return _session.GuardAsync(action, async () =>
             {
                 var hash = await _session.GetPasswordHashAsync(cancellationToken).ConfigureAwait(false);

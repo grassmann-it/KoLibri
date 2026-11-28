@@ -1,4 +1,5 @@
 using KoLibri.Desktop;
+using KoLibri.Extras;
 using Xunit;
 
 namespace KoLibri.Tests.Desktop;
@@ -68,6 +69,13 @@ public sealed class MallBudgetLedgerTests
                 Status = DesktopMallPurchaseStatus.Purchased, Confirmed = true, UnitPrice = order.ShownUnitPrice,
                 ReceivedQuantity = order.Quantity, Message = "ok"
             });
+        }
+
+        public async Task<DesktopMallPurchaseResult> SendAsync(MallBuyOrder order,
+            Func<CancellationToken, ValueTask<GuardDecision>> beforeEachSend, CancellationToken ct)
+        {
+            var decision = await beforeEachSend(ct);
+            return decision.Allowed ? await SendAsync(order, ct) : MallBuyQueueTests.Refused(decision);
         }
     }
 
@@ -150,6 +158,152 @@ public sealed class MallBudgetLedgerTests
         Assert.Equal(1, engine.Sends);
         Assert.Equal(500, ledger.SpentToday("Mallbot"));   // booked on day 2, where the new reservation was made
         Assert.Equal(500, ledger.CountedToday("Mallbot"));
+    }
+
+    [Theory]
+    [InlineData(-10, 0, MallBuyState.NotSent, 0)]
+    [InlineData(5, 600, MallBuyState.NotSent, 0)]
+    [InlineData(5, 300, MallBuyState.Settled, 1)]
+    public async Task Rollover_during_library_reads_is_checked_again_before_the_Mall_POST(
+        int secondsAfterRollover, int otherReservation, MallBuyState expectedState, int expectedPosts)
+    {
+        var rollover = new DateTimeOffset(2026, 11, 22, 8, 30, 0, TimeSpan.Zero);
+        var clock = new MallKit.Clock(rollover.AddMinutes(-1));
+        var ledger = new MallSpendLedger(clock);
+        var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
+        using var queue = new MallBuyQueue("Mallbot", ledger, log);
+        var kol = MallKit.Kol(500, "{}").On("GET api.php?what=inventory", (_, _) =>
+        {
+            clock.Value = rollover.AddSeconds(secondsAfterRollover);
+            if (otherReservation > 0)
+                Assert.True(ledger.TryReserve("Mallbot", otherReservation, 1_000, out _, out _));
+            return FakeKol.Html("{}");
+        }).On("GET api.php?what=inventory", expectedPosts == 0 ? "{}" : """{"10881":1}""")
+          .On("POST mallstore.php", "You acquire an item: <b>11-leaf clover</b>. You spent 500 Meat.");
+        await using var accounts = MallKit.Accounts(kol);
+        var options = new DesktopMallPurchaseOptions { MaxDailySpend = 1_000 };
+        var engine = new ServiceMallBuyEngine("Mallbot", MallKit.Service(accounts, options));
+
+        var ticket = queue.Enqueue(new MallBuyOrder("10881", "11-leaf clover", "56226", "Shop", 500, 1), engine, options);
+        await queue.WhenIdleAsync();
+
+        Assert.Equal(1, kol.Count("POST", "mall.php"));
+        Assert.Equal(expectedState, ticket.State);
+        Assert.Equal(expectedPosts, MallKit.Purchases(kol).Count);
+        Assert.Equal(otherReservation, ledger.ReservedAmount("Mallbot"));
+        Assert.Equal(500 * expectedPosts, ledger.SpentToday("Mallbot"));
+        if (secondsAfterRollover < 0)
+            Assert.Contains("rollover is imminent", ticket.Message);
+    }
+
+    [Fact]
+    public async Task A_reservation_reconciled_during_library_reads_blocks_the_Mall_POST()
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            var clock = new MallKit.Clock(Now);
+            var ledger = new MallSpendLedger(clock, path);
+            var other = new MallSpendLedger(clock, path);
+            var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
+            using var queue = new MallBuyQueue("Mallbot", ledger, log);
+            var kol = MallKit.Kol(500, "{}").On("GET api.php?what=inventory", (_, _) =>
+            {
+                var snapshot = other.ReadUnclear("Mallbot");
+                Assert.Equal(500, snapshot.Foreign);
+                Assert.True(other.Reconcile("Mallbot", snapshot, 0));
+                Assert.True(other.TryReserve("Mallbot", 600, 1_000, out _, out _));
+                return FakeKol.Html("{}");
+            }).On("GET api.php?what=inventory", "{}");
+            await using var accounts = MallKit.Accounts(kol);
+            var options = new DesktopMallPurchaseOptions { MaxDailySpend = 1_000 };
+            var engine = new ServiceMallBuyEngine("Mallbot", MallKit.Service(accounts, options));
+
+            var ticket = queue.Enqueue(new MallBuyOrder("10881", "11-leaf clover", "56226", "Shop", 500, 1), engine, options);
+            await queue.WhenIdleAsync();
+
+            Assert.Equal(1, kol.Count("POST", "mall.php"));
+            Assert.Equal(MallBuyState.NotSent, ticket.State);
+            Assert.Empty(MallKit.Purchases(kol));
+            Assert.Equal(600, ledger.CountedToday("Mallbot"));
+            Assert.Equal(600, ledger.ReservedAmount("Mallbot"));
+            Assert.Equal(0, ticket.Reserved);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void An_in_flight_reservation_counts_until_the_owner_finishes_or_is_gone()
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            var clock = new MallKit.Clock(Now);
+            var owner = new MallSpendLedger(clock, path);
+            var ownerAlive = true;
+            var reader = new MallSpendLedger(clock, path, pid => pid == Environment.ProcessId && ownerAlive);
+            Assert.True(owner.TryReserve("Mallbot", 500, 1_000, out var reservation, out _));
+            var queued = reader.ReadUnclear("Mallbot");
+            Assert.Equal(reservation.Id, Assert.Single(queued.ForeignIds!));
+
+            Assert.True(owner.BeginSend(ref reservation, 1_000, out _));
+            var sending = reader.ReadUnclear("Mallbot");
+            Assert.True(sending.Revision > queued.Revision);
+            Assert.Empty(sending.ForeignIds!);
+            Assert.Equal(0, sending.Total);
+            Assert.False(reader.Reconcile("Mallbot", queued, 0));
+            Assert.Equal(500, owner.SpentToday("Mallbot"));
+            Assert.Equal(500, reader.SpentToday("Mallbot"));
+            Assert.Equal(500, reader.CountedToday("Mallbot"));
+            Assert.False(reader.TryReserve("Mallbot", 501, 1_000, out _, out _));
+
+            ownerAlive = false;
+            var abandoned = reader.ReadUnclear("Mallbot");
+            Assert.Equal(500, abandoned.Foreign);
+            Assert.Equal(reservation.Id, Assert.Single(abandoned.ForeignIds!));
+            Assert.True(reader.Reconcile("Mallbot", abandoned, 300));
+            Assert.Equal(300, reader.CountedToday("Mallbot"));
+            Assert.Equal(0, reader.ReservedAmount("Mallbot"));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task Cancellation_in_the_Mall_transport_books_the_queue_reservation_as_unclear()
+    {
+        var dir = Directory.CreateTempSubdirectory("kolibri-mall-");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "mall.json");
+            var clock = new MallKit.Clock(Now);
+            var ledger = new MallSpendLedger(clock, path);
+            var other = new MallSpendLedger(clock, path);
+            var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
+            using var queue = new MallBuyQueue("Mallbot", ledger, log);
+            UnclearSnapshot inFlight = default;
+            var kol = MallKit.Kol(500, "{}").On("POST mallstore.php", (_, _) =>
+            {
+                inFlight = other.ReadUnclear("Mallbot");
+                throw new OperationCanceledException(new CancellationToken(canceled: true));
+            });
+            await using var accounts = MallKit.Accounts(kol);
+            var options = new DesktopMallPurchaseOptions { MaxDailySpend = 1_000 };
+            var engine = new ServiceMallBuyEngine("Mallbot", MallKit.Service(accounts, options));
+
+            var ticket = queue.Enqueue(new MallBuyOrder("10881", "11-leaf clover", "56226", "Shop", 500, 1), engine, options);
+            await queue.WhenIdleAsync();
+
+            Assert.Single(MallKit.Purchases(kol));
+            Assert.Empty(inFlight.ForeignIds!);
+            Assert.Equal(MallBuyState.Unclear, ticket.State);
+            Assert.Contains("cancelled while sending", ticket.Message);
+            Assert.Equal(500, other.UnclearToday("Mallbot"));
+            Assert.Equal(500, other.CountedToday("Mallbot"));
+            Assert.Equal(0, other.ReservedAmount("Mallbot"));
+        }
+        finally { dir.Delete(recursive: true); }
     }
 
     [Fact]

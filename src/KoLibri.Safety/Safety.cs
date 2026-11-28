@@ -5,8 +5,13 @@ using System.Text.Json;
 
 namespace KoLibri.Safety
 {
+    internal interface ITransactionalGuard
+    {
+        ValueTask<(GuardDecision Decision, Action? Rollback)> CheckWithRollbackAsync(GuardedAction action, CancellationToken cancellationToken);
+    }
+
     /// <summary>Kombiniert mehrere Guards; der erste Deny gewinnt.</summary>
-    public sealed class CompositeGuard : IActionGuard
+    public sealed class CompositeGuard : IActionGuard, ITransactionalGuard
     {
         private readonly IActionGuard[] _guards;
 
@@ -17,13 +22,42 @@ namespace KoLibri.Safety
         }
 
         public async ValueTask<GuardDecision> CheckAsync(GuardedAction action, CancellationToken cancellationToken)
+            => (await CheckWithRollbackAsync(action, cancellationToken).ConfigureAwait(false)).Decision;
+
+        ValueTask<(GuardDecision Decision, Action? Rollback)> ITransactionalGuard.CheckWithRollbackAsync(GuardedAction action, CancellationToken cancellationToken)
+            => CheckWithRollbackAsync(action, cancellationToken);
+
+        private async ValueTask<(GuardDecision Decision, Action? Rollback)> CheckWithRollbackAsync(
+            GuardedAction action, CancellationToken cancellationToken)
         {
-            foreach (var guard in _guards)
+            List<Action>? rollbacks = null;
+            var allowed = false;
+            try
             {
-                var decision = await guard.CheckAsync(action, cancellationToken).ConfigureAwait(false);
-                if (!decision.Allowed) return decision;
+                foreach (var guard in _guards)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var (decision, rollback) = guard is ITransactionalGuard transactional
+                        ? await transactional.CheckWithRollbackAsync(action, cancellationToken).ConfigureAwait(false)
+                        : (await guard.CheckAsync(action, cancellationToken).ConfigureAwait(false), null);
+                    if (!decision.Allowed) return (decision, null);
+                    if (rollback is not null) (rollbacks ??= new()).Add(rollback);
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                allowed = true;
+                return (GuardDecision.Allow, rollbacks is null ? null : Rollback);
             }
-            return GuardDecision.Allow;
+            finally
+            {
+                if (!allowed) Rollback();
+            }
+
+            void Rollback()
+            {
+                if (rollbacks is null) return;
+                for (var index = rollbacks.Count - 1; index >= 0; index--)
+                    rollbacks[index]();
+            }
         }
 
         public async ValueTask CompletedAsync(GuardedAction action, bool succeeded, CancellationToken cancellationToken)
@@ -144,11 +178,19 @@ namespace KoLibri.Safety
             var needed = Needed(action.Kind);
             if ((grant.Rights & needed) != needed)
                 return GuardDecision.Deny($"'{_subject}' may not do {action.Kind} on '{action.Account}' (needs {needed}).");
-            if (grant.MeatPerDay is { } meatLimit && action.Meat > 0 && _ledger.MeatSpentToday(action.Account) + action.Meat > meatLimit)
-                return GuardDecision.Deny($"The grant allows {meatLimit} Meat per day; {_ledger.MeatSpentToday(action.Account)} are spent.");
-            if (grant.TurnsPerDay is { } turnLimit && UsageLedger.Turns(action) > 0
-                && _ledger.TurnsSpentToday(action.Account) + UsageLedger.Turns(action) > turnLimit)
-                return GuardDecision.Deny($"The grant allows {turnLimit} turns per day; {_ledger.TurnsSpentToday(action.Account)} are used.");
+            if (grant.MeatPerDay is { } meatLimit && action.Meat > 0)
+            {
+                var spent = _ledger.MeatSpentToday(action.Account);
+                if (meatLimit < 0 || action.Meat > meatLimit || spent > meatLimit - action.Meat)
+                    return GuardDecision.Deny($"The grant allows {meatLimit} Meat per day; {spent} are spent.");
+            }
+            var turns = UsageLedger.Turns(action);
+            if (grant.TurnsPerDay is { } turnLimit && turns > 0)
+            {
+                var used = _ledger.TurnsSpentToday(action.Account);
+                if (turnLimit < 0 || turns > turnLimit || used > turnLimit - turns)
+                    return GuardDecision.Deny($"The grant allows {turnLimit} turns per day; {used} are used.");
+            }
             return GuardDecision.Allow;
         }
 
@@ -204,7 +246,7 @@ namespace KoLibri.Safety
                 foreach (var stale in map.Keys.Where(k => !k.StartsWith(day + "|", StringComparison.Ordinal)).ToList()) map.Remove(stale);
                 var key = Key(day, account);
                 var current = map.TryGetValue(key, out var row) ? row : new Usage(0, 0);
-                map[key] = new Usage(current.Meat + meat, current.Turns + turns);
+                map[key] = new Usage(checked(current.Meat + meat), checked(current.Turns + turns));
                 Json.WriteAtomic(_path, JsonSerializer.Serialize(map, Json.Options));
             }
         }
@@ -278,16 +320,23 @@ namespace KoLibri.Safety
             ArgumentNullException.ThrowIfNull(action);
             var budget = _budgets.FirstOrDefault(b => string.Equals(b.Account.Value, action.Account.Value, StringComparison.OrdinalIgnoreCase));
             if (budget is null) return ValueTask.FromResult(GuardDecision.Allow);
-            if (action.Meat > 0 && _ledger.MeatSpentToday(action.Account) + action.Meat > budget.MeatPerDay)
-                return ValueTask.FromResult(GuardDecision.Deny(
-                    $"Budget: {budget.MeatPerDay} Meat per day for '{action.Account}', {_ledger.MeatSpentToday(action.Account)} spent, this needs {action.Meat}."));
+            if (action.Meat > 0)
+            {
+                var spent = _ledger.MeatSpentToday(action.Account);
+                if (budget.MeatPerDay < 0 || action.Meat > budget.MeatPerDay || spent > budget.MeatPerDay - action.Meat)
+                    return ValueTask.FromResult(GuardDecision.Deny(
+                        $"Budget: {budget.MeatPerDay} Meat per day for '{action.Account}', {spent} spent, this needs {action.Meat}."));
+            }
             var turns = UsageLedger.Turns(action);
-            if (budget.TurnsPerDay is { } limit && turns > 0 && _ledger.TurnsSpentToday(action.Account) + turns > limit)
+            if (budget.TurnsPerDay is { } limit && turns > 0
+                && (limit < 0 || turns > limit || _ledger.TurnsSpentToday(action.Account) > limit - turns))
                 return ValueTask.FromResult(GuardDecision.Deny($"Budget: {limit} turns per day for '{action.Account}' are used up."));
             // Per line, not the average: one dear store must not hide behind cheap ones. Without line prices the
             // average is the only check left.
             if (budget.MaxUnitPrice is { } max && action.Kind == GuardedActionKind.MallBuy && action.Quantity > 0
-                && (action.MaxUnitPrice is { } highest ? highest > max : action.Meat > (long)action.Quantity * max))
+                && (action.MaxUnitPrice is { } highest ? highest > max
+                    : max <= 0 || action.Meat / action.Quantity > max
+                        || (action.Meat / action.Quantity == max && action.Meat % action.Quantity > 0)))
                 return ValueTask.FromResult(GuardDecision.Deny($"Budget: at most {max} Meat per unit."));
             return ValueTask.FromResult(GuardDecision.Allow);
         }
@@ -302,8 +351,11 @@ namespace KoLibri.Safety
     // --- Freigaben (Approval-Token) --------------------------------------------------------
     public sealed record ApprovalToken(string Value, GuardedAction Action, DateTimeOffset ExpiresAt);
 
-    /// <summary>Verlangt für ausgewählte Aktionsarten ein vorher ausgestelltes Token (heute ApprovalTokenStore).</summary>
-    public sealed class ApprovalGuard : IActionGuard
+    /// <summary>
+    /// Verlangt für ausgewählte Aktionsarten ein vorher ausgestelltes Token.
+    /// Das Token bindet den Pfad und die Aktionsdaten, bei SendMail, RawPost, ShopChange und Other auch die Summary.
+    /// </summary>
+    public sealed class ApprovalGuard : IActionGuard, ITransactionalGuard
     {
         private readonly IReadOnlySet<GuardedActionKind> _kinds;
         private readonly TimeSpan _lifetime;
@@ -321,10 +373,14 @@ namespace KoLibri.Safety
         public ApprovalToken Issue(GuardedAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
-            var token = new ApprovalToken(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(), action,
-                DateTimeOffset.UtcNow + _lifetime);
-            lock (_gate) _issued[token.Value] = token;
-            return token;
+            lock (_gate)
+            {
+                var now = DateTimeOffset.UtcNow;
+                RemoveExpiredIssued(now);
+                var token = new ApprovalToken(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(), action, now + _lifetime);
+                _issued[token.Value] = token;
+                return token;
+            }
         }
 
         /// <summary>Hinterlegt ein Token für die nächste passende Aktion dieses Kontos.</summary>
@@ -333,6 +389,7 @@ namespace KoLibri.Safety
             ArgumentException.ThrowIfNullOrWhiteSpace(token);
             lock (_gate)
             {
+                RemoveExpiredIssued(DateTimeOffset.UtcNow);
                 if (!_issued.Remove(token.Trim(), out var issued))
                     throw new ArgumentException("Unknown or already used approval token.", nameof(token));
                 _presented.Add(issued);
@@ -340,30 +397,58 @@ namespace KoLibri.Safety
         }
 
         public ValueTask<GuardDecision> CheckAsync(GuardedAction action, CancellationToken cancellationToken)
+            => ValueTask.FromResult(CheckWithRollback(action, cancellationToken).Decision);
+
+        ValueTask<(GuardDecision Decision, Action? Rollback)> ITransactionalGuard.CheckWithRollbackAsync(GuardedAction action, CancellationToken cancellationToken)
+            => ValueTask.FromResult(CheckWithRollback(action, cancellationToken));
+
+        private (GuardDecision Decision, Action? Rollback) CheckWithRollback(GuardedAction action, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(action);
-            if (!_kinds.Contains(action.Kind)) return ValueTask.FromResult(GuardDecision.Allow);
-            var now = DateTimeOffset.UtcNow;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_kinds.Contains(action.Kind)) return (GuardDecision.Allow, null);
             lock (_gate)
             {
+                var now = DateTimeOffset.UtcNow;
                 _presented.RemoveAll(t => t.ExpiresAt <= now);
                 var match = _presented.FirstOrDefault(t => Covers(t.Action, action));
                 if (match is null)
-                    return ValueTask.FromResult(GuardDecision.Deny($"{action.Kind} on '{action.Account}' needs an approval token: {action.Summary}"));
+                    return (GuardDecision.Deny($"{action.Kind} on '{action.Account}' needs an approval token: {action.Summary}"), null);
                 _presented.Remove(match); // one token, one action
+                return (GuardDecision.Allow, () => Restore(match));
             }
-            return ValueTask.FromResult(GuardDecision.Allow);
         }
 
-        public ValueTask CompletedAsync(GuardedAction action, bool succeeded, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+        public ValueTask CompletedAsync(GuardedAction action, bool succeeded, CancellationToken cancellationToken)
+            => ValueTask.CompletedTask;
 
-        /// <summary>The approved action covers the actual one: same account, kind and item, no more units or Meat.</summary>
+        private void Restore(ApprovalToken token)
+        {
+            lock (_gate)
+            {
+                if (token.ExpiresAt > DateTimeOffset.UtcNow)
+                    _presented.Add(token);
+            }
+        }
+
+        private void RemoveExpiredIssued(DateTimeOffset now)
+        {
+            foreach (var key in _issued.Where(entry => entry.Value.ExpiresAt <= now).Select(entry => entry.Key).ToArray())
+                _issued.Remove(key);
+        }
+
         private static bool Covers(GuardedAction approved, GuardedAction actual)
             => string.Equals(approved.Account.Value, actual.Account.Value, StringComparison.OrdinalIgnoreCase)
                && approved.Kind == actual.Kind
-               && (approved.Item is null || approved.Item == actual.Item)
-               && (approved.Quantity <= 0 || actual.Quantity <= approved.Quantity)
-               && (approved.Meat <= 0 || actual.Meat <= approved.Meat);
+               && approved.Item == actual.Item
+               && (approved.Quantity <= 0 ? actual.Quantity <= 0 : actual.Quantity <= approved.Quantity)
+               && (approved.Meat <= 0 ? actual.Meat <= 0 : actual.Meat <= approved.Meat)
+               && string.Equals(approved.Binding, actual.Binding, StringComparison.Ordinal)
+               && string.Equals(approved.Path, actual.Path, StringComparison.Ordinal)
+               && (approved.MaxUnitPrice is { } limit ? actual.MaxUnitPrice is { } price && price <= limit
+                   : approved.Kind != GuardedActionKind.MallBuy || actual.MaxUnitPrice is null)
+               && (approved.Kind is not (GuardedActionKind.SendMail or GuardedActionKind.RawPost or GuardedActionKind.ShopChange or GuardedActionKind.Other)
+                   || string.Equals(approved.Summary, actual.Summary, StringComparison.Ordinal));
     }
 
     // --- Audit -----------------------------------------------------------------------------

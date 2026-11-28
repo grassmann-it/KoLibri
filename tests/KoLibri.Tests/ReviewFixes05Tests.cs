@@ -1,4 +1,5 @@
 using System.Globalization;
+using KoLibri.Internal;
 using KoLibri.Daily;
 using KoLibri.Safety;
 using KoLibri.Tests.Desktop;
@@ -42,7 +43,7 @@ public sealed class ReviewFixes05Tests
 
         var quote = await session.Mall.QuoteAsync(new PurchaseOrder(new ItemRef(MallKit.Clover), 1, 30_000));
         Assert.Equal(25_000, quote.TotalCost);
-        var result = await session.Mall.BuyAsync(quote);
+        var result = await session.Mall.BuyAsync(quote, default);
 
         Assert.Equal(PurchaseStatus.PriceChanged, result.Status);
         Assert.Equal(0, result.QuantityBought);
@@ -50,6 +51,134 @@ public sealed class ReviewFixes05Tests
         var approved = Assert.Single(guard.Checked);
         Assert.Equal(25_000, approved.Meat);
         Assert.Equal(25_000, approved.MaxUnitPrice);
+    }
+
+    [Theory]
+    [InlineData(42, 100, 1, 99, 1)]
+    [InlineData(42, 100, 1, 100, 0)]
+    [InlineData(0, 100, 1, 100, 1)]
+    [InlineData(-1, 100, 1, 100, 1)]
+    [InlineData(42, 1_000_000_000, 1, 1_000_000_000, 1)]
+    [InlineData(42, long.MaxValue, 2, -2, 2)]
+    public async Task Mall_rejects_inconsistent_quote_totals_before_requests_or_guard_checks(
+        int storeId, long price, int quantity, long total, int plannedQuantity)
+    {
+        var kol = new FakeKol();
+        var guard = new RecordingGuard();
+        await using var client = TestClient.Create(kol, guard: guard);
+        await using var session = await client.OpenAsync("main");
+        var order = new PurchaseOrder(MallKit.Clover, quantity, long.MaxValue);
+        var quote = new PurchaseQuote(order, [new MallListing(storeId, "Shop", order.Item, price, quantity, null)],
+            TotalCost: total, QuotedAt: DateTimeOffset.UtcNow) { PlannedQuantity = plannedQuantity };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => session.Mall.BuyAsync(quote));
+
+        Assert.Empty(guard.Checked);
+        Assert.Empty(kol.Requests);
+    }
+
+    [Theory]
+    [InlineData(125, PurchaseStatus.Unclear, 125)]
+    [InlineData(60, PurchaseStatus.Bought, 100)]
+    [InlineData(null, PurchaseStatus.Unclear, 100)]
+    public async Task Mall_verifies_Meat_asymmetrically(int? meatDelta, PurchaseStatus expected, long expectedSpent)
+    {
+        var kol = MallKit.Kol(100, "{}", """{"10881":1}""");
+        kol.On("POST mallstore.php", (_, _) =>
+        {
+            if (meatDelta is { } delta)
+                kol.Meat -= delta;
+            else
+                kol.On("GET api.php?what=status", (_, _) => FakeKol.Html("", System.Net.HttpStatusCode.BadGateway));
+            return FakeKol.Html("You acquire an item: <b>11-leaf clover</b>. You spent 100 Meat.");
+        });
+        await using var client = TestClient.Create(kol);
+        await using var session = await client.OpenAsync("main");
+        var quote = await session.Mall.QuoteAsync(new PurchaseOrder(MallKit.Clover, 1, 100));
+
+        var result = await session.Mall.BuyAsync(quote);
+
+        Assert.Equal(expected, result.Status);
+        Assert.Equal(1, result.QuantityBought);
+        Assert.Equal(expectedSpent, result.MeatSpent);
+        Assert.Single(MallKit.Purchases(kol));
+    }
+
+    [Fact]
+    public async Task A_Mall_gate_refusal_has_zero_spend_even_when_the_balance_changes()
+    {
+        var kol = MallKit.Kol(100);
+        var guard = new RecordingGuard();
+        await using var client = TestClient.Create(kol, guard: guard);
+        await using var session = await client.OpenAsync("main");
+        var quote = await session.Mall.QuoteAsync(new PurchaseOrder(MallKit.Clover, 1, 100));
+        using var cts = new CancellationTokenSource();
+        var checks = 0;
+        var requestsAtGate = 0;
+
+        var result = await session.Mall.BuyAsync(quote, ct =>
+        {
+            checks++;
+            Assert.True(ct.CanBeCanceled);
+            Assert.Equal(2, kol.Count("POST", "mall.php"));
+            Assert.Single(kol.Requests, r => r.Path.Contains("what=inventory", StringComparison.Ordinal));
+            Assert.Empty(MallKit.Purchases(kol));
+            requestsAtGate = kol.Requests.Count;
+            kol.Meat -= 100;
+            return ValueTask.FromResult(GuardDecision.Deny("Reservation no longer active."));
+        }, cts.Token);
+
+        Assert.Equal(1, checks);
+        Assert.Single(guard.Checked);
+        Assert.Equal(PurchaseStatus.Refused, result.Status);
+        Assert.Equal(0, result.MeatSpent);
+        Assert.Equal(0, result.QuantityBought);
+        var line = Assert.Single(result.Lines);
+        Assert.Equal(0, line.Bought);
+        Assert.Equal("Reservation no longer active.", line.Message);
+        Assert.Equal(requestsAtGate, kol.Requests.Count);
+        Assert.False(Assert.Single(guard.Completed).Succeeded);
+        Assert.Empty(MallKit.Purchases(kol));
+    }
+
+    [Fact]
+    public async Task Mall_transport_gate_checks_after_waiting_for_the_action_lane()
+    {
+        var kol = new FakeKol();
+        using var transport = new HeldActionLane(kol);
+        await using var client = KolibriClient.Create(new KolibriOptions
+        {
+            HttpHandler = transport,
+            AccountStore = MemoryAccountStore.WithMain(),
+            StateDirectory = Directory.CreateTempSubdirectory("kolibri-lane-").FullName,
+            DisableLimiterForTests = true
+        });
+        await using var session = await client.OpenAsync("main");
+        var occupyingLane = session.Http.PostAsync("hold.php", null);
+        await transport.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var gateRan = false;
+        var laneReleased = false;
+        var purchase = SessionPipeline.WithMallSendGateAsync(() => session.Http.PostAsync("mallstore.php", null), _ =>
+        {
+            gateRan = true;
+            return ValueTask.FromResult(laneReleased ? GuardDecision.Deny("Budget changed while queued.") : GuardDecision.Allow);
+        });
+        try
+        {
+            Assert.False(gateRan);
+            Assert.False(purchase.IsCompleted);
+        }
+        finally
+        {
+            laneReleased = true;
+            transport.Release.TrySetResult();
+        }
+
+        using var held = await occupyingLane;
+        await Assert.ThrowsAsync<PreSendBlockedException>(() => purchase);
+        Assert.True(gateRan);
+        Assert.Equal(0, kol.Count("POST", "mallstore.php"));
     }
 
     // 3. BudgetGuard.MaxUnitPrice holds per line, not on the average of a multi-store purchase.
@@ -80,6 +209,32 @@ public sealed class ReviewFixes05Tests
         Assert.Equal(ActionStatus.Rejected, result.Status);
         Assert.Contains("Conflict", result.Rejection);
         Assert.Equal(0, kol.Count("POST", "backoffice.php"));
+    }
+
+    [Fact]
+    public async Task Shop_reprice_with_Hold_and_Ready_is_done_and_sends_only_the_changed_item()
+    {
+        static string Batch(long price) => "<input name=\"pwd\" value=\"fixture\">" + ShopPage(price)
+            + ShopPage(300).Replace("10881", "123", StringComparison.Ordinal);
+        var kol = new FakeKol().On("GET backoffice.php", Batch(500)).On("GET backoffice.php", Batch(500))
+            .On("GET backoffice.php", Batch(700)).On("POST backoffice.php", "<!-- U:fixture -->");
+        var guard = new RecordingGuard();
+        await using var client = TestClient.Create(kol, guard: guard);
+        await using var session = await client.OpenAsync("main");
+
+        var result = await session.Shop.RepriceAsync([
+            new ShopPriceChange(MallKit.Clover, 700) { ExpectedPrice = 500 },
+            new ShopPriceChange(123, 300) { ExpectedPrice = 300 }
+        ]);
+
+        Assert.Equal(ActionStatus.Done, result.Status);
+        Assert.Equal(1, result.Completed);
+        Assert.Null(result.Rejection);
+        Assert.True(Assert.Single(guard.Completed).Succeeded);
+        Assert.Equal("reprice: 123@300->300, 10881@500->700", Assert.Single(guard.Checked).Summary);
+        var form = Uri.UnescapeDataString(Assert.Single(kol.Requests, r => r.Method == "POST").Form);
+        Assert.Contains("price[10881]=700", form);
+        Assert.DoesNotContain("[123]", form);
     }
 
     // 6. The choice chain of one turn is bounded.

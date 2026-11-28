@@ -54,7 +54,7 @@ public sealed record DesktopMallPurchaseResult
 /// </summary>
 public sealed class DesktopMallPurchaseService
 {
-    private readonly Func<PurchaseQuote, CancellationToken, Task<PurchaseResult>> _buy;
+    private readonly Func<PurchaseQuote, Func<CancellationToken, ValueTask<GuardDecision>>?, CancellationToken, Task<PurchaseResult>> _buy;
     private readonly IMallPurchaseReads _reads;
     private readonly DesktopMallPurchaseOptions _options;
 
@@ -64,10 +64,36 @@ public sealed class DesktopMallPurchaseService
         Func<PurchaseQuote, CancellationToken, Task<PurchaseResult>> buy,
         IMallPurchaseReads reads,
         DesktopMallPurchaseOptions? options = null)
+        : this(reads, AdaptBuy(buy), options)
     {
-        _buy = buy ?? throw new ArgumentNullException(nameof(buy));
+    }
+
+    public DesktopMallPurchaseService(
+        IMallPurchaseReads reads,
+        Func<PurchaseQuote, Func<CancellationToken, ValueTask<GuardDecision>>?, CancellationToken, Task<PurchaseResult>> buyWithGate,
+        DesktopMallPurchaseOptions? options = null)
+    {
+        _buy = buyWithGate ?? throw new ArgumentNullException(nameof(buyWithGate));
         _reads = reads ?? throw new ArgumentNullException(nameof(reads));
         _options = options ?? new DesktopMallPurchaseOptions();
+    }
+
+    private static Func<PurchaseQuote, Func<CancellationToken, ValueTask<GuardDecision>>?, CancellationToken, Task<PurchaseResult>>
+        AdaptBuy(Func<PurchaseQuote, CancellationToken, Task<PurchaseResult>> buy)
+    {
+        ArgumentNullException.ThrowIfNull(buy);
+        return (quote, beforeEachSend, ct) =>
+        {
+            if (quote.Plan.Count == 0) return Task.FromResult(new PurchaseResult(PurchaseStatus.NothingBought, 0, 0, []));
+            if (beforeEachSend is null) return buy(quote, ct);
+            if (buy.Target is Mall mall && buy.GetInvocationList().Length == 1)
+                return mall.BuyAsync(quote, beforeEachSend, ct);
+
+            var line = quote.Plan[0];
+            return Task.FromResult(new PurchaseResult(PurchaseStatus.Refused, 0, 0,
+                [new PurchaseLine(line.StoreId, line.UnitPrice, line.Quantity, 0,
+                    "The buy delegate cannot verify pre-send gates at transport time.")]));
+        };
     }
 
     /// <summary>The live service of one role: the session is looked up per purchase, so a re-login is picked up.</summary>
@@ -76,12 +102,14 @@ public sealed class DesktopMallPurchaseService
     {
         ArgumentNullException.ThrowIfNull(live);
         return new DesktopMallPurchaseService(
-            async (quote, ct) =>
+            new LiveMallPurchaseReads(live, role),
+            async (quote, beforeEachSend, ct) =>
             {
                 var session = await live.RequireSessionAsync(role, "buy in the mall", ct).ConfigureAwait(false);
-                return await session.Mall.BuyAsync(quote, ct).ConfigureAwait(false);
+                return beforeEachSend is null
+                    ? await session.Mall.BuyAsync(quote, ct).ConfigureAwait(false)
+                    : await session.Mall.BuyAsync(quote, beforeEachSend, ct).ConfigureAwait(false);
             },
-            new LiveMallPurchaseReads(live, role),
             options);
     }
 
@@ -103,9 +131,15 @@ public sealed class DesktopMallPurchaseService
     /// </summary>
     /// <param name="role">Account role the purchase is made with (for the texts only; the service is bound to its role).</param>
     /// <param name="shopId">KoL store id (equal to the seller's player id).</param>
-    public async Task<DesktopMallPurchaseResult> BuyAsync(
+    public Task<DesktopMallPurchaseResult> BuyAsync(
         string role, string itemId, string shopId, long shownUnitPrice, int quantity,
         CancellationToken cancellationToken = default, string? shopName = null)
+        => BuyAsync(role, itemId, shopId, shownUnitPrice, quantity, cancellationToken, shopName, beforeEachSend: null);
+
+    public async Task<DesktopMallPurchaseResult> BuyAsync(
+        string role, string itemId, string shopId, long shownUnitPrice, int quantity,
+        CancellationToken cancellationToken, string? shopName,
+        Func<CancellationToken, ValueTask<GuardDecision>>? beforeEachSend)
     {
         if (quantity <= 0 || shownUnitPrice <= 0
             || !int.TryParse(itemId, NumberStyles.None, CultureInfo.InvariantCulture, out var item) || item <= 0
@@ -128,7 +162,7 @@ public sealed class DesktopMallPurchaseService
         PurchaseResult result;
         try
         {
-            result = await _buy(quote, cancellationToken).ConfigureAwait(false);
+            result = await _buy(quote, beforeEachSend, cancellationToken).ConfigureAwait(false);
         }
         catch (ActionDeniedException denied)
         {

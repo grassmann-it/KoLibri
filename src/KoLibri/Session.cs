@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text.Json;
 using KoLibri.Internal;
 using CoreBasis = KoLibri.Core.Basis;
 using CoreMarkt = KoLibri.Core.Markt;
@@ -76,7 +78,12 @@ namespace KoLibri
             var effective = EffectiveLane(HttpMethod.Get, uri, lane);
             if (effective == RequestLane.Action)
             {
-                var action = new GuardedAction(Account.Id, GuardedActionKind.Other, $"GET {SessionPipeline.Redact(uri)}") { Path = SessionPipeline.Redact(uri) };
+                var target = SessionPipeline.Redact(uri);
+                var action = new GuardedAction(Account.Id, GuardedActionKind.Other, $"GET {target}")
+                {
+                    Path = target,
+                    Binding = BindRequest(HttpMethod.Get, uri)
+                };
                 return await GuardAsync(action, () => SendAsync(HttpMethod.Get, uri, null, lane, cancellationToken), _ => true, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -89,14 +96,37 @@ namespace KoLibri
             ArgumentException.ThrowIfNullOrWhiteSpace(path);
             ArgumentNullException.ThrowIfNull(form);
             var uri = BuildUri(path, null);
-            var action = new GuardedAction(Account.Id, GuardedActionKind.RawPost, $"POST {SessionPipeline.Redact(uri)}") { Path = SessionPipeline.Redact(uri) };
+            var fields = new Dictionary<string, string>(form, StringComparer.Ordinal);
+            fields.Remove("pwd", out var passwordHash);
+            if (fields.Keys.Any(key => key.Split(['[', '\0'], 2)[0].Trim().Equals("pwd", StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException("Use the exact scalar 'pwd' field for the password hash.", nameof(form));
+
+            // Use the same encoded field sequence for the approval and the wire, including overlapping PHP keys.
+            var orderedFields = fields.OrderBy(field => field.Key, StringComparer.Ordinal).ToList();
+            using var canonicalForm = new FormUrlEncodedContent(orderedFields);
+            var hash = SHA256.HashData(await canonicalForm.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false));
+            var fingerprint = Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant();
+            var target = SessionPipeline.Redact(uri);
+            var action = new GuardedAction(Account.Id, GuardedActionKind.RawPost, $"POST {target} #{fingerprint}")
+            {
+                Path = target,
+                Binding = BindRequest(HttpMethod.Post, uri, Convert.ToHexString(hash))
+            };
             return await GuardAsync(action, async () =>
             {
-                var fields = new Dictionary<string, string>(form, StringComparer.Ordinal);
-                if (!fields.ContainsKey("pwd"))
-                    fields["pwd"] = await GetPasswordHashAsync(cancellationToken).ConfigureAwait(false);
-                return await SendAsync(HttpMethod.Post, uri, fields, lane, cancellationToken).ConfigureAwait(false);
+                var pwd = passwordHash ?? await GetPasswordHashAsync(cancellationToken).ConfigureAwait(false);
+                orderedFields.Add(new("pwd", pwd));
+                return await SendAsync(HttpMethod.Post, uri, orderedFields, lane, cancellationToken).ConfigureAwait(false);
             }, _ => true, cancellationToken).ConfigureAwait(false);
+        }
+
+        private static string BindRequest(HttpMethod method, Uri uri, string? formHash = null)
+        {
+            // Keep the URI's escaped query and parameter order, including duplicate keys.
+            var query = uri.GetComponents(UriComponents.Query, UriFormat.UriEscaped).Split('&').Where(parameter =>
+                Uri.UnescapeDataString(parameter.Split('=', 2)[0]) is not ("pwd" or "pwdhash"));
+            var target = new { method.Method, uri.Scheme, uri.Host, uri.Port, uri.AbsolutePath, query, formHash };
+            return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(target)));
         }
 
         /// <summary>api.php?what=status als JSON-Text.</summary>
@@ -294,7 +324,7 @@ namespace KoLibri
         /// Sends one request (no guard) and follows redirects inside the allowlist. A login page triggers one
         /// reconnect with the stored password, but only read-lane requests are repeated afterwards.
         /// </summary>
-        internal async Task<Page> SendAsync(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? form, RequestLane lane, CancellationToken cancellationToken)
+        internal async Task<Page> SendAsync(HttpMethod method, Uri uri, IReadOnlyList<KeyValuePair<string, string>>? form, RequestLane lane, CancellationToken cancellationToken)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var effective = EffectiveLane(method, uri, lane);
@@ -321,7 +351,7 @@ namespace KoLibri
             _ => page
         };
 
-        private async Task<Page> SendOnceAsync(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? form, RequestLane lane, CancellationToken cancellationToken)
+        private async Task<Page> SendOnceAsync(HttpMethod method, Uri uri, IReadOnlyList<KeyValuePair<string, string>>? form, RequestLane lane, CancellationToken cancellationToken)
         {
             var current = uri;
             var currentMethod = method;

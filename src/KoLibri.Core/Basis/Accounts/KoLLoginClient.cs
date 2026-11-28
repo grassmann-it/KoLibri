@@ -313,7 +313,7 @@ public sealed class KoLLoginClient
             AutomaticDecompression = DecompressionMethods.All
         };
         // Allowlist is outermost: a foreign target is refused before any wait or send.
-        var client = new HttpClient(new KoLAllowlistHandler(new KoLRateLimitedHandler(handler), policy))
+        var client = new HttpClient(new KoLAllowlistHandler(new KoLRateLimitedHandler(handler), policy, markDispatched: false))
         {
             BaseAddress = baseUri,
             Timeout = timeout ?? TimeSpan.FromSeconds(30)

@@ -1,3 +1,5 @@
+// Keep the Core and Extras copies in sync. They share the same ledger files.
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,7 +11,7 @@ public sealed class SpendLedgerException(string message, Exception? inner = null
 
 /// <summary>
 /// One reservation made by <c>FileSpendLedger.TryReserve</c>: the account, the KoL day it was booked on, the reserved
-/// meat and its id in the ledger file. Finishing it books against that day only, and only once: a second finish of the
+/// meat and its id in the ledger file. Finishing it books on the current KoL day, and only once: a second finish of the
 /// same reservation (or a reservation this instance does not hold) changes nothing.
 /// </summary>
 public readonly record struct SpendReservation(string Account, string Day, long Amount, string Id = "")
@@ -36,8 +38,7 @@ public readonly record struct UnclearSnapshot(
 /// reservation, with its own id, in the same transaction), settled once meat and inventory prove it, released when
 /// nothing was sent, and counted as unclear when the outcome is not proven. Reservations of other processes (or of a
 /// run that crashed) count as spent. This instance remembers the ids of its own open reservations, so finishing one
-/// only ever removes that id (never a foreign reservation, never one of the new day after a rollover), and finishing
-/// it twice changes nothing.
+/// only ever removes that id, even when it has been carried across rollover, and finishing it twice changes nothing.
 /// The ledger fails closed: an unreadable or unexpected file, a lock that cannot be taken, or a failed write
 /// blocks reservations until fixed; <see cref="SpentToday"/> then reports the budget as fully spent.
 /// Without a path the ledger lives in memory only.
@@ -60,6 +61,7 @@ public class FileSpendLedger
         /// <summary>Reserved meat of an older file without reservation ids; it can only be cleared by a reconcile.</summary>
         public long LegacyReserved { get; set; }
         public Dictionary<string, long> Reservations { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> Sending { get; } = new(StringComparer.Ordinal);
 
         public long TotalReserved => checked(LegacyReserved + Reservations.Values.Sum());
     }
@@ -72,6 +74,7 @@ public class FileSpendLedger
         public string Day { get; } = day;
         public long Remaining { get; set; } = remaining;
         public long Seq { get; } = seq;
+        public bool WasSending { get; set; }
     }
 
     private readonly object _gate = new();
@@ -82,8 +85,12 @@ public class FileSpendLedger
     private readonly TimeProvider _clock;
     private readonly string? _path;
     private readonly TimeSpan _lockTimeout;
+    private readonly Func<int, bool> _isOwnerAlive;
 
     protected FileSpendLedger(string? path, TimeProvider? clock, int lockTimeoutMs = DefaultLockTimeoutMs)
+        : this(path, clock, lockTimeoutMs, isOwnerAlive: null) { }
+
+    protected FileSpendLedger(string? path, TimeProvider? clock, int lockTimeoutMs, Func<int, bool>? isOwnerAlive)
     {
         if (lockTimeoutMs is < MinLockTimeoutMs or > MaxLockTimeoutMs)
             throw new ArgumentOutOfRangeException(nameof(lockTimeoutMs),
@@ -91,6 +98,19 @@ public class FileSpendLedger
         _path = path;
         _clock = clock ?? TimeProvider.System;
         _lockTimeout = TimeSpan.FromMilliseconds(lockTimeoutMs);
+        _isOwnerAlive = isOwnerAlive ?? IsProcessAlive;
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { return true; }
     }
 
     /// <summary>The last problem that blocked the ledger, or null when the last operation worked.</summary>
@@ -139,30 +159,30 @@ public class FileSpendLedger
     // ---- own reservations (always under _gate) --------------------------------------------------------
 
     private IEnumerable<OwnReservation> OwnOpen(string account, string day)
-        => _own.Values.Where(o => o.Day == day && string.Equals(o.Account, account, StringComparison.OrdinalIgnoreCase));
+        => _own.Values.Where(o => (o.Day == day || o.WasSending) && string.Equals(o.Account, account, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// The part of today's stored reservations that belongs to open reservations of this instance: only ids this
-    /// instance holds for that account and day, each capped at the stored amount. A fresh instance owns nothing.
+    /// The part of today's stored reservations this instance still holds before sending, capped at the stored amount.
     /// </summary>
     private long Own(Entry e, string account, string today)
     {
         if (e.Day != today) return 0;
         long own = 0;
         foreach (var o in OwnOpen(account, today))
-            if (e.Reservations.TryGetValue(o.Id, out var stored))
+            if (!e.Sending.ContainsKey(o.Id) && e.Reservations.TryGetValue(o.Id, out var stored))
                 own = checked(own + Math.Min(stored, o.Remaining));
         return own;
     }
 
-    /// <summary>Open reservations of other instances (or of a crashed run) on <paramref name="today"/>.</summary>
-    private long Foreign(Entry e, string account, string today) => Math.Max(0, e.TotalReserved - Own(e, account, today));
-
     private string[] ForeignIds(Entry e, string account, string today)
     {
         var own = OwnOpen(account, today).Select(o => o.Id).ToHashSet(StringComparer.Ordinal);
-        return e.Reservations.Keys.Where(id => !own.Contains(id)).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+        return e.Reservations.Keys.Where(id => !own.Contains(id) && (!e.Sending.TryGetValue(id, out var pid) || !_isOwnerAlive(pid)))
+            .OrderBy(id => id, StringComparer.Ordinal).ToArray();
     }
+
+    private static long ReconcilableReserved(Entry e, IEnumerable<string> foreignIds)
+        => checked(e.LegacyReserved + foreignIds.Sum(id => e.Reservations[id]));
 
     private static long InternalCounted(Entry e) => checked(e.Settled + e.Unclear + e.TotalReserved);
 
@@ -176,15 +196,15 @@ public class FileSpendLedger
     // ---- reads ----------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Settled plus unclear plus foreign open reservations of today. The purchase this instance is sending right
-    /// now is not included: the gateway adds it itself. A ledger that cannot be read counts as fully spent.
+    /// Settled, unclear, in-flight and foreign open reservations of today. This instance's queued reservations
+    /// are excluded. A ledger that cannot be read counts as fully spent.
     /// </summary>
     public long SpentToday(string account)
     {
         try
         {
             return Transact((entries, today) => Find(entries, account, today) is { } e
-                ? (checked(e.Settled + e.Unclear + Foreign(e, account, today)), false)
+                ? (InternalCounted(e) - Own(e, account, today), false)
                 : (0L, false), allowWrite: false);
         }
         catch (SpendLedgerException) { return Blocked; }
@@ -214,28 +234,32 @@ public class FileSpendLedger
         catch (SpendLedgerException) { return Blocked; }
     }
 
-    /// <summary>Unclear meat plus reservations of other processes (they may be stuck).</summary>
+    /// <summary>Unclear meat plus foreign reservations available for reconciliation.</summary>
     public long UnclearToday(string account)
     {
         try
         {
             return Transact((entries, today) => Find(entries, account, today) is { } e
-                ? (checked(e.Unclear + Foreign(e, account, today)), false)
+                ? (checked(e.Unclear + ReconcilableReserved(e, ForeignIds(e, account, today))), false)
                 : (0L, false), allowWrite: false);
         }
         catch (SpendLedgerException) { return Blocked; }
     }
 
     /// <summary>
-    /// Today's unclear meat (unclear purchases and foreign reservations) with the account, revision and foreign ids, read in one
+    /// Today's unclear meat (unclear purchases and reconcilable foreign reservations) with the account, revision and foreign ids, read in one
     /// transaction, for a later <see cref="Reconcile(string, UnclearSnapshot, long)"/>. Writes nothing.
     /// Throws <see cref="SpendLedgerException"/> when unreadable.
     /// </summary>
     public UnclearSnapshot ReadUnclear(string account)
-        => Transact((entries, today) => Find(entries, account, today) is { } e
-            ? (new UnclearSnapshot(account, today, e.Unclear, Foreign(e, account, today), e.Revision,
-                Array.AsReadOnly(ForeignIds(e, account, today))), false)
-            : (new UnclearSnapshot(account, today, 0, 0, ForeignIds: Array.Empty<string>()), false), allowWrite: false);
+        => Transact((entries, today) =>
+        {
+            if (Find(entries, account, today) is not { } e)
+                return (new UnclearSnapshot(account, today, 0, 0, ForeignIds: Array.Empty<string>()), false);
+            var ids = ForeignIds(e, account, today);
+            return (new UnclearSnapshot(account, today, e.Unclear, ReconcilableReserved(e, ids), e.Revision,
+                Array.AsReadOnly(ids)), false);
+        }, allowWrite: false);
 
     /// <summary>Like <see cref="ReadUnclear"/>; false (with <see cref="Problem"/> set) when the ledger is unreadable.</summary>
     public bool TryReadUnclear(string account, out UnclearSnapshot snapshot)
@@ -314,6 +338,13 @@ public class FileSpendLedger
     /// and tries to reserve the same amount fresh on today under <paramref name="limit"/>.
     /// </summary>
     public bool EnsureActiveOrRenew(ref SpendReservation reservation, long? limit, out string? error)
+        => EnsureActiveOrRenew(ref reservation, limit, markSending: false, out error);
+
+    /// <summary>Checks or renews the reservation and protects it from reconciliation while this process is sending.</summary>
+    public bool BeginSend(ref SpendReservation reservation, long? limit, out string? error)
+        => EnsureActiveOrRenew(ref reservation, limit, markSending: true, out error);
+
+    private bool EnsureActiveOrRenew(ref SpendReservation reservation, long? limit, bool markSending, out string? error)
     {
         var prior = reservation;
         if (prior.IsEmpty || string.IsNullOrEmpty(prior.Account) || string.IsNullOrEmpty(prior.Id))
@@ -330,18 +361,28 @@ public class FileSpendLedger
             {
                 error = Transact<string?>((entries, today) =>
                 {
-                    if (_own.TryGetValue(prior.Id, out var own) && own.Day == today
+                    if (_own.TryGetValue(prior.Id, out var own)
                         && Find(entries, own.Account, today) is { } existing
+                        && (own.Day == today || existing.Sending.ContainsKey(own.Id))
                         && existing.Reservations.TryGetValue(own.Id, out var stored)
                         && stored >= prior.Amount && own.Remaining >= prior.Amount)
-                        return (null, false);
+                    {
+                        if (!markSending) return (null, false);
+                        if (limit is { } max && InternalCounted(existing) > max)
+                            return ("The daily budget would be exceeded.", false);
+                        existing.Sending[own.Id] = Environment.ProcessId;
+                        existing.BumpRevision();
+                        return (null, true);
+                    }
+                    if (own is { WasSending: true })
+                        return ("The in-flight reservation is no longer available.", false);
 
-                    _own.Remove(prior.Id);
                     var releasedOld = false;
                     if (own is not null && own.Day == today
                         && Find(entries, own.Account, today) is { } current && current.Reservations.Remove(own.Id))
                     {
                         releasedOld = true;
+                        current.Sending.Remove(own.Id);
                         current.BumpRevision();
                     }
                     if (prior.Amount >= Blocked)
@@ -354,24 +395,29 @@ public class FileSpendLedger
                         renewed = default;
                         return (outcome.Result, releasedOld);
                     }
+                    if (markSending) Current(entries, prior.Account, today).Sending[id] = Environment.ProcessId;
                     return (null, true);
                 }, allowWrite: true);
                 if (error is not null)
                 {
-                    reservation = default;
+                    if (!markSending && (!_own.TryGetValue(prior.Id, out var own) || !own.WasSending))
+                    {
+                        _own.Remove(prior.Id);
+                        reservation = default;
+                    }
                     return false;
                 }
                 if (!renewed.IsEmpty)
                 {
+                    _own.Remove(prior.Id);
                     _own[renewed.Id] = new OwnReservation(renewed.Id, renewed.Account, renewed.Day, renewed.Amount, ++_seq);
                     reservation = renewed;
                 }
+                if (markSending) _own[reservation.Id].WasSending = true;
                 return true;
             }
             catch (SpendLedgerException e)
             {
-                _own.Remove(prior.Id);
-                reservation = default;
                 error = $"The spend ledger is blocked, so nothing was bought: {e.Message}";
                 return false;
             }
@@ -410,19 +456,29 @@ public class FileSpendLedger
 
     /// <summary>The purchase is proven: the reserved meat is settled.</summary>
     public void Settle(SpendReservation reservation)
-        => Finish(reservation, (e, held) => e.Settled = IncreaseAmount(e.Settled, held));
+        => AfterPurchase(reservation, (e, held) => e.Settled = IncreaseAmount(e.Settled, held));
 
     /// <summary>Nothing was sent: the reservation is dropped.</summary>
     public void Release(SpendReservation reservation)
-        => Finish(reservation, null);
+        => AfterPurchase(reservation, null);
 
     /// <summary>The outcome is not proven: the reserved meat stays counted as unclear until reconciled.</summary>
     public void MarkUnclear(SpendReservation reservation)
-        => Finish(reservation, (e, held) => e.Unclear = IncreaseAmount(e.Unclear, held));
+        => FinishReservation(reservation, spent: null, unclear: true);
 
     /// <summary>A purchase that delivered less than ordered: the delivered part is settled, the rest released.</summary>
     public void SettlePartial(SpendReservation reservation, long spent)
-        => Finish(reservation, (e, held) => e.Settled = IncreaseAmount(e.Settled, Math.Clamp(spent, 0, held)));
+        => FinishReservation(reservation, spent, unclear: false);
+
+    /// <summary>Books the outcome and returns the persistence error, if any, to callers that can retry.</summary>
+    protected string? FinishReservation(SpendReservation reservation, long? spent, bool unclear)
+    {
+        if (spent is { } amount)
+            return AfterPurchase(reservation, (e, held) => e.Settled = IncreaseAmount(e.Settled, Math.Clamp(amount, 0, held)));
+        if (unclear)
+            return AfterPurchase(reservation, (e, held) => e.Unclear = IncreaseAmount(e.Unclear, held));
+        return AfterPurchase(reservation, null);
+    }
 
     /// <summary>Settles <paramref name="meat"/> out of this instance's open reservations of the account (see <see cref="AfterLegacy"/>).</summary>
     public void Settle(string account, long meat)
@@ -439,49 +495,46 @@ public class FileSpendLedger
     public void SettlePartial(string account, long reserved, long spent)
         => AfterLegacy(account, reserved, (e, held) => e.Settled = IncreaseAmount(e.Settled, Math.Clamp(spent, 0, held)));
 
-    private void Finish(SpendReservation reservation, Action<Entry, long>? book)
-    {
-        if (reservation.IsEmpty || string.IsNullOrEmpty(reservation.Account) || string.IsNullOrEmpty(reservation.Id)) return;
-        AfterPurchase(reservation, book);
-    }
-
     /// <summary>
-    /// The purchase is over. Only a reservation this instance still holds is finished, and only once: its id is
-    /// dropped from the instance first (so if the write fails the stored reservation counts as foreign, the safe
-    /// side), then exactly that id is removed from today's entry; no other reservation is ever touched. After a day
-    /// change the reservations of the new day are never reduced: settled or unclear meat is booked on the new day
-    /// (the safe side), a release writes nothing. Never throws for ledger problems.
+    /// Finishes a reservation this instance holds and keeps the handle until the transaction succeeds.
+    /// A sending reservation is carried to today and can already have been reconciled. Only older reservations
+    /// without a send marker still need to be booked on the new day when their id is gone.
     /// </summary>
-    private void AfterPurchase(SpendReservation reservation, Action<Entry, long>? book)
+    private string? AfterPurchase(SpendReservation reservation, Action<Entry, long>? book)
     {
+        if (reservation.IsEmpty || string.IsNullOrEmpty(reservation.Account) || string.IsNullOrEmpty(reservation.Id)) return null;
         lock (_gate)
         {
-            if (!_own.Remove(reservation.Id, out var own)) return;   // already finished, or not ours: no-op
+            if (!_own.TryGetValue(reservation.Id, out var own)) return null;
             try
             {
                 Transact((entries, today) =>
                 {
-                    if (own.Day != today)
+                    var e = Find(entries, own.Account, today);
+                    if (e is not null && e.Reservations.ContainsKey(own.Id))
                     {
-                        if (book is null) return (0, false);   // a release after the day change: the new day is untouched
+                        book?.Invoke(e, own.Remaining);
+                        e.Reservations.Remove(own.Id);
+                        e.Sending.Remove(own.Id);
+                        e.BumpRevision();
+                        return (0, true);
+                    }
+                    if (own.Day != today && !own.WasSending && book is not null)
+                    {
                         var day = Current(entries, own.Account, today);
                         book(day, own.Remaining);
                         day.BumpRevision();
                         return (0, true);
                     }
-                    if (Find(entries, own.Account, today) is not { } e || !e.Reservations.Remove(own.Id, out var stored))
-                        return (0, false);
-                    try { book?.Invoke(e, own.Remaining); }
-                    catch (SpendLedgerException)
-                    {
-                        e.Reservations[own.Id] = stored;
-                        throw;
-                    }
-                    e.BumpRevision();
-                    return (0, true);
+                    return (0, false);
                 }, allowWrite: true);
+                _own.Remove(own.Id);
+                return null;
             }
-            catch (SpendLedgerException) { /* Problem is set; the stored reservation now counts as foreign. */ }
+            catch (SpendLedgerException exception)
+            {
+                return exception.Message;
+            }
         }
     }
 
@@ -538,7 +591,7 @@ public class FileSpendLedger
         string account, long meat, string? today, Entry? found)
     {
         var mine = _own.Values
-            .Where(o => string.Equals(o.Account, account, StringComparison.OrdinalIgnoreCase))
+            .Where(o => !o.WasSending && string.Equals(o.Account, account, StringComparison.OrdinalIgnoreCase))
             .OrderBy(o => o.Seq).ToList();
         if (mine.Select(o => o.Day).Distinct(StringComparer.Ordinal).Count() > 1)
             return (0, []);
@@ -550,7 +603,7 @@ public class FileSpendLedger
             var taken = Math.Min(o.Remaining, needed);
             if (o.Day == today)
             {
-                if (found is null || !found.Reservations.TryGetValue(o.Id, out var stored)) continue;
+                if (found is null || found.Sending.ContainsKey(o.Id) || !found.Reservations.TryGetValue(o.Id, out var stored)) continue;
                 taken = Math.Min(taken, stored);
                 usedToday.Add((o.Id, taken));
             }
@@ -573,17 +626,20 @@ public class FileSpendLedger
         {
             if (expected.Total <= 0 || !string.Equals(expected.Account, account, StringComparison.OrdinalIgnoreCase)
                 || expected.Day != today || Find(entries, account, today) is not { } e
-                || e.Revision != expected.Revision || e.Unclear != expected.Unclear
-                || Foreign(e, account, today) != expected.Foreign)
+                || e.Revision != expected.Revision || e.Unclear != expected.Unclear)
                 return (false, false);
             var currentForeignIds = ForeignIds(e, account, today);
-            if (!currentForeignIds.SequenceEqual(expected.ForeignIds ?? Array.Empty<string>(), StringComparer.Ordinal))
+            if (ReconcilableReserved(e, currentForeignIds) != expected.Foreign
+                || !currentForeignIds.SequenceEqual(expected.ForeignIds ?? Array.Empty<string>(), StringComparer.Ordinal))
                 return (false, false);
             e.Settled = IncreaseAmount(e.Settled, Math.Max(0, actuallySpent));
             e.Unclear = 0;
             e.LegacyReserved = 0;
             foreach (var id in currentForeignIds)
+            {
                 e.Reservations.Remove(id);
+                e.Sending.Remove(id);
+            }
             e.BumpRevision();
             return (true, true);
         }, allowWrite: true);
@@ -636,7 +692,15 @@ public class FileSpendLedger
             {
                 T result;
                 if (_path is null)
-                    result = body(_memory, Today).Result;
+                {
+                    var today = Today;
+                    foreach (var (account, entry) in _memory.Where(pair => pair.Value.Day != today).ToArray())
+                    {
+                        if (ForDay(entry, today) is { } carried) _memory[account] = carried;
+                        else _memory.Remove(account);
+                    }
+                    result = body(_memory, today).Result;
+                }
                 else
                 {
                     using var fileLock = AcquireLock();
@@ -692,7 +756,10 @@ public class FileSpendLedger
         {
             var root = JsonNode.Parse(File.ReadAllText(_path!)) as JsonObject
                 ?? throw new FormatException("the top level is not an object");
-            // Current format {"version":1,"accounts":{...}}; the older flat {"account":{...}} is still read.
+            // The older flat {"account":{...}} format and version 1 files with send markers are still read.
+            if (root.TryGetPropertyValue("version", out var version)
+                && (version is not JsonValue versionValue || !versionValue.TryGetValue<int>(out var number) || number is not (1 or 2)))
+                throw new FormatException("unsupported ledger version");
             var accounts = root["accounts"] as JsonObject ?? (root.ContainsKey("accounts") ? null : root)
                 ?? throw new FormatException("'accounts' is not an object");
             foreach (var (name, node) in accounts)
@@ -722,16 +789,40 @@ public class FileSpendLedger
                     }
                 }
                 e.LegacyReserved = Math.Max(0, reserved - sum);
-                if (e.Day == today) entries[name] = e;   // older days are dropped on the next write
+                if (o["sending"] is { } sending)
+                {
+                    if (sending is not JsonObject owners) throw new FormatException($"'sending' of '{name}' is not an object");
+                    foreach (var (id, value) in owners)
+                    {
+                        if (value?.GetValue<int>() is not (> 0 and var pid) || !e.Reservations.ContainsKey(id))
+                            throw new FormatException($"in-flight reservation '{id}' of '{name}' has an invalid owner or no amount");
+                        e.Sending[id] = pid;
+                    }
+                }
+                if (ForDay(e, today) is { } current) entries.Add(name, current);
             }
             return entries;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException
-                                      or InvalidOperationException or FormatException)
+                                      or InvalidOperationException or FormatException or ArgumentException)
         {
             throw new SpendLedgerException(
                 $"The ledger file '{_path}' is unreadable or unexpected ({e.Message}). Fix or remove it; purchases stay blocked until then.", e);
         }
+    }
+
+    private static Entry? ForDay(Entry entry, string today)
+    {
+        if (entry.Day == today) return entry;
+        if (entry.Sending.Count == 0 || string.CompareOrdinal(entry.Day, today) > 0) return null;
+
+        var carried = new Entry { Day = today, Revision = entry.Revision };
+        foreach (var (id, pid) in entry.Sending)
+        {
+            carried.Reservations.Add(id, entry.Reservations[id]);
+            carried.Sending.Add(id, pid);
+        }
+        return carried;
     }
 
     private static long Amount(JsonObject o, string key, string name)
@@ -753,6 +844,7 @@ public class FileSpendLedger
         try
         {
             var accounts = new JsonObject();
+            var version = 1;
             foreach (var (name, e) in entries)
             {
                 var reservations = new JsonObject();
@@ -766,9 +858,16 @@ public class FileSpendLedger
                     ["reserved"] = e.TotalReserved,   // the total, so older builds still count every reservation
                     ["reservations"] = reservations
                 };
+                if (e.Sending.Count > 0)
+                {
+                    version = 2;
+                    var sending = new JsonObject();
+                    foreach (var (id, pid) in e.Sending) sending[id] = pid;
+                    o["sending"] = sending;
+                }
                 accounts[name] = o;
             }
-            var json = new JsonObject { ["version"] = 1, ["accounts"] = accounts }
+            var json = new JsonObject { ["version"] = version, ["accounts"] = accounts }
                 .ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             var temp = _path + ".tmp";
             File.WriteAllText(temp, json);

@@ -9,6 +9,29 @@ namespace KoLibri.Core.Tests;
 public sealed class ShopRepriceApprovalServiceTests
 {
     [Fact]
+    public async Task MixedShopBatchPreservesHoldAndVerifiesTheUpdatedRow()
+    {
+        var fixture = new ShopFixtureHandler(1000);
+        using var http = new HttpClient(fixture);
+        var client = new KoLShopMutationClient(http, new Uri("https://fixture.invalid/"));
+
+        var result = await client.ApplyPriceUpdatesAsync(
+            [new ShopPriceUpdate("43", 500, 500), new ShopPriceUpdate("42", 1000, 900)], commit: true);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Committed);
+        Assert.Equal(1, fixture.PostCount);
+        Assert.Collection(result.Results,
+            hold =>
+            {
+                Assert.Equal("43", hold.ItemId);
+                Assert.Equal(ShopPriceUpdateStatus.Hold, hold.Status);
+                Assert.Equal("Already at requested price.", hold.Message);
+            },
+            updated => Assert.Equal(ShopPriceUpdateStatus.Updated, updated.Status));
+    }
+
+    [Fact]
     public async Task PreviewApprovalCommitAndVerifyStayBoundToActionAndAccount()
     {
         var now = new DateTimeOffset(2026, 11, 17, 12, 0, 0, TimeSpan.Zero);
@@ -129,7 +152,8 @@ public sealed class ShopRepriceApprovalServiceTests
                     GetCount++;
                     var body = $"<input type=\"hidden\" name=\"pwd\" value=\"fixture-token\" />" +
                                $"<input name=\"price[42]\" value=\"{Price}\" />" +
-                               "<input name=\"limit[42]\" value=\"1\" />";
+                               "<input name=\"limit[42]\" value=\"1\" />" +
+                               "<input name=\"price[43]\" value=\"500\" />";
                     return Task.FromResult(Response(body));
                 }
 
