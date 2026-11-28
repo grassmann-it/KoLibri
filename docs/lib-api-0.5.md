@@ -487,7 +487,7 @@ public sealed class Mailbox
   Task SaveAsync(string messageId); Task DeleteAsync(MailFolder folder, string messageId); }
 public sealed record MailMessage(string Recipient, string Text) { IReadOnlyList<InventoryItem> Items; long Meat; }
 
-public sealed class DailyMarkers       // Einmal-pro-KoL-Tag je Konto (Rollover 03:30 Arizona)
+public sealed class DailyMarkers       // Einmal-pro-KoL-Tag je Konto mit Rollover um 03:30 UTC (20:30 Arizona)
 { DateOnly GameDay; bool IsDone(string key); void MarkDone(string key); IReadOnlyList<string> DoneToday(); }
 ```
 
@@ -819,7 +819,7 @@ Die Signaturen sind unverändert; abweichend vom Text in §4 ist:
 | 1 | Standard-`IAccountStore` | liest und schreibt die Dateien von 0.4 (`accounts.json` + verschlüsselte Secrets), Ids nur `main` und `mallbot`; andere Ids → `KolibriException`. `RemoveAsync` löscht die Zugangsdaten, das Profil bleibt. Labels/Tags in einer Nebendatei | gespeicherte Sitzungen von CLI/MCP/Desktop bleiben gültig; freie Ids mit eigenem `AccountStore` oder nach der Datenmigration |
 | 2 | `LimiterOptions` | Standard 2 s (Action) / 1 s (Read) / 2 parallel wie 0.4, Untergrenze 1 s bzw. 200 ms | gleiche Drosselung wie heute live bewiesen |
 | 3 | `GameData` ohne `DataDirectory` | mitgelieferter Ordner `external/kolmafia-data` neben der Anwendung, keine eingebettete Ressource | Paketgröße; eingebettet beim Pack-Schritt |
-| 4 | `DailyMarkers` | Rollover 03:30 US Eastern wie 0.4 (nicht Arizona); gleiche Datei `daily-done.json` (ohne `StateDirectory` `LocalApplicationData/KoLibri`); für die Konten `main`/`mallbot` der 0.4-Schlüssel `Main:<Spieler-Id>`, die Spieler-Id aus dem zuletzt gelesenen Status (wie 0.4), sonst aus dem Profil, sonst der Name | Marker der 0.4-CLI (`daily run`) gelten weiter |
+| 4 | `DailyMarkers` | Rollover 03:30 UTC (20:30 Arizona); gleiche Datei `daily-done.json` (ohne `StateDirectory` `LocalApplicationData/KoLibri`); für die Konten `main`/`mallbot` der 0.4-Schlüssel `Main:<Spieler-Id>`, die Spieler-Id aus dem zuletzt gelesenen Status (wie 0.4), sonst aus dem Profil, sonst der Name | Marker der 0.4-CLI (`daily run`) gelten weiter |
 | 5 | `Shop.TakeBackAsync` | `NotSupportedException` | Core hat keinen geprüften Request; vorerst `session.PostAsync` |
 | 6 | `Shop.RepriceAsync` | ändert nur Preise; ein abweichendes `LimitPerDay` → `Rejected`, nichts gesendet | Core kann das Tageslimit nicht setzen |
 | 7 | `Mailbox` | `MailFolder.Pvp` → `NotSupportedException`; `MailEntry.Items` bleibt leer | Core liest diesen Ordner und die Anhänge nicht |

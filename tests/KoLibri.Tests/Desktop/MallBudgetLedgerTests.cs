@@ -167,7 +167,7 @@ public sealed class MallBudgetLedgerTests
     public async Task Rollover_during_library_reads_is_checked_again_before_the_Mall_POST(
         int secondsAfterRollover, int otherReservation, MallBuyState expectedState, int expectedPosts)
     {
-        var rollover = new DateTimeOffset(2026, 11, 22, 8, 30, 0, TimeSpan.Zero);
+        var rollover = new DateTimeOffset(2026, 11, 22, 3, 30, 0, TimeSpan.Zero);
         var clock = new MallKit.Clock(rollover.AddMinutes(-1));
         var ledger = new MallSpendLedger(clock);
         var log = new SessionLogViewModel(now: () => Now, post: MallBuyQueueTests.SerialPost());
