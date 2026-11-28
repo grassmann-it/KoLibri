@@ -1,3 +1,4 @@
+using System.Globalization;
 using KoLibri.Daily;
 using KoLibri.Desktop;
 using KoLibri.Extras;
@@ -384,12 +385,21 @@ public sealed class ConsumeDailyFindingsTests
         finally { if (File.Exists(path)) File.Delete(path); }
     }
 
+    [Theory]
+    [InlineData("2026-11-28T03:29:59Z", "2026-11-27")]
+    [InlineData("2026-11-28T03:30:00Z", "2026-11-28")]
+    [InlineData("2026-07-01T03:29:59Z", "2026-06-30")]
+    [InlineData("2026-07-01T03:30:00Z", "2026-07-01")]
+    [InlineData("2026-11-27T20:30:00-07:00", "2026-11-28")]
+    public void KolDay_changes_at_0330_utc_year_round(string instant, string expected)
+        => Assert.Equal(DateOnly.ParseExact(expected, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            KolDay.Of(DateTimeOffset.Parse(instant, CultureInfo.InvariantCulture)));
+
     [Fact]
     public void Skip_day_follows_the_kol_rollover_not_local_midnight()
     {
-        // 02:00 Eastern on the 22nd is still KoL day the 21st (rollover 03:30).
-        var before = new DateTimeOffset(2026, 11, 22, 7, 0, 0, TimeSpan.Zero);
-        var after = new DateTimeOffset(2026, 11, 22, 9, 0, 0, TimeSpan.Zero);
+        var before = new DateTimeOffset(2026, 11, 22, 3, 29, 59, TimeSpan.Zero);
+        var after = new DateTimeOffset(2026, 11, 22, 3, 30, 0, TimeSpan.Zero);
         Assert.Equal(new DateOnly(2026, 11, 21), DailyStepBoard.KolToday(before));
         Assert.Equal(new DateOnly(2026, 11, 22), DailyStepBoard.KolToday(after));
     }
