@@ -244,7 +244,8 @@ internal static partial class KolibriCli
         var roles = roleText == "all" ? new[] { AccountRole.Main, AccountRole.Mallbot } : new[] { ParseRole(roleText) };
         var tail = ReadInt(args, "--tail", 0);
         var account = GetOption(args, "--account");
-        var log = new KoLibri.Extras.BridgeAuditReader(AuditPathOverride);
+        var log = new KoLibri.Extras.BridgeAuditReader(AuditPathOverride
+            ?? (ConfiguredStateDirectory is { } state ? Path.Combine(state, "bridge-audit.jsonl") : null));
         var rows = log.Read();
         if (HasFlag(args, "--verify"))
         {

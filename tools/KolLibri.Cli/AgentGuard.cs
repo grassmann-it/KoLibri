@@ -27,6 +27,8 @@ internal static class AgentGuard
     /// <summary>Tests only: a temporary folder instead of the user's approval-token file.</summary>
     internal static string? TokenRootOverride { get; set; }
 
+    internal static string TokenRoot => TokenRootOverride ?? KolibriCli.ConfiguredStateDirectory ?? ApprovalTokenStore.DefaultRoot();
+
     public static bool IsWrite(string[] args)
         => args.Any(a => WriteFlags.Contains(a, StringComparer.OrdinalIgnoreCase))
            || (args.Length > 0 && AlwaysWriteCommands.Contains(args[0], StringComparer.OrdinalIgnoreCase));
@@ -39,7 +41,7 @@ internal static class AgentGuard
     {
         if (string.IsNullOrWhiteSpace(supplied)) return false;
         using var own = store is null
-            ? new ApprovalTokenStore(TokenRootOverride ?? ApprovalTokenStore.DefaultRoot())
+            ? new ApprovalTokenStore(TokenRoot)
             : null;
         var stored = await (store ?? own!).LoadAsync().ConfigureAwait(false);
         if (stored is null || string.IsNullOrWhiteSpace(stored.Token)) return false;
@@ -128,12 +130,12 @@ internal static class AgentGuard
     }
 
     /// <summary><c>kolibri agent-mode status|allow|guard</c>; changing it always needs the real terminal.</summary>
-    public static int Command(string[] args)
+    public static int Command(string[] args, string path)
     {
         var verb = args.FirstOrDefault()?.ToLowerInvariant() ?? "status";
         if (verb == "status")
         {
-            Console.WriteLine(UnattendedAllowed()
+            Console.WriteLine(UnattendedAllowed(path)
                 ? "Agent mode off: scripts may write (agent-mode guard turns it back on)."
                 : "Agent mode on: write actions by AI/scripts require confirmation at the terminal.");
             return 0;
@@ -143,8 +145,8 @@ internal static class AgentGuard
             ? "Scripts and agents may write without asking. This removes the safeguard. Are you sure? (yes/no): "
             : "Turn agent mode back on? (yes/no): ");
         if (ok is not true) { Console.Error.WriteLine(ok is null ? "No terminal reachable." : "Cancelled."); return 3; }
-        Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(new { allowUnattended = verb == "allow" }));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(new { allowUnattended = verb == "allow" }));
         Console.WriteLine("ok");
         return 0;
     }

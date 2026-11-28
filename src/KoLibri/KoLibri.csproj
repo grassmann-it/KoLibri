@@ -54,6 +54,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="KoLibri.Tests" />
     <InternalsVisibleTo Include="KoLibri.Safety" />
+    <InternalsVisibleTo Include="KoLibri.Daily" />
     <InternalsVisibleTo Include="KoLibri.Desktop" />
     <InternalsVisibleTo Include="KolLibri.Mcp" />
   </ItemGroup>

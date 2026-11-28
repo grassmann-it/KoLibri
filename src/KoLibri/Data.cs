@@ -223,6 +223,9 @@ namespace KoLibri
         public void MarkDone(string key) => _store.MarkDone(_accountKey(), Key(key));
         public IReadOnlyList<string> DoneToday() => _store.DoneToday(_accountKey());
 
+        internal Task<FileStream> LockActionAsync(string action, CancellationToken cancellationToken)
+            => _store.LockActionAsync(action, cancellationToken);
+
         private static string Key(string key)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(key);

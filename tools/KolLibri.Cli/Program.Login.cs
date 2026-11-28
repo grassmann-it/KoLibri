@@ -210,7 +210,7 @@ internal static partial class KolibriCli
     private static async Task<int> TokenDispatchAsync(string[] args)
     {
         var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "show";
-        using var store = new ApprovalTokenStore(AgentGuard.TokenRootOverride ?? ApprovalTokenStore.DefaultRoot());
+        using var store = new ApprovalTokenStore(AgentGuard.TokenRoot);
         switch (sub)
         {
             case "mint":

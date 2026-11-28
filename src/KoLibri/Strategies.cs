@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using CoreSpiel = KoLibri.Core.Spiel;
 
@@ -29,6 +30,17 @@ namespace KoLibri
 
     public sealed record CombatAction(CombatActionKind Kind, int? Id = null, int? SecondId = null, string? Macro = null)
     {
+        // Keep the decision context on this action instance without changing record equality.
+        private static readonly ConditionalWeakTable<CombatAction, CombatContext> DecisionContexts = new();
+        internal CombatContext? Before => DecisionContexts.TryGetValue(this, out var context) ? context : null;
+
+        internal CombatAction WithContext(CombatContext context)
+        {
+            var action = this with { };
+            DecisionContexts.Add(action, context with { History = Array.Empty<FightRound>() });
+            return action;
+        }
+
         public static CombatAction Attack { get; } = new(CombatActionKind.Attack);
         public static CombatAction RunAway { get; } = new(CombatActionKind.RunAway);
         /// <summary>Kampf an den Menschen zurückgeben (Browser/Encounter-Ansicht).</summary>
@@ -188,8 +200,8 @@ namespace KoLibri
         }
 
         /// <summary>
-        /// Adapter over the 0.4 policy. It stays pure: rule usage ("skill 1005 x3") is rebuilt from the round
-        /// history on every call by replaying the policy, nothing is stored between calls.
+        /// Adapter over the 0.4 policy. The actions sent determine the budget. The recorded pre-round
+        /// context identifies which rule selected each action.
         /// A rule whose skill/item the fight page does not offer (or whose MP cost is too high) is skipped
         /// like a rule whose condition does not hold; if nothing else matches the answer is Stop, never a blind request.
         /// </summary>
@@ -198,15 +210,39 @@ namespace KoLibri
             public CombatAction Next(CombatContext context)
             {
                 var usage = new CoreSpiel.AutoCombatUsage();
-                for (var i = 0; i < context.History.Count; i++)
+                foreach (var round in context.History)
                 {
-                    var past = Decide(context, Context(context, i + 1, i == 0 ? context.Hp : context.History[i - 1].Hp,
-                        i == 0 ? context.Mp : context.History[i - 1].Mp), usage);
-                    usage = usage.After(past);
+                    var ruleId = RuleFor(round, usage);
+                    var kind = round.Action.Kind switch
+                    {
+                        CombatActionKind.Skill => CoreSpiel.AutoCombatActionKind.Skill,
+                        CombatActionKind.Item => CoreSpiel.AutoCombatActionKind.Item,
+                        CombatActionKind.RunAway => CoreSpiel.AutoCombatActionKind.Run,
+                        _ => CoreSpiel.AutoCombatActionKind.Attack
+                    };
+                    usage = usage.After(new CoreSpiel.AutoCombatDecision { Action = new(kind), RuleId = ruleId });
                 }
-                var decision = Decide(context, Context(context, context.Round, context.Hp, context.Mp), usage);
-                var id = int.TryParse(decision.Action.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : (int?)null;
-                return decision.Action.Kind switch
+                return ToAction(Decide(context, Context(context), usage).Action).WithContext(context);
+            }
+
+            private string? RuleFor(FightRound round, CoreSpiel.AutoCombatUsage usage)
+            {
+                if (round.Before is { } before)
+                {
+                    var decision = Decide(before, Context(before), usage);
+                    return ToAction(decision.Action) == round.Action ? decision.RuleId : null;
+                }
+
+                // Callers can also supply their own history. Attribute the action only when it identifies one rule.
+                if (policy.DefaultAction is { } fallback && ToAction(fallback) == round.Action) return null;
+                var matches = policy.Rules.Where(rule => rule.Enabled && ToAction(rule.Action) == round.Action).Take(2).ToArray();
+                return matches.Length == 1 ? matches[0].Id?.Trim() : null;
+            }
+
+            private static CombatAction ToAction(CoreSpiel.AutoCombatAction action)
+            {
+                var id = int.TryParse(action.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : (int?)null;
+                return action.Kind switch
                 {
                     CoreSpiel.AutoCombatActionKind.Attack => CombatAction.Attack,
                     CoreSpiel.AutoCombatActionKind.Skill when id is { } skill => CombatAction.Skill(skill),
@@ -253,12 +289,12 @@ namespace KoLibri
                 return cost is not { } needed || needed <= mp;
             }
 
-            private static CoreSpiel.AutoCombatContext Context(CombatContext context, int round, int hp, int mp) => new()
+            private static CoreSpiel.AutoCombatContext Context(CombatContext context) => new()
             {
-                Round = round,
-                Hp = hp,
+                Round = context.Round,
+                Hp = context.Hp,
                 MaxHp = context.MaxHp,
-                Mp = mp,
+                Mp = context.Mp,
                 MaxMp = context.MaxMp,
                 Monster = context.Fight.MonsterName,
                 Effects = context.Effects.Select(e => e.Name).ToArray()

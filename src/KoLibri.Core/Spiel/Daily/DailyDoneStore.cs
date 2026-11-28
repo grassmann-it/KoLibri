@@ -75,6 +75,21 @@ public sealed class DailyDoneStore
 
     internal DateTimeOffset Now => _clock.GetUtcNow();
 
+    // Separate from the marker file lock so callers can read and update markers during the action.
+    internal async Task<FileStream> LockActionAsync(string action, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
+        var lockPath = $"{_path}.{action}.lock";
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { return OpenLock(lockPath); }
+            catch (IOException) when (DateTime.UtcNow < deadline)
+            { await Task.Delay(25, cancellationToken).ConfigureAwait(false); }
+        }
+    }
+
     private static string Key(string account, string action) => $"{account.ToLowerInvariant()}|{action}";
 
     /// <summary>Reads, changes and writes the marker file as one step that is serialized across processes
@@ -95,15 +110,17 @@ public sealed class DailyDoneStore
         return result;
     }
 
-    private FileStream? AcquireLock()
+    private FileStream AcquireLock()
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (true)
         {
-            try { return new FileStream(_path + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            try { return OpenLock(_path + ".lock"); }
             catch (IOException) when (DateTime.UtcNow < deadline) { Thread.Sleep(25); }
         }
     }
+
+    private static FileStream OpenLock(string path) => new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 
     private Dictionary<string, string> Load()
     {

@@ -14,6 +14,11 @@ internal static partial class KolibriCli
 
     internal static string AccountIdOf(AccountRole role) => role == AccountRole.Main ? "main" : "mallbot";
 
+    internal static string? ConfiguredStateDirectory => OptionsOverride?.Invoke().StateDirectory;
+
+    private static string AgentConfigPath() => ConfiguredStateDirectory is { } state
+        ? Path.Combine(state, "agent-mode.json") : AgentGuard.ConfigPath;
+
     /// <summary>One client per command; the limiter comes from the same environment variables as in 0.4.</summary>
     internal static KolibriClient CreateClient(Func<string, string?>? env = null)
         => KolibriClient.Create(OptionsOverride?.Invoke() ?? new KolibriOptions

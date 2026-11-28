@@ -54,6 +54,9 @@ public sealed class CliAdventureFarmTests : IDisposable
     }
 
     private static async Task<(int Code, JsonElement Json, string Error)> Run(params string[] args)
+        => await Capture(() => KolibriCli.AdventureCommandAsync(args));
+
+    private static async Task<(int Code, JsonElement Json, string Error)> Capture(Func<Task<int>> command)
     {
         var output = new StringWriter();
         var error = new StringWriter();
@@ -61,7 +64,7 @@ public sealed class CliAdventureFarmTests : IDisposable
         Console.SetOut(output);
         Console.SetError(error);
         int code;
-        try { code = await KolibriCli.AdventureCommandAsync(args); }
+        try { code = await command(); }
         finally { Console.SetOut(oldOut); Console.SetError(oldErr); }
         var text = output.ToString().Trim();
         return (code, text.StartsWith('{') ? JsonDocument.Parse(text).RootElement.Clone() : default, error.ToString());
@@ -175,6 +178,24 @@ public sealed class CliAdventureFarmTests : IDisposable
         Assert.Empty(_kol.Requests);
     }
 
+    [Theory]
+    [InlineData("run-preview", "--execute", "--approval-token", "unused")]
+    [InlineData("bounded-preview", "--execute", "--approval-token", "unused")]
+    [InlineData("run", "--max-turn", "10", "--execute")]
+    [InlineData("run", "--max-turns", "abc", "--execute")]
+    [InlineData("run", "--fight-action", "skill:1005", "--fight-action", "attack")]
+    [InlineData("run", "--snarfblat", "nope")]
+    [InlineData("run", "--recover-hp", "rest")]
+    [InlineData("run", "--combat-rules", "skill \"No Such Skill Anywhere\"")]
+    [InlineData("run", "--stop-item", "knucklebone")]
+    public async Task Invalid_run_arguments_exit_2_before_any_request(string subcommand, params string[] options)
+    {
+        var (code, _, error) = await Capture(() => KolibriCli.RunAsync(["adventure", subcommand, "--location", "439", .. options], _ => null));
+        Assert.Equal(2, code);
+        Assert.Contains(options[0], error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(_kol.Requests);
+    }
+
     // ---- the documented farm recipe ----
 
     private sealed class Farm
@@ -184,18 +205,18 @@ public sealed class CliAdventureFarmTests : IDisposable
         private const string Fight = """<html><body><span id="monname" monsterid="123">skeleton</span><form action="fight.php" method="post"><input type="hidden" name="onturn" value="1"><button name="action" value="attack">Attack</button></form></body></html>""";
         private const string Choice = """<html><body><b>Temporarily Out of Skeletons</b><form action="choice.php" method="post"><input type="hidden" name="whichchoice" value="1060"><input type="hidden" name="pwd" value="0123456789abcdef"><input type="submit" name="option" value="1"> <input type="submit" name="option" value="2"></form></body></html>""";
 
-        public Farm(FakeKol kol)
+        public Farm(FakeKol kol, int damage = 70, int restCost = 0, bool skeletonStore = true, string monster = "skeleton")
         {
             kol.On("GET api.php?what=status", (_, _) => FakeKol.Html(string.Create(CultureInfo.InvariantCulture,
                 $$"""{"name":"Tester","playerid":"1001","level":7,"meat":10000,"adventures":{{Adventures}},"hp":{{Hp}},"maxhp":100,"mp":40,"maxmp":50,"full":0,"fullnessmax":15,"drunk":0,"drunkmax":14,"spleen":0,"spleenmax":15,"pwd":"0123456789abcdef","familiar":"0","equipment":{"hat":"3","weapon":"0"},"effects":{} }""")));
             kol.On("GET api.php?what=inventory", (_, _) => FakeKol.Html(Bones > 0 ? $"{{\"{Knucklebone}\":{Bones}}}" : "{}"));
-            // Turn 2 is the Skeleton Store choice; every other turn is a fight that costs 70 HP.
-            kol.On("POST adventure.php", (_, _) => FakeKol.Redirect(++Calls == 2 ? "https://www.kingdomofloathing.com/choice.php" : "https://www.kingdomofloathing.com/fight.php"));
-            kol.On("GET fight.php", (_, _) => FakeKol.Html(Fight));
+            kol.On("POST adventure.php", (_, _) => FakeKol.Redirect(++Calls == 2 && skeletonStore
+                ? "https://www.kingdomofloathing.com/choice.php" : "https://www.kingdomofloathing.com/fight.php"));
+            kol.On("GET fight.php", (_, _) => FakeKol.Html(Fight.Replace(">skeleton<", $">{monster}<", StringComparison.Ordinal)));
             kol.On("GET choice.php", (_, _) => FakeKol.Html(Choice));
             kol.On("POST fight.php", (_, _) =>
             {
-                Adventures--; Hp -= 70; Bones++;
+                Adventures--; Hp -= damage; Bones++;
                 return FakeKol.Html("<html><body><!--WINWINWIN--><p>You win the fight!</p><p>You acquire an item: <b>knucklebone</b></p></body></html>");
             });
             kol.On("POST choice.php", (_, form) =>
@@ -203,8 +224,84 @@ public sealed class CliAdventureFarmTests : IDisposable
                 Adventures--; Choices.Add(form);
                 return FakeKol.Html("<html><body><b>Bone Store</b><p>You leave.</p></body></html>");
             });
-            kol.On("POST campground.php", (_, _) => { Hp = 100; Rests++; return FakeKol.Html("<html><body>You rest and feel much better.</body></html>"); });
+            kol.On("GET campground.php", restCost == 0
+                ? "<a href=campground.php?action=rest><img src=/otherimages/campground/rest1_free.gif></a>"
+                : "<a href=campground.php?action=rest><img src=/otherimages/campground/rest1.gif></a>");
+            kol.On("POST campground.php", (_, _) =>
+            {
+                Hp = 100; Rests++; Adventures -= restCost;
+                return FakeKol.Html("<html><body>You rest and feel much better.</body></html>");
+            });
         }
+    }
+
+    [Theory]
+    [InlineData(0, 0, 2, "Complete")]
+    [InlineData(1, 0, 0, "Recovery")]
+    [InlineData(1, 1, 1, "Recovery")]
+    public async Task Recovery_runs_before_the_hp_floor_and_respects_the_paid_budget_across_turns(
+        int restCost, int budget, int expectedRests, string expectedStop)
+    {
+        var token = await MintTokenAsync();
+        _ = new Farm(_kol, damage: 85, restCost: restCost, skeletonStore: false);
+
+        var (code, json, error) = await Run("run", "--location", "439", "--max-turns", "3", "--recover-hp", "40:rest",
+            "--max-recovery-adventures", budget.ToString(CultureInfo.InvariantCulture), "--execute", "--approval-token", token);
+
+        Assert.True(code == 0, error + json);
+        Assert.Equal(expectedStop, json.GetProperty("stopReason").GetString());
+        Assert.Equal(restCost * expectedRests, json.GetProperty("recoveryAdventuresSpent").GetInt32());
+        Assert.Equal(expectedRests, _kol.Count("POST", "campground.php"));
+        Assert.Equal(expectedRests + 1, _kol.Count("POST", "adventure.php"));
+        if (expectedStop == "Recovery")
+            Assert.Contains("MaxRecoveryAdventures budget is used up", json.GetProperty("detail").GetString());
+        var firstPosts = expectedRests == 0 ? new[] { "/adventure.php", "/fight.php" }
+            : new[] { "/adventure.php", "/fight.php", "/campground.php", "/adventure.php", "/fight.php" };
+        Assert.Equal(firstPosts, _kol.Requests.Where(r => r.Method == "POST").Take(5).Select(r => r.Path.Split('?')[0]));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Turtle_stops_before_the_first_fight_action_only_when_requested(bool stop, bool rules)
+    {
+        var token = await MintTokenAsync();
+        _ = new Farm(_kol, monster: "snapping turtle");
+        var args = new List<string> { "run", "--location", "439", "--execute", "--approval-token", token };
+        if (stop) args.Add("--stop-on-turtle");
+        if (rules) args.AddRange(["--combat-rules", "attack"]);
+
+        var (code, json, _) = await Run(args.ToArray());
+
+        Assert.Equal(stop ? 4 : 0, code);
+        Assert.Equal(stop ? "TurtleEncounter" : "Complete", json.GetProperty("stopReason").GetString());
+        Assert.Equal(stop ? JsonValueKind.Object : JsonValueKind.Null, json.GetProperty("openFight").ValueKind);
+        Assert.Equal(1, _kol.Count("POST", "adventure.php"));
+        Assert.Equal(stop ? 0 : 1, _kol.Count("POST", "fight.php"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task An_invisible_choice_policy_option_never_falls_back_to_the_built_in_option(bool cliOverride)
+    {
+        var token = await MintTokenAsync();
+        _ = new Farm(_kol, damage: 0);
+        var (policyCode, policy, _) = await Capture(() => KolibriCli.RunAsync(["choice", "policy", "set", "--choice", "1060", "--option", "5"], _ => null));
+        Assert.Equal(0, policyCode);
+        Assert.Equal(Path.Combine(_state, "choice-policy.json"), policy.GetProperty("path").GetString());
+        var args = new List<string> { "run", "--location", "439", "--max-turns", "2", "--execute", "--approval-token", token };
+        if (cliOverride) args.AddRange(["--choice-action", "1060:1"]);
+
+        var (code, json, _) = await Run(args.ToArray());
+
+        Assert.Equal(cliOverride ? 0 : 4, code);
+        Assert.Equal(cliOverride ? "Complete" : "NeedsDecision", json.GetProperty("stopReason").GetString());
+        Assert.Equal(2, _kol.Count("POST", "adventure.php"));
+        var choices = _kol.Requests.Where(r => r.Method == "POST" && r.Path == "/choice.php").ToArray();
+        if (cliOverride) Assert.Contains("option=1", Assert.Single(choices).Form);
+        else Assert.Empty(choices);
     }
 
     [Fact]

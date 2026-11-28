@@ -7,7 +7,18 @@ using KoLibri;
 // The other adventure subcommands of 0.4 were previews on the core kernel; they come back in a follow-up PR.
 internal static partial class KolibriCli
 {
-    internal static async Task<int> AdventureCommandAsync(string[] args)
+    internal static Task<int> AdventureCommandAsync(string[] args) => AdventureCommandAsync(args, Environment.GetEnvironmentVariable);
+
+    private static string AdventureRunMode(string command) => command.ToLowerInvariant() switch
+    {
+        "run" or "execute" or "start" or "begin" => "run",
+        "bounded-preview" or "run-preview" => "preview",
+        _ => ""
+    };
+
+    private static bool IsAdventureRun(string command) => AdventureRunMode(command).Length > 0;
+
+    private static async Task<int> AdventureCommandAsync(string[] args, Func<string, string?> env, Func<int?>? checkAgent = null)
     {
         if (args.Length == 0 || HasFlag(args, "--help") || IsHelp(args[0]))
         {
@@ -15,10 +26,12 @@ internal static partial class KolibriCli
             return 0;
         }
 
+        var mode = AdventureRunMode(args[0]);
+        if (mode.Length > 0)
+            return await AdventureRunAsync(args[1..], env, mode == "preview", checkAgent);
+
         return args[0].ToLowerInvariant() switch
         {
-            "run" or "execute" => await AdventureRunAsync(args[1..]),
-            "start" or "begin" or "bounded-preview" or "run-preview" => await AdventureRunAsync(args[1..]),
             "locations" or "location" or "list" => await AdventureLocationsAsync(args[1..]),
             "inspect" or "status" or "resume" => await AdventureInspectAsync(args[1..]),
             "step" or "advance" => await AdventureStepAsync(args[1..]),
@@ -55,12 +68,19 @@ internal static partial class KolibriCli
     }
 
     /// <summary>The fight rule of 0.4: the first configured action every round, and the fight is handed back below the HP floor.</summary>
-    internal sealed class CliCombatStrategy(CombatAction? action, int minHpPercent, ICombatStrategy? rules = null) : ICombatStrategy
+    internal sealed class CliCombatStrategy(CombatAction? action, int minHpPercent, ICombatStrategy? rules = null,
+        bool stopOnTurtle = false) : ICombatStrategy
     {
         public string? StopReason { get; private set; }
 
         public CombatAction Next(CombatContext context)
         {
+            StopReason = null;
+            if (stopOnTurtle && context.IsTurtleMonster)
+            {
+                StopReason = "TurtleEncounter";
+                return CombatAction.Stop;
+            }
             if (minHpPercent > 0 && (context.MaxHp <= 0 || 100L * context.Hp < (long)minHpPercent * context.MaxHp))
             {
                 StopReason = "HpBelowMinimum";
@@ -69,7 +89,7 @@ internal static partial class KolibriCli
             if (rules is not null)
             {
                 var next = rules.Next(context);
-                if (next.Kind == CombatActionKind.Stop) StopReason = "UnknownFight"; // no rule matched, or a turtle: handed back, never guessed
+                if (next.Kind == CombatActionKind.Stop) StopReason = "UnknownFight";
                 return next;
             }
             if (action is null)
@@ -139,8 +159,8 @@ internal static partial class KolibriCli
     internal static IRecoveryPolicy BuildRecovery(string[] args, GameData data)
     {
         var policies = new List<IRecoveryPolicy>();
-        var hp = GetOption(args, "--recover-hp") is { } hpText ? ParseRecoverSpec(hpText, data, "--recover-hp") : (0, (IReadOnlyList<RecoveryStep>)Array.Empty<RecoveryStep>());
-        var mp = GetOption(args, "--recover-mp") is { } mpText ? ParseRecoverSpec(mpText, data, "--recover-mp") : (0, (IReadOnlyList<RecoveryStep>)Array.Empty<RecoveryStep>());
+        var hp = StrictOptions.Value(args, "--recover-hp") is { } hpText ? ParseRecoverSpec(hpText, data, "--recover-hp") : (0, (IReadOnlyList<RecoveryStep>)Array.Empty<RecoveryStep>());
+        var mp = StrictOptions.Value(args, "--recover-mp") is { } mpText ? ParseRecoverSpec(mpText, data, "--recover-mp") : (0, (IReadOnlyList<RecoveryStep>)Array.Empty<RecoveryStep>());
         foreach (var upkeep in GetOptions(args, "--upkeep")) policies.Add(ParseUpkeep(upkeep, data));
         if (hp.Item1 > 0 || mp.Item1 > 0) policies.Insert(0, RecoveryPolicies.Simple(hp.Item1, mp.Item1, hp.Item2, mp.Item2));
         return policies.Count == 0 ? RecoveryPolicies.None : policies.Count == 1 ? policies[0] : RecoveryPolicies.Combine(policies.ToArray());
@@ -174,11 +194,11 @@ internal static partial class KolibriCli
     /// <summary>--combat-rules TEXT or --combat-rules-file PATH (exclusive with --fight-action); null if neither is given.</summary>
     internal static ICombatStrategy? BuildRulesStrategy(string[] args, GameData data)
     {
-        var text = GetOption(args, "--combat-rules");
-        var path = GetOption(args, "--combat-rules-file");
+        var text = StrictOptions.Value(args, "--combat-rules");
+        var path = StrictOptions.Value(args, "--combat-rules-file");
         if (text is null && path is null) return null;
         if (text is not null && path is not null) throw new ArgumentException("Pass either --combat-rules or --combat-rules-file, not both. Nothing was sent.");
-        if (GetOptions(args, "--fight-action").Any() || HasFlag(args, "--no-auto-fight"))
+        if (StrictOptions.Value(args, "--fight-action") is not null || HasFlag(args, "--no-auto-fight"))
             throw new ArgumentException("--combat-rules / --combat-rules-file exclude --fight-action and --no-auto-fight. Nothing was sent.");
         if (path is not null)
         {
@@ -186,7 +206,11 @@ internal static partial class KolibriCli
             text = File.ReadAllText(path);
         }
         try { return CombatStrategies.FromRules(text!, data); }
-        catch (ArgumentException exception) { throw new ArgumentException($"{exception.Message} Nothing was sent."); }
+        catch (ArgumentException exception)
+        {
+            var flag = path is null ? "--combat-rules" : "--combat-rules-file";
+            throw new ArgumentException($"{flag}: {exception.Message} Nothing was sent.", exception);
+        }
     }
 
     /// <summary>The stop conditions the run used (--conditions-file, --stop-item, --stop-monster, --stop-title, --stop-on-turtle).</summary>
@@ -222,12 +246,12 @@ internal static partial class KolibriCli
         => steps.Select(step => (object)new { kind = step.Kind.ToString(), id = step.Id > 0 ? step.Id : (int?)null, times = step.Times > 1 ? step.Times : (int?)null, reason = step.Reason }).ToArray();
 
     /// <summary>Asks the first resolver; if it has no option, the second one decides (policy file first, built-in table second).</summary>
-    internal sealed class FirstAnswerResolver(IChoiceResolver first, IChoiceResolver second) : IChoiceResolver
+    internal sealed class FirstAnswerResolver(IChoiceResolver first, IChoiceResolver second, IReadOnlyDictionary<int, int> configured) : IChoiceResolver
     {
         public ChoiceDecision Resolve(ChoiceContext context)
         {
             var decision = first.Resolve(context);
-            return decision.Option is not null ? decision : second.Resolve(context);
+            return decision.Option is not null || configured.ContainsKey(context.ChoiceId) ? decision : second.Resolve(context);
         }
     }
 
@@ -262,7 +286,8 @@ internal static partial class KolibriCli
             }
             var kind = Text("kind").ToLowerInvariant();
             var op = Text("operator").ToLowerInvariant();
-            var target = int.TryParse(Text("target"), out var t) ? Math.Max(0, t) : 0;
+            if (!int.TryParse(Text("target"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var target) || target < 0)
+                throw new ArgumentException($"--conditions-file needs a non-negative whole-number target: {c.GetRawText()}.");
             var key = Text("key");
             if (kind is "itemcount" && op is "" or "atleast" && int.TryParse(key, out var item) && item > 0)
                 result.Add(StopCondition.ItemCountAtLeast(item, target));
@@ -274,17 +299,59 @@ internal static partial class KolibriCli
         return result;
     }
 
-    private static async Task<int> AdventureRunAsync(string[] args)
+    private static async Task<int> AdventureRunAsync(string[] args, Func<string, string?> env, bool previewAlias, Func<int?>? checkAgent)
     {
-        var location = ReadAdventureId(args);
-        var runId = GetOption(args, "--run-id") ?? $"cli-{Guid.NewGuid():N}";
-        var role = ParseRole(GetOption(args, "--role") ?? "main");
+        var execute = HasFlag(args, "--execute");
+        if (previewAlias && execute)
+            throw new ArgumentException("Adventure preview aliases do not accept --execute. Use 'adventure run' to execute.");
+        var positional = StrictOptions.Only(args,
+            [.. ContinueValueOptions, "--location", "--adventure", "--snarfblat", "--role", "--run-id",
+                "--approval-token", "--fight-action", "--choice-action", "--upkeep", "--stop-item", "--stop-monster", "--stop-title"],
+            ["--execute", "--no-auto-fight", "--stop-on-turtle", "--no-choice-defaults"], allowPositional: true);
+        var locationArg = StrictOptions.Value(args, "--location");
+        var adventureArg = StrictOptions.Value(args, "--adventure");
+        if (new[] { locationArg, adventureArg, positional }.Count(value => value is not null) > 1)
+            throw new ArgumentException("Specify the adventure location once.");
+        var location = locationArg ?? adventureArg ?? positional ?? throw new ArgumentException("--location LOCATION is required.");
+        var runId = StrictOptions.Value(args, "--run-id") ?? $"cli-{Guid.NewGuid():N}";
+        var role = StrictOptions.Role(args);
         // An explicit --snarfblat wins; otherwise a catalog id ("adventure=543:Name") supplies it.
-        var snarfblat = ReadNullableInt(args, "--snarfblat")
-            ?? (TryGetSnarfblat(location, out var catalogSnarfblat) ? catalogSnarfblat : (int?)null);
-        var conditionsPath = GetOption(args, "--conditions-file");
+        var snarfblat = StrictOptions.Int(args, "--snarfblat", TryGetSnarfblat(location, out var catalogSnarfblat) ? catalogSnarfblat : 0, 1, int.MaxValue);
+        if (snarfblat == 0)
+            throw new ArgumentException($"No location number (snarfblat) for '{location}'. Pass --snarfblat N. Nothing was sent.");
+
+        var turnsWanted = StrictOptions.Int(args, "--max-turns", StrictOptions.Int(args, "--turns", 1, 1, int.MaxValue), 1, int.MaxValue);
+        if (HasFlag(args, "--max-turns") && HasFlag(args, "--turns"))
+            throw new ArgumentException("Pass either --max-turns or --turns, not both.");
+        var loopDeadline = TimeSpan.FromSeconds(StrictOptions.Int(args, "--max-duration-seconds", 300 * Math.Min(turnsWanted, 100), 1, int.MaxValue));
+        var minHpPercent = StrictOptions.Int(args, "--min-hp-percent", DefaultMinHpPercent, 0, 100);
+        var maxFightRounds = StrictOptions.Int(args, "--max-fight-rounds", DefaultMaxFightRounds, 1, int.MaxValue);
+        var maxRecoveryAdventures = StrictOptions.Int(args, "--max-recovery-adventures", 0, 0, int.MaxValue);
+        var approvalToken = StrictOptions.Value(args, "--approval-token");
+        var fightActionText = StrictOptions.Value(args, "--fight-action");
+        var conditionsPath = StrictOptions.Value(args, "--conditions-file");
         var conditions = conditionsPath is null ? Array.Empty<JsonElement>() : ReadJsonArray<JsonElement>(conditionsPath, "conditions");
-        if (!HasFlag(args, "--execute"))
+
+        await using var client = CreateClient(env);
+        var data = client.Data;
+        var stopWhen = ReadStopConditions(conditions).Concat(BuildFarmStops(args, data)).ToArray();
+        var recovery = BuildRecovery(args, data);
+        var rules = BuildRulesStrategy(args, data);
+        var stopOnTurtle = HasFlag(args, "--stop-on-turtle");
+        var useChoiceDefaults = !HasFlag(args, "--no-choice-defaults");
+        var fightAction = fightActionText is not null ? ParseFightAction(fightActionText)
+            : rules is null && !HasFlag(args, "--no-auto-fight") ? CombatAction.Attack : null;
+        var choiceTable = new Dictionary<int, int>();
+        foreach (var choice in GetOptions(args, "--choice-action"))
+        {
+            var separator = choice.IndexOf(':');
+            if (separator <= 0 || !int.TryParse(choice[..separator], out var choiceId) || choiceId <= 0
+                || !int.TryParse(choice[(separator + 1)..], out var optionId) || optionId <= 0)
+                throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID (positive integers).");
+            choiceTable[choiceId] = optionId;
+        }
+
+        if (!execute)
         {
             WriteJson(new
             {
@@ -303,52 +370,21 @@ internal static partial class KolibriCli
             return 0;
         }
 
-        var approvalToken = GetOption(args, "--approval-token");
-        if (string.IsNullOrWhiteSpace(approvalToken))
+        if (approvalToken is null)
             throw new ArgumentException("Live adventure execution requires --approval-token.");
+        if (checkAgent?.Invoke() is { } blocked) return blocked;
         if (!await AgentGuard.ApprovalTokenValidAsync(approvalToken).ConfigureAwait(false))
             throw new ArgumentException("The supplied approval token does not match the stored approval token. Nothing was sent.");
 
-        // Everything that can be refused is checked before a session is opened.
-        await using var client = CreateClient();
-        var data = client.Data;
-        var stopWhen = ReadStopConditions(conditions).Concat(BuildFarmStops(args, data)).ToList();
-        var recovery = BuildRecovery(args, data);
-        var rules = BuildRulesStrategy(args, data);
-        var stopOnTurtle = HasFlag(args, "--stop-on-turtle");
-        var useChoiceDefaults = !HasFlag(args, "--no-choice-defaults");
-        var fightActions = GetOptions(args, "--fight-action").ToList();
-        // Documented default: a fight that opens during the run is fought with "attack" until it ends,
-        // bounded by --max-fight-rounds and --min-hp-percent. --no-auto-fight turns this off; the run then
-        // stops at the fight and names the command to finish it.
-        var autoFight = rules is null && fightActions.Count == 0 && !HasFlag(args, "--no-auto-fight");
-        if (autoFight) fightActions.Add(DefaultFightAction);
-        var fightAction = fightActions.Count > 0 ? ParseFightAction(fightActions[0]) : null;
-        foreach (var extra in fightActions.Skip(1)) ParseFightAction(extra);
-        var choiceTable = new Dictionary<int, int>();
-        foreach (var choice in GetOptions(args, "--choice-action"))
-        {
-            var separator = choice.IndexOf(':');
-            if (separator <= 0 || separator == choice.Length - 1
-                || !int.TryParse(choice[..separator], out var choiceId) || !int.TryParse(choice[(separator + 1)..], out var optionId))
-                throw new ArgumentException("--choice-action expects CHOICE_ID:OPTION_ID.");
-            choiceTable[choiceId] = optionId;
-        }
-        if (snarfblat is not > 0)
-            throw new ArgumentException($"No location number (snarfblat) for '{location}'. Pass --snarfblat N. Nothing was sent.");
-
-        var turnsWanted = Math.Max(1, ReadInt(args, "--max-turns", ReadInt(args, "--turns", 1)));
         var loopStarted = DateTimeOffset.UtcNow;
-        var loopDeadline = TimeSpan.FromSeconds(Math.Max(1, ReadInt(args, "--max-duration-seconds", 300 * Math.Min(turnsWanted, 100))));
-        var minHpPercent = Math.Clamp(ReadInt(args, "--min-hp-percent", DefaultMinHpPercent), 0, 100);
-        var maxFightRounds = Math.Max(1, ReadInt(args, "--max-fight-rounds", DefaultMaxFightRounds));
-        // Paid rests (once the free ones are used up) cost adventures outside --max-turns: default none, budget over the whole run.
-        var maxRecoveryAdventures = Math.Max(0, ReadInt(args, "--max-recovery-adventures", 0));
         var recoveryAdventures = 0;
+        StopCondition[] runStops = minHpPercent > 0 ? [.. stopWhen, StopCondition.HpBelowPercent(minHpPercent)] : stopWhen;
         // The 0.4 policy file keeps its per-choice defaults; the built-in table (ChoiceDefaults) is the fallback for choices it does not know.
-        var policyResolver = CreateChoiceResolver(LoadChoicePolicy(), choiceTable);
+        var config = ChoicePolicyStore(env, client.Options.StateDirectory).Load();
+        var configured = MergeChoiceOptions(config, choiceTable);
+        var policyResolver = config.Mode == ChoiceResolutionMode.AutoSafe ? ChoiceResolvers.Safe(configured) : ChoiceResolvers.FromTable(configured);
         var resolver = new LoggingChoiceResolver(useChoiceDefaults
-            ? new FirstAnswerResolver(policyResolver, ChoiceDefaults.Resolver(choiceTable, stopOnTurtle))
+            ? new FirstAnswerResolver(policyResolver, ChoiceDefaults.Resolver(stopOnTurtle: stopOnTurtle), configured)
             : policyResolver, location);
 
         KolibriSession session;
@@ -380,20 +416,20 @@ internal static partial class KolibriCli
         for (var turn = 1; turn <= turnsWanted; turn++)
         {
             if (turn > 1) currentRunId = $"{runId}-{turn}";
-            var inner = rules is not null && stopOnTurtle ? CombatStrategies.StopOnTurtle(rules) : rules;
-            var strategy = new CliCombatStrategy(fightAction, minHpPercent, inner);
-            result = await session.Adventure.RunAsync(new RunRequest(snarfblat.Value, 1)
+            var strategy = new CliCombatStrategy(fightAction, minHpPercent, rules, stopOnTurtle);
+            result = await session.Adventure.RunAsync(new RunRequest(snarfblat, 1)
             {
                 Combat = strategy,
                 Choices = resolver,
-                StopWhen = stopWhen,
+                // Before the first turn the CLI uses the HP floor for combat only. Between turns it stops after recovery.
+                StopWhen = turn == 1 ? stopWhen : runStops,
                 MaxRoundsPerFight = maxFightRounds,
                 Recovery = recovery,
                 MaxRecoveryAdventures = Math.Max(0, maxRecoveryAdventures - recoveryAdventures)
             });
             recoverySteps.AddRange(result.RecoverySteps);
             recoveryAdventures += result.RecoveryAdventuresSpent;
-            stopReason = StopReasonName(result, strategy, maxFightRounds);
+            stopReason = StopReasonName(result, strategy);
             if (result.StopReason == RunStopReason.NeedsCombat) fightStop = stopReason;
             foreach (var encounter in result.Encounters)
             {
@@ -402,7 +438,8 @@ internal static partial class KolibriCli
                 {
                     var index = pages.FindLastIndex(p => !ReferenceEquals(p, unknown.Page));
                     archived = UnknownPageArchive.TrySave(unknown.Title == "Unreadable fight page" ? "UnknownFight" : "UnknownEncounter",
-                        unknown.Page.Html, DateTimeOffset.UtcNow, trail.ToArray(), index >= 0 ? pages[index].Html : null);
+                        unknown.Page.Html, DateTimeOffset.UtcNow, trail.ToArray(), index >= 0 ? pages[index].Html : null,
+                        client.Options.StateDirectory);
                     unknownPagePath = archived ?? unknownPagePath;
                 }
                 steps.Add(StepDocument(encounter, archived));
@@ -425,8 +462,6 @@ internal static partial class KolibriCli
             if (after.Adventures == before.Adventures)
             { loopStop = "The adventure counter did not change after a completed adventure; stopping instead of guessing."; break; }
             if (after.Adventures <= 0) { loopStop = "No adventures left."; break; }
-            if (minHpPercent > 0 && (after.MaxHp <= 0 || 100L * after.Hp < (long)minHpPercent * after.MaxHp))
-            { loopStop = $"HP is below {minHpPercent}% (or unknown) before the next adventure."; break; }
             if (DateTimeOffset.UtcNow - loopStarted >= loopDeadline) { loopStop = "The run's time limit was reached."; break; }
             before = after;
         }
@@ -441,7 +476,7 @@ internal static partial class KolibriCli
             leftover = state.IsUnavailable ? new { open = (bool?)null, message = state.Message } : state.IsOpen ? OpenChoiceDocument(state, role) : null;
         }
         var continueCommand = BuildContinueCommand(args, location, role, snarfblat);
-        var fightOpen = needs is null ? FightStopDocument(fightStop ?? stopReason, leftoverFight, args, location, role, snarfblat) : null;
+        var fightOpen = needs is null ? FightStopDocument(fightStop ?? stopReason, fightStop is not null || leftoverFight, args, location, role, snarfblat) : null;
         WriteJson(new
         {
             command = "adventure run",
@@ -477,15 +512,13 @@ internal static partial class KolibriCli
     }
 
     /// <summary>The 0.4 stop reason names (BoundedAdventureRunStopReason) for a 0.5 run result.</summary>
-    internal static string StopReasonName(RunResult result, CliCombatStrategy strategy, int maxFightRounds) => result.StopReason switch
+    private static string StopReasonName(RunResult result, CliCombatStrategy strategy) => result.StopReason switch
     {
         RunStopReason.TurnsDone => "Complete",
         RunStopReason.Condition => ConditionName(result.Detail),
         RunStopReason.Recovery => "Recovery",
         RunStopReason.NeedsChoice => "NeedsDecision",
-        RunStopReason.NeedsCombat when strategy.StopReason == "HpBelowMinimum" => "HpBelowMinimum",
-        RunStopReason.NeedsCombat when strategy.StopReason == "UnknownFight" => "UnknownFight",
-        RunStopReason.NeedsCombat => "FightRoundLimitReached",
+        RunStopReason.NeedsCombat => strategy.StopReason ?? "FightRoundLimitReached",
         RunStopReason.Cancelled => "DeadlineReached",
         _ => "GatewayStopped"
     };
@@ -574,6 +607,7 @@ internal static partial class KolibriCli
             "FightRoundLimitReached" => "the fight round limit was reached",
             "HpBelowMinimum" => "HP is below the configured minimum (or unknown)",
             "UnknownFight" => "no fight action is configured for this fight (--no-auto-fight or a non-matching --fight-action)",
+            "TurtleEncounter" => "--stop-on-turtle stopped before the first fight action",
             _ => "the run stopped before the fight ended"
         };
         return new
@@ -587,7 +621,7 @@ internal static partial class KolibriCli
 
     private static readonly string[] ContinueValueOptions =
     {
-        "--combat-rules", "--combat-rules-file", "--recover-hp", "--recover-mp", "--max-steps", "--max-fight-rounds", "--min-hp-percent", "--max-duration-seconds", "--max-turns", "--max-runs", "--conditions-file",
+        "--combat-rules", "--combat-rules-file", "--recover-hp", "--recover-mp", "--max-fight-rounds", "--min-hp-percent", "--max-duration-seconds", "--max-turns", "--turns", "--conditions-file",
         "--max-recovery-adventures"
     };
 
@@ -630,9 +664,9 @@ internal static partial class KolibriCli
         catch (JsonException exception) { throw new ArgumentException($"JSON file '{path}' is invalid.", exception); }
         using (document)
         {
-            var element = document.RootElement.ValueKind == JsonValueKind.Array
-                ? document.RootElement
-                : document.RootElement.TryGetProperty(propertyName, out var nested) ? nested : default;
+            var root = document.RootElement;
+            var element = root.ValueKind == JsonValueKind.Array ? root
+                : root.ValueKind == JsonValueKind.Object && root.TryGetProperty(propertyName, out var nested) ? nested : default;
             if (element.ValueKind != JsonValueKind.Array)
                 throw new ArgumentException($"{path} must be a JSON array or an object with '{propertyName}'.");
             return element.Deserialize<T[]>(JsonOptions) ?? Array.Empty<T>();
@@ -673,12 +707,12 @@ internal static partial class KolibriCli
         Console.WriteLine("      choices: --choice-action CHOICE:OPTION plus the defaults of `choice policy`; an unknown choice stops with needsDecision (exit 4)");
         Console.WriteLine("      farm flags: --combat-rules \"TEXT\" | --combat-rules-file PATH (instead of --fight-action; --min-hp-percent still applies),");
         Console.WriteLine("      --recover-hp PCT:STEP[,STEP] --recover-mp PCT:STEP[,STEP] --upkeep EFFECT_ID:MINTURNS:STEP (repeatable); STEP = rest | item:ID|NAME | skill:ID|NAME,");
-        Console.WriteLine("      --max-recovery-adventures N (0): adventures paid rests may cost on top of --max-turns (the first paid rest is seen in KoL's answer, then the run stops),");
+        Console.WriteLine("      --max-recovery-adventures N (0): paid-rest budget on top of --max-turns. With no budget left, only rests shown as free are sent.");
         Console.WriteLine("      --stop-item ID|NAME:N --stop-monster NAME --stop-title REGEX (repeatable), --stop-on-turtle (Turtle Tamer encounters are clicked through by default),");
         Console.WriteLine("      --no-choice-defaults (built-in farm choices such as 1060 -> 2 are on by default)");
         Console.WriteLine("      farm recipe: kolibri adventure run --location 439 --max-turns 50 --combat-rules \"attack\" --recover-hp 40:rest --stop-item knucklebone:200 --execute --approval-token TOKEN");
         Console.WriteLine("  choice pending|submit|policy                         see `choice --help`");
-        Console.WriteLine("      start|begin|bounded-preview|run-preview are aliases of `adventure run`");
+        Console.WriteLine("      start|begin are aliases of `adventure run`; bounded-preview|run-preview only accept preview options");
         Console.WriteLine("  adventure inspect [--role main]                      the open fight/choice (read-only, exit 4 if one is open)");
         Console.WriteLine("  adventure step --location ID [--snarfblat N] --execute --approval-token TOKEN   exactly one adventure, nothing resolved (alias: advance)");
         Console.WriteLine("  adventure fight --action attack|run|skill:ID|item:ID[,ID2] [--until-end --max-rounds N --min-hp-percent N] --execute --approval-token TOKEN");

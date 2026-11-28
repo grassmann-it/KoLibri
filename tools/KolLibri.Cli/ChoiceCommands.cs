@@ -4,7 +4,9 @@ using KoLibri;
 // handling. pending/policy list are read-only; submit previews unless --execute is given.
 internal static partial class KolibriCli
 {
-    internal static async Task<int> ChoiceCommandAsync(string[] args)
+    internal static Task<int> ChoiceCommandAsync(string[] args) => ChoiceCommandAsync(args, Environment.GetEnvironmentVariable);
+
+    private static async Task<int> ChoiceCommandAsync(string[] args, Func<string, string?> env)
     {
         if (args.Length == 0 || IsHelp(args[0]))
         {
@@ -15,7 +17,7 @@ internal static partial class KolibriCli
         {
             "pending" or "open" => await ChoicePendingAsync(args[1..]),
             "submit" => await ChoiceSubmitAsync(args[1..]),
-            "policy" => ChoicePolicyCommand(args[1..]),
+            "policy" => ChoicePolicyCommand(args[1..], env),
             _ => Fail($"Unknown choice command: {args[0]}")
         };
     }
@@ -138,9 +140,9 @@ internal static partial class KolibriCli
         return submitted ? 0 : 3;
     }
 
-    private static int ChoicePolicyCommand(string[] args)
+    private static int ChoicePolicyCommand(string[] args, Func<string, string?> env)
     {
-        var store = new ChoiceResolutionConfigStore(Environment.GetEnvironmentVariable("KOLIBRI_CHOICE_POLICY"));
+        var store = ChoicePolicyStore(env, ConfiguredStateDirectory);
         var action = args.Length == 0 ? "list" : args[0].ToLowerInvariant();
         var rest = args.Length == 0 ? args : args[1..];
         var config = store.Load();
@@ -217,18 +219,17 @@ internal static partial class KolibriCli
     }
 
     /// <summary>The policy file of 0.4 (per-choice defaults, mode ask|auto-safe) as a KoLibri resolver.</summary>
-    internal static ChoiceResolutionConfig LoadChoicePolicy()
-        => new ChoiceResolutionConfigStore(Environment.GetEnvironmentVariable("KOLIBRI_CHOICE_POLICY")).Load();
+    private static ChoiceResolutionConfigStore ChoicePolicyStore(Func<string, string?> env, string? stateDirectory)
+        => new(stateDirectory is { } state ? Path.Combine(state, "choice-policy.json") : env("KOLIBRI_CHOICE_POLICY"));
 
     /// <summary>Strict default: per-choice defaults from the policy file (plus <paramref name="extra"/>), mode ask unless configured.</summary>
-    internal static IChoiceResolver CreateChoiceResolver(ChoiceResolutionConfig config, IReadOnlyDictionary<int, int>? extra = null)
+    private static Dictionary<int, int> MergeChoiceOptions(ChoiceResolutionConfig config, IReadOnlyDictionary<int, int> extra)
     {
         var table = new Dictionary<int, int>();
         foreach (var (id, entry) in config.Choices)
             if (int.TryParse(id, out var choiceId)) table[choiceId] = entry.Option;
-        if (extra is not null)
-            foreach (var (id, option) in extra) table[id] = option;
-        return config.Mode == ChoiceResolutionMode.AutoSafe ? ChoiceResolvers.Safe(table) : ChoiceResolvers.FromTable(table);
+        foreach (var (id, option) in extra) table[id] = option;
+        return table;
     }
 
     private static void PrintChoiceHelp()

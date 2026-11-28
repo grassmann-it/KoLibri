@@ -95,7 +95,8 @@ internal static partial class KolibriCli
             return 0;
         }
 
-        var ledger = new ArbitrageSpendLedger(ArbitrageSpendLedger.DefaultPath());
+        var ledger = new ArbitrageSpendLedger(client.Options.StateDirectory is { } state
+            ? Path.Combine(state, "arbitrage-ledger.json") : ArbitrageSpendLedger.DefaultPath());
         var executor = new ItemArbitrageExecutor(session, ledger, role.ToString(), settings);
         if (!execute)
         {

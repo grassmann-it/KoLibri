@@ -16,13 +16,13 @@ internal static partial class KolibriCli
         var role = ParseRole(GetOption(args, "--role") ?? "main");
         var port = Math.Clamp(ReadInt(args, "--port", RelayDefaultPort), 1024, 65535);
         var browserUa = HasFlag(args, "--browser-ua");
-        var logPath = Path.GetFullPath(GetOption(args, "--log") ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri", "relay-log.jsonl"));
-        Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-
         var (client, session) = await OpenAsync(role);
         await using var _client = client;
         await using var _session = session;
+        var state = client.Options.StateDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KoLibri");
+        var logPath = Path.GetFullPath(GetOption(args, "--log") ?? Path.Combine(state, "relay-log.jsonl"));
+        Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
         RelayServer host;
         try
         {

@@ -180,19 +180,24 @@ internal static partial class KolibriCli
             return round.Outcome == FightOutcome.Ongoing || tail is not null ? 4 : 0;
         }
 
-        var strategy = new BoundedFightStrategy(new CliCombatStrategy(action, minHp), maxRounds);
-        var result = await session.Adventure.FightToEndAsync(strategy);
+        var open = await DetectOpenAsync(session);
+        var strategy = new CliCombatStrategy(action, minHp);
+        var result = open.Kind == "Fight"
+            ? await session.Adventure.FightToEndAsync(strategy, maxRounds, CancellationToken.None)
+            : new FightResult(FightOutcome.Unknown, "", Array.Empty<FightRound>());
         var stopped = result.Outcome == FightOutcome.Stopped;
-        var stopReason = stopped ? strategy.StopReason ?? "Stopped" : null;
-        var choice = stopped ? null : await OpenAfterFightAsync(session);
+        var unknown = result.Outcome == FightOutcome.Unknown;
+        var stopReason = stopped ? strategy.StopReason ?? "FightRoundLimitReached" : null;
+        var choice = stopped || unknown ? null : await OpenAfterFightAsync(session);
         WriteJson(new
         {
-            command = "adventure fight", readOnly = false, executed = true, role = role.ToString(), action = actionText, untilEnd = true,
+            command = "adventure fight", readOnly = false, executed = result.Rounds.Count > 0, role = role.ToString(), action = actionText, untilEnd = true,
             monster = result.MonsterName, outcome = result.Outcome.ToString(), stopReason, rounds = result.Rounds.Select(RoundDocument).ToArray(),
-            openFight = stopped, openChoice = choice is null ? null : OpenChoiceDocument(choice, role), items = ItemsDocument(result.Items), meat = result.Meat,
-            nextCommand = stopped ? again : SubmitCommandOf(choice, role)
+            openFight = unknown ? (bool?)null : stopped,
+            openChoice = choice is null ? null : OpenChoiceDocument(choice, role), items = ItemsDocument(result.Items), meat = result.Meat,
+            nextCommand = unknown ? $"kolibri adventure inspect --role {RoleName(role)}" : stopped ? again : SubmitCommandOf(choice, role)
         });
-        return stopped || choice is not null ? 4 : 0;
+        return unknown ? 3 : stopped || choice is not null ? 4 : 0;
     }
 
     /// <summary>skill:ID, item:ID or item:ID,ID2 (second item), attack, run.</summary>
@@ -231,22 +236,6 @@ internal static partial class KolibriCli
 
     private static string? SubmitCommandOf(OpenState? state, AccountRole role)
         => state?.Choice is { } c ? NextCommandFor(c, role) : state?.Kind == "Fight" ? FightCommand(role, DefaultFightAction, false, DefaultMaxFightRounds, DefaultMinHpPercent) : null;
-
-    /// <summary>Stops a fight at the round bound; the inner strategy supplies the HP floor and the action.</summary>
-    private sealed class BoundedFightStrategy(CliCombatStrategy inner, int maxRounds) : ICombatStrategy
-    {
-        private int _asked;
-        private string? _own;
-        public string? StopReason => _own ?? inner.StopReason;
-
-        public CombatAction Next(CombatContext context)
-        {
-            if (_asked >= maxRounds) { _own = "FightRoundLimitReached"; return CombatAction.Stop; }
-            var action = inner.Next(context);
-            if (action.Kind != CombatActionKind.Stop) _asked++;
-            return action;
-        }
-    }
 
     private static string RoleName(AccountRole role) => role.ToString().ToLowerInvariant();
 

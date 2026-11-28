@@ -36,7 +36,7 @@ internal static partial class KolibriCli
         var (client, session) = await OpenAsync(role);
         await using var _ = client;
         await using var __ = session;
-        var crmStore = new BuyerCrmStore();
+        var crmStore = new BuyerCrmStore(client.Options.StateDirectory);
         var buyerHasher = crmStore.CreateHasher();
         var knownAccountKeys = (await client.Accounts.ListAsync())
             .Select(account => buyerHasher.Hash(account.PlayerName))
@@ -77,7 +77,7 @@ internal static partial class KolibriCli
             ?? (args.Length > 0 && !args[0].StartsWith('-') ? args[0] : null)
             ?? throw new ArgumentException("--key BUYER_KEY is missing.");
         var blocked = !bool.TryParse(GetOption(args, "--blocked"), out var parsed) || parsed;
-        var store = new BuyerCrmStore();
+        var store = new BuyerCrmStore(ConfiguredStateDirectory);
         var database = await store.LoadAsync();
         var updated = BuyerCrmService.SetBlocked(database, buyerKey, blocked, GetOption(args, "--note"));
         await store.SaveAsync(updated);

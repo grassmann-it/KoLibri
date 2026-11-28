@@ -76,14 +76,23 @@ internal static class StrictOptions
     }
 
     /// <summary>Rejects anything that is not one of the known value options or flags (typos like --qtty).</summary>
-    public static void Only(string[] args, IReadOnlyCollection<string> valueOptions, IReadOnlyCollection<string> flags)
+    public static string? Only(string[] args, IReadOnlyCollection<string> valueOptions, IReadOnlyCollection<string> flags,
+        bool allowPositional = false)
     {
+        string? positional = null;
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (valueOptions.Contains(arg, StringComparer.OrdinalIgnoreCase)) { i++; continue; }
+            if (valueOptions.Contains(arg, StringComparer.OrdinalIgnoreCase))
+            {
+                if (++i >= args.Length || IsOptionLike(args[i]) || string.IsNullOrWhiteSpace(args[i]))
+                    throw new ArgumentException($"{arg} requires a value.");
+                continue;
+            }
             if (flags.Contains(arg, StringComparer.OrdinalIgnoreCase)) continue;
+            if (allowPositional && positional is null && !arg.StartsWith('-')) { positional = arg; continue; }
             throw new ArgumentException($"Unknown argument '{arg}'.");
         }
+        return positional;
     }
 }
