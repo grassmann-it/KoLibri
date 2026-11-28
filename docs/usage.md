@@ -25,7 +25,7 @@ kolibri daily run --role main       # preview of the day
 kolibri daily run --role main --execute --approval-token TOKEN
 ```
 
-The CLI never changes the account without `--execute` (and `--approval-token` for adventures, purchases and the daily run).
+The CLI never changes the account without `--execute` (`--commit` for `apply-prices`). No token is needed for `consume`, `rest` and `cast` (`--execute` is enough) or for the experimental `apply-prices --commit` (changes prices in your own store, never buys). These act only on your own account and run exactly what the command line names; use the preview first. Adventures, fights, purchases, `keys`, `choice submit` and the daily run need `--approval-token`.
 `kolibri --help` lists every command; commands removed in 0.5 exit with code 2 and say what replaces them.
 
 ### Adventures
